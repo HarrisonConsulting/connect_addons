@@ -33,7 +33,6 @@ ALTER TABLE twilidoo_channel RENAME TO connect_channel;
 ALTER TABLE twilidoo_debug RENAME TO connect_debug;
 ALTER TABLE twilidoo_domain RENAME TO connect_domain;
 ALTER TABLE twilidoo_favorite RENAME TO connect_favorite;
-ALTER TABLE twilidoo_message RENAME TO connect_message;
 ALTER TABLE twilidoo_queue RENAME TO connect_queue;
 ALTER TABLE twilidoo_query RENAME TO connect_query;
 ALTER TABLE twilidoo_query_twilidoo_query_source_rel RENAME TO connect_query_connect_query_source_rel;

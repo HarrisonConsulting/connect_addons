@@ -11,10 +11,21 @@
     <field name="perm_unlink" eval="0"/>
   </record>
 
-  <!-- Settings -->
+  <!-- res.partner read access for webhook -->
   <record id="connect_res_partner_webhook" model="ir.model.access">
     <field name="name">connect_res_partner_webhook</field>
     <field name="model_id" ref="base.model_res_partner"/>
+    <field name="group_id" ref="connect.group_connect_webhook"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- res.users read access for webhook - required for caller/called user info in call forwarding -->
+  <record id="connect_res_users_webhook" model="ir.model.access">
+    <field name="name">connect_res_users_webhook</field>
+    <field name="model_id" ref="base.model_res_users"/>
     <field name="group_id" ref="connect.group_connect_webhook"/>
     <field name="perm_read" eval="1"/>
     <field name="perm_write" eval="0"/>

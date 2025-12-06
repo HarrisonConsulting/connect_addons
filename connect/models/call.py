@@ -20,7 +20,7 @@ IGNORE_ERROR_CODES = ['32009']
 
 class Call(models.Model):
     _name = 'connect.call'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'connect.tts.mixin']
     _description = 'Call'
     _order = 'id desc'
 
@@ -499,7 +499,7 @@ class Call(models.Model):
         def transfer_other():
             # Put other channel into conference.
             response = VoiceResponse()
-            response.say('Transfer')
+            self.tts_system_message(response, 'system.transfer')
             dial = Dial()
             dial.conference('user-{}-{}'.format(user.id, conf_id))
             response.append(dial)
@@ -509,7 +509,7 @@ class Call(models.Model):
         def transfer_user():
             # Dial a new call party.
             response = VoiceResponse()
-            response.say('Transfer')
+            self.tts_system_message(response, 'system.transfer')
             dial = Dial()
             sip = Sip('sip:user@devmax17.sip.twilio.com')
             # dial.conference('user-{}-{}'.format(user.id,  conf_id))

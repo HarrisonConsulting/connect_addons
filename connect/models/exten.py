@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class Exten(models.Model):
     _name = 'connect.exten'
+    _inherit = ['connect.tts.mixin']
     _description = 'Exten'
     _order = 'number'
 
@@ -133,7 +134,7 @@ class Exten(models.Model):
         self.ensure_one()
         if not self.dst:
             response = VoiceResponse()
-            response.say('Extension not configured!')
+            self.tts_system_message(response, 'error.no_extension')
             return response
         params['ExtenID'] = self.id
         params['ExtenNumber'] = self.number

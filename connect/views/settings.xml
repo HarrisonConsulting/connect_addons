@@ -54,9 +54,13 @@
                     </group>
                     <group name="openai_api" string="OpenAI">
                       <div colspan="2">
-                        <small><strong>You can find your OpenAI API key in <a href="https://platform.openai.com/settings/organization/api-keys" target="_blank">your OpenAI Setings</a></strong></small>
+                        <small><strong>You can find your OpenAI API key in <a href="https://platform.openai.com/settings/organization/api-keys" target="_blank">your OpenAI Settings</a></strong></small>
                       </div>
-                      <field name="display_openai_api_key" string="OpenAI API Key" password="1"/>
+                      <field name="display_openai_api_key" string="API Key" password="1"/>
+                      <field name="openai_base_url" string="Base URL" placeholder="https://api.openai.com (default)"/>
+                      <div colspan="2">
+                        <small>Leave empty for default OpenAI API. Set custom URL for LiteLLM or other OpenAI-compatible proxies.</small>
+                      </div>
                     </group>
                   </group>
                 </page>

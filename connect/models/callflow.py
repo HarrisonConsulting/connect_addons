@@ -21,6 +21,7 @@ class CallflowChoice(models.Model):
 
 class CallFlow(models.Model):
     _name = 'connect.callflow'
+    _inherit = ['connect.tts.mixin']
     _description = 'Call Flow'
     _order = 'name asc'
 
@@ -111,7 +112,7 @@ class CallFlow(models.Model):
                     [('is_default', '=', True)], limit=1).number
                 if not callerId:
                     response = VoiceResponse()
-                    response.say('Your must configure a default number for caller ID!')
+                    self.tts_system_message(response, 'error.no_callerid')
                     return response
             if self.record_calls:
                 dial = Dial(callerId=callerId, action=action_url,
@@ -146,7 +147,7 @@ class CallFlow(models.Model):
                     recordingStatusCallback=voicemail_record_status_url)
             else:
                 # No voicemail, just say sorry and hangup.
-                response.say('This callflow has no actions! Goodbye!')
+                self.tts_system_message(response, 'error.callflow_empty')
                 response.pause(length=1)
                 response.hangup()
         debug(self, pretty_xml(str(response)))
@@ -173,7 +174,7 @@ class CallFlow(models.Model):
                 edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
                 response.pause(length=1)
-                response.say(callflow.voicemail_prompt, language=callflow.language, voice=callflow.voice)
+                callflow.get_voicemail_prompt_message(response)
                 response.record(
                     maxLength=120,
                     finishOnKey='#',
@@ -181,7 +182,7 @@ class CallFlow(models.Model):
                     recordingStatusCallback=record_status_url)
             else:
                 # No voicemail, just say sorry and hangup.
-                response.say('Sorry, I could not connect your call. Goodbye!')
+                self.tts_system_message(response, 'error.call_failed')
                 response.pause(length=1)
                 response.hangup()
         else:

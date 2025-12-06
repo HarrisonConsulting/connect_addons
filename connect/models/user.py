@@ -44,6 +44,7 @@ class UserCallflow(models.Model):
 
 class User(models.Model):
     _name = 'connect.user'
+    _inherit = ['connect.tts.mixin']
     _rec_name = 'username'
     _description = 'Connect User'
     _order = 'username'
@@ -531,7 +532,8 @@ class User(models.Model):
 
     @api.model
     def on_call_action(self, record_id, request):
-        # Was used for VoiceMail. Left for future features.
+        # Use sudo() to bypass record rules - webhook is authenticated via Twilio signature
+        self = self.sudo()
         user = self.browse(record_id)
         call_status = request.get('CallStatus')
         if not call_status:

@@ -75,10 +75,12 @@ class ElevenLabsCallflow(models.Model):
                 return super().get_prompt_message(gather)
             if not self.prompt_message_file or not self.prompt_message_file.file:
                 self._generate_elevenlabs_prompt_message()
-            gather.play(self.prompt_message_file.get_file_url())
+            if self.prompt_message_file and self.prompt_message_file.file:
+                gather.play(self.prompt_message_file.get_file_url())
+                return
         except Exception as e:
             logger.error('Elevenlabs error: %s', e)
-            return super().get_prompt_message(gather)
+        return super().get_prompt_message(gather)
 
     def get_gather_invalid_input_message(self, response):
         try:
@@ -87,22 +89,26 @@ class ElevenLabsCallflow(models.Model):
                 return super().get_gather_invalid_input_message(response)
             if not self.invalid_input_message_file or not self.invalid_input_message_file.file:
                 self._generate_elevenlabs_invalid_input_message()
-            response.play(self.invalid_input_message_file.get_file_url())
+            if self.invalid_input_message_file and self.invalid_input_message_file.file:
+                response.play(self.invalid_input_message_file.get_file_url())
+                return
         except Exception as e:
             logger.error('Elevenlabs error: %s', e)
-            return super().get_gather_invalid_input_message(response)
+        return super().get_gather_invalid_input_message(response)
 
     def get_voicemail_prompt_message(self, response):
         try:
             self = self.sudo()
             if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
                 return super().get_voicemail_prompt_message(response)
-            if not self.voicemail_prompt_file or self.voicemail_prompt_file.file:
+            if not self.voicemail_prompt_file or not self.voicemail_prompt_file.file:
                 self._generate_elevenlabs_voicemail_prompt()
-            response.play(self.voicemail_prompt_file.get_file_url())
+            if self.voicemail_prompt_file and self.voicemail_prompt_file.file:
+                response.play(self.voicemail_prompt_file.get_file_url())
+                return
         except Exception as e:
             logger.error('Elevenlabs error: %s', e)
-            return super().get_voicemail_prompt_message(response)
+        return super().get_voicemail_prompt_message(response)
 
     def elevenlabs_regenerate_prompts(self):
         callflows = self.env['connect.callflow'].sudo().search([])

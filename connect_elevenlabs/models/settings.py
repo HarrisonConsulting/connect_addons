@@ -68,6 +68,10 @@ class Elevenlabsettings(models.Model):
     def elevenlabs_regenerate_prompts(self):
         self.env['connect.callflow'].elevenlabs_regenerate_prompts()
 
+    def elevenlabs_regenerate_system_messages(self):
+        self.env['connect.elevenlabs_system_message'].regenerate_all_system_messages()
+        self.connect_notify('System messages regenerated', title='ElevenLabs', notify_uid=self.env.user.id)
+
 
     def elevenlabs_sync_ai_agents(self):
         self.env['connect.elevenlabs_agent'].sync()

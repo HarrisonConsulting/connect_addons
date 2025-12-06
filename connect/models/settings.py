@@ -120,6 +120,10 @@ class Settings(models.Model):
     twilio_balance = fields.Char(readonly=True)
     openai_api_key = fields.Char(groups="base.group_erp_manager")
     display_openai_api_key = fields.Char()
+    openai_base_url = fields.Char(
+        string='OpenAI Base URL',
+        help='Custom base URL for OpenAI-compatible API (e.g., LiteLLM proxy). Leave empty for default OpenAI API.'
+    )
     number_search_operation = fields.Selection(
         [("=", "Equal"), ("like", "Like")], default="=", required=True
     )
@@ -600,11 +604,18 @@ class Settings(models.Model):
         api_key = self.sudo().get_param('openai_api_key')
         if not api_key:
             return False
+        base_url = self.sudo().get_param('openai_base_url')
+        # Build kwargs for OpenAI client
+        kwargs = {'api_key': api_key}
+        if base_url:
+            # Normalize base_url to ensure it ends with /v1 for OpenAI compatibility
+            base_url = base_url.rstrip('/')
+            if not base_url.endswith('/v1'):
+                base_url = base_url + '/v1'
+            kwargs['base_url'] = base_url
         if os.environ.get('OPENAI_PROXY'):
-            client = openai.OpenAI(
-                api_key=api_key, http_client=httpx.Client(proxy=os.environ.get('HTTPS_PROXY')))
-        else:
-            client = openai.OpenAI(api_key=api_key)
+            kwargs['http_client'] = httpx.Client(proxy=os.environ.get('HTTPS_PROXY'))
+        client = openai.OpenAI(**kwargs)
         return client
 
     def check_api_url(self):

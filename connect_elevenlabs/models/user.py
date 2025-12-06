@@ -13,11 +13,11 @@ class ElevenLabsUser(models.Model):
     greeting_message_file = fields.Many2one('connect.elevenlabs_file', ondelete='set null')
     voicemail_prompt_file = fields.Many2one('connect.elevenlabs_file', ondelete='set null')
     if release.version_info[0] >= 17.0:
-        greeting_message_widget = fields.Html(related='greeting_message_file.preview_audio')
-        voicemail_prompt_widget = fields.Html(related='voicemail_prompt_file.preview_audio')
+        greeting_message_widget = fields.Html(related='greeting_message_file.preview_audio', string='Greeting Preview')
+        voicemail_prompt_widget = fields.Html(related='voicemail_prompt_file.preview_audio', string='Voicemail Preview')
     else:
-        greeting_message_widget = fields.Char(related='greeting_message_file.preview_audio')
-        voicemail_prompt_widget = fields.Char(related='voicemail_prompt_file.preview_audio')
+        greeting_message_widget = fields.Char(related='greeting_message_file.preview_audio', string='Greeting Preview')
+        voicemail_prompt_widget = fields.Char(related='voicemail_prompt_file.preview_audio', string='Voicemail Preview')
 
     def _get_elevenlabs_enabled(self):
         elevenlabs_enabled = self.env['connect.settings'].sudo().get_param('elevenlabs_enabled')

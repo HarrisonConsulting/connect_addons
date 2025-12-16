@@ -1,18 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="agent_action" model="ir.actions.act_window">
-        <field name="name">Agents</field>
-        <field name="res_model">connect.elevenlabs_agent</field>
-        <field name="view_mode">list,form</field>
+    <!-- Import from ElevenLabs Action -->
+    <record id="action_import_elevenlabs_agents" model="ir.actions.server">
+        <field name="name">Import from ElevenLabs</field>
+        <field name="model_id" ref="model_connect_elevenlabs_agent"/>
+        <field name="state">code</field>
+        <field name="code">model.sync()</field>
     </record>
 
+    <!-- Main Action -->
+    <record id="agent_action" model="ir.actions.act_window">
+        <field name="name">AI Agents</field>
+        <field name="res_model">connect.elevenlabs_agent</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first ElevenLabs Voice Agent
+            </p>
+            <p>
+                Configure AI-powered voice agents for phone conversations.
+                Agents can answer calls, handle inquiries, and transfer to humans.
+            </p>
+            <p>
+                <a type="action" name="%(action_import_elevenlabs_agents)d">
+                    Import existing agents from ElevenLabs
+                </a>
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu -->
     <menuitem id="connect.elevenlabs_agent_menu"
         sequence="60"
         parent="connect.connect_voice_menu"
-        name="Agents"
+        name="AI Agents"
         action="connect_elevenlabs.agent_action"/>
 
+    <!-- Search View -->
+    <record id="connect_elevenlabs_agent_search" model="ir.ui.view">
+        <field name="name">connect.elevenlabs_agent.search</field>
+        <field name="model">connect.elevenlabs_agent</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="llm"/>
+                <field name="voice"/>
+                <field name="language"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
+                <filter name="filter_synced" string="Synced" domain="[('sync_status', '=', 'synced')]"/>
+                <filter name="filter_errors" string="Sync Errors" domain="[('sync_status', '=', 'error')]"/>
+                <filter name="filter_archived_el" string="Archived in ElevenLabs" domain="[('elevenlabs_archived', '=', True)]"/>
+                <separator/>
+                <filter name="filter_inactive" string="Archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_llm" string="LLM Model" context="{'group_by': 'llm'}"/>
+                    <filter name="group_language" string="Language" context="{'group_by': 'language'}"/>
+                    <filter name="group_sync_status" string="Sync Status" context="{'group_by': 'sync_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- List View -->
     <record id="connect_elevenlabs_agent_list" model="ir.ui.view">
         <field name="name">connect_elevenlabs_agent_list</field>
         <field name="model">connect.elevenlabs_agent</field>
@@ -21,88 +73,164 @@
                 <field name="name"/>
                 <field name="llm"/>
                 <field name="voice"/>
-                <field name="language" optional="show"/>
-                <field name="additional_languages" widget="many2many_tags" optional="show"/>
-                <field name="exten_number" string="Exten"/>
+                <field name="language"/>
+                <field name="sync_status" widget="badge"
+                       decoration-success="sync_status == 'synced'"
+                       decoration-warning="sync_status in ('draft', 'modified')"
+                       decoration-danger="sync_status == 'error'"/>
+                <field name="exten_number" string="Extension" optional="show"/>
+                <field name="last_sync" optional="hide"/>
+                <field name="active" column_invisible="True"/>
             </list>
         </field>
     </record>
 
+    <!-- Form View -->
     <record id="connect_elevenlabs_agent_form" model="ir.ui.view">
         <field name="name">connect_elevenlabs_agent_form</field>
         <field name="model">connect.elevenlabs_agent</field>
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="create_extension" type="object" string="Extension" class="btn btn-primary"/>
-                    <!-- <button name="transfer_test" type="object" string="Test" class="btn btn-primary"/> -->
-                    <button name="print_config" type="object" string="Print" class="btn"/>
+                    <button name="action_sync_to_elevenlabs" type="object"
+                            string="Sync to ElevenLabs" class="btn-primary"
+                            icon="fa-cloud-upload"/>
+                    <button name="action_open_elevenlabs" type="object"
+                            string="Open in ElevenLabs" class="btn-secondary"
+                            icon="fa-external-link"
+                            invisible="not agent_uid"/>
+                    <button name="create_extension" type="object"
+                            string="Create Extension" class="btn-secondary"
+                            invisible="exten"/>
+                    <field name="sync_status" widget="statusbar"
+                           statusbar_visible="draft,synced"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_elevenlabs" type="object"
+                                class="oe_stat_button" icon="fa-cloud"
+                                invisible="not agent_uid">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">ElevenLabs</span>
+                            </div>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-secondary"
+                            invisible="active"/>
+                    <widget name="web_ribbon" title="Sync Error" bg_color="text-bg-danger"
+                            invisible="sync_status != 'error'"/>
+                    <widget name="web_ribbon" title="Archived in EL" bg_color="text-bg-warning"
+                            invisible="not elevenlabs_archived"/>
                     <div class="oe_title">
+                        <label for="name"/>
                         <h1>
-                            <label class="oe_edit_only" for="name"/>
                             <field name="name" placeholder="Agent name..."/>
                         </h1>
                     </div>
+                    <group>
+                        <group string="Voice">
+                            <field name="voice"/>
+                            <field name="language"/>
+                            <field name="additional_languages" widget="many2many_tags"/>
+                        </group>
+                        <group string="Intelligence">
+                            <field name="llm"/>
+                            <field name="custom_llm_model_id"
+                                   invisible="llm != 'custom-llm'"
+                                   required="llm == 'custom-llm'"
+                                   options="{'no_create': True}"/>
+                            <field name="temperature" widget="float"/>
+                            <field name="max_tokens"/>
+                        </group>
+                    </group>
                     <notebook>
                         <page name="prompt" string="Prompt">
                             <group>
-                                <field name="first_message"/>
-                                <field name="prompt"/>
+                                <field name="first_message" placeholder="Hi there! How can I help you today?"/>
+                            </group>
+                            <field name="prompt" placeholder="You are a helpful assistant..."/>
+                        </page>
+                        <page string="Voice Settings" name="voice_settings">
+                            <group>
+                                <group string="TTS Model">
+                                    <field name="model"/>
+                                    <field name="stability"/>
+                                    <field name="similarity_boost"/>
+                                    <field name="speed"/>
+                                    <field name="optimize_streaming_latency"/>
+                                </group>
+                                <group string="Audio Format">
+                                    <field name="output_audio_format"/>
+                                    <field name="user_input_audio_format"/>
+                                </group>
                             </group>
                         </page>
                         <page string="Conversation" name="conversation">
                             <group>
-                                <group>
-                                    <field name="name"/>
-                                    <field name="voice"/>
-                                    <field name="tools" widget="many2many_tags"/>
-                                </group>
-                                <group>
-                                    <field name="language"/>
-                                    <field name="additional_languages" widget="many2many_tags"/>
+                                <group string="Turn Taking">
                                     <field name="turn_timeout"/>
+                                    <field name="turn_eagerness"/>
                                     <field name="silence_end_call_timeout"/>
+                                </group>
+                                <group string="Limits">
                                     <field name="max_duration_seconds"/>
                                     <field name="agent_concurrency_limit"/>
                                     <field name="daily_limit"/>
-                                    <field name="exten_number" string="Exten"/>
                                 </group>
                             </group>
                         </page>
-                        <page name="llm" string="LLM / TTS">
+                        <page string="Tools" name="tools">
+                            <field name="tools">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="tool_type"/>
+                                    <field name="description"/>
+                                    <field name="is_enabled"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page name="knowledge_base" string="Knowledge Base">
                             <group>
-                                <group>
-                                    <field name="llm"/>
-                                    <field name="max_tokens"/>
-                                </group>
-                                <group>
-                                    <field name="output_audio_format"/>
-                                    <field name="user_input_audio_format"/>
-                                    <field name="temperature" help="Temperature is a parameter that controls the creativity or randomness of the responses generated by the LLM."/>
-                                    <field name="stability"/>
-                                    <field name="speed"/>
-                                    <field name="similarity_boost"/>
-                                    <field name="model"/>
-                                </group>
+                                <field name="knowledge_base_name"
+                                       placeholder="Company FAQ"
+                                       required="knowledge_base_note"/>
+                                <field name="knowledge_base_note"
+                                       placeholder="Enter knowledge base content here..."/>
                             </group>
                         </page>
-                        <page name="Knowledge base" string="Knowledge base">
+                        <page name="integration" string="Integration">
                             <group>
-                                <field name="knowledge_base_name" required="knowledge_base_note"/>
-                                <field name="knowledge_base_note"/>
-                            </group>
-                        </page>
-                        <page name="dev" string="Development" groups="base.group_no_one">
-                            <group>
-                                <group>
-                                    <field name="agent_uid"/>
+                                <group string="Telephony">
+                                    <field name="exten" readonly="1"/>
+                                    <field name="exten_number" string="Extension Number"/>
                                 </group>
+                                <group string="Sync Status">
+                                    <field name="agent_uid" readonly="1"/>
+                                    <field name="sync_status" readonly="1"/>
+                                    <field name="last_sync" readonly="1"/>
+                                    <field name="elevenlabs_archived"/>
+                                    <field name="active"/>
+                                </group>
+                            </group>
+                            <group invisible="sync_status != 'error'">
+                                <field name="sync_error" readonly="1"/>
+                            </group>
+                            <group string="Custom LLM Settings" invisible="llm != 'custom-llm'">
+                                <field name="custom_llm_extra_body"
+                                       placeholder='{"user_id": "123", "custom_param": "value"}'/>
+                                <div class="text-muted" colspan="2">
+                                    <small>
+                                        Configure your OpenAI-compatible endpoint in
+                                        <a href="/web#action=base_setup.action_general_configuration" target="_blank">
+                                            Settings → Integrations → OpenAI Integration
+                                        </a>
+                                    </small>
+                                </div>
                             </group>
                         </page>
                     </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>

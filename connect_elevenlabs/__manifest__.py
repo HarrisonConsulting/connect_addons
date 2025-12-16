@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect ElevenLabs',
-    'version': '1.0.6',
+    'version': '1.2.0',
     'author': 'Oduist',
     'price': 0,
     'currency': 'EUR',
@@ -11,9 +11,19 @@
     'support': 'support@oduist.com',
     'license': 'Other proprietary',
     'category': 'Phone',
-    'summary': 'Connect ElevenLabs integration module',
-    'description': "",
-    'depends': ['connect', 'calendar'],
+    'summary': 'Connect ElevenLabs Conversational AI Integration',
+    'description': """
+ElevenLabs Conversational AI Integration for Odoo
+==================================================
+
+Features:
+- Sync AI agents from ElevenLabs
+- Configure voice, LLM, and conversation settings
+- Manage tools and knowledge bases
+- Telephony integration with Twilio
+- Full conversation tracking and history
+    """,
+    'depends': ['connect', 'calendar', 'mail', 'openai_base'],
     'external_dependencies': {
         'python': ['elevenlabs'],
     },

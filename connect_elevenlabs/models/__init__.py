@@ -5,6 +5,7 @@ from . import call
 from . import callflow
 from . import exten
 from . import file
+from . import phone_registration
 from . import system_message
 from . import number
 from . import settings

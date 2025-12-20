@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Form View for Phone Registration -->
+    <record id="view_elevenlabs_phone_registration_form" model="ir.ui.view">
+        <field name="name">connect.elevenlabs_phone_registration.form</field>
+        <field name="model">connect.elevenlabs_phone_registration</field>
+        <field name="arch" type="xml">
+            <form string="ElevenLabs Phone Registration">
+                <header>
+                    <button name="action_register" type="object" string="Register"
+                            class="btn-primary"
+                            invisible="sync_status == 'synced'"
+                            help="Register this phone number with ElevenLabs for outbound calling"/>
+                    <button name="action_unregister" type="object" string="Unregister"
+                            class="btn-secondary"
+                            invisible="sync_status != 'synced'"
+                            confirm="Are you sure you want to unregister this phone from ElevenLabs?"
+                            help="Remove this phone number from ElevenLabs"/>
+                    <field name="sync_status" widget="statusbar"
+                           statusbar_visible="draft,synced"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(action_elevenlabs_phone_registration)d" type="action"
+                                class="oe_stat_button" icon="fa-phone"
+                                invisible="not elevenlabs_phone_id">
+                            <field name="phone_number" widget="statinfo" string="Phone"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Registered" bg_color="text-bg-success"
+                            invisible="sync_status != 'synced'"/>
+                    <widget name="web_ribbon" title="Error" bg_color="text-bg-danger"
+                            invisible="sync_status != 'error'"/>
+                    <group>
+                        <group string="Phone Number">
+                            <field name="name"/>
+                            <field name="outgoing_callerid_id"
+                                   options="{'no_create': True}"
+                                   help="Select the Twilio phone number to register"/>
+                            <field name="phone_number" readonly="1"/>
+                            <field name="label" placeholder="Optional label in ElevenLabs"/>
+                        </group>
+                        <group string="ElevenLabs Registration">
+                            <field name="elevenlabs_phone_id" readonly="1"/>
+                            <field name="last_sync" readonly="1"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group string="Error Details" invisible="not sync_error">
+                        <field name="sync_error" readonly="1" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List View for Phone Registration -->
+    <record id="view_elevenlabs_phone_registration_list" model="ir.ui.view">
+        <field name="name">connect.elevenlabs_phone_registration.list</field>
+        <field name="model">connect.elevenlabs_phone_registration</field>
+        <field name="arch" type="xml">
+            <list string="ElevenLabs Phone Registrations"
+                  decoration-success="sync_status == 'synced'"
+                  decoration-danger="sync_status == 'error'"
+                  decoration-muted="sync_status == 'draft'">
+                <field name="name"/>
+                <field name="phone_number"/>
+                <field name="sync_status"
+                       decoration-success="sync_status == 'synced'"
+                       decoration-danger="sync_status == 'error'"
+                       decoration-warning="sync_status == 'draft'"
+                       widget="badge"/>
+                <field name="elevenlabs_phone_id" optional="hide"/>
+                <field name="last_sync" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_elevenlabs_phone_registration_search" model="ir.ui.view">
+        <field name="name">connect.elevenlabs_phone_registration.search</field>
+        <field name="model">connect.elevenlabs_phone_registration</field>
+        <field name="arch" type="xml">
+            <search string="Phone Registrations">
+                <field name="name"/>
+                <field name="phone_number"/>
+                <filter string="Registered" name="registered"
+                        domain="[('sync_status', '=', 'synced')]"/>
+                <filter string="Not Registered" name="not_registered"
+                        domain="[('sync_status', '=', 'draft')]"/>
+                <filter string="Error" name="error"
+                        domain="[('sync_status', '=', 'error')]"/>
+                <separator/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Status" name="group_status" context="{'group_by': 'sync_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_elevenlabs_phone_registration" model="ir.actions.act_window">
+        <field name="name">Registered Phone Numbers</field>
+        <field name="res_model">connect.elevenlabs_phone_registration</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_registered': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Register phone numbers for outbound agent calls
+            </p>
+            <p>
+                Before an ElevenLabs agent can make outbound calls, you must register
+                your Twilio phone numbers with ElevenLabs. Click "Create" to register
+                a new phone number.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu Item -->
+    <menuitem id="menu_elevenlabs_phone_registration"
+              parent="elevenlabs_menu"
+              name="Registered Phones"
+              action="action_elevenlabs_phone_registration"
+              sequence="200"/>
+
+</odoo>

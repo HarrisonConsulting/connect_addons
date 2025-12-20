@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect ElevenLabs',
-    'version': '1.2.1',
+    'version': '1.3.0',
     'author': 'Oduist',
     'price': 0,
     'currency': 'EUR',
@@ -44,6 +44,7 @@ Features:
         'views/agent_tool.xml',
         'views/agent_tool_params.xml',
         'views/number.xml',
+        'views/phone_registration.xml',
         'views/recording.xml',
         'views/documentation.xml',
         'views/system_message.xml',

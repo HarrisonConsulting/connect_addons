@@ -13,6 +13,20 @@
             <field name="tool_type">system</field>
         </record>
 
+        <!-- DTMF System Tool for meeting dial-in -->
+        <record id="agent_tool_dtmf" model="connect.elevenlabs_agent_tool">
+            <field name="name">play_keypad_touch_tone</field>
+            <field name="description">Play DTMF touch tones for entering meeting IDs, passwords, or menu selections. Use digits 0-9, * for star, # for pound. Use 'w' for 0.5s pause, 'W' for 1s pause between sequences. Example: 'ww123456789#ww1234#' plays pause, meeting ID, pound, pause, password, pound.</field>
+            <field name="tool_type">system</field>
+        </record>
+
+        <!-- Voicemail Detection System Tool -->
+        <record id="agent_tool_voicemail_detection" model="connect.elevenlabs_agent_tool">
+            <field name="name">voicemail_detection</field>
+            <field name="description">Detect if the call was answered by voicemail. Useful for outbound calling campaigns to handle voicemail vs live answer differently.</field>
+            <field name="tool_type">system</field>
+        </record>
+
     <!-- Elevenlabs Agent Tool: transfer_to_extension -->
     <record id="transfer_to_extension_tool" model="connect.elevenlabs_agent_tool">
         <field name="name">transfer_to_extension</field>

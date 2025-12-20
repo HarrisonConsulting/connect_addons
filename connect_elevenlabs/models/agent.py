@@ -642,8 +642,9 @@ class ElevenlabsAgent(models.Model):
         self.ensure_one()
         channel_sid = request.get("CallSid")
         call_id = self.env['connect.channel'].search([('sid', '=', channel_sid)], limit=1).call.id
-        elevenlabs_agent_url = self.env['connect.settings'].sudo().get_param('elevenlabs_agent_url').replace('https://',
-                                                                                                      'wss://')
+        elevenlabs_agent_url = self.env['connect.settings'].sudo().get_param(
+            'elevenlabs_agent_url'
+        ).replace('https://', 'wss://').rstrip('/')
         agent_uid = self.agent_uid
         connect = Connect()
         connect.stream(

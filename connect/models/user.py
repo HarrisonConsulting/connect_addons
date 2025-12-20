@@ -548,14 +548,14 @@ class User(models.Model):
             return response.to_xml()
 
     def get_greeting_message(self, response):
-        # Override in Elevenlabs module.
+        # Uses TTS mixin - ElevenLabs overrides with play() when enabled
         self.ensure_one()
-        response.say(self.greeting_message)
+        self.tts_say(response, self.greeting_message)
 
     def get_voicemail_prompt(self, response):
         self.ensure_one()
         voicemail_prompt = self.render_voicemail_prompt()
-        response.say(voicemail_prompt)
+        self.tts_say(response, voicemail_prompt)
 
     def render_voicemail_prompt(self):
         self.ensure_one()

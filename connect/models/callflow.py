@@ -155,13 +155,13 @@ class CallFlow(models.Model):
 
     def get_prompt_message(self, response):
         debug(self, 'Saying prompt message for Call Flow {}'.format(self.name))
-        response.say(self.prompt_message, language=self.language, voice=self.voice)
+        self.tts_say(response, self.prompt_message, language=self.language, voice=self.voice)
 
     def get_gather_invalid_input_message(self, response):
-        response.say(self.invalid_input_message, language=self.language, voice=self.voice)
+        self.tts_say(response, self.invalid_input_message, language=self.language, voice=self.voice)
 
     def get_voicemail_prompt_message(self, response):
-        response.say(self.voicemail_prompt, language=self.language, voice=self.voice)
+        self.tts_say(response, self.voicemail_prompt, language=self.language, voice=self.voice)
 
     @api.model
     def on_call_action(self, flow_id, request):

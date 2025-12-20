@@ -180,7 +180,7 @@ class Call(models.Model):
                 # Default
                 debug(self, 'Setting default call direction to outgoing.')
                 direction = 'outgoing'
-            call = self.with_context(tracking_disable=True).create({
+            call_vals = {
                 'partner': channel.partner.id,
                 'called': channel.called_number,
                 'caller': channel.caller_number,
@@ -189,7 +189,12 @@ class Call(models.Model):
                 'caller_user': channel.caller_user.id,
                 'direction': direction,
                 'call_type': channel.call_type or 'phone',
-            })
+            }
+            # Set parent_call if in queue context (agent dial linked to customer call)
+            parent_call_id = self.env.context.get('queue_parent_call_id')
+            if parent_call_id:
+                call_vals['parent_call'] = parent_call_id
+            call = self.with_context(tracking_disable=True).create(call_vals)
             channel.call = call
         elif channel.parent_channel and channel.parent_channel.call:
             # Secondary channel, assign the call from the parent.

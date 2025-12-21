@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect ElevenLabs',
-    'version': '1.3.1',
+    'version': '1.3.2',
     'author': 'Oduist',
     'price': 0,
     'currency': 'EUR',

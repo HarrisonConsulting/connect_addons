@@ -160,7 +160,6 @@ class ElevenlabsAgent(models.Model):
     prompt = fields.Html(
         required=True,
         default=default_prompt,
-        tracking=True,
         help="System prompt that defines the agent's personality and behavior",
     )
 

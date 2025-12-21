@@ -13,3 +13,7 @@ access_voice_conversation_tool_call_user,voice.conversation.tool_call user,model
 access_voice_conversation_tool_call_manager,voice.conversation.tool_call manager,model_voice_conversation_tool_call,group_voice_manager,1,1,1,1
 access_voice_voice_user,voice.voice user,model_voice_voice,group_voice_user,1,0,0,0
 access_voice_voice_manager,voice.voice manager,model_voice_voice,group_voice_manager,1,1,1,1
+access_voice_tts_file_user,voice.tts.file user,model_voice_tts_file,group_voice_user,1,0,0,0
+access_voice_tts_file_manager,voice.tts.file manager,model_voice_tts_file,group_voice_manager,1,1,1,1
+access_voice_system_message_user,voice.system.message user,model_voice_system_message,group_voice_user,1,0,0,0
+access_voice_system_message_manager,voice.system.message manager,model_voice_system_message,group_voice_manager,1,1,1,1

@@ -384,11 +384,26 @@ export class Phone extends Component {
             return
         }
 
-        self.userAgent = new Twilio.Device(self.token, {
-            edge: self.edge,
-            logLevel: 4,
-            codecPreferences: ["opus", "pcmu"]
-        })
+        // Check WebRTC support before initializing Twilio
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('Connect: WebRTC not supported in this browser')
+            self.state.isActive = false
+            self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
+            return
+        }
+
+        try {
+            self.userAgent = new Twilio.Device(self.token, {
+                edge: self.edge,
+                logLevel: 4,
+                codecPreferences: ["opus", "pcmu"]
+            })
+        } catch (error) {
+            console.error('Connect: Failed to create Twilio Device:', error)
+            self.state.isActive = false
+            self.bus.trigger('busTraySetException', {exception: error.name || 'InitFailed'})
+            return
+        }
 
         this.setIncomingVolume()
         self.userAgent.on('tokenWillExpire', () => {
@@ -403,8 +418,12 @@ export class Phone extends Component {
             } else if (error.name === 'AccessTokenInvalid') {
                 console.log('AccessTokenInvalid')
                 self.bus.trigger('busTraySetException', {exception: error.name})
+            } else if (error.name === 'NotSupportedError') {
+                console.error('Connect: Browser does not support required features:', error.message)
+                self.state.isActive = false
+                self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
             } else {
-                console.log(error)
+                console.error('Connect: Twilio error:', error)
             }
         })
         let lastTime = (new Date()).getTime()

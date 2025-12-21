@@ -157,13 +157,12 @@ class VoiceProviderElevenLabs(models.Model):
         """
         Return conversation handler for ElevenLabs.
 
-        This would be implemented when the conversation handling service
-        is abstracted from connect_elevenlabs.
+        Returns:
+            ElevenLabsConversationHandler: Configured handler instance
         """
         self.ensure_one()
-        raise NotImplementedError(_(
-            'Conversation handler not yet implemented for ElevenLabs provider'
-        ))
+        from .conversation_handler import ElevenLabsConversationHandler
+        return ElevenLabsConversationHandler(self)
 
     def text_to_speech(self, text, voice_id, **kwargs):
         """
@@ -360,3 +359,228 @@ class VoiceProviderElevenLabs(models.Model):
                 'message': _('Connection failed: %s') % str(e),
                 'details': {'error': str(e)},
             }
+
+    # === Agent Management ===
+
+    def create_agent(self, config):
+        """
+        Create a new agent in ElevenLabs.
+
+        Args:
+            config (dict): Agent configuration (from ElevenLabsAgentConfig.build())
+
+        Returns:
+            dict: {'agent_id': str, 'success': bool, 'details': dict}
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            response = client.conversational_ai.agents.create(
+                conversation_config=config.get('conversation_config', {}),
+                platform_settings=config.get('platform_settings'),
+                name=config.get('name'),
+            )
+
+            agent_id = getattr(response, 'agent_id', None)
+            if not agent_id:
+                raise UserError(_('No agent_id in response'))
+
+            logger.info('Created ElevenLabs agent: %s', agent_id)
+            return {
+                'agent_id': agent_id,
+                'success': True,
+                'details': self._parse_agent_response(response),
+            }
+
+        except Exception as e:
+            logger.error('Failed to create agent: %s', e)
+            raise UserError(_('Failed to create agent: %s') % str(e))
+
+    def update_agent(self, agent_id, config):
+        """
+        Update an existing agent in ElevenLabs.
+
+        Args:
+            agent_id (str): ElevenLabs agent ID
+            config (dict): Agent configuration
+
+        Returns:
+            dict: {'success': bool, 'details': dict}
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            response = client.conversational_ai.agents.update(
+                agent_id=agent_id,
+                conversation_config=config.get('conversation_config'),
+                platform_settings=config.get('platform_settings'),
+                name=config.get('name'),
+            )
+
+            logger.info('Updated ElevenLabs agent: %s', agent_id)
+            return {
+                'success': True,
+                'details': self._parse_agent_response(response),
+            }
+
+        except Exception as e:
+            logger.error('Failed to update agent %s: %s', agent_id, e)
+            raise UserError(_('Failed to update agent: %s') % str(e))
+
+    def get_agent(self, agent_id):
+        """
+        Get agent details from ElevenLabs.
+
+        Args:
+            agent_id (str): ElevenLabs agent ID
+
+        Returns:
+            dict: Agent details
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            response = client.conversational_ai.agents.get(agent_id=agent_id)
+            return self._parse_agent_response(response)
+
+        except Exception as e:
+            logger.error('Failed to get agent %s: %s', agent_id, e)
+            raise UserError(_('Failed to get agent: %s') % str(e))
+
+    def delete_agent(self, agent_id):
+        """
+        Delete an agent from ElevenLabs.
+
+        Args:
+            agent_id (str): ElevenLabs agent ID
+
+        Returns:
+            dict: {'success': bool}
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            client.conversational_ai.agents.delete(agent_id=agent_id)
+            logger.info('Deleted ElevenLabs agent: %s', agent_id)
+            return {'success': True}
+
+        except Exception as e:
+            logger.error('Failed to delete agent %s: %s', agent_id, e)
+            raise UserError(_('Failed to delete agent: %s') % str(e))
+
+    def list_agents(self):
+        """
+        List all agents from ElevenLabs account.
+
+        Returns:
+            list: List of agent dicts
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            response = client.conversational_ai.agents.list()
+            agents = getattr(response, 'agents', [])
+            return [self._parse_agent_response(a) for a in agents]
+
+        except Exception as e:
+            logger.error('Failed to list agents: %s', e)
+            raise UserError(_('Failed to list agents: %s') % str(e))
+
+    def _parse_agent_response(self, response):
+        """Parse ElevenLabs agent response to dictionary."""
+        if response is None:
+            return {}
+
+        result = {}
+        for attr in ['agent_id', 'name', 'conversation_config',
+                     'platform_settings', 'metadata', 'secrets']:
+            if hasattr(response, attr):
+                value = getattr(response, attr)
+                # Convert nested objects to dicts
+                if hasattr(value, '__dict__'):
+                    result[attr] = self._object_to_dict(value)
+                else:
+                    result[attr] = value
+        return result
+
+    def _object_to_dict(self, obj):
+        """Recursively convert object to dictionary."""
+        if obj is None:
+            return None
+        if isinstance(obj, (str, int, float, bool)):
+            return obj
+        if isinstance(obj, (list, tuple)):
+            return [self._object_to_dict(i) for i in obj]
+        if isinstance(obj, dict):
+            return {k: self._object_to_dict(v) for k, v in obj.items()}
+        if hasattr(obj, '__dict__'):
+            return {k: self._object_to_dict(v)
+                    for k, v in obj.__dict__.items()
+                    if not k.startswith('_')}
+        return str(obj)
+
+    # === Phone Number Management ===
+
+    def register_phone_number(self, phone_number, agent_id, label=None):
+        """
+        Register a phone number with an ElevenLabs agent.
+
+        Args:
+            phone_number (str): Phone number in E.164 format
+            agent_id (str): ElevenLabs agent ID
+            label (str): Optional label for the phone number
+
+        Returns:
+            dict: {'success': bool, 'phone_number_id': str}
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            response = client.conversational_ai.phone_numbers.create(
+                phone_number=phone_number,
+                agent_id=agent_id,
+                label=label,
+            )
+
+            phone_number_id = getattr(response, 'phone_number_id', None)
+            logger.info('Registered phone number %s with agent %s',
+                       phone_number, agent_id)
+
+            return {
+                'success': True,
+                'phone_number_id': phone_number_id,
+            }
+
+        except Exception as e:
+            logger.error('Failed to register phone number: %s', e)
+            raise UserError(_('Failed to register phone number: %s') % str(e))
+
+    def unregister_phone_number(self, phone_number_id):
+        """
+        Unregister a phone number from ElevenLabs.
+
+        Args:
+            phone_number_id (str): ElevenLabs phone number ID
+
+        Returns:
+            dict: {'success': bool}
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        try:
+            client.conversational_ai.phone_numbers.delete(
+                phone_number_id=phone_number_id
+            )
+            logger.info('Unregistered phone number: %s', phone_number_id)
+            return {'success': True}
+
+        except Exception as e:
+            logger.error('Failed to unregister phone number: %s', e)
+            raise UserError(_('Failed to unregister phone number: %s') % str(e))

@@ -10,49 +10,41 @@ This module provides the single source of truth for:
 - Sync statuses
 """
 
-# LLM Models (26 models across GPT, Claude, Gemini, Grok)
+# LLM Models - Matches ElevenLabs Conversational AI supported models
+# Synced from connect_elevenlabs/models/agent.py
 LLM_MODEL_LIST = [
-    # OpenAI GPT
-    ('gpt-4o', 'GPT-4o'),
-    ('gpt-4o-mini', 'GPT-4o Mini'),
-    ('gpt-4-turbo', 'GPT-4 Turbo'),
-    ('gpt-4', 'GPT-4'),
-    ('gpt-3.5-turbo', 'GPT-3.5 Turbo'),
-
-    # Anthropic Claude
-    ('claude-3-5-sonnet-20241022', 'Claude 3.5 Sonnet'),
-    ('claude-3-opus-20240229', 'Claude 3 Opus'),
-    ('claude-3-sonnet-20240229', 'Claude 3 Sonnet'),
-    ('claude-3-haiku-20240307', 'Claude 3 Haiku'),
-
-    # Google Gemini
+    # OpenAI GPT Models
+    ('gpt-4o-mini', 'GPT 4o Mini'),
+    ('gpt-4o', 'GPT 4o'),
+    ('gpt-4-turbo', 'GPT 4 Turbo'),
+    ('gpt-4.1', 'GPT 4.1'),
+    ('gpt-4.1-mini', 'GPT 4.1 Mini'),
+    ('gpt-4.1-nano', 'GPT 4.1 Nano'),
+    ('gpt-5', 'GPT 5'),
+    ('gpt-5.1', 'GPT 5.1'),
+    ('gpt-5-mini', 'GPT 5 Mini'),
+    ('gpt-5-nano', 'GPT 5 Nano'),
+    # Anthropic Claude Models
+    ('claude-sonnet-4-5', 'Claude 4.5 Sonnet'),
+    ('claude-sonnet-4', 'Claude 4 Sonnet'),
+    ('claude-haiku-4-5', 'Claude 4.5 Haiku'),
+    ('claude-3-7-sonnet', 'Claude 3.7 Sonnet'),
+    ('claude-3-5-sonnet', 'Claude 3.5 Sonnet'),
+    ('claude-3-haiku', 'Claude 3 Haiku'),
+    # Google Gemini Models
+    ('gemini-2.5-flash', 'Gemini 2.5 Flash'),
+    ('gemini-2.0-flash', 'Gemini 2.0 Flash'),
+    ('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite'),
     ('gemini-1.5-pro', 'Gemini 1.5 Pro'),
     ('gemini-1.5-flash', 'Gemini 1.5 Flash'),
-    ('gemini-pro', 'Gemini Pro'),
-
-    # xAI Grok
+    ('gemini-3-pro-preview', 'Gemini 3 Pro Preview'),
+    # xAI Grok Models
     ('grok-beta', 'Grok Beta'),
-    ('grok-2', 'Grok 2'),
-
-    # Meta Llama
-    ('llama-3.1-405b', 'Llama 3.1 405B'),
-    ('llama-3.1-70b', 'Llama 3.1 70B'),
-    ('llama-3.1-8b', 'Llama 3.1 8B'),
-
-    # Mistral
-    ('mistral-large', 'Mistral Large'),
-    ('mistral-medium', 'Mistral Medium'),
-    ('mistral-small', 'Mistral Small'),
-
-    # Cohere
-    ('command-r-plus', 'Command R+'),
-    ('command-r', 'Command R'),
-    ('command', 'Command'),
-
-    # Other
-    ('deepseek-chat', 'DeepSeek Chat'),
-    ('qwen-turbo', 'Qwen Turbo'),
-    ('yi-large', 'Yi Large'),
+    # Alibaba Qwen Models
+    ('qwen3-4b', 'Qwen 3 4B'),
+    ('qwen3-30b-a3b', 'Qwen 3 30B'),
+    # Custom LLM (OpenAI-compatible endpoint)
+    ('custom-llm', 'Custom LLM'),
 ]
 
 # TTS Models (primarily ElevenLabs, extensible by providers)

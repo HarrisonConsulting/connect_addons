@@ -6,3 +6,4 @@ from . import voice_mcp_server
 from . import voice_knowledge_base
 from . import voice_conversation
 from . import voice_voice
+from . import voice_tts_file

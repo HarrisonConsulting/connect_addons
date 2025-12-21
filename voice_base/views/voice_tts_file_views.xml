@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- ==================== voice.tts.file Views ==================== -->
+
+    <!-- Tree View -->
+    <record id="voice_tts_file_view_list" model="ir.ui.view">
+        <field name="name">voice.tts.file.list</field>
+        <field name="model">voice.tts.file</field>
+        <field name="arch" type="xml">
+            <list string="TTS Audio Files">
+                <field name="text"/>
+                <field name="voice_provider_id"/>
+                <field name="voice_id"/>
+                <field name="audio_format"/>
+                <field name="audio_file" filename="audio_filename" widget="binary"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="voice_tts_file_view_form" model="ir.ui.view">
+        <field name="name">voice.tts.file.form</field>
+        <field name="model">voice.tts.file</field>
+        <field name="arch" type="xml">
+            <form string="TTS Audio File">
+                <header>
+                    <button name="action_regenerate"
+                            string="Regenerate Audio"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="not voice_provider_id"/>
+                    <button name="action_play_audio"
+                            string="Play"
+                            type="object"
+                            invisible="not audio_file"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group name="source" string="Source">
+                            <field name="text"/>
+                            <field name="voice_provider_id"/>
+                            <field name="voice_id"
+                                   domain="[('voice_provider_id', '=', voice_provider_id)]"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group name="audio" string="Audio">
+                            <field name="audio_format"/>
+                            <field name="model_id"/>
+                            <field name="audio_file" filename="audio_filename"/>
+                            <field name="audio_filename" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Preview">
+                        <field name="preview_audio" nolabel="1" colspan="2"/>
+                    </group>
+                    <group name="migration" string="Migration Info"
+                           invisible="not legacy_model">
+                        <field name="legacy_model"/>
+                        <field name="legacy_id"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="voice_tts_file_view_search" model="ir.ui.view">
+        <field name="name">voice.tts.file.search</field>
+        <field name="model">voice.tts.file</field>
+        <field name="arch" type="xml">
+            <search string="Search TTS Files">
+                <field name="text"/>
+                <field name="voice_provider_id"/>
+                <field name="voice_id"/>
+                <separator/>
+                <filter name="has_audio" string="Has Audio"
+                        domain="[('audio_file', '!=', False)]"/>
+                <filter name="no_audio" string="Missing Audio"
+                        domain="[('audio_file', '=', False)]"/>
+                <separator/>
+                <filter name="migrated" string="Migrated"
+                        domain="[('legacy_model', '!=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_provider" string="Provider"
+                            context="{'group_by': 'voice_provider_id'}"/>
+                    <filter name="group_voice" string="Voice"
+                            context="{'group_by': 'voice_id'}"/>
+                    <filter name="group_format" string="Format"
+                            context="{'group_by': 'audio_format'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ==================== voice.system.message Views ==================== -->
+
+    <!-- Tree View -->
+    <record id="voice_system_message_view_list" model="ir.ui.view">
+        <field name="name">voice.system.message.list</field>
+        <field name="model">voice.system.message</field>
+        <field name="arch" type="xml">
+            <list string="System Messages">
+                <field name="message_key"/>
+                <field name="text"/>
+                <field name="voice_provider_id"/>
+                <field name="audio_file" filename="audio_filename" widget="binary"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="voice_system_message_view_form" model="ir.ui.view">
+        <field name="name">voice.system.message.form</field>
+        <field name="model">voice.system.message</field>
+        <field name="arch" type="xml">
+            <form string="System Message">
+                <header>
+                    <button name="action_regenerate"
+                            string="Regenerate Audio"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="not voice_provider_id"/>
+                    <button name="action_play_audio"
+                            string="Play"
+                            type="object"
+                            invisible="not audio_file"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group name="identity" string="Identity">
+                            <field name="message_key"/>
+                            <field name="text"/>
+                        </group>
+                        <group name="voice" string="Voice Settings">
+                            <field name="voice_provider_id"/>
+                            <field name="voice_id"
+                                   domain="[('voice_provider_id', '=', voice_provider_id)]"
+                                   options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group name="audio" string="Audio File">
+                            <field name="audio_format"/>
+                            <field name="audio_file" filename="audio_filename"/>
+                            <field name="audio_filename" invisible="1"/>
+                        </group>
+                        <group name="preview" string="Preview">
+                            <field name="preview_audio" nolabel="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="voice_system_message_view_search" model="ir.ui.view">
+        <field name="name">voice.system.message.search</field>
+        <field name="model">voice.system.message</field>
+        <field name="arch" type="xml">
+            <search string="Search System Messages">
+                <field name="message_key"/>
+                <field name="text"/>
+                <field name="voice_provider_id"/>
+                <separator/>
+                <filter name="has_audio" string="Has Audio"
+                        domain="[('audio_file', '!=', False)]"/>
+                <filter name="no_audio" string="Missing Audio"
+                        domain="[('audio_file', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_provider" string="Provider"
+                            context="{'group_by': 'voice_provider_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Actions -->
+    <record id="voice_tts_file_action" model="ir.actions.act_window">
+        <field name="name">TTS Audio Files</field>
+        <field name="res_model">voice.tts.file</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_has_audio': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No TTS audio files yet
+            </p>
+            <p>
+                TTS audio files are generated when text is converted to speech
+                using a voice provider.
+            </p>
+        </field>
+    </record>
+
+    <record id="voice_system_message_action" model="ir.actions.act_window">
+        <field name="name">System Messages</field>
+        <field name="res_model">voice.system.message</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No system messages configured
+            </p>
+            <p>
+                System messages are pre-generated audio files for common
+                telephony prompts and error messages.
+            </p>
+        </field>
+    </record>
+
+</odoo>

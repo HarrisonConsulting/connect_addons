@@ -95,6 +95,11 @@ export class PhoneSysTray extends Component {
     _onClick() {
         if (this.state.exception === 'AccessTokenInvalid') {
             this.notification.add('Please reload the page to refresh the Phone!', {title: 'Connect', type: 'warning'})
+        } else if (this.state.exception === 'NotSupported') {
+            this.notification.add(
+                'Your browser does not support WebRTC. Please use Chrome, Firefox, or Edge for phone features.',
+                {title: 'Connect', type: 'danger', sticky: true}
+            )
         } else if (this.state.exception) {
             this.notification.add(markup(this.state.exception), {title: 'Connect', type: 'warning'})
         } else {

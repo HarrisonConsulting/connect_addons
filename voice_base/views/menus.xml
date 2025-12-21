@@ -45,4 +45,16 @@
               sequence="30"
               action="action_voice_knowledge_base"/>
 
+    <menuitem id="menu_voice_system_messages"
+              name="System Messages"
+              parent="menu_voice_configuration"
+              sequence="40"
+              action="voice_system_message_action"/>
+
+    <menuitem id="menu_voice_tts_files"
+              name="TTS Audio Files"
+              parent="menu_voice_configuration"
+              sequence="50"
+              action="voice_tts_file_action"/>
+
 </odoo>

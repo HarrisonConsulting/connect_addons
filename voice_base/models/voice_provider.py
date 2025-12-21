@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
+import base64
+import logging
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceProvider(models.AbstractModel):
@@ -291,4 +296,145 @@ class VoiceProvider(models.AbstractModel):
                 'type': 'success',
                 'sticky': False,
             }
+        }
+
+    # === TTS Helper Methods ===
+
+    def generate_tts(self, text, voice_id=None, model_id=None, **kwargs):
+        """
+        Generate TTS audio and return as base64-encoded string.
+
+        This is a convenience wrapper around text_to_speech() that handles
+        the encoding needed for Binary fields in Odoo.
+
+        Args:
+            text (str): Text to convert to speech
+            voice_id (str): Optional voice ID (uses default if not set)
+            model_id (str): Optional TTS model ID
+            **kwargs: Provider-specific options
+
+        Returns:
+            str: Base64-encoded audio data, or None if generation fails
+        """
+        self.ensure_one()
+        try:
+            audio_bytes = self.text_to_speech(text, voice_id, model_id=model_id, **kwargs)
+            if audio_bytes:
+                return base64.b64encode(audio_bytes).decode('utf-8')
+        except NotImplementedError:
+            logger.debug('TTS not implemented for provider %s', self.name)
+        except Exception as e:
+            logger.error('TTS generation failed for provider %s: %s', self.name, e)
+        return None
+
+    # === Migration Detection Utilities ===
+
+    @api.model
+    def is_legacy_module_installed(self, module_name):
+        """
+        Check if a legacy module is installed.
+
+        Args:
+            module_name (str): Module technical name (e.g., 'connect_elevenlabs')
+
+        Returns:
+            bool: True if module is installed
+        """
+        module = self.env['ir.module.module'].sudo().search([
+            ('name', '=', module_name),
+            ('state', '=', 'installed'),
+        ], limit=1)
+        return bool(module)
+
+    @api.model
+    def get_legacy_module_version(self, module_name):
+        """
+        Get installed version of a legacy module.
+
+        Args:
+            module_name (str): Module technical name
+
+        Returns:
+            str: Installed version or None if not installed
+        """
+        module = self.env['ir.module.module'].sudo().search([
+            ('name', '=', module_name),
+            ('state', '=', 'installed'),
+        ], limit=1)
+        return module.installed_version if module else None
+
+    @api.model
+    def detect_legacy_installation(self):
+        """
+        Detect all installed legacy voice modules.
+
+        Returns:
+            dict: {module_name: version} for all detected legacy modules
+        """
+        legacy_modules = [
+            'connect_elevenlabs',
+            'connect_elevenlabs_sale',
+            'connect_elevenlabs_callout',
+        ]
+        detected = {}
+        for module_name in legacy_modules:
+            version = self.get_legacy_module_version(module_name)
+            if version:
+                detected[module_name] = version
+        return detected
+
+    @api.model
+    def get_legacy_record_count(self, model_name):
+        """
+        Get count of records in a legacy model.
+
+        Args:
+            model_name (str): Model name (e.g., 'connect.elevenlabs_agent')
+
+        Returns:
+            int: Record count, or 0 if model doesn't exist
+        """
+        try:
+            Model = self.env[model_name]
+            return Model.sudo().search_count([])
+        except KeyError:
+            return 0
+        except Exception as e:
+            logger.warning('Could not count records in %s: %s', model_name, e)
+            return 0
+
+    @api.model
+    def get_migration_summary(self):
+        """
+        Get a complete migration summary for legacy voice modules.
+
+        Returns:
+            dict: {
+                'legacy_installed': {module: version, ...},
+                'legacy_models': {model: count, ...},
+                'migration_required': bool,
+            }
+        """
+        legacy_modules = self.detect_legacy_installation()
+
+        legacy_models = {}
+        if 'connect_elevenlabs' in legacy_modules:
+            model_names = [
+                'connect.elevenlabs_agent',
+                'connect.elevenlabs_voice',
+                'connect.elevenlabs_file',
+                'connect.elevenlabs_system_message',
+                'connect.elevenlabs_agent_tool',
+                'connect.agent_tool_params',
+                'connect.elevenlabs_phone_registration',
+            ]
+            for model_name in model_names:
+                count = self.get_legacy_record_count(model_name)
+                if count > 0:
+                    legacy_models[model_name] = count
+
+        return {
+            'legacy_installed': legacy_modules,
+            'legacy_models': legacy_models,
+            'migration_required': bool(legacy_modules),
         }

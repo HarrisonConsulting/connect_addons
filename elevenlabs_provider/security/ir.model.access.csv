@@ -3,3 +3,4 @@ access_voice_provider_elevenlabs_user,voice.provider.elevenlabs user,model_voice
 access_voice_provider_elevenlabs_manager,voice.provider.elevenlabs manager,model_voice_provider_elevenlabs,voice_base.group_voice_manager,1,1,1,1
 access_elevenlabs_phone_registration_user,elevenlabs.phone.registration user,model_elevenlabs_phone_registration,voice_base.group_voice_user,1,0,0,0
 access_elevenlabs_phone_registration_manager,elevenlabs.phone.registration manager,model_elevenlabs_phone_registration,voice_base.group_voice_manager,1,1,1,1
+access_elevenlabs_migration_wizard,elevenlabs.migration.wizard admin,model_elevenlabs_migration_wizard,base.group_system,1,1,1,1

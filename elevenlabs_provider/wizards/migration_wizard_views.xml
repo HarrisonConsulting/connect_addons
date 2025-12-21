@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Migration Wizard Form View -->
+    <record id="elevenlabs_migration_wizard_form" model="ir.ui.view">
+        <field name="name">elevenlabs.migration.wizard.form</field>
+        <field name="model">elevenlabs.migration.wizard</field>
+        <field name="arch" type="xml">
+            <form string="ElevenLabs Migration">
+                <header>
+                    <button name="action_check"
+                            string="Check Installation"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'check'"/>
+                    <button name="action_preview"
+                            string="Continue"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'preview' or not legacy_installed"/>
+                    <button name="action_migrate"
+                            string="Start Migration"
+                            type="object"
+                            class="oe_highlight btn-danger"
+                            invisible="state != 'migrate'"
+                            confirm="This will migrate all data from the legacy connect_elevenlabs module. Continue?"/>
+                    <button name="action_close"
+                            string="Close"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'complete'"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <span invisible="state != 'check'">Step 1: Check Installation</span>
+                            <span invisible="state != 'preview'">Step 2: Preview Migration</span>
+                            <span invisible="state != 'migrate'">Step 3: Confirm Migration</span>
+                            <span invisible="state != 'complete'">Migration Complete</span>
+                        </h1>
+                    </div>
+
+                    <!-- Check State -->
+                    <group invisible="state != 'check'">
+                        <p class="alert alert-info">
+                            This wizard will help you migrate from the legacy
+                            <strong>connect_elevenlabs</strong> module to the new
+                            <strong>voice_base/elevenlabs_provider</strong> architecture.
+                        </p>
+                        <p>
+                            Click <strong>Check Installation</strong> to detect your current
+                            ElevenLabs setup.
+                        </p>
+                    </group>
+
+                    <!-- Preview State -->
+                    <group invisible="state != 'preview'">
+                        <group invisible="not legacy_installed">
+                            <div class="alert alert-success" role="alert">
+                                <strong>Legacy Installation Detected!</strong>
+                            </div>
+                            <field name="legacy_version" readonly="1"/>
+                            <separator string="Records to Migrate"/>
+                            <field name="agent_count"/>
+                            <field name="voice_count"/>
+                            <field name="file_count"/>
+                            <field name="tool_count"/>
+                            <field name="phone_count"/>
+                        </group>
+                        <group invisible="legacy_installed">
+                            <div class="alert alert-warning" role="alert">
+                                <strong>No Legacy Installation Found</strong>
+                                <p>The connect_elevenlabs module is not installed. Nothing to migrate.</p>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Migrate State -->
+                    <group invisible="state != 'migrate'">
+                        <group string="Migration Options">
+                            <field name="migrate_voices"/>
+                            <field name="migrate_files"/>
+                            <field name="migrate_tools"/>
+                            <field name="preserve_legacy"/>
+                        </group>
+                        <div class="alert alert-warning" role="alert">
+                            <strong>Important:</strong> This migration will:
+                            <ul>
+                                <li>Create a new ElevenLabs provider configuration</li>
+                                <li>Migrate all selected data to the new architecture</li>
+                                <li>Preserve external agent IDs for ElevenLabs sync</li>
+                            </ul>
+                            After migration, you can uninstall the legacy connect_elevenlabs module.
+                        </div>
+                    </group>
+
+                    <!-- Complete State -->
+                    <group invisible="state != 'complete'">
+                        <group string="Migration Results">
+                            <field name="agents_migrated"/>
+                            <field name="migration_log" readonly="1"/>
+                        </group>
+                        <group string="Errors" invisible="not errors">
+                            <field name="errors" readonly="1"/>
+                        </group>
+                        <div class="alert alert-success" role="alert" invisible="errors">
+                            <strong>Migration completed successfully!</strong>
+                            <p>You can now safely uninstall the legacy connect_elevenlabs module.</p>
+                        </div>
+                        <div class="alert alert-warning" role="alert" invisible="not errors">
+                            <strong>Migration completed with errors.</strong>
+                            <p>Please review the errors above. Some records may not have been migrated.</p>
+                        </div>
+                    </group>
+
+                    <field name="state" invisible="1"/>
+                    <field name="legacy_installed" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Migration Wizard Action -->
+    <record id="elevenlabs_migration_wizard_action" model="ir.actions.act_window">
+        <field name="name">Migrate from Legacy ElevenLabs</field>
+        <field name="res_model">elevenlabs.migration.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu Item -->
+    <menuitem id="menu_elevenlabs_migration"
+              name="Migrate from Legacy"
+              parent="voice_base.menu_voice_configuration"
+              action="elevenlabs_migration_wizard_action"
+              sequence="100"
+              groups="base.group_system"/>
+
+</odoo>

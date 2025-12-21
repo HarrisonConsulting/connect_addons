@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Callout Form View Extension -->
+    <record id="connect_callout_voice_form" model="ir.ui.view">
+        <field name="name">connect.callout.voice.form</field>
+        <field name="model">connect.callout</field>
+        <field name="inherit_id" ref="connect_callout.connect_callout_form"/>
+        <field name="arch" type="xml">
+            <!-- Add call mode selection after name -->
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="call_mode" widget="radio" options="{'horizontal': true}"/>
+            </xpath>
+
+            <!-- Voice Agent fields (visible in agent mode) -->
+            <xpath expr="//group[@name='settings']" position="after">
+                <group name="voice_agent" string="Voice Agent Configuration"
+                       invisible="call_mode != 'agent'">
+                    <field name="voice_agent_id"
+                           domain="[('voice_provider_id', '!=', False), ('external_agent_id', '!=', False)]"
+                           required="call_mode == 'agent'"/>
+                    <field name="agent_first_message" placeholder="Optional: Override the agent's first message"/>
+                    <field name="agent_max_duration"/>
+                </group>
+            </xpath>
+
+            <!-- TTS Preview widgets (visible in twiml mode with voice enabled) -->
+            <xpath expr="//field[@name='prompt_message']" position="after">
+                <field name="prompt_message_widget"
+                       nolabel="1"
+                       invisible="not voice_enabled or call_mode != 'twiml'"/>
+            </xpath>
+            <xpath expr="//field[@name='after_choice_message']" position="after">
+                <field name="after_choice_message_widget"
+                       nolabel="1"
+                       invisible="not voice_enabled or call_mode != 'twiml'"/>
+            </xpath>
+            <xpath expr="//field[@name='invalid_input_message']" position="after">
+                <field name="invalid_input_message_widget"
+                       nolabel="1"
+                       invisible="not voice_enabled or call_mode != 'twiml'"/>
+            </xpath>
+
+            <!-- Hidden fields -->
+            <xpath expr="//form" position="inside">
+                <field name="voice_enabled" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Callout Contact Form Extension -->
+    <record id="connect_callout_contact_voice_form" model="ir.ui.view">
+        <field name="name">connect.callout.contact.voice.form</field>
+        <field name="model">connect.callout.contact</field>
+        <field name="inherit_id" ref="connect_callout.connect_callout_contact_form"/>
+        <field name="arch" type="xml">
+            <!-- Add voice conversation fields -->
+            <xpath expr="//sheet" position="inside">
+                <group name="voice_conversation" string="Voice Conversation"
+                       invisible="not voice_conversation_id">
+                    <field name="voice_conversation_id"/>
+                    <field name="voice_call_duration"/>
+                    <field name="voice_summary"/>
+                    <field name="voice_transcript"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

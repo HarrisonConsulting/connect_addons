@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.0.17',
+    'version': '1.0.18',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'live_test_url': 'https://connect-demo-18.oduist.com/',

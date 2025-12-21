@@ -1,6 +1,6 @@
 {
     'name': 'Voice AI Base',
-    'version': '18.0.1.0.3',
+    'version': '18.0.1.1.0',
     'category': 'Productivity/Voice AI',
     'summary': 'Abstract foundation for pluggable voice AI providers',
     'description': """
@@ -34,6 +34,7 @@ voice_elevenlabs, voice_vapi, etc. to add actual functionality.
         'views/voice_knowledge_base_views.xml',
         'views/voice_conversation_views.xml',
         'views/voice_voice_views.xml',
+        'views/voice_tts_file_views.xml',
         'views/menus.xml',
     ],
     'installable': True,

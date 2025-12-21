@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Connect Voice Agent List View -->
+    <record id="view_connect_voice_agent_list" model="ir.ui.view">
+        <field name="name">connect.voice.agent.list</field>
+        <field name="model">connect.voice.agent</field>
+        <field name="arch" type="xml">
+            <list string="Connect Voice Agents">
+                <field name="name"/>
+                <field name="voice_provider_id"/>
+                <field name="exten_id"/>
+                <field name="callflow_id"/>
+                <field name="render_type"/>
+                <field name="sync_status" widget="badge"
+                       decoration-info="sync_status == 'pending'"
+                       decoration-warning="sync_status == 'syncing'"
+                       decoration-success="sync_status == 'synced'"
+                       decoration-danger="sync_status == 'error'"/>
+                <field name="conversation_count"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Connect Voice Agent Form View -->
+    <record id="view_connect_voice_agent_form" model="ir.ui.view">
+        <field name="name">connect.voice.agent.form</field>
+        <field name="model">connect.voice.agent</field>
+        <field name="arch" type="xml">
+            <form string="Connect Voice Agent">
+                <header>
+                    <button name="action_sync_to_provider"
+                            type="object"
+                            string="Sync to Provider"
+                            class="btn-primary"
+                            invisible="not voice_provider_id"
+                            groups="voice_base.group_voice_manager"/>
+                    <field name="sync_status" widget="statusbar"
+                           statusbar_visible="pending,syncing,synced"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="toggle_active"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-archive">
+                            <field name="active"
+                                   widget="boolean_button"
+                                   options="{'terminology': 'archive'}"/>
+                        </button>
+                        <button name="action_view_conversations"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-comments">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value"><field name="conversation_count"/></span>
+                                <span class="o_stat_text">Conversations</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="voice_provider_id"
+                                   options="{'no_create': True}"
+                                   help="The voice AI provider to use for this agent"/>
+                        </group>
+                        <group>
+                            <field name="exten_id"
+                                   options="{'no_create': True}"/>
+                            <field name="callflow_id"
+                                   options="{'no_create': True}"/>
+                            <field name="render_type"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- Voice Configuration -->
+                        <page string="Voice Configuration" name="voice_config">
+                            <group>
+                                <group string="Voice Settings">
+                                    <field name="voice_id"
+                                           domain="[('voice_provider_id', '=', voice_provider_id)]"
+                                           options="{'no_create': True}"/>
+                                    <field name="tts_model"/>
+                                    <field name="stability"/>
+                                    <field name="similarity_boost"/>
+                                    <field name="speed"/>
+                                    <field name="optimize_streaming_latency"/>
+                                </group>
+                                <group string="Conversation Settings">
+                                    <field name="language"/>
+                                    <field name="first_message"
+                                           placeholder="Hello! How can I help you today?"/>
+                                    <field name="turn_timeout"/>
+                                    <field name="max_duration_seconds"/>
+                                    <field name="background_sound"/>
+                                    <field name="enable_backchannel"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- LLM Configuration -->
+                        <page string="LLM Configuration" name="llm_config">
+                            <group>
+                                <group string="Model Settings">
+                                    <field name="llm_model"/>
+                                    <field name="temperature"/>
+                                    <field name="max_tokens"/>
+                                </group>
+                                <group string="System Prompt">
+                                    <field name="system_prompt"
+                                           nolabel="1"
+                                           placeholder="You are a helpful assistant..."
+                                           widget="text"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- Tools & Integration -->
+                        <page string="Tools &amp; Integration" name="tools">
+                            <group>
+                                <field name="tool_ids" widget="many2many_tags"/>
+                                <field name="mcp_server_ids" widget="many2many_tags"/>
+                                <field name="knowledge_base_id"
+                                       options="{'no_create': True}"/>
+                            </group>
+                            <group>
+                                <group>
+                                    <field name="has_tools" readonly="1"/>
+                                    <field name="has_mcp_servers" readonly="1"/>
+                                    <field name="has_knowledge_base" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- Webhooks & Technical -->
+                        <page string="Webhooks &amp; Technical" name="technical">
+                            <group>
+                                <group string="WebSocket Configuration">
+                                    <field name="agent_url"
+                                           widget="url"
+                                           placeholder="wss://example.com/ws/agent"/>
+                                </group>
+                                <group string="Post-Call Webhooks">
+                                    <field name="post_call_webhook_url"
+                                           widget="url"
+                                           readonly="1"/>
+                                    <field name="post_call_webhook_secret"
+                                           password="True"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Sync Status">
+                                    <field name="external_agent_id" readonly="1"/>
+                                    <field name="last_sync" readonly="1"/>
+                                    <field name="sync_error" readonly="1" invisible="not sync_error"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Connect Voice Agent Search View -->
+    <record id="view_connect_voice_agent_search" model="ir.ui.view">
+        <field name="name">connect.voice.agent.search</field>
+        <field name="model">connect.voice.agent</field>
+        <field name="arch" type="xml">
+            <search string="Connect Voice Agents">
+                <field name="name"/>
+                <field name="voice_provider_id"/>
+                <field name="exten_id"/>
+                <field name="callflow_id"/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="archived" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="Synced" name="synced" domain="[('sync_status', '=', 'synced')]"/>
+                <filter string="Sync Errors" name="sync_errors" domain="[('sync_status', '=', 'error')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Provider" name="group_provider" context="{'group_by': 'voice_provider_id'}"/>
+                    <filter string="Extension" name="group_extension" context="{'group_by': 'exten_id'}"/>
+                    <filter string="Callflow" name="group_callflow" context="{'group_by': 'callflow_id'}"/>
+                    <filter string="Sync Status" name="group_sync_status" context="{'group_by': 'sync_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Connect Voice Agent Action -->
+    <record id="action_connect_voice_agent" model="ir.actions.act_window">
+        <field name="name">Voice Agents</field>
+        <field name="res_model">connect.voice.agent</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Connect Voice Agent
+            </p>
+            <p>
+                Voice agents bridge Connect telephony with pluggable voice AI providers.
+                Configure extensions, callflows, and voice settings to create intelligent
+                phone assistants.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Add ElevenLabs provider menu under Voice AI Configuration -->
+    <menuitem id="menu_voice_provider_elevenlabs"
+              name="ElevenLabs Providers"
+              parent="voice_base.menu_voice_configuration"
+              action="action_voice_provider_elevenlabs"
+              sequence="5"/>
+
+    <!-- Add phone registration menu under Voice AI Configuration -->
+    <menuitem id="menu_elevenlabs_phone_registration"
+              name="Phone Registrations"
+              parent="voice_base.menu_voice_configuration"
+              action="action_elevenlabs_phone_registration"
+              sequence="6"/>
+</odoo>

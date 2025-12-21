@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_connect_voice_agent_user,connect.voice.agent user,model_connect_voice_agent,voice_base.group_voice_user,1,0,0,0
+access_connect_voice_agent_manager,connect.voice.agent manager,model_connect_voice_agent,voice_base.group_voice_manager,1,1,1,1

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Root Menu -->
+    <menuitem id="menu_voice_ai_root"
+              name="Voice AI"
+              sequence="100"
+              web_icon="voice_base,static/description/icon.png"/>
+
+    <!-- Main Sections -->
+    <menuitem id="menu_voice_conversations"
+              name="Conversations"
+              parent="menu_voice_ai_root"
+              sequence="10"
+              action="action_voice_conversation"/>
+
+    <menuitem id="menu_voice_library"
+              name="Voice Library"
+              parent="menu_voice_ai_root"
+              sequence="20"
+              action="action_voice_voice"/>
+
+    <!-- Configuration Menu -->
+    <menuitem id="menu_voice_configuration"
+              name="Configuration"
+              parent="menu_voice_ai_root"
+              sequence="100"
+              groups="group_voice_manager"/>
+
+    <menuitem id="menu_voice_tools"
+              name="Tools"
+              parent="menu_voice_configuration"
+              sequence="10"
+              action="action_voice_tool"/>
+
+    <menuitem id="menu_voice_mcp_servers"
+              name="MCP Servers"
+              parent="menu_voice_configuration"
+              sequence="20"
+              action="action_voice_mcp_server"/>
+
+    <menuitem id="menu_voice_knowledge_bases"
+              name="Knowledge Bases"
+              parent="menu_voice_configuration"
+              sequence="30"
+              action="action_voice_knowledge_base"/>
+
+</odoo>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+    Voice Provider views are intentionally minimal since voice.provider is abstract.
+    Concrete implementations (voice_elevenlabs, voice_vapi, etc.) will provide
+    their own specific views and actions.
+
+    This file exists to satisfy the manifest requirement but contains no actual views.
+    -->
+</odoo>

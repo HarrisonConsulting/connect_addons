@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Knowledge Base List View -->
+    <record id="view_voice_knowledge_base_list" model="ir.ui.view">
+        <field name="name">voice.knowledge.base.list</field>
+        <field name="model">voice.knowledge.base</field>
+        <field name="arch" type="xml">
+            <list string="Knowledge Bases">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="voice_provider_id"/>
+                <field name="document_count"/>
+                <field name="total_chunks"/>
+                <field name="last_indexed"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Knowledge Base Form View -->
+    <record id="view_voice_knowledge_base_form" model="ir.ui.view">
+        <field name="name">voice.knowledge.base.form</field>
+        <field name="model">voice.knowledge.base</field>
+        <field name="arch" type="xml">
+            <form string="Knowledge Base">
+                <header>
+                    <button name="action_reindex" type="object" string="Reindex" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="toggle_active" type="object" class="oe_stat_button" icon="fa-archive">
+                            <field name="active" widget="boolean_button" options="{'terminology': 'archive'}"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="voice_provider_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="document_count"/>
+                            <field name="total_chunks"/>
+                            <field name="total_tokens"/>
+                            <field name="last_indexed"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description" placeholder="Describe what information this knowledge base contains"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Configuration" name="config">
+                            <group>
+                                <group string="Chunking">
+                                    <field name="chunk_size"/>
+                                    <field name="chunk_overlap"/>
+                                </group>
+                                <group string="Retrieval">
+                                    <field name="top_k"/>
+                                    <field name="similarity_threshold"/>
+                                </group>
+                            </group>
+                            <group>
+                                <field name="external_kb_id" readonly="1"/>
+                            </group>
+                        </page>
+                        <page string="Statistics" name="stats">
+                            <group>
+                                <group>
+                                    <field name="query_count"/>
+                                    <field name="last_queried"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Knowledge Base Search View -->
+    <record id="view_voice_knowledge_base_search" model="ir.ui.view">
+        <field name="name">voice.knowledge.base.search</field>
+        <field name="model">voice.knowledge.base</field>
+        <field name="arch" type="xml">
+            <search string="Knowledge Bases">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="voice_provider_id"/>
+                <filter string="Archived" name="filter_archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Provider" name="group_provider" context="{'group_by': 'voice_provider_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Knowledge Base Action -->
+    <record id="action_voice_knowledge_base" model="ir.actions.act_window">
+        <field name="name">Knowledge Bases</field>
+        <field name="res_model">voice.knowledge.base</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first knowledge base
+            </p>
+            <p>
+                Knowledge bases provide context to voice agents through
+                Retrieval-Augmented Generation (RAG).
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Conversation List View -->
+    <record id="view_voice_conversation_list" model="ir.ui.view">
+        <field name="name">voice.conversation.list</field>
+        <field name="model">voice.conversation</field>
+        <field name="arch" type="xml">
+            <list string="Conversations">
+                <field name="name"/>
+                <field name="state" widget="badge" decoration-info="state == 'pending'" decoration-warning="state == 'connecting'" decoration-success="state in ('active', 'completed')" decoration-danger="state == 'failed'"/>
+                <field name="source"/>
+                <field name="partner_id"/>
+                <field name="start_time"/>
+                <field name="duration_seconds" widget="integer"/>
+                <field name="turn_count"/>
+                <field name="tool_call_count"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Conversation Form View -->
+    <record id="view_voice_conversation_form" model="ir.ui.view">
+        <field name="name">voice.conversation.form</field>
+        <field name="model">voice.conversation</field>
+        <field name="arch" type="xml">
+            <form string="Conversation">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,connecting,active,completed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="toggle_active" type="object" class="oe_stat_button" icon="fa-archive">
+                            <field name="active" widget="boolean_button" options="{'terminology': 'archive'}"/>
+                        </button>
+                        <button name="action_view_transcript" type="object" class="oe_stat_button" icon="fa-file-text-o">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value"><field name="word_count"/></span>
+                                <span class="o_stat_text">Words</span>
+                            </div>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="source"/>
+                            <field name="voice_provider_id"/>
+                            <field name="partner_id"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="start_time"/>
+                            <field name="end_time"/>
+                            <field name="duration_seconds" widget="integer"/>
+                            <field name="turn_count"/>
+                            <field name="sentiment"/>
+                            <field name="customer_satisfaction"/>
+                        </group>
+                    </group>
+
+                    <group string="Phone Details" invisible="source == 'browser'">
+                        <group>
+                            <field name="phone_number_from"/>
+                            <field name="phone_number_to"/>
+                        </group>
+                        <group>
+                            <field name="call_sid"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Transcript" name="transcript">
+                            <field name="transcript" placeholder="Conversation transcript will appear here..."/>
+                        </page>
+                        <page string="Summary" name="summary">
+                            <field name="summary" placeholder="AI-generated summary will appear here..."/>
+                        </page>
+                        <page string="Tool Calls" name="tool_calls">
+                            <field name="tool_call_ids">
+                                <list>
+                                    <field name="timestamp"/>
+                                    <field name="tool_name"/>
+                                    <field name="tool_id"/>
+                                    <field name="duration_ms"/>
+                                    <field name="success" widget="boolean_toggle"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Audio" name="audio" invisible="not audio_file and not audio_url">
+                            <group>
+                                <field name="audio_file" filename="audio_filename"/>
+                                <field name="audio_filename" invisible="1"/>
+                                <field name="audio_url" widget="url"/>
+                            </group>
+                        </page>
+                        <page string="Technical" name="technical">
+                            <group>
+                                <group>
+                                    <field name="external_conversation_id"/>
+                                </group>
+                                <group>
+                                    <field name="error_code" invisible="state != 'failed'"/>
+                                    <field name="error_message" invisible="state != 'failed'"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Conversation Search View -->
+    <record id="view_voice_conversation_search" model="ir.ui.view">
+        <field name="name">voice.conversation.search</field>
+        <field name="model">voice.conversation</field>
+        <field name="arch" type="xml">
+            <search string="Conversations">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="transcript"/>
+                <filter string="Pending" name="filter_pending" domain="[('state', '=', 'pending')]"/>
+                <filter string="Active" name="filter_active" domain="[('state', '=', 'active')]"/>
+                <filter string="Completed" name="filter_completed" domain="[('state', '=', 'completed')]"/>
+                <filter string="Failed" name="filter_failed" domain="[('state', '=', 'failed')]"/>
+                <separator/>
+                <filter string="Browser" name="filter_browser" domain="[('source', '=', 'browser')]"/>
+                <filter string="Phone Inbound" name="filter_inbound" domain="[('source', '=', 'phone_inbound')]"/>
+                <filter string="Phone Outbound" name="filter_outbound" domain="[('source', '=', 'phone_outbound')]"/>
+                <separator/>
+                <filter string="Archived" name="filter_archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Source" name="group_source" context="{'group_by': 'source'}"/>
+                    <filter string="Provider" name="group_provider" context="{'group_by': 'voice_provider_id'}"/>
+                    <filter string="Contact" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Conversation Action -->
+    <record id="action_voice_conversation" model="ir.actions.act_window">
+        <field name="name">Conversations</field>
+        <field name="res_model">voice.conversation</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No conversations yet
+            </p>
+            <p>
+                Voice conversations will appear here when agents interact with users.
+            </p>
+        </field>
+    </record>
+
+</odoo>

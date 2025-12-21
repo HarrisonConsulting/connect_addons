@@ -1,0 +1,15 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_voice_tool_user,voice.tool user,model_voice_tool,group_voice_user,1,0,0,0
+access_voice_tool_manager,voice.tool manager,model_voice_tool,group_voice_manager,1,1,1,1
+access_voice_tool_parameter_user,voice.tool.parameter user,model_voice_tool_parameter,group_voice_user,1,0,0,0
+access_voice_tool_parameter_manager,voice.tool.parameter manager,model_voice_tool_parameter,group_voice_manager,1,1,1,1
+access_voice_mcp_server_user,voice.mcp.server user,model_voice_mcp_server,group_voice_user,1,0,0,0
+access_voice_mcp_server_manager,voice.mcp.server manager,model_voice_mcp_server,group_voice_manager,1,1,1,1
+access_voice_knowledge_base_user,voice.knowledge.base user,model_voice_knowledge_base,group_voice_user,1,0,0,0
+access_voice_knowledge_base_manager,voice.knowledge.base manager,model_voice_knowledge_base,group_voice_manager,1,1,1,1
+access_voice_conversation_user,voice.conversation user,model_voice_conversation,group_voice_user,1,1,1,0
+access_voice_conversation_manager,voice.conversation manager,model_voice_conversation,group_voice_manager,1,1,1,1
+access_voice_conversation_tool_call_user,voice.conversation.tool_call user,model_voice_conversation_tool_call,group_voice_user,1,0,0,0
+access_voice_conversation_tool_call_manager,voice.conversation.tool_call manager,model_voice_conversation_tool_call,group_voice_manager,1,1,1,1
+access_voice_voice_user,voice.voice user,model_voice_voice,group_voice_user,1,0,0,0
+access_voice_voice_manager,voice.voice manager,model_voice_voice,group_voice_manager,1,1,1,1

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Voice Library List View -->
+    <record id="view_voice_voice_list" model="ir.ui.view">
+        <field name="name">voice.voice.list</field>
+        <field name="model">voice.voice</field>
+        <field name="arch" type="xml">
+            <list string="Voice Library">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="voice_provider_id"/>
+                <field name="gender"/>
+                <field name="accent"/>
+                <field name="use_case"/>
+                <field name="is_cloned" widget="boolean_toggle"/>
+                <field name="usage_count"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Voice Library Kanban View -->
+    <record id="view_voice_voice_kanban" model="ir.ui.view">
+        <field name="name">voice.voice.kanban</field>
+        <field name="model">voice.voice</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="name"/>
+                <field name="voice_provider_id"/>
+                <field name="gender"/>
+                <field name="accent"/>
+                <field name="use_case"/>
+                <field name="preview_url"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div><i class="fa fa-building-o"/> <field name="voice_provider_id"/></div>
+                                <div t-if="record.gender.raw_value">
+                                    <i class="fa fa-user"/> <field name="gender"/>
+                                </div>
+                                <div t-if="record.accent.raw_value">
+                                    <i class="fa fa-globe"/> <field name="accent"/>
+                                </div>
+                                <div t-if="record.use_case.raw_value">
+                                    <i class="fa fa-tag"/> <field name="use_case"/>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <button t-if="record.preview_url.raw_value" type="object" name="action_preview_voice" class="btn btn-sm btn-primary">
+                                    <i class="fa fa-play"/> Preview
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Voice Library Form View -->
+    <record id="view_voice_voice_form" model="ir.ui.view">
+        <field name="name">voice.voice.form</field>
+        <field name="model">voice.voice</field>
+        <field name="arch" type="xml">
+            <form string="Voice">
+                <header>
+                    <button name="action_preview_voice" type="object" string="Preview Voice" class="btn-primary" invisible="not preview_url"/>
+                    <button name="action_test_voice" type="object" string="Test Voice" class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="toggle_active" type="object" class="oe_stat_button" icon="fa-archive">
+                            <field name="active" widget="boolean_button" options="{'terminology': 'archive'}"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="voice_provider_id"/>
+                            <field name="external_voice_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="gender"/>
+                            <field name="age"/>
+                            <field name="accent"/>
+                            <field name="language_code"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description" placeholder="Describe the voice characteristics"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Characteristics" name="characteristics">
+                            <group>
+                                <group>
+                                    <field name="use_case"/>
+                                    <field name="voice_style"/>
+                                </group>
+                                <group>
+                                    <field name="sample_rate"/>
+                                    <field name="audio_format"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Voice Cloning" name="cloning" invisible="not is_cloned">
+                            <group>
+                                <field name="is_cloned"/>
+                                <field name="cloned_from_partner_id"/>
+                            </group>
+                        </page>
+                        <page string="Preview" name="preview">
+                            <group>
+                                <field name="preview_url" widget="url"/>
+                                <field name="preview_text"/>
+                            </group>
+                        </page>
+                        <page string="Statistics" name="stats">
+                            <group>
+                                <group>
+                                    <field name="usage_count"/>
+                                    <field name="last_used"/>
+                                </group>
+                                <group>
+                                    <field name="last_synced"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Voice Library Search View -->
+    <record id="view_voice_voice_search" model="ir.ui.view">
+        <field name="name">voice.voice.search</field>
+        <field name="model">voice.voice</field>
+        <field name="arch" type="xml">
+            <search string="Voice Library">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="accent"/>
+                <field name="voice_provider_id"/>
+                <filter string="Male" name="filter_male" domain="[('gender', '=', 'male')]"/>
+                <filter string="Female" name="filter_female" domain="[('gender', '=', 'female')]"/>
+                <separator/>
+                <filter string="Cloned" name="filter_cloned" domain="[('is_cloned', '=', True)]"/>
+                <separator/>
+                <filter string="Archived" name="filter_archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Provider" name="group_provider" context="{'group_by': 'voice_provider_id'}"/>
+                    <filter string="Gender" name="group_gender" context="{'group_by': 'gender'}"/>
+                    <filter string="Use Case" name="group_use_case" context="{'group_by': 'use_case'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Voice Library Action -->
+    <record id="action_voice_voice" model="ir.actions.act_window">
+        <field name="name">Voice Library</field>
+        <field name="res_model">voice.voice</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No voices available yet
+            </p>
+            <p>
+                Sync voices from your provider to see available voices here.
+            </p>
+        </field>
+    </record>
+
+</odoo>

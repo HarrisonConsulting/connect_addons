@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend Crew Agent Form View - Add Enhanced Voice Tab -->
+    <record id="crew_agent_form_voice_extension" model="ir.ui.view">
+        <field name="name">crew.agent.form.voice.extension</field>
+        <field name="model">crew.agent</field>
+        <field name="inherit_id" ref="crew.crew_agent_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Add sync button to header when voice is enabled -->
+            <xpath expr="//header" position="inside">
+                <button name="action_sync_to_provider"
+                        type="object"
+                        string="Sync to Provider"
+                        class="btn-secondary"
+                        invisible="not is_voice_enabled or not voice_provider_id"
+                        groups="voice_base.group_voice_manager"
+                        help="Synchronize this agent with the voice provider"/>
+            </xpath>
+
+            <!-- Add voice conversations button to button box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_voice_conversations"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-comments"
+                        invisible="not is_voice_enabled or conversation_count == 0">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_value"><field name="conversation_count"/></span>
+                        <span class="o_stat_text">Voice Conversations</span>
+                    </div>
+                </button>
+                <button name="action_start_voice_conversation"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-microphone"
+                        invisible="not is_voice_enabled or not voice_provider_id">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Start Voice Chat</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!-- Replace the existing Voice page with enhanced configuration -->
+            <xpath expr="//page[@name='voice']" position="replace">
+                <page string="Voice Configuration" name="voice">
+                    <!-- Enable/Disable Voice -->
+                    <group>
+                        <group>
+                            <field name="is_voice_enabled" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+
+                    <div invisible="not is_voice_enabled">
+                        <!-- Provider Selection -->
+                        <group>
+                            <group string="Provider">
+                                <field name="voice_provider_id"
+                                       options="{'no_create': True}"
+                                       help="Select the voice AI provider to use"/>
+                            </group>
+                            <group string="Sync Status" invisible="not voice_provider_id">
+                                <field name="sync_status"
+                                       widget="badge"
+                                       decoration-info="sync_status == 'pending'"
+                                       decoration-warning="sync_status == 'syncing'"
+                                       decoration-success="sync_status == 'synced'"
+                                       decoration-danger="sync_status == 'error'"
+                                       readonly="1"/>
+                                <field name="external_agent_id" readonly="1" invisible="not external_agent_id"/>
+                                <field name="last_sync" readonly="1" invisible="not last_sync"/>
+                                <field name="sync_error" readonly="1" invisible="not sync_error"/>
+                            </group>
+                        </group>
+
+                        <!-- Notebook for Voice Configuration -->
+                        <notebook>
+                            <!-- Voice Settings -->
+                            <page string="Voice Settings" name="voice_settings">
+                                <group>
+                                    <group string="Voice &amp; Speech">
+                                        <field name="voice_id"
+                                               domain="[('provider_id', '=', voice_provider_id)]"
+                                               options="{'no_create': True}"
+                                               help="Select a voice from the voice library"/>
+                                        <field name="tts_model" help="Text-to-speech model"/>
+                                        <field name="stability"
+                                               widget="percentpie"
+                                               help="Voice stability (0-1). Higher = more consistent"/>
+                                        <field name="similarity_boost"
+                                               widget="percentpie"
+                                               help="Voice similarity (0-1). Higher = closer to original"/>
+                                        <field name="speed" help="Speech speed multiplier (0.25-4.0)"/>
+                                        <field name="optimize_streaming_latency"
+                                               help="Latency optimization (0-4). Higher = lower latency"/>
+                                    </group>
+                                    <group string="Conversation Settings">
+                                        <field name="language" help="Primary conversation language"/>
+                                        <field name="turn_timeout" help="Seconds to wait for user to speak"/>
+                                        <field name="max_duration_seconds" help="Maximum conversation duration"/>
+                                        <field name="background_sound" help="Ambient background sound"/>
+                                        <field name="enable_backchannel"
+                                               widget="boolean_toggle"
+                                               help="Allow acknowledgment sounds while listening"/>
+                                    </group>
+                                </group>
+                                <group>
+                                    <field name="first_message"
+                                           placeholder="Hello! I'm [Agent Name]. How can I help you today?"
+                                           help="Initial greeting message"/>
+                                </group>
+                            </page>
+
+                            <!-- LLM Settings -->
+                            <page string="LLM Settings" name="llm_settings">
+                                <group>
+                                    <group string="Model Configuration">
+                                        <field name="llm_model" help="Large Language Model to use"/>
+                                        <field name="temperature"
+                                               widget="percentpie"
+                                               help="Creativity (0-2). Higher = more creative"/>
+                                        <field name="max_tokens" help="Maximum tokens in response"/>
+                                    </group>
+                                </group>
+                                <group string="System Prompt">
+                                    <p class="text-muted">
+                                        The system prompt from voice.agent.mixin will be combined with
+                                        your Crew agent's role, goal, and backstory to form the complete
+                                        voice prompt.
+                                    </p>
+                                    <field name="system_prompt"
+                                           nolabel="1"
+                                           placeholder="Additional instructions for voice behavior...&#10;&#10;Example: Keep responses concise and conversational. Use simple language."
+                                           widget="text"
+                                           help="Voice-specific instructions (combined with role/goal/backstory)"/>
+                                </group>
+                                <group string="Legacy Conversational Prompt" invisible="not conversational_prompt">
+                                    <field name="conversational_prompt"
+                                           nolabel="1"
+                                           readonly="1"
+                                           widget="text"
+                                           help="Legacy field - migrate to system_prompt"/>
+                                    <p class="text-warning">
+                                        Note: This is a legacy field. Please migrate to the System Prompt above.
+                                    </p>
+                                </group>
+                                <group string="Full Voice Prompt Preview">
+                                    <field name="full_voice_prompt"
+                                           nolabel="1"
+                                           readonly="1"
+                                           widget="text"
+                                           help="Complete prompt sent to AI provider"/>
+                                </group>
+                            </page>
+
+                            <!-- Tools & Integration -->
+                            <page string="Tools &amp; Integration" name="voice_tools">
+                                <group>
+                                    <p class="text-muted">
+                                        Configure custom tools, MCP servers, and knowledge bases for
+                                        this voice agent. These extend the agent's capabilities during
+                                        voice conversations.
+                                    </p>
+                                </group>
+                                <group>
+                                    <group string="Custom Tools">
+                                        <field name="tool_ids"
+                                               nolabel="1"
+                                               widget="many2many_tags">
+                                            <list>
+                                                <field name="name"/>
+                                                <field name="function_name"/>
+                                                <field name="description"/>
+                                            </list>
+                                        </field>
+                                    </group>
+                                    <group string="MCP Servers">
+                                        <field name="mcp_server_ids"
+                                               nolabel="1"
+                                               widget="many2many_tags">
+                                            <list>
+                                                <field name="name"/>
+                                                <field name="description"/>
+                                            </list>
+                                        </field>
+                                    </group>
+                                </group>
+                                <group>
+                                    <group string="Knowledge Base">
+                                        <field name="knowledge_base_id"
+                                               options="{'no_create': True}"
+                                               help="RAG knowledge base for this agent"/>
+                                    </group>
+                                    <group string="Integration Status">
+                                        <field name="has_tools" readonly="1" widget="boolean"/>
+                                        <field name="has_mcp_servers" readonly="1" widget="boolean"/>
+                                        <field name="has_knowledge_base" readonly="1" widget="boolean"/>
+                                    </group>
+                                </group>
+                            </page>
+
+                            <!-- Legacy Provider Info -->
+                            <page string="Legacy Provider" name="legacy_provider"
+                                  invisible="not ai_provider_id">
+                                <group>
+                                    <p class="text-warning">
+                                        This agent still has a legacy AI provider configured.
+                                        Consider migrating to the new voice_provider_id system.
+                                    </p>
+                                    <group>
+                                        <field name="ai_provider_id" readonly="1"/>
+                                        <field name="voice_id" readonly="1" invisible="1"/>
+                                        <field name="voice_language" readonly="1" invisible="1"/>
+                                        <field name="voice_temperature" readonly="1" invisible="1"/>
+                                    </group>
+                                </group>
+                            </page>
+                        </notebook>
+                    </div>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- Extend List View - Show voice provider -->
+    <record id="crew_agent_list_voice_extension" model="ir.ui.view">
+        <field name="name">crew.agent.list.voice.extension</field>
+        <field name="model">crew.agent</field>
+        <field name="inherit_id" ref="crew.crew_agent_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='is_voice_enabled']" position="after">
+                <field name="voice_provider_id" optional="hide"/>
+                <field name="sync_status"
+                       optional="hide"
+                       widget="badge"
+                       decoration-info="sync_status == 'pending'"
+                       decoration-warning="sync_status == 'syncing'"
+                       decoration-success="sync_status == 'synced'"
+                       decoration-danger="sync_status == 'error'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Extend Search View - Add voice filters -->
+    <record id="crew_agent_search_voice_extension" model="ir.ui.view">
+        <field name="name">crew.agent.search.voice.extension</field>
+        <field name="model">crew.agent</field>
+        <field name="inherit_id" ref="crew.crew_agent_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter string="Voice Enabled" name="voice_enabled"
+                        domain="[('is_voice_enabled', '=', True)]"/>
+                <filter string="Voice Synced" name="voice_synced"
+                        domain="[('sync_status', '=', 'synced')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Voice Provider" name="group_voice_provider"
+                            context="{'group_by': 'voice_provider_id'}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

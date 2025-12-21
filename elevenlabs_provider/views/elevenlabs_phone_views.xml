@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Phone Registration Tree View -->
+    <record id="view_elevenlabs_phone_registration_tree" model="ir.ui.view">
+        <field name="name">elevenlabs.phone.registration.tree</field>
+        <field name="model">elevenlabs.phone.registration</field>
+        <field name="arch" type="xml">
+            <list string="ElevenLabs Phone Registrations">
+                <field name="name"/>
+                <field name="phone_number"/>
+                <field name="provider_id"/>
+                <field name="sync_status"
+                       decoration-success="sync_status == 'synced'"
+                       decoration-warning="sync_status == 'syncing'"
+                       decoration-danger="sync_status == 'error'"
+                       widget="badge"/>
+                <field name="last_sync"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Phone Registration Form View -->
+    <record id="view_elevenlabs_phone_registration_form" model="ir.ui.view">
+        <field name="name">elevenlabs.phone.registration.form</field>
+        <field name="model">elevenlabs.phone.registration</field>
+        <field name="arch" type="xml">
+            <form string="ElevenLabs Phone Registration">
+                <header>
+                    <button name="action_register"
+                            type="object"
+                            string="Register"
+                            invisible="sync_status == 'synced'"
+                            class="btn-primary"
+                            help="Register this phone number with ElevenLabs"/>
+                    <button name="action_unregister"
+                            type="object"
+                            string="Unregister"
+                            invisible="sync_status != 'synced'"
+                            class="btn-warning"
+                            confirm="Are you sure you want to unregister this phone number?"
+                            help="Remove this phone number from ElevenLabs"/>
+                    <button name="action_sync_status"
+                            type="object"
+                            string="Sync Status"
+                            help="Check registration status with ElevenLabs"/>
+                    <field name="sync_status" widget="statusbar"
+                           statusbar_visible="draft,syncing,synced"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="toggle_active" type="object" class="oe_stat_button" icon="fa-archive">
+                            <field name="active" widget="boolean_button" options="{&quot;terminology&quot;: &quot;archive&quot;}"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name" placeholder="e.g., Main Support Line"/>
+                            <field name="provider_id" options="{'no_create': True}"/>
+                            <field name="phone_number" placeholder="+14155551234"/>
+                            <field name="outgoing_callerid_id"
+                                   options="{'no_create': True}"
+                                   invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="label" placeholder="Optional label for ElevenLabs"/>
+                            <field name="elevenlabs_phone_id" readonly="1"/>
+                            <field name="last_sync" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Twilio Credentials" name="twilio" groups="base.group_system">
+                            <group>
+                                <group>
+                                    <field name="twilio_account_sid" password="True"
+                                           placeholder="Leave empty to use provider/connect settings"/>
+                                    <field name="twilio_auth_token" password="True"
+                                           placeholder="Leave empty to use provider/connect settings"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Error Details" name="errors" invisible="sync_status != 'error'">
+                            <group>
+                                <field name="sync_error" readonly="1" nolabel="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Phone Registration Action -->
+    <record id="action_elevenlabs_phone_registration" model="ir.actions.act_window">
+        <field name="name">Phone Registrations</field>
+        <field name="res_model">elevenlabs.phone.registration</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Register a Twilio phone number with ElevenLabs
+            </p>
+            <p>
+                Register your Twilio phone numbers with ElevenLabs to enable
+                outbound calling through ElevenLabs agents.
+            </p>
+        </field>
+    </record>
+</odoo>

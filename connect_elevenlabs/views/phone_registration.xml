@@ -21,13 +21,7 @@
                            statusbar_visible="draft,synced"/>
                 </header>
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="%(action_elevenlabs_phone_registration)d" type="action"
-                                class="oe_stat_button" icon="fa-phone"
-                                invisible="not elevenlabs_phone_id">
-                            <field name="phone_number" widget="statinfo" string="Phone"/>
-                        </button>
-                    </div>
+                    <div class="oe_button_box" name="button_box"/>
                     <widget name="web_ribbon" title="Registered" bg_color="text-bg-success"
                             invisible="sync_status != 'synced'"/>
                     <widget name="web_ribbon" title="Error" bg_color="text-bg-danger"

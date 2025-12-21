@@ -1,6 +1,6 @@
 {
     'name': 'Voice AI Base',
-    'version': '18.0.1.0.2',
+    'version': '18.0.1.0.3',
     'category': 'Productivity/Voice AI',
     'summary': 'Abstract foundation for pluggable voice AI providers',
     'description': """

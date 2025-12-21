@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice Provider',
-    'version': '18.0.1.0.4',
+    'version': '18.0.1.0.5',
     'category': 'Productivity/Voice AI',
     'summary': 'ElevenLabs integration for Voice AI framework',
     'description': """
@@ -27,6 +27,7 @@ This module implements the abstract voice_base framework for ElevenLabs.
     'license': 'OPL-1',
     'depends': [
         'voice_base',
+        'connect',  # For phone number management
     ],
     'external_dependencies': {
         'python': ['elevenlabs'],

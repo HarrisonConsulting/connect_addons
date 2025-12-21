@@ -96,7 +96,7 @@ class VoiceTool(models.Model):
         help='Parameters that can be passed to this tool'
     )
     parameter_count = fields.Integer(
-        string='Parameters',
+        string='Parameter Count',
         compute='_compute_parameter_count',
         help='Number of parameters'
     )

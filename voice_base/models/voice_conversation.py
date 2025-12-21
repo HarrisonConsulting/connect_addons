@@ -156,7 +156,7 @@ class VoiceConversation(models.Model):
         help='Tools that were called during this conversation'
     )
     tool_call_count = fields.Integer(
-        string='Tool Calls',
+        string='Tool Call Count',
         compute='_compute_tool_call_count',
         help='Number of tool calls made'
     )

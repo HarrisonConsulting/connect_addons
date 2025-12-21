@@ -39,20 +39,20 @@
                                 <strong><field name="name"/></strong>
                             </div>
                             <div class="o_kanban_record_body">
-                                <div><i class="fa fa-building-o"/> <field name="voice_provider_id"/></div>
+                                <div><i class="fa fa-building-o" title="Provider"/> <field name="voice_provider_id"/></div>
                                 <div t-if="record.gender.raw_value">
-                                    <i class="fa fa-user"/> <field name="gender"/>
+                                    <i class="fa fa-user" title="Gender"/> <field name="gender"/>
                                 </div>
                                 <div t-if="record.accent.raw_value">
-                                    <i class="fa fa-globe"/> <field name="accent"/>
+                                    <i class="fa fa-globe" title="Accent"/> <field name="accent"/>
                                 </div>
                                 <div t-if="record.use_case.raw_value">
-                                    <i class="fa fa-tag"/> <field name="use_case"/>
+                                    <i class="fa fa-tag" title="Use Case"/> <field name="use_case"/>
                                 </div>
                             </div>
                             <div class="o_kanban_record_bottom">
                                 <button t-if="record.preview_url.raw_value" type="object" name="action_preview_voice" class="btn btn-sm btn-primary">
-                                    <i class="fa fa-play"/> Preview
+                                    <i class="fa fa-play" title="Preview"/> Preview
                                 </button>
                             </div>
                         </div>

@@ -584,3 +584,273 @@ class VoiceProviderElevenLabs(models.Model):
         except Exception as e:
             logger.error('Failed to unregister phone number: %s', e)
             raise UserError(_('Failed to unregister phone number: %s') % str(e))
+
+    # === Outbound Calling ===
+
+    def initiate_outbound_call(self, agent_id, to_number, dynamic_variables=None,
+                               first_message=None, max_duration=None,
+                               phone_number_id=None):
+        """
+        Initiate an outbound call using ElevenLabs Conversational AI.
+
+        Uses the ElevenLabs Twilio outbound call API to start a call
+        where an AI agent handles the conversation.
+
+        Args:
+            agent_id (str): ElevenLabs agent ID
+            to_number (str): Phone number to call (E.164 format)
+            dynamic_variables (dict): Variables for prompt personalization
+            first_message (str): Override agent's default first message
+            max_duration (int): Maximum call duration in seconds
+            phone_number_id (str): ElevenLabs phone number ID for caller ID
+
+        Returns:
+            dict: {'call_sid': str, 'success': bool, 'details': dict}
+        """
+        self.ensure_one()
+        client = self.get_client()
+
+        # Get Twilio credentials from Connect settings
+        try:
+            Settings = self.env['connect.settings'].sudo()
+            twilio_account_sid = Settings.get_param('twilio_sid')
+            twilio_auth_token = Settings.get_param('twilio_token')
+
+            if not twilio_account_sid or not twilio_auth_token:
+                raise UserError(_('Twilio credentials not configured in Connect settings.'))
+
+        except Exception as e:
+            raise UserError(_('Failed to get Twilio credentials: %s') % str(e))
+
+        # Find registered phone number if not provided
+        if not phone_number_id:
+            phone_reg = self.env['elevenlabs.phone.registration'].search([
+                ('provider_id', '=', self.id),
+                ('sync_status', '=', 'synced'),
+            ], limit=1)
+            if phone_reg:
+                phone_number_id = phone_reg.phone_number_id
+            else:
+                raise UserError(_(
+                    'No registered phone number found for outbound calling. '
+                    'Please register a phone number with ElevenLabs first.'
+                ))
+
+        try:
+            # Build conversation config overrides
+            conversation_config_override = {}
+
+            if first_message:
+                conversation_config_override['agent'] = {
+                    'first_message': first_message,
+                }
+
+            if max_duration:
+                conversation_config_override['conversation'] = {
+                    'max_duration_seconds': max_duration,
+                }
+
+            # Call ElevenLabs Twilio outbound API
+            response = client.conversational_ai.twilio.initiate_outbound_call(
+                agent_id=agent_id,
+                agent_phone_number_id=phone_number_id,
+                to_phone_number=to_number,
+                twilio_account_sid=twilio_account_sid,
+                twilio_auth_token=twilio_auth_token,
+                conversation_config_override=conversation_config_override if conversation_config_override else None,
+                dynamic_variables=dynamic_variables if dynamic_variables else None,
+            )
+
+            # Extract call SID from response
+            call_sid = getattr(response, 'call_sid', None) or getattr(response, 'twilio_call_sid', None)
+
+            logger.info('Initiated outbound call to %s, call_sid=%s', to_number, call_sid)
+
+            return {
+                'call_sid': call_sid,
+                'success': True,
+                'details': self._object_to_dict(response) if response else {},
+            }
+
+        except Exception as e:
+            logger.error('Failed to initiate outbound call: %s', e)
+            raise UserError(_('Failed to initiate outbound call: %s') % str(e))
+
+    # === Agent Sync ===
+
+    def sync_agent(self, agent_record):
+        """
+        Sync an agent configuration to ElevenLabs.
+
+        Takes a record that uses voice.agent.mixin and creates/updates
+        the corresponding agent in ElevenLabs.
+
+        Args:
+            agent_record: Record implementing voice.agent.mixin
+
+        Returns:
+            dict: {'success': bool, 'agent_id': str, 'action': 'created'|'updated'}
+        """
+        self.ensure_one()
+
+        # Build agent configuration from mixin fields
+        config = self._build_agent_config_from_mixin(agent_record)
+
+        try:
+            if agent_record.external_agent_id:
+                # Update existing agent
+                result = self.update_agent(agent_record.external_agent_id, config)
+                agent_record.write({
+                    'sync_status': 'synced',
+                    'sync_error': False,
+                    'last_sync': fields.Datetime.now(),
+                })
+                return {
+                    'success': True,
+                    'agent_id': agent_record.external_agent_id,
+                    'action': 'updated',
+                }
+            else:
+                # Create new agent
+                result = self.create_agent(config)
+                agent_record.write({
+                    'external_agent_id': result['agent_id'],
+                    'sync_status': 'synced',
+                    'sync_error': False,
+                    'last_sync': fields.Datetime.now(),
+                })
+                return {
+                    'success': True,
+                    'agent_id': result['agent_id'],
+                    'action': 'created',
+                }
+
+        except Exception as e:
+            agent_record.write({
+                'sync_status': 'error',
+                'sync_error': str(e),
+            })
+            raise
+
+    def _build_agent_config_from_mixin(self, agent_record):
+        """
+        Build ElevenLabs agent configuration from voice.agent.mixin fields.
+
+        Args:
+            agent_record: Record implementing voice.agent.mixin
+
+        Returns:
+            dict: Agent configuration for ElevenLabs API
+        """
+        from .conversation_handler import ElevenLabsAgentConfig
+
+        config = ElevenLabsAgentConfig()
+
+        # Set name
+        config.set_name(agent_record.name if hasattr(agent_record, 'name') else 'Agent')
+
+        # Set prompt and first message
+        config.set_prompt(
+            system_prompt=agent_record.system_prompt or '',
+            first_message=agent_record.first_message,
+        )
+
+        # Set LLM configuration
+        config.set_llm(
+            model=agent_record.llm_model or 'gpt-4o',
+            temperature=agent_record.temperature or 1.0,
+            max_tokens=agent_record.max_tokens or 500,
+        )
+
+        # Set voice if available
+        if agent_record.voice_id and agent_record.voice_id.external_voice_id:
+            config.set_voice(
+                voice_id=agent_record.voice_id.external_voice_id,
+                stability=agent_record.stability or 0.5,
+                similarity_boost=agent_record.similarity_boost or 0.8,
+                model_id=agent_record.tts_model or 'eleven_flash_v2_5',
+            )
+
+        # Set language
+        if agent_record.language:
+            config.set_language(agent_record.language)
+
+        # Set audio format for telephony
+        config.set_audio_format(output_format='ulaw_8000', sample_rate=8000)
+
+        # Add tools if configured
+        if agent_record.tool_ids:
+            for tool in agent_record.tool_ids:
+                tool_config = self._build_tool_config(tool)
+                if tool_config:
+                    config.add_tool(tool_config)
+
+        return config.build()
+
+    def _build_tool_config(self, tool):
+        """
+        Build tool configuration for ElevenLabs.
+
+        Args:
+            tool: voice.tool record
+
+        Returns:
+            dict: Tool configuration or None
+        """
+        if tool.tool_type == 'webhook':
+            return {
+                'type': 'webhook',
+                'name': tool.name,
+                'description': tool.description or '',
+                'api_schema': {
+                    'url': tool.webhook_url,
+                    'method': tool.http_method or 'POST',
+                },
+            }
+        elif tool.tool_type == 'client':
+            return {
+                'type': 'client',
+                'name': tool.name,
+                'description': tool.description or '',
+            }
+        elif tool.tool_type == 'system':
+            return {
+                'type': 'system',
+                'name': tool.name,
+                'description': tool.description or '',
+                'system_tool_type': tool.system_tool_type,
+            }
+        return None
+
+    # === Inbound Call Rendering ===
+
+    def render_agent_response(self, agent_id, call_id, stream_url):
+        """
+        Generate TwiML response for routing a call to a voice agent.
+
+        Creates a VoiceResponse that connects Twilio to the ElevenLabs
+        WebSocket stream for agent handling.
+
+        Args:
+            agent_id (str): ElevenLabs agent ID
+            call_id (int): Connect call ID
+            stream_url (str): WebSocket URL for audio streaming
+
+        Returns:
+            str: TwiML response XML
+        """
+        try:
+            from twilio.twiml.voice_response import VoiceResponse, Connect
+        except ImportError:
+            raise UserError(_('Twilio SDK not installed. Install with: pip install twilio'))
+
+        response = VoiceResponse()
+        connect = Connect()
+
+        # Build stream URL with agent and call info
+        full_stream_url = f"{stream_url}/{agent_id}/{call_id}"
+
+        connect.stream(url=full_stream_url)
+        response.append(connect)
+
+        return str(response)

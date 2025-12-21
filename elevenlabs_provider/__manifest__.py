@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice Provider',
-    'version': '18.0.1.1.1',
+    'version': '18.0.1.1.2',
     'category': 'Productivity/Voice AI',
     'summary': 'ElevenLabs integration for Voice AI framework',
     'description': """
@@ -38,6 +38,7 @@ This module implements the abstract voice_base framework for ElevenLabs.
         'data/provider_data.xml',
         'views/elevenlabs_provider_views.xml',
         'views/elevenlabs_phone_views.xml',
+        'views/settings_views.xml',
         'wizards/migration_wizard_views.xml',
         'views/menus.xml',
     ],

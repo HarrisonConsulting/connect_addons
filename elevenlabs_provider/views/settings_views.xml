@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Server Action for Opening Settings -->
+    <record model="ir.actions.server" id="elevenlabs_settings_action">
+        <field name="type">ir.actions.server</field>
+        <field name="name">ElevenLabs Settings</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="connect.model_connect_settings"/>
+        <field name="code">action = model.open_elevenlabs_settings()</field>
+    </record>
+
+    <!-- Settings Form View -->
+    <record id="elevenlabs_settings_form" model="ir.ui.view">
+        <field name="name">elevenlabs_provider.settings.form</field>
+        <field name="model">connect.settings</field>
+        <field name="type">form</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>ElevenLabs Configuration</h1>
+                    </div>
+                    <notebook>
+                        <!-- API Configuration Page -->
+                        <page name="api" string="API Configuration">
+                            <group>
+                                <group string="API Credentials">
+                                    <a invisible="display_elevenlabs_api_key"
+                                       class="btn btn-info mb-2"
+                                       role="button"
+                                       colspan="2"
+                                       target="_new"
+                                       href="https://elevenlabs.io/sign-up">
+                                        Create ElevenLabs Account
+                                    </a>
+                                    <field name="elevenlabs_enabled"/>
+                                    <field name="display_elevenlabs_api_key"
+                                           password="1"
+                                           string="API Key"
+                                           invisible="not elevenlabs_enabled"
+                                           required="elevenlabs_enabled"/>
+                                </group>
+                                <group string="Default Configuration">
+                                    <field name="elevenlabs_default_voice_id"
+                                           invisible="not elevenlabs_enabled"
+                                           options="{'no_create': True}"/>
+                                    <field name="elevenlabs_provider_id"
+                                           invisible="not elevenlabs_enabled"
+                                           readonly="1"/>
+                                </group>
+                            </group>
+                            <div class="d-flex flex-row mt-3"
+                                 invisible="not elevenlabs_enabled">
+                                <button name="elevenlabs_test_connection"
+                                        type="object"
+                                        string="Test Connection"
+                                        icon="fa-plug"
+                                        class="btn btn-secondary me-2"/>
+                                <button name="elevenlabs_sync_voices"
+                                        type="object"
+                                        string="Sync Voices"
+                                        icon="fa-refresh"
+                                        class="btn btn-secondary me-2"/>
+                                <button name="elevenlabs_full_sync"
+                                        type="object"
+                                        string="Full Sync"
+                                        icon="fa-cloud-download"
+                                        class="btn btn-primary"/>
+                            </div>
+                        </page>
+
+                        <!-- Agent Configuration Page -->
+                        <page name="agent" string="Agent Configuration"
+                              invisible="not elevenlabs_enabled or not display_elevenlabs_api_key">
+                            <group>
+                                <group string="Agent Settings">
+                                    <field name="elevenlabs_agent_url"
+                                           help="WebSocket URL for ElevenLabs Conversational AI"/>
+                                    <field name="elevenlabs_agent_token"
+                                           readonly="1"
+                                           groups="base.group_erp_manager"/>
+                                </group>
+                            </group>
+                            <div class="d-flex flex-row mt-3">
+                                <button name="elevenlabs_reset_token"
+                                        type="object"
+                                        string="Regenerate Token"
+                                        icon="fa-key"
+                                        class="btn btn-secondary me-2"/>
+                                <button name="elevenlabs_sync_agents"
+                                        type="object"
+                                        string="Sync Agents"
+                                        icon="fa-cloud-upload"
+                                        class="btn btn-primary"/>
+                            </div>
+                        </page>
+
+                        <!-- Webhook Configuration Page -->
+                        <page name="webhooks" string="Webhooks"
+                              invisible="not elevenlabs_enabled or not display_elevenlabs_api_key">
+                            <group>
+                                <group string="Post-Call Webhook">
+                                    <div colspan="2" class="alert alert-info mb-3">
+                                        <p>
+                                            Configure this webhook URL in your
+                                            <a href="https://elevenlabs.io/app/conversational-ai/settings"
+                                               target="_blank">ElevenLabs Settings</a>
+                                            to receive post-call data.
+                                        </p>
+                                    </div>
+                                    <field name="elevenlabs_webhook_url" readonly="1"/>
+                                    <field name="display_elevenlabs_webhook_secret"
+                                           password="1"
+                                           string="Webhook Secret"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Add ElevenLabs submenu under Connect Settings -->
+    <menuitem id="elevenlabs_settings_submenu"
+              parent="connect.connect_settings_menu"
+              groups="connect.group_connect_admin"
+              name="ElevenLabs"
+              sequence="50"/>
+
+    <menuitem id="elevenlabs_settings_menu"
+              parent="elevenlabs_settings_submenu"
+              groups="connect.group_connect_admin"
+              action="elevenlabs_settings_action"
+              name="Settings"
+              sequence="10"/>
+
+</odoo>

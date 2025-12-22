@@ -18,6 +18,8 @@ export const phoneService = {
             const token_data = await orm.call('connect.user', 'get_client_token')
             if (token_data.token) {
                 let bus = new EventBus()
+                // Expose the bus globally for the systray component to access
+                window.connectBus = bus
                 sysTrayRegistry.add('connectPhoneSysTray', {Component: PhoneSysTray, props: {bus}})
                 mainComponents.add('connectPhone', {Component: Phone, props: {bus, token_data}})
             }

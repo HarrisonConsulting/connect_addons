@@ -1,0 +1,352 @@
+// Phone Systray Component Styles
+.o-phone-systray {
+    position: relative;
+    display: inline-block;
+
+    // Systray Button
+    .o-phone-systray-btn {
+        position: relative;
+        padding: 0 8px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        &:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        i {
+            font-size: 18px;
+            transition: color 0.3s ease;
+        }
+
+        // Idle state
+        &.idle i {
+            color: var(--o-text-color, #6c757d);
+        }
+
+        // Ringing state (pulsing animation)
+        &.ringing {
+            i {
+                color: #f59e0b;
+                animation: phone-pulse 1s ease-in-out infinite;
+            }
+        }
+
+        // In call state
+        &.in-call {
+            i {
+                color: #10b981;
+            }
+        }
+
+        // On hold state
+        &.on-hold {
+            i {
+                color: #f59e0b;
+            }
+        }
+    }
+
+    // Badge
+    .o-phone-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+
+        &.ringing {
+            background-color: #f59e0b;
+            color: white;
+            animation: badge-pulse 1s ease-in-out infinite;
+        }
+
+        &.active {
+            background-color: #10b981;
+            color: white;
+            font-family: 'Courier New', monospace;
+        }
+
+        &.on-hold {
+            background-color: #f59e0b;
+            color: white;
+        }
+    }
+
+    // Dropdown Panel
+    .o-phone-systray-dropdown {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
+        background: white;
+        border: 1px solid var(--o-border-color, #dee2e6);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        min-width: 320px;
+        max-width: 400px;
+        z-index: 1050;
+
+        @media (prefers-color-scheme: dark) {
+            background: var(--o-dark-background, #1f2937);
+            border-color: var(--o-dark-border, #374151);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .dropdown-content {
+            padding: 16px;
+        }
+    }
+
+    // Call Info
+    .call-info {
+        .caller-info {
+            text-align: center;
+            margin-bottom: 16px;
+
+            .caller-status {
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 8px;
+                color: var(--o-text-color-secondary, #6c757d);
+
+                @media (prefers-color-scheme: dark) {
+                    color: var(--o-dark-text-secondary, #9ca3af);
+                }
+            }
+
+            .caller-name {
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 4px;
+                color: var(--o-text-color, #212529);
+
+                @media (prefers-color-scheme: dark) {
+                    color: var(--o-dark-text, #f9fafb);
+                }
+            }
+
+            .caller-number {
+                font-size: 14px;
+                color: var(--o-text-color-secondary, #6c757d);
+
+                @media (prefers-color-scheme: dark) {
+                    color: var(--o-dark-text-secondary, #9ca3af);
+                }
+            }
+        }
+
+        // Incoming call specific
+        &.incoming {
+            .caller-status {
+                color: #f59e0b;
+            }
+        }
+
+        // Active call specific
+        &.active {
+            .caller-status {
+                color: #10b981;
+            }
+        }
+    }
+
+    // Call Duration Display
+    .call-duration {
+        text-align: center;
+        font-family: 'Courier New', monospace;
+        font-size: 32px;
+        font-weight: 700;
+        margin: 20px 0;
+        color: var(--o-text-color, #212529);
+        letter-spacing: 2px;
+
+        @media (prefers-color-scheme: dark) {
+            color: var(--o-dark-text, #f9fafb);
+        }
+    }
+
+    // Call Actions (Answer/Reject buttons)
+    .call-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 16px;
+
+        .btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            i {
+                font-size: 16px;
+            }
+
+            &:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            }
+
+            &:active {
+                transform: translateY(0);
+            }
+        }
+
+        .btn-accept {
+            background-color: #10b981;
+            color: white;
+
+            &:hover {
+                background-color: #059669;
+            }
+        }
+
+        .btn-reject {
+            background-color: #ef4444;
+            color: white;
+
+            &:hover {
+                background-color: #dc2626;
+            }
+        }
+    }
+
+    // Call Controls (Mute, Hold, Transfer, etc.)
+    .call-controls {
+        .control-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        .btn-control {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            background: var(--o-background-light, #f8f9fa);
+            border: 1px solid var(--o-border-color, #dee2e6);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--o-text-color, #212529);
+
+            @media (prefers-color-scheme: dark) {
+                background: var(--o-dark-background-light, #374151);
+                border-color: var(--o-dark-border, #4b5563);
+                color: var(--o-dark-text, #f9fafb);
+            }
+
+            i {
+                font-size: 18px;
+                transition: color 0.2s ease;
+            }
+
+            span {
+                font-size: 11px;
+                white-space: nowrap;
+            }
+
+            &:hover {
+                background: var(--o-background-hover, #e9ecef);
+                border-color: var(--o-primary, #007bff);
+
+                @media (prefers-color-scheme: dark) {
+                    background: var(--o-dark-background-hover, #4b5563);
+                }
+            }
+
+            // Active state (for Mute/Hold when active)
+            &.active {
+                background: #10b981;
+                border-color: #059669;
+                color: white;
+
+                i {
+                    color: white;
+                }
+
+                &:hover {
+                    background: #059669;
+                }
+            }
+
+            // Hangup button (red)
+            &.btn-hangup {
+                background: #ef4444;
+                border-color: #dc2626;
+                color: white;
+
+                i {
+                    color: white;
+                }
+
+                &:hover {
+                    background: #dc2626;
+                }
+            }
+        }
+    }
+}
+
+// Animations
+@keyframes phone-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes badge-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.8;
+    }
+}
+
+// Dark mode support using CSS variables
+@media (prefers-color-scheme: dark) {
+    .o-phone-systray {
+        .o-phone-systray-btn {
+            &:hover {
+                background-color: rgba(255, 255, 255, 0.05);
+            }
+
+            &.idle i {
+                color: var(--o-dark-text-secondary, #9ca3af);
+            }
+        }
+    }
+}

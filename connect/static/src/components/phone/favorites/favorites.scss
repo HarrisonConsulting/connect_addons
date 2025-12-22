@@ -1,5 +1,4 @@
-$color-light-gray: #e9ecef;
-//History
+// Favorites
 .o_favorites_list {
   height: 455px;
   overflow: auto;
@@ -9,10 +8,10 @@ $color-light-gray: #e9ecef;
 
     tr {
       height: 54px;
-      border-bottom: 1px solid $o-brand-odoo;
+      border-bottom: 1px solid var(--Phone-accent);
 
       &:hover {
-        background-color: $color-light-gray;
+        background-color: var(--Phone-hover-bg);
       }
     }
 
@@ -24,7 +23,7 @@ $color-light-gray: #e9ecef;
       padding-left: 2px;
       padding-right: 2px;
       margin-top: 4px;
-      border-right: 1px solid $o-brand-odoo;
+      border-right: 1px solid var(--Phone-accent);
       width: 50px;
 
       .o_user_avatar {
@@ -37,7 +36,7 @@ $color-light-gray: #e9ecef;
     .o_history_info {
       cursor: default;
       font-size: 15px;
-      color: $o-brand-odoo;
+      color: var(--Phone-text);
 
       .o_contact_phone {
         margin-left: 5px;
@@ -63,7 +62,7 @@ $color-light-gray: #e9ecef;
         margin: auto;
 
         button {
-          color: $o-brand-odoo;
+          color: var(--Phone-accent);
           border: none;
           background: transparent;
 
@@ -76,7 +75,7 @@ $color-light-gray: #e9ecef;
 
     .o_history_call_button {
       button {
-        color: $o-brand-odoo;
+        color: var(--Phone-accent);
         border: none;
         background: transparent;
 
@@ -91,7 +90,7 @@ $color-light-gray: #e9ecef;
 .o_call_detail_header {
   i {
     font-size: 30px;
-    color: $o-brand-odoo;
+    color: var(--Phone-accent);
     margin-top: 10px;
     margin-left: 10px;
 

@@ -1,0 +1,268 @@
+///
+/// Connect Phone Component - SCSS Variables
+/// This file defines all color and styling variables for the Connect Phone component
+/// with proper Odoo 18 theming patterns and dark mode support.
+///
+/// Author: Harrison Consulting, LLC
+/// License: OPL-1
+///
+
+// =============================================================================
+// Import Odoo's primary variables for reference
+// =============================================================================
+// Note: These are automatically available when this file is imported in the assets bundle
+
+// =============================================================================
+// Phone Container Variables
+// =============================================================================
+
+// Background and text colors for the main phone container
+$o-phone-bg: $o-view-background-color !default;
+$o-phone-text: $o-main-text-color !default;
+$o-phone-border: $o-gray-300 !default;
+$o-phone-border-radius: 0.5rem !default;
+$o-phone-shadow: rgba($o-shadow-color, 0.1) !default;
+
+// =============================================================================
+// Phone Header Variables
+// =============================================================================
+
+// Header background uses a subtle brand color tint
+$o-phone-header-bg: mix($o-brand-primary, $o-view-background-color, 5%) !default;
+$o-phone-header-text: $o-main-headings-color !default;
+$o-phone-header-border: $o-gray-300 !default;
+
+// =============================================================================
+// Keypad Variables
+// =============================================================================
+
+// Keypad styling for the dial pad interface
+$o-phone-keypad-bg: $o-view-background-color !default;
+$o-phone-keypad-text: $o-main-text-color !default;
+$o-phone-keypad-border: $o-gray-300 !default;
+
+// Keypad button states
+$o-phone-keypad-button-bg: $o-gray-100 !default;
+$o-phone-keypad-button-hover-bg: $o-gray-200 !default;
+$o-phone-keypad-button-active-bg: $o-gray-300 !default;
+$o-phone-keypad-button-text: $o-gray-800 !default;
+
+// =============================================================================
+// Call State Colors
+// =============================================================================
+
+// Active call - uses Odoo's success color (green)
+$o-phone-call-active: $o-success !default;
+$o-phone-call-active-bg: mix($o-success, $o-view-background-color, 10%) !default;
+$o-phone-call-active-border: $o-success !default;
+
+// Reject/End call - uses Odoo's danger color (red)
+$o-phone-call-reject: $o-danger !default;
+$o-phone-call-reject-bg: mix($o-danger, $o-view-background-color, 10%) !default;
+$o-phone-call-reject-border: $o-danger !default;
+
+// Hold call - uses Odoo's warning color (orange/amber)
+$o-phone-call-hold: $o-warning !default;
+$o-phone-call-hold-bg: mix($o-warning, $o-view-background-color, 10%) !default;
+$o-phone-call-hold-border: $o-warning !default;
+
+// Muted call - uses neutral gray
+$o-phone-call-muted: $o-gray-600 !default;
+$o-phone-call-muted-bg: mix($o-gray-600, $o-view-background-color, 10%) !default;
+$o-phone-call-muted-border: $o-gray-600 !default;
+
+// =============================================================================
+// Status Indicator Colors
+// =============================================================================
+
+// Idle state - neutral gray
+$o-phone-status-idle: $o-gray-500 !default;
+$o-phone-status-idle-bg: mix($o-gray-500, $o-view-background-color, 5%) !default;
+
+// Ringing state - uses info color (blue)
+$o-phone-status-ringing: $o-info !default;
+$o-phone-status-ringing-bg: mix($o-info, $o-view-background-color, 10%) !default;
+
+// Connected state - uses success color (green)
+$o-phone-status-connected: $o-success !default;
+$o-phone-status-connected-bg: mix($o-success, $o-view-background-color, 10%) !default;
+
+// Error state - uses danger color (red)
+$o-phone-status-error: $o-danger !default;
+$o-phone-status-error-bg: mix($o-danger, $o-view-background-color, 10%) !default;
+
+// =============================================================================
+// Input Field Variables
+// =============================================================================
+
+// Phone number input field styling
+$o-phone-input-bg: $o-input-bg !default;
+$o-phone-input-text: $o-main-text-color !default;
+$o-phone-input-border: $o-gray-400 !default;
+$o-phone-input-focus-border: $o-brand-primary !default;
+$o-phone-input-padding-y: $o-input-padding-y !default;
+$o-phone-input-padding-x: $o-input-padding-x !default;
+
+// =============================================================================
+// Button Variables
+// =============================================================================
+
+// Primary action button (e.g., Call button)
+$o-phone-button-primary-bg: $o-brand-primary !default;
+$o-phone-button-primary-text: $o-white !default;
+$o-phone-button-primary-hover-bg: darken($o-brand-primary, 10%) !default;
+
+// Secondary action button (e.g., Cancel, Clear)
+$o-phone-button-secondary-bg: $o-gray-200 !default;
+$o-phone-button-secondary-text: $o-gray-800 !default;
+$o-phone-button-secondary-hover-bg: $o-gray-300 !default;
+
+// Danger action button (e.g., End Call, Reject)
+$o-phone-button-danger-bg: $o-danger !default;
+$o-phone-button-danger-text: $o-white !default;
+$o-phone-button-danger-hover-bg: darken($o-danger, 10%) !default;
+
+// =============================================================================
+// Spacing and Layout Variables
+// =============================================================================
+
+// Consistent spacing using Odoo's spacer unit
+$o-phone-padding: $o-spacer !default;
+$o-phone-padding-sm: calc($o-spacer / 2) !default;
+$o-phone-padding-lg: calc($o-spacer * 1.5) !default;
+
+$o-phone-margin: $o-spacer !default;
+$o-phone-margin-sm: calc($o-spacer / 2) !default;
+$o-phone-margin-lg: calc($o-spacer * 1.5) !default;
+
+// Component dimensions
+$o-phone-width: 360px !default;
+$o-phone-min-height: 480px !default;
+$o-phone-header-height: 56px !default;
+
+// =============================================================================
+// Typography Variables
+// =============================================================================
+
+// Font sizes for various phone elements
+$o-phone-font-size-base: $o-font-size-base !default;
+$o-phone-font-size-sm: $o-font-size-base-small !default;
+$o-phone-font-size-lg: o-to-rem(16px) !default;
+$o-phone-font-size-display: o-to-rem(24px) !default;
+
+// Font weights
+$o-phone-font-weight-normal: $o-font-weight-normal !default;
+$o-phone-font-weight-medium: $o-font-weight-medium !default;
+$o-phone-font-weight-bold: $o-font-weight-bold !default;
+
+// =============================================================================
+// Animation and Transition Variables
+// =============================================================================
+
+// Transition durations for smooth state changes
+$o-phone-transition-fast: 150ms !default;
+$o-phone-transition-base: 250ms !default;
+$o-phone-transition-slow: 350ms !default;
+
+// Animation timing functions
+$o-phone-ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94) !default;
+$o-phone-ease-in-out: cubic-bezier(0.42, 0, 0.58, 1) !default;
+
+// =============================================================================
+// Z-Index Variables
+// =============================================================================
+
+// Layering for phone component elements
+$o-phone-zindex-base: 1000 !default;
+$o-phone-zindex-dropdown: 1010 !default;
+$o-phone-zindex-modal: 1020 !default;
+$o-phone-zindex-tooltip: 1030 !default;
+
+// =============================================================================
+// Icon Variables
+// =============================================================================
+
+// Icon sizes for consistent iconography
+$o-phone-icon-size-sm: o-to-rem(14px) !default;
+$o-phone-icon-size-base: o-to-rem(16px) !default;
+$o-phone-icon-size-lg: o-to-rem(20px) !default;
+$o-phone-icon-size-xl: o-to-rem(24px) !default;
+
+// =============================================================================
+// Dark Mode Support (Future Enhancement)
+// =============================================================================
+
+// Note: Odoo 18 does not natively support CSS custom properties or
+// @media (prefers-color-scheme: dark) in the core framework yet.
+// These are prepared for future dark mode implementation.
+//
+// When implementing dark mode, uncomment and adjust the following:
+
+/*
+:root {
+    // Container
+    --Phone-bg: #{$o-phone-bg};
+    --Phone-text: #{$o-phone-text};
+    --Phone-border: #{$o-phone-border};
+
+    // Header
+    --Phone-header-bg: #{$o-phone-header-bg};
+    --Phone-header-text: #{$o-phone-header-text};
+
+    // Keypad
+    --Phone-keypad-bg: #{$o-phone-keypad-bg};
+    --Phone-keypad-text: #{$o-phone-keypad-text};
+    --Phone-keypad-button-bg: #{$o-phone-keypad-button-bg};
+
+    // Call states
+    --Phone-call-active: #{$o-phone-call-active};
+    --Phone-call-reject: #{$o-phone-call-reject};
+    --Phone-call-hold: #{$o-phone-call-hold};
+    --Phone-call-muted: #{$o-phone-call-muted};
+
+    // Status indicators
+    --Phone-status-idle: #{$o-phone-status-idle};
+    --Phone-status-ringing: #{$o-phone-status-ringing};
+    --Phone-status-connected: #{$o-phone-status-connected};
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        // Dark mode overrides
+        --Phone-bg: #{$o-gray-900};
+        --Phone-text: #{$o-gray-100};
+        --Phone-border: #{$o-gray-700};
+
+        --Phone-header-bg: #{$o-gray-800};
+        --Phone-header-text: #{$o-gray-100};
+
+        --Phone-keypad-bg: #{$o-gray-800};
+        --Phone-keypad-text: #{$o-gray-100};
+        --Phone-keypad-button-bg: #{$o-gray-700};
+        --Phone-keypad-button-hover-bg: #{$o-gray-600};
+
+        // Call state colors remain the same for accessibility
+        // but backgrounds are adjusted for dark mode
+        --Phone-call-active-bg: #{mix($o-success, $o-gray-900, 20%)};
+        --Phone-call-reject-bg: #{mix($o-danger, $o-gray-900, 20%)};
+        --Phone-call-hold-bg: #{mix($o-warning, $o-gray-900, 20%)};
+        --Phone-call-muted-bg: #{mix($o-gray-600, $o-gray-900, 20%)};
+    }
+}
+*/
+
+// =============================================================================
+// Accessibility Variables
+// =============================================================================
+
+// Focus states for keyboard navigation
+$o-phone-focus-outline-color: $o-brand-primary !default;
+$o-phone-focus-outline-width: 2px !default;
+$o-phone-focus-outline-offset: 2px !default;
+
+// Minimum touch target size (44x44px recommended by WCAG)
+$o-phone-min-touch-target: 44px !default;
+
+// =============================================================================
+// End of Phone Variables
+// =============================================================================

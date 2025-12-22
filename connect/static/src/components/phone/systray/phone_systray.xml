@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="connect.PhoneSystray" owl="1">
+        <div class="o-phone-systray" t-ref="dropdown">
+            <!-- Systray Button -->
+            <button
+                type="button"
+                t-att-class="buttonClass"
+                t-on-click="onClick"
+                title="Connect Phone"
+                aria-label="Connect Phone"
+            >
+                <i t-att-class="iconClass" role="img"/>
+
+                <!-- Badge for call status -->
+                <span
+                    t-if="badgeText"
+                    t-att-class="{
+                        'o-phone-badge': true,
+                        'ringing': state.isRinging,
+                        'active': state.inCall and !state.isHeld,
+                        'on-hold': state.isHeld
+                    }"
+                >
+                    <t t-out="badgeText"/>
+                </span>
+            </button>
+
+            <!-- Dropdown Panel (shown when in call/ringing and clicked) -->
+            <div t-if="state.showDropdown" class="o-phone-systray-dropdown">
+                <div class="dropdown-content">
+                    <!-- Incoming Call Panel -->
+                    <div t-if="state.isRinging" class="call-info incoming">
+                        <div class="caller-info">
+                            <div class="caller-status">Incoming Call</div>
+                            <div class="caller-name" t-if="state.callerName">
+                                <t t-out="state.callerName"/>
+                            </div>
+                            <div class="caller-number">
+                                <t t-out="state.callerNumber or 'Unknown'"/>
+                            </div>
+                        </div>
+
+                        <div class="call-actions">
+                            <button
+                                class="btn btn-success btn-accept"
+                                t-on-click="answerCall"
+                                title="Answer Call"
+                            >
+                                <i class="fa fa-phone"/> Answer
+                            </button>
+                            <button
+                                class="btn btn-danger btn-reject"
+                                t-on-click="rejectCall"
+                                title="Reject Call"
+                            >
+                                <i class="fa fa-phone-slash"/> Reject
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Active Call Panel -->
+                    <div t-if="state.inCall and !state.isRinging" class="call-info active">
+                        <div class="caller-info">
+                            <div class="caller-status" t-if="state.isHeld">Call on Hold</div>
+                            <div class="caller-status" t-else="">Active Call</div>
+                            <div class="caller-name" t-if="state.callerName">
+                                <t t-out="state.callerName"/>
+                            </div>
+                            <div class="caller-number">
+                                <t t-out="state.callerNumber or 'In Call'"/>
+                            </div>
+                        </div>
+
+                        <!-- Call Duration (large display) -->
+                        <div class="call-duration">
+                            <t t-out="formatDuration(state.duration)"/>
+                        </div>
+
+                        <!-- Call Control Buttons -->
+                        <div class="call-controls">
+                            <div class="control-row">
+                                <button
+                                    t-att-class="{
+                                        'btn-control': true,
+                                        'active': state.isMuted
+                                    }"
+                                    t-on-click="toggleMute"
+                                    title="Toggle Mute"
+                                >
+                                    <i t-att-class="{
+                                        'fa': true,
+                                        'icon-mic_off': state.isMuted,
+                                        'icon-mic': !state.isMuted
+                                    }"/>
+                                    <span t-if="state.isMuted">Unmute</span>
+                                    <span t-else="">Mute</span>
+                                </button>
+
+                                <button
+                                    t-att-class="{
+                                        'btn-control': true,
+                                        'active': state.isHeld
+                                    }"
+                                    t-on-click="toggleHold"
+                                    title="Toggle Hold"
+                                >
+                                    <i class="fa fa-pause-circle"/>
+                                    <span t-if="state.isHeld">Resume</span>
+                                    <span t-else="">Hold</span>
+                                </button>
+
+                                <button
+                                    class="btn-control"
+                                    t-on-click="openTransfer"
+                                    title="Transfer Call"
+                                >
+                                    <i class="fa fa-exchange"/>
+                                    <span>Transfer</span>
+                                </button>
+                            </div>
+
+                            <div class="control-row">
+                                <button
+                                    class="btn-control"
+                                    t-on-click="openKeypad"
+                                    title="Show Keypad"
+                                >
+                                    <i class="fa icon-dialpad"/>
+                                    <span>Keypad</span>
+                                </button>
+
+                                <button
+                                    class="btn-control btn-hangup"
+                                    t-on-click="hangupCall"
+                                    title="End Call"
+                                >
+                                    <i class="fa icon-call_end"/>
+                                    <span>End Call</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

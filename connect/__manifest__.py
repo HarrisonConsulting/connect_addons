@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.0.19',
+    'version': '1.0.20',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'live_test_url': 'https://connect-demo-18.oduist.com/',
@@ -66,7 +66,9 @@
     'auto_install': False,
     'images': ['static/description/logo.png'],
     'assets': {
-'web.assets_backend': [
+        'web.assets_backend': [
+            # Theme variables must load first
+            '/connect/static/src/scss/phone_variables.scss',
             '/connect/static/src/icomoon/style.css',
             '/connect/static/src/components/phone/*/*',
             '/connect/static/src/js/main.js',

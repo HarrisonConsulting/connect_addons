@@ -3,10 +3,11 @@
   height: 330px;
   overflow: auto;
 }
+
 // Contact List
 .o_contact_table {
   tr:hover {
-    background-color: $color-light-gray;
+    background-color: var(--Phone-hover-bg);
   }
 
   .o_contact_avatar {
@@ -22,7 +23,7 @@
   .o_contact_info {
     cursor: default;
     font-size: 15px;
-    color: $o-brand-odoo;
+    color: var(--Phone-text);
     width: 150px;
 
     .o_contact_phone {
@@ -39,8 +40,13 @@
   .o_contact_call_button {
     width: 80px;
 
+    .o_button_container {
+      width: 40px;
+      height: 30px;
+    }
+
     button {
-      color: $o-brand-odoo;
+      color: var(--Phone-accent);
       border: none;
       background: transparent;
 

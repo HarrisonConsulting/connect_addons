@@ -25,7 +25,7 @@
                             </td>
                             <td class="o_contact_call_button">
                                 <div class="d-flex">
-                                    <div style="width: 40px; height: 30px;">
+                                    <div class="o_button_container">
                                         <button t-if="isTransfer" t-attf-title="Transfer to {{user.exten_number}}" t-on-click="() => this._onClickMakeTransfer(user.exten_number)">
                                             <i class="fa icon-dialer_sip"/>
                                         </button>
@@ -56,7 +56,7 @@
                             </td>
                             <td class="o_contact_call_button">
                                 <div class="d-flex">
-                                    <div style="width: 40px; height: 30px;">
+                                    <div class="o_button_container">
                                         <t t-if="partner.phone_sanitized">
                                             <button t-if="isTransfer" t-attf-title="Transfer to {{partner.phone_sanitized}}" t-on-click="() => this._onClickMakeTransfer(partner.phone_sanitized)">
                                                 <i class="fa icon-phone"/>

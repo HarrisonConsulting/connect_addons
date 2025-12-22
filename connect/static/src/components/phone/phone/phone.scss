@@ -1,18 +1,26 @@
+// CSS Custom Properties for Phone Component
 .o_root_connect_phone {
-  $color-white: #ffffff;
-  $color-red: #d92929;
-  $color-gray: #90a0af;
-  $color-gray-medium: #c7c8c8ef;
-  $color-gray-light: #e9ecef;
-  $color-green-light: #41ff00;
-  $color-orange: #ffa500;
+  // Light mode (default)
+  --Phone-bg: #ffffff;
+  --Phone-text: #875a7b;
+  --Phone-accent: #875a7b;
+  --Phone-border: #90a0af;
+  --Phone-hover-bg: #e9ecef;
+  --Phone-active-bg: rgba(199, 200, 200, 0.937);
+
+  // Status Colors
+  --Phone-call-accept: #70bd53;
+  --Phone-call-reject: #d92929;
+  --Phone-call-hold: #ffa500;
+  --Phone-call-active: #41ff00;
+  --Phone-whatsapp: #70bd53;
 
   width: 300px;
   height: 520px;
   position: fixed;
-  background-color: $color-white;
+  background-color: var(--Phone-bg);
   border-radius: 6px;
-  border: $o-brand-odoo 1px solid;
+  border: var(--Phone-accent) 1px solid;
   display: flex;
   bottom: 0;
   font-size: 12px;
@@ -31,15 +39,15 @@
   .o_header_phone {
     border-radius: 4px 4px 0 0;
     position: relative;
-    background-color: $o-brand-odoo;
-    color: $color-white;
+    background-color: var(--Phone-accent);
+    color: var(--Phone-bg);
     width: 100%;
     height: 25px;
 
     .o_header_content {
       font-size: 12px;
       display: inline-flex;
-      color: $color-white;
+      color: var(--Phone-bg);
       margin-left: 5px;
       margin-top: 5px;
       width: 97%;
@@ -69,10 +77,10 @@
     .o_phone_number_content {
       padding: 5px 10px;
       position: relative;
-      border-bottom: 1px solid $o-brand-odoo;
+      border-bottom: 1px solid var(--Phone-accent);
 
       .o_phone_number_input {
-        color: $o-brand-odoo;
+        color: var(--Phone-accent);
         font-size: 20px;
         font-weight: 800;
         border: none;
@@ -91,7 +99,7 @@
         position: absolute;
         padding-right: 7px;
         right: 0;
-        color: $o-brand-odoo;
+        color: var(--Phone-accent);
         top: 10px;
       }
     }
@@ -102,10 +110,10 @@
 
       .o_contact_table {
         tr {
-          border-bottom: 1px solid $o-brand-odoo;
+          border-bottom: 1px solid var(--Phone-accent);
 
           &:hover {
-            background-color: $color-gray-light;
+            background-color: var(--Phone-hover-bg);
             cursor: pointer;
           }
         }
@@ -123,7 +131,7 @@
         .o_contact_info {
           cursor: default;
           font-size: 15px;
-          color: $o-brand-odoo;
+          color: var(--Phone-accent);
           width: 176px;
 
           .o_contact_phone {
@@ -140,7 +148,7 @@
           }
 
           button {
-            color: $o-brand-odoo;
+            color: var(--Phone-accent);
             border: none;
             background: transparent;
 
@@ -154,7 +162,7 @@
 
     .o_keypad {
       .o_keypad_button {
-        color: $o-brand-odoo;
+        color: var(--Phone-accent);
         display: inline-flex;
         justify-content: center;
         width: 99px;
@@ -166,7 +174,7 @@
         border-radius: 5px;
 
         &:hover {
-          background: $color-gray-light
+          background: var(--Phone-hover-bg);
         }
       }
     }
@@ -193,19 +201,19 @@
 
       .o_partner_name {
         font-size: 18px;
-        color: $o-brand-odoo;
+        color: var(--Phone-accent);
         text-align: center;
       }
 
       .custom-whatsapp {
-          margin-right: 5px;
-          color: #70bd53;
+        margin-right: 5px;
+        color: var(--Phone-whatsapp);
       }
     }
   }
 
   .o_dial_panel_position {
-    border-top: 1px solid $color-gray;
+    border-top: 1px solid var(--Phone-border);
     border-radius: 0 0 6px 6px;
   }
 
@@ -213,18 +221,18 @@
   .o_phone_lines_position {
     bottom: 0;
     position: fixed;
-    border-top: 1px solid $color-gray;
-    color: $o-brand-odoo;
+    border-top: 1px solid var(--Phone-border);
+    color: var(--Phone-accent);
     justify-content: center;
     font-size: 20px;
     text-align: center;
 
     div.active {
-      background: radial-gradient(transparent, $color-gray-medium);
+      background: radial-gradient(transparent, var(--Phone-active-bg));
     }
 
     .line-1 {
-      border-right: 1px solid #90a0af;
+      border-right: 1px solid var(--Phone-border);
     }
 
     .col-6 {
@@ -237,32 +245,32 @@
     }
 
     button.active {
-      color: $color-green-light;
+      color: var(--Phone-call-active);
     }
 
     button.hold {
-      color: $color-orange;
+      color: var(--Phone-call-hold);
     }
   }
 
   .o_phone_tabs {
-    border-bottom: 1px solid $o-brand-odoo;
+    border-bottom: 1px solid var(--Phone-accent);
 
     .active {
-      background: radial-gradient(transparent, $color-gray-medium);
+      background: radial-gradient(transparent, var(--Phone-active-bg));
     }
   }
 
   .o_dial_panel {
     justify-content: center;
-    background-color: $color-gray-light;
+    background-color: var(--Phone-hover-bg);
     display: flex;
     height: 40px;
     width: 100%;
     flex-flow: row wrap;
 
     button {
-      color: $o-brand-odoo;
+      color: var(--Phone-accent);
       border: none;
       background: transparent;
 
@@ -272,7 +280,7 @@
     }
 
     .active {
-      background: radial-gradient(transparent, $color-gray-medium);
+      background: radial-gradient(transparent, var(--Phone-active-bg));
     }
   }
 
@@ -285,15 +293,15 @@
           font-size: x-large;
           border-radius: 50%;
           padding: 5px;
-          color: #fefefe;
+          color: var(--Phone-bg);
         }
 
         .call {
-          background: #70bd53;
+          background: var(--Phone-whatsapp);
         }
 
         .reject-call {
-          background: $color-red;
+          background: var(--Phone-call-reject);
         }
       }
     }
@@ -301,6 +309,18 @@
 
   button:focus, input:focus {
     outline: none;
+  }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  .o_root_connect_phone {
+    --Phone-bg: #1a1a1a;
+    --Phone-text: #c4a0b8;
+    --Phone-accent: #a77b94;
+    --Phone-border: #6a7a8f;
+    --Phone-hover-bg: #2a2a2a;
+    --Phone-active-bg: rgba(100, 100, 100, 0.5);
   }
 }
 

@@ -386,8 +386,10 @@
   // ==========================================================================
   .mt-auto {
     .o_dial_panel {
-      padding: 8px;
-      gap: 8px;
+      height: auto;
+      min-height: 60px;
+      padding: 8px 12px;
+      gap: 12px;
       justify-content: center;
 
       button {
@@ -404,7 +406,7 @@
           height: 44px;
           border-radius: 50%;
           color: #ffffff;
-          font-size: 20px;
+          font-size: 18px;
           transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
 

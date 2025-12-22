@@ -1,0 +1,24 @@
+// =============================================================================
+// Connect Phone Component - Dark Mode Overrides
+// =============================================================================
+// This file is loaded via web.assets_web_dark bundle when Odoo enables dark mode
+
+:root {
+  // Container colors - Dark mode
+  --Phone-bg: #1f2937;
+  --Phone-text: #f3f4f6;
+  --Phone-accent: #a78baf;  // Lighter purple for dark backgrounds
+  --Phone-border: #374151;
+  --Phone-hover-bg: #374151;
+  --Phone-active-bg: #4b5563;
+  --Phone-muted: #9ca3af;
+
+  // Input styling - Dark mode
+  --Phone-input-bg: #1f2937;
+  --Phone-input-border: #4b5563;
+}
+
+// Adjust box shadow for dark mode
+.o_root_connect_phone {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.0.20',
+    'version': '1.0.21',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'live_test_url': 'https://connect-demo-18.oduist.com/',
@@ -67,8 +67,6 @@
     'images': ['static/description/logo.png'],
     'assets': {
         'web.assets_backend': [
-            # Theme variables must load first
-            '/connect/static/src/scss/phone_variables.scss',
             '/connect/static/src/icomoon/style.css',
             '/connect/static/src/components/phone/*/*',
             '/connect/static/src/js/main.js',
@@ -77,6 +75,10 @@
             '/connect/static/src/services/actions/*',
             '/connect/static/src/services/active_calls/*',
             '/connect/static/src/services/mail/*',
+        ],
+        # Dark mode overrides - loaded when Odoo enables dark mode
+        'web.assets_web_dark': [
+            '/connect/static/src/scss/phone.dark.scss',
         ],
     },
 }

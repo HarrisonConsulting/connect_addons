@@ -585,7 +585,13 @@ export class Phone extends Component {
     }
 
     setIncomingVolume() {
-        this.userAgent.audio.incoming(!this.state.isSoundMute)
+        try {
+            if (this.userAgent && this.userAgent.audio) {
+                this.userAgent.audio.incoming(!this.state.isSoundMute)
+            }
+        } catch (e) {
+            console.warn('Connect: Could not set incoming volume:', e)
+        }
     }
 
     getJsonCallData() {

@@ -82,6 +82,9 @@ class ConnectElevenlabsController(http.Controller):
         if response.status_code == 200:
             audio_data = base64.b64encode(response.content)
             recording = http.request.env['connect.recording'].with_context(skip_transcription=True)
+            # Get caller/called numbers from dynamic_variables, fall back to call record
+            caller_number = dynamic_variables.get('caller_number') or call.caller
+            called_number = dynamic_variables.get('called_number') or call.called
             recording.with_user(user_connect_webhook).sudo().create({
                 'call': call_id,
                 'elevenlabs_transcript': transcript,
@@ -90,9 +93,9 @@ class ConnectElevenlabsController(http.Controller):
                 'call_sid': call.channels[0].sid,
                 'start_time': call.create_date,
                 'elevenlabs_media_file': audio_data,
-                'duration': data['metadata']['call_duration_secs'],
-                'caller_number': data['conversation_initiation_client_data']['dynamic_variables']['caller_number'],
-                'called_number': data['conversation_initiation_client_data']['dynamic_variables']['called_number'],
+                'duration': data.get('metadata', {}).get('call_duration_secs', 0),
+                'caller_number': caller_number,
+                'called_number': called_number,
                 'status': 'completed',
                 'partner': call.partner.id,
                 'caller_user': call.caller_user.id,

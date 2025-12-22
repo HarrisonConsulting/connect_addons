@@ -104,13 +104,20 @@
     display: flex;
     flex-flow: column nowrap;
     overflow: auto;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+
+    // When keypad section only contains input (no keypad buttons), shrink to fit
+    &:not(:has(.o_keypad)):not(:has(.o_dial_contact_list)) {
+      flex: 0 0 auto;
+    }
 
     .o_phone_number_content {
       padding: 8px 12px;
       position: relative;
       border-bottom: 1px solid var(--Phone-border);
       background-color: var(--Phone-bg);
+      flex-shrink: 0;
 
       .o_phone_number_input {
         color: var(--Phone-text);

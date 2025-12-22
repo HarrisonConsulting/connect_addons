@@ -1,7 +1,8 @@
 // Contacts
 .o_dial_contact_list {
-  height: 330px;
+  flex: 1;
   overflow: auto;
+  max-height: 400px;
 }
 
 // Contact List
@@ -22,17 +23,27 @@
 
   .o_contact_info {
     cursor: default;
-    font-size: 15px;
+    font-size: 14px;
     color: var(--Phone-text);
     width: 150px;
 
+    .o_contact_company {
+      margin-top: 1px;
+      font-size: 11px;
+      color: var(--Phone-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .o_contact_phone {
       margin-left: 5px;
-      font-size: 14px;
+      font-size: 12px;
+      color: var(--Phone-muted);
 
       &.fa-mobile:before {
         margin-right: 8px;
-        font-size: 14px;
+        font-size: 12px;
       }
     }
   }

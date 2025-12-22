@@ -115,13 +115,18 @@ export class Contacts extends Component {
         if (this.contactSearch !== searching.all && this.contactSearch !== searching.partners) return
         const self = this
         if (self.searchQuery) {
+            // Search across multiple fields: name, company, email, phone, mobile
             self.orm.searchRead(
                 "res.partner",
                 [
-                    ['phone_mobile_search', '=ilike', `%${self.searchQuery}%`],
+                    '|', '|', '|', '|',
                     ['name', '=ilike', `%${self.searchQuery}%`],
+                    ['commercial_company_name', '=ilike', `%${self.searchQuery}%`],
+                    ['email', '=ilike', `%${self.searchQuery}%`],
+                    ['phone', '=ilike', `%${self.searchQuery}%`],
+                    ['mobile', '=ilike', `%${self.searchQuery}%`],
                 ],
-                ['id', 'name', 'email', 'phone_sanitized'],
+                ['id', 'name', 'email', 'phone', 'mobile', 'phone_sanitized', 'commercial_company_name'],
                 {order: 'name asc', limit: 10}
             ).then((records) => {
                 self.state.partners = records

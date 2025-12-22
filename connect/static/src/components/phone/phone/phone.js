@@ -439,7 +439,9 @@ export class Phone extends Component {
             self.userAgent = new Twilio.Device(self.token, {
                 edge: self.edge,
                 logLevel: 4,
-                codecPreferences: ["opus", "pcmu"]
+                codecPreferences: ["opus", "pcmu"],
+                // Allow incoming audio even if AudioContext is suspended initially
+                allowIncomingWhileBusy: true
             })
         } catch (error) {
             console.error('Connect: Failed to create Twilio Device:', error)
@@ -448,7 +450,12 @@ export class Phone extends Component {
             return
         }
 
-        this.setIncomingVolume()
+        // Try to set incoming volume, but don't fail if AudioContext is blocked
+        try {
+            this.setIncomingVolume()
+        } catch (e) {
+            console.warn('Connect: Could not set incoming volume (AudioContext may be blocked):', e)
+        }
         self.userAgent.on('tokenWillExpire', () => {
             console.log('tokenWillExpire REFRESH')
             self.updateToken().then()

@@ -854,3 +854,60 @@ class VoiceProviderElevenLabs(models.Model):
         response.append(connect)
 
         return str(response)
+
+    # === Conversation Audio ===
+
+    def fetch_conversation_audio(self, conversation_id):
+        """
+        Fetch audio recording for a conversation from ElevenLabs.
+
+        Args:
+            conversation_id (str): ElevenLabs conversation ID
+
+        Returns:
+            bytes: Audio data (MP3 format) or None if not available
+        """
+        self.ensure_one()
+
+        if not self.api_key:
+            logger.error('No API key configured for provider %s', self.name)
+            return None
+
+        try:
+            import requests
+
+            url = f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}/audio"
+            headers = {
+                "Content-Type": "application/json",
+                "xi-api-key": self.api_key,
+            }
+
+            response = requests.get(url, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                logger.info('Fetched audio for conversation %s (%d bytes)',
+                           conversation_id, len(response.content))
+                return response.content
+            else:
+                logger.warning('Failed to fetch audio for conversation %s: HTTP %d',
+                              conversation_id, response.status_code)
+                return None
+
+        except Exception as e:
+            logger.error('Error fetching conversation audio: %s', e)
+            return None
+
+    def get_conversation_audio_url(self, conversation_id):
+        """
+        Get the audio URL for a conversation (for direct streaming).
+
+        Note: This URL requires authentication, so it's typically better
+        to use fetch_conversation_audio and serve via Odoo.
+
+        Args:
+            conversation_id (str): ElevenLabs conversation ID
+
+        Returns:
+            str: Audio URL
+        """
+        return f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}/audio"

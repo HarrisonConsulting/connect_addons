@@ -193,7 +193,7 @@ class VoiceWebhookController(http.Controller):
 
     def _save_conversation(self, agent, data):
         """
-        Save or update conversation record.
+        Save or update conversation record and create connect.recording.
 
         Args:
             agent: connect.voice.agent record
@@ -214,23 +214,104 @@ class VoiceWebhookController(http.Controller):
         metadata = data.get('metadata', {})
         call_id = data.get('call_id') or metadata.get('call_id')
         duration = data.get('duration') or data.get('call_duration_secs')
+        summary = data.get('summary') or data.get('analysis', {}).get('summary')
+        transcript = data.get('transcript')
+
+        # Handle transcript as structured data
+        if isinstance(transcript, list):
+            transcript_text = self._format_transcript(transcript)
+        else:
+            transcript_text = transcript
 
         values = {
             'external_conversation_id': conversation_id,
             'res_model': 'connect.voice.agent',
             'res_id': agent.id,
             'voice_provider_id': agent.voice_provider_id.id if agent.voice_provider_id else False,
-            'summary': data.get('summary'),
+            'summary': summary,
+            'transcript': transcript_text,
             'state': 'completed',
         }
 
         if duration:
-            values['duration'] = int(duration)
+            values['duration_seconds'] = int(duration)
 
         if existing:
             existing.write(values)
         else:
             VoiceConversation.create(values)
+
+        # Create connect.recording for unified recording experience
+        self._create_voice_recording(
+            agent, call_id, conversation_id,
+            transcript_text, summary, duration
+        )
+
+    def _create_voice_recording(self, agent, call_id, conversation_id,
+                                 transcript, summary, duration):
+        """
+        Create a connect.recording from voice conversation audio.
+
+        Fetches audio from the voice provider and creates a recording
+        record so it appears in the UI like a regular Twilio recording.
+
+        Args:
+            agent: connect.voice.agent record
+            call_id: Connect call ID
+            conversation_id: External conversation ID from provider
+            transcript: Conversation transcript
+            summary: Conversation summary
+            duration: Duration in seconds
+        """
+        if not call_id or not conversation_id:
+            logger.warning('Cannot create voice recording: missing call_id or conversation_id')
+            return
+
+        # Get the call record
+        call = request.env['connect.call'].sudo().browse(int(call_id))
+        if not call.exists():
+            logger.warning('Cannot create voice recording: call %s not found', call_id)
+            return
+
+        # Check if recording already exists for this conversation
+        existing = request.env['connect.recording'].sudo().search([
+            ('voice_conversation_id', '=', conversation_id),
+        ], limit=1)
+        if existing:
+            logger.info('Voice recording already exists for conversation %s', conversation_id)
+            return
+
+        # Fetch audio from provider
+        audio_data = None
+        provider = agent.voice_provider_id if agent else None
+
+        if provider and hasattr(provider, 'fetch_conversation_audio'):
+            try:
+                audio_data = provider.fetch_conversation_audio(conversation_id)
+                if audio_data:
+                    logger.info('Fetched %d bytes of audio for conversation %s',
+                               len(audio_data), conversation_id)
+            except Exception as e:
+                logger.error('Error fetching voice recording audio: %s', e)
+
+        if not audio_data:
+            logger.warning('No audio data available for conversation %s', conversation_id)
+            # Still create record without audio so transcript/summary are available
+            # The recording icon will still show due to the call having a voice_agent_id
+
+        # Create the recording
+        try:
+            request.env['connect.recording'].sudo().create_from_voice_conversation(
+                call=call,
+                conversation_id=conversation_id,
+                audio_data=audio_data,
+                transcript=transcript,
+                summary=summary,
+                duration=int(duration) if duration else 0,
+            )
+            logger.info('Created voice recording for call %s', call_id)
+        except Exception as e:
+            logger.error('Error creating voice recording: %s', e)
 
     def _handle_tool_call_event(self, agent_id, data):
         """Handle tool call events during conversation."""

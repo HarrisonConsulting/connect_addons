@@ -1,6 +1,6 @@
 {
     'name': 'Connect Voice Agents',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'category': 'Productivity/Voice AI',
     'summary': 'Voice AI agents for Connect telephony integration',
     'description': """
@@ -30,6 +30,7 @@ This module bridges Connect telephony with pluggable voice AI providers.
         'security/security.xml',
         'security/ir.model.access.csv',
         'views/connect_voice_agent_views.xml',
+        'views/connect_call_views.xml',
         'views/menus.xml',
     ],
     'installable': True,

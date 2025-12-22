@@ -12,6 +12,47 @@ import {user} from "@web/core/user"
 
 const uid = user.userId
 
+// Audio unlock handler for browser autoplay restrictions
+let audioUnlocked = false
+let audioUnlockListenersAdded = false
+
+function setupAudioUnlock() {
+    if (audioUnlockListenersAdded) return
+    audioUnlockListenersAdded = true
+
+    const unlock = () => {
+        if (audioUnlocked) return
+        // Create and resume an AudioContext to unlock audio
+        const AudioContext = window.AudioContext || window.webkitAudioContext
+        if (AudioContext) {
+            try {
+                const ctx = new AudioContext()
+                if (ctx.state === 'suspended') {
+                    ctx.resume().then(() => {
+                        ctx.close()
+                        audioUnlocked = true
+                        console.log('Connect: Audio unlocked after user interaction')
+                    }).catch(() => ctx.close())
+                } else {
+                    ctx.close()
+                    audioUnlocked = true
+                }
+            } catch (e) {
+                console.warn('Connect: Could not create AudioContext:', e)
+            }
+        }
+        // Remove listeners after first successful interaction
+        document.removeEventListener('click', unlock)
+        document.removeEventListener('touchstart', unlock)
+        document.removeEventListener('keydown', unlock)
+    }
+
+    // Listen for user interaction to unlock audio
+    document.addEventListener('click', unlock, {passive: true})
+    document.addEventListener('touchstart', unlock, {passive: true})
+    document.addEventListener('keydown', unlock, {passive: true})
+}
+
 export class Phone extends Component {
     static template = 'connect.phone'
     static props = {
@@ -169,6 +210,8 @@ export class Phone extends Component {
         })
 
         onMounted(() => {
+            // Setup audio unlock handler for browser autoplay restrictions
+            setupAudioUnlock()
             this.initUserAgent()
 
             const phoneRoot = this.phoneRoot.el

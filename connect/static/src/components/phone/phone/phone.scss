@@ -56,9 +56,9 @@
     background-color: var(--Phone-accent);
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    overflow: visible;  // Allow close button to show outside circle
 
     &:hover {
-      transform: scale(1.1);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
@@ -85,37 +85,40 @@
         cursor: grabbing;
       }
 
-      // Phone icon - always centered
+      // Phone icon - always centered, clickable to expand
       > i.fa {
         font-size: 24px;
       }
 
-      // Close button - overlays on hover, doesn't displace phone icon
+      // Close button - small badge in top-right corner
       .o_collapsed_close {
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        top: -2px;
+        right: -2px;
+        width: 18px;
+        height: 18px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: 9px;
         cursor: pointer;
         opacity: 0;
-        background-color: rgba(0, 0, 0, 0.5);
+        background-color: var(--Phone-call-reject);
         border-radius: 50%;
-        transition: opacity 0.15s ease;
+        border: 2px solid var(--Phone-accent);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        transform: scale(0.8);
 
         &:hover {
-          opacity: 1;
-          background-color: var(--Phone-call-reject);
+          background-color: #c82333;
+          transform: scale(1);
         }
       }
 
       // Show close button on hover
       &:hover .o_collapsed_close {
-        opacity: 0.9;
+        opacity: 1;
+        transform: scale(1);
       }
 
       // Pulsing animation when in call

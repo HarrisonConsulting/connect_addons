@@ -1121,21 +1121,37 @@ export class Phone extends Component {
             const phoneRoot = this.phoneRoot.el
             const currentLeft = phoneRoot.offsetLeft
             const currentTop = phoneRoot.offsetTop
+            const iconCenterX = currentLeft + (this.collapsedSize / 2)
+            const iconCenterY = currentTop + (this.collapsedSize / 2)
 
-            // Calculate new position so the minimize button appears where the icon was
-            // Icon center = currentLeft + collapsedSize/2, currentTop + collapsedSize/2
-            // We want the minimize button to be at that center
-            const newLeft = currentLeft + (this.collapsedSize / 2) - this.collapseOffsetX
-            const newTop = currentTop + (this.collapsedSize / 2) - this.collapseOffsetY
+            // Calculate ideal position so the minimize button appears where the icon was
+            let newLeft = iconCenterX - this.collapseOffsetX
+            let newTop = iconCenterY - this.collapseOffsetY
 
-            // Clamp to viewport bounds
+            // Viewport bounds
             const cx = document.documentElement.clientWidth
             const cy = document.documentElement.clientHeight
-            const clampedLeft = Math.max(0, Math.min(newLeft, cx - this.phoneWidth))
-            const clampedTop = Math.max(0, Math.min(newTop, cy - this.phoneHeight))
 
-            phoneRoot.style.left = clampedLeft + "px"
-            phoneRoot.style.top = clampedTop + "px"
+            // Ensure dialog stays within viewport
+            // Right edge: dialog right edge should not exceed viewport right
+            if (newLeft + this.phoneWidth > cx) {
+                newLeft = cx - this.phoneWidth
+            }
+            // Left edge: dialog left edge should not go below 0
+            if (newLeft < 0) {
+                newLeft = 0
+            }
+            // Bottom edge: dialog bottom should not exceed viewport bottom
+            if (newTop + this.phoneHeight > cy) {
+                newTop = cy - this.phoneHeight
+            }
+            // Top edge: dialog top should not go below 0
+            if (newTop < 0) {
+                newTop = 0
+            }
+
+            phoneRoot.style.left = newLeft + "px"
+            phoneRoot.style.top = newTop + "px"
 
             this.state.isCollapsed = false
         }

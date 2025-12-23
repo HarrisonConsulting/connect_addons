@@ -699,8 +699,8 @@ export class Phone extends Component {
         this.state.isCollapsed = false  // Expand if collapsed when call comes in
         this.state.isKeypad = false
         this.bus.trigger('busTrayState', {isDisplay: this.state.isDisplay, inCall: this.state.inCall})
-        // Ensure phone is visible within viewport
-        this._ensureWithinViewport()
+        // Ensure phone is visible within viewport (defer until DOM updates)
+        requestAnimationFrame(() => this._ensureWithinViewport())
     }
 
     async endCall() {
@@ -842,8 +842,9 @@ export class Phone extends Component {
                 setFocus(this.phoneInput.el)
             }
             // When showing, ensure phone is within viewport bounds
+            // Defer until after DOM updates (element was display:none)
             if (this.state.isDisplay) {
-                this._ensureWithinViewport()
+                requestAnimationFrame(() => this._ensureWithinViewport())
             }
         } else {
             this.notify('Missing configs! Check "User / Preferences"!', {sticky: false})

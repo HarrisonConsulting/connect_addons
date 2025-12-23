@@ -896,14 +896,6 @@ export class Phone extends Component {
         phoneRoot.style.left = newLeft + "px"
         phoneRoot.style.top = newTop + "px"
         phoneRoot.style.bottom = "auto"
-
-        console.log('_ensureWithinViewport:', {
-            viewport: {cx, cy},
-            size: {width, height},
-            rectSize: {w: rect.width, h: rect.height},
-            original: {left: rect.left, top: rect.top},
-            adjusted: {left: newLeft, top: newTop}
-        })
     }
 
     getCalls() {

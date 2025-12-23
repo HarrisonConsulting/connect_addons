@@ -47,6 +47,9 @@
   flex-flow: column nowrap;
   z-index: 1100;
   overflow: hidden;
+  // Prevent text selection during drag operations
+  user-select: none;
+  -webkit-user-select: none;
 
   // Collapsed state - shows as a floating phone icon
   &.o_collapsed {

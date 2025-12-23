@@ -9,6 +9,7 @@
     height: 32px !important;
     position: absolute !important;
     top: 44px;
+    z-index: 1200;  // Above navbar elements (phone uses 1100)
     border: none;
     border-radius: 50%;
     background: transparent;

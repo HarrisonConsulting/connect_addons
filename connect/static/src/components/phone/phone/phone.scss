@@ -80,6 +80,7 @@
       justify-content: center;
       width: 100%;
       height: 100%;
+      border-radius: 50%;  // Ensures box-shadow pulse follows circular shape
       color: #ffffff;
       cursor: grab;
       position: relative;

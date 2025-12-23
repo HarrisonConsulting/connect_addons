@@ -696,8 +696,11 @@ export class Phone extends Component {
         this.state.isFavorites = false
         this.state.isCalls = false
         this.state.isDisplay = true
+        this.state.isCollapsed = false  // Expand if collapsed when call comes in
         this.state.isKeypad = false
         this.bus.trigger('busTrayState', {isDisplay: this.state.isDisplay, inCall: this.state.inCall})
+        // Ensure phone is visible within viewport
+        this._ensureWithinViewport()
     }
 
     async endCall() {
@@ -826,6 +829,8 @@ export class Phone extends Component {
     toggleDisplay() {
         if (this.state.isActive) {
             this.state.isDisplay = !this.state.isDisplay
+            // Reset collapsed state when toggling via systray
+            this.state.isCollapsed = false
             if (this.state.inCall) {
                 this.state.isKeypad = false
                 this.state.isDialingPanel = true
@@ -836,8 +841,56 @@ export class Phone extends Component {
             } else {
                 setFocus(this.phoneInput.el)
             }
+            // When showing, ensure phone is within viewport bounds
+            if (this.state.isDisplay) {
+                this._ensureWithinViewport()
+            }
         } else {
             this.notify('Missing configs! Check "User / Preferences"!', {sticky: false})
+        }
+    }
+
+    // Ensure phone dialog is within viewport bounds
+    _ensureWithinViewport() {
+        const phoneRoot = this.phoneRoot.el
+        if (!phoneRoot) return
+
+        const cx = document.documentElement.clientWidth
+        const cy = document.documentElement.clientHeight
+        const width = this.state.isCollapsed ? this.collapsedSize : this.phoneWidth
+        const height = this.state.isCollapsed ? this.collapsedSize : this.phoneHeight
+
+        let currentLeft = phoneRoot.offsetLeft
+        let currentTop = phoneRoot.offsetTop
+
+        // Check if position needs adjustment
+        let needsAdjustment = false
+
+        // Right edge
+        if (currentLeft + width > cx) {
+            currentLeft = cx - width
+            needsAdjustment = true
+        }
+        // Left edge
+        if (currentLeft < 0) {
+            currentLeft = 0
+            needsAdjustment = true
+        }
+        // Bottom edge
+        if (currentTop + height > cy) {
+            currentTop = cy - height
+            needsAdjustment = true
+        }
+        // Top edge
+        if (currentTop < 0) {
+            currentTop = 0
+            needsAdjustment = true
+        }
+
+        if (needsAdjustment) {
+            phoneRoot.style.left = currentLeft + "px"
+            phoneRoot.style.top = currentTop + "px"
+            phoneRoot.style.bottom = "auto"
         }
     }
 
@@ -1125,35 +1178,15 @@ export class Phone extends Component {
             const iconCenterY = currentTop + (this.collapsedSize / 2)
 
             // Calculate ideal position so the minimize button appears where the icon was
-            let newLeft = iconCenterX - this.collapseOffsetX
-            let newTop = iconCenterY - this.collapseOffsetY
-
-            // Viewport bounds
-            const cx = document.documentElement.clientWidth
-            const cy = document.documentElement.clientHeight
-
-            // Ensure dialog stays within viewport
-            // Right edge: dialog right edge should not exceed viewport right
-            if (newLeft + this.phoneWidth > cx) {
-                newLeft = cx - this.phoneWidth
-            }
-            // Left edge: dialog left edge should not go below 0
-            if (newLeft < 0) {
-                newLeft = 0
-            }
-            // Bottom edge: dialog bottom should not exceed viewport bottom
-            if (newTop + this.phoneHeight > cy) {
-                newTop = cy - this.phoneHeight
-            }
-            // Top edge: dialog top should not go below 0
-            if (newTop < 0) {
-                newTop = 0
-            }
+            const newLeft = iconCenterX - this.collapseOffsetX
+            const newTop = iconCenterY - this.collapseOffsetY
 
             phoneRoot.style.left = newLeft + "px"
             phoneRoot.style.top = newTop + "px"
 
             this.state.isCollapsed = false
+            // Ensure within viewport after expanding
+            this._ensureWithinViewport()
         }
     }
 

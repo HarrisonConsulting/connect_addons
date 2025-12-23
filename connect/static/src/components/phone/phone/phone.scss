@@ -42,6 +42,8 @@
   display: flex;
   bottom: 0;
   font-size: 13px;
+  // Match Odoo backend font
+  font-family: var(--o-font-family, "Lato", "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
   flex-flow: column nowrap;
   z-index: 1100;
   overflow: hidden;
@@ -71,48 +73,52 @@
 
     .o_collapsed_icon {
       display: flex !important;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       width: 100%;
       height: 100%;
       color: #ffffff;
-      font-size: 24px;
       cursor: grab;
-      position: relative;
 
       &:active {
         cursor: grabbing;
       }
 
-      // Close button - appears on hover at top-right
+      // Phone icon
+      > i.fa {
+        font-size: 22px;
+        transition: transform 0.15s ease;
+      }
+
+      // Close button - appears on hover centered below the phone icon
       .o_collapsed_close {
-        position: absolute;
-        top: -4px;
-        right: -4px;
-        width: 20px;
-        height: 20px;
-        background-color: var(--Phone-call-reject);
-        border-radius: 50%;
+        width: 16px;
+        height: 16px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 10px;
         cursor: pointer;
         opacity: 0;
-        transform: scale(0.8);
-        transition: opacity 0.15s ease, transform 0.15s ease;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        margin-top: 2px;
+        transition: opacity 0.15s ease, color 0.15s ease;
+        color: rgba(255, 255, 255, 0.7);
 
         &:hover {
-          background-color: #c82333;
-          transform: scale(1.1);
+          color: #ffffff;
         }
       }
 
-      // Show close button on hover
-      &:hover .o_collapsed_close {
-        opacity: 1;
-        transform: scale(1);
+      // On hover: shift icon up slightly and show close button
+      &:hover {
+        > i.fa {
+          transform: translateY(-2px);
+        }
+
+        .o_collapsed_close {
+          opacity: 1;
+        }
       }
 
       // Pulsing animation when in call
@@ -335,7 +341,7 @@
         justify-content: center;
         align-items: center;
         width: 33.33%;
-        height: 48px;
+        height: 57px;
         font-size: 24px;
         font-weight: 300;
         border: none;

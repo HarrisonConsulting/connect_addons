@@ -73,52 +73,49 @@
 
     .o_collapsed_icon {
       display: flex !important;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       width: 100%;
       height: 100%;
       color: #ffffff;
       cursor: grab;
+      position: relative;
 
       &:active {
         cursor: grabbing;
       }
 
-      // Phone icon
+      // Phone icon - always centered
       > i.fa {
-        font-size: 22px;
-        transition: transform 0.15s ease;
+        font-size: 24px;
       }
 
-      // Close button - appears on hover centered below the phone icon
+      // Close button - overlays on hover, doesn't displace phone icon
       .o_collapsed_close {
-        width: 16px;
-        height: 16px;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 10px;
+        font-size: 14px;
         cursor: pointer;
         opacity: 0;
-        margin-top: 2px;
-        transition: opacity 0.15s ease, color 0.15s ease;
-        color: rgba(255, 255, 255, 0.7);
+        background-color: rgba(0, 0, 0, 0.5);
+        border-radius: 50%;
+        transition: opacity 0.15s ease;
 
         &:hover {
-          color: #ffffff;
+          opacity: 1;
+          background-color: var(--Phone-call-reject);
         }
       }
 
-      // On hover: shift icon up slightly and show close button
-      &:hover {
-        > i.fa {
-          transform: translateY(-2px);
-        }
-
-        .o_collapsed_close {
-          opacity: 1;
-        }
+      // Show close button on hover
+      &:hover .o_collapsed_close {
+        opacity: 0.9;
       }
 
       // Pulsing animation when in call

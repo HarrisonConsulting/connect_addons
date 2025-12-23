@@ -132,6 +132,9 @@ export class Phone extends Component {
         this.phoneWidth = 300
         this.phoneHeight = 486
         this.collapsedSize = 56
+        // Offset from collapsed icon center to dialog top-left (for position restore)
+        this.collapseOffsetX = this.phoneWidth - 40  // Approximate minimize button X offset
+        this.collapseOffsetY = 18  // Header center Y offset
         this.callDuration = 0
         this.callDurationTimerInstance = null
         this.phoneInput = useRef('connect-phone-input')
@@ -1086,9 +1089,27 @@ export class Phone extends Component {
         }
     }
 
-    // Collapse to floating phone icon
+    // Collapse to floating phone icon at the minimize button's position
     _onClickCollapse(ev) {
         ev.stopPropagation()
+
+        const phoneRoot = this.phoneRoot.el
+        const buttonRect = ev.target.getBoundingClientRect()
+
+        // Calculate position to center the collapsed icon (56px) on the button
+        const collapsedX = buttonRect.left + (buttonRect.width / 2) - (this.collapsedSize / 2)
+        const collapsedY = buttonRect.top + (buttonRect.height / 2) - (this.collapsedSize / 2)
+
+        // Store the offset from the collapsed icon center to the dialog's top-left
+        // This is used to restore position when expanding
+        this.collapseOffsetX = buttonRect.left + (buttonRect.width / 2) - phoneRoot.offsetLeft
+        this.collapseOffsetY = buttonRect.top + (buttonRect.height / 2) - phoneRoot.offsetTop
+
+        // Position the collapsed icon
+        phoneRoot.style.left = collapsedX + "px"
+        phoneRoot.style.top = collapsedY + "px"
+        phoneRoot.style.bottom = "auto"
+
         this.state.isCollapsed = true
     }
 
@@ -1096,13 +1117,51 @@ export class Phone extends Component {
     _onClickCollapsedIcon(ev) {
         if (this.state.isCollapsed && !this.wasDragged) {
             ev.stopPropagation()
+
+            const phoneRoot = this.phoneRoot.el
+            const currentLeft = phoneRoot.offsetLeft
+            const currentTop = phoneRoot.offsetTop
+
+            // Calculate new position so the minimize button appears where the icon was
+            // Icon center = currentLeft + collapsedSize/2, currentTop + collapsedSize/2
+            // We want the minimize button to be at that center
+            const newLeft = currentLeft + (this.collapsedSize / 2) - this.collapseOffsetX
+            const newTop = currentTop + (this.collapsedSize / 2) - this.collapseOffsetY
+
+            // Clamp to viewport bounds
+            const cx = document.documentElement.clientWidth
+            const cy = document.documentElement.clientHeight
+            const clampedLeft = Math.max(0, Math.min(newLeft, cx - this.phoneWidth))
+            const clampedTop = Math.max(0, Math.min(newTop, cy - this.phoneHeight))
+
+            phoneRoot.style.left = clampedLeft + "px"
+            phoneRoot.style.top = clampedTop + "px"
+
             this.state.isCollapsed = false
         }
     }
 
-    // Double-click on header also collapses
+    // Double-click on header also collapses (use center of header as reference)
     _onHeaderDoubleClick(ev) {
         ev.stopPropagation()
-        this.state.isCollapsed = !this.state.isCollapsed
+        if (this.state.isCollapsed) {
+            this._onClickCollapsedIcon(ev)
+        } else {
+            // Simulate clicking the minimize button position
+            const header = this.phoneHeader.el
+            const headerRect = header.getBoundingClientRect()
+            // Use position similar to where minimize button would be
+            this.collapseOffsetX = headerRect.right - 40 - this.phoneRoot.el.offsetLeft
+            this.collapseOffsetY = headerRect.top + (headerRect.height / 2) - this.phoneRoot.el.offsetTop
+
+            const collapsedX = headerRect.right - 40 - (this.collapsedSize / 2)
+            const collapsedY = headerRect.top + (headerRect.height / 2) - (this.collapsedSize / 2)
+
+            this.phoneRoot.el.style.left = collapsedX + "px"
+            this.phoneRoot.el.style.top = collapsedY + "px"
+            this.phoneRoot.el.style.bottom = "auto"
+
+            this.state.isCollapsed = true
+        }
     }
 }

@@ -151,8 +151,10 @@ export class Phone extends Component {
         this.mousePosition = {}
         this.offset = [0, 0]
         this.isDown = false
+        this.wasDragged = false  // Track if drag occurred to prevent expand on drag end
         this.phoneRoot = useRef("phone-root")
         this.phoneHeader = useRef("phone-header")
+        this.collapsedIcon = useRef("collapsed-icon")
         // BroadcastChannel
         this.bc = new BroadcastChannel("connect")
         this.contactSearch = 'all'
@@ -219,22 +221,39 @@ export class Phone extends Component {
             setupAudioUnlock()
             this.initUserAgent()
 
+            const self = this
             const phoneRoot = this.phoneRoot.el
-            this.phoneHeader.el.addEventListener("mousedown", function (e) {
+            const startDrag = (e) => {
                 self.isDown = true
                 self.offset = [
                     phoneRoot.offsetLeft - e.clientX,
                     phoneRoot.offsetTop - e.clientY
                 ]
+            }
+
+            // Drag from header when expanded
+            this.phoneHeader.el.addEventListener("mousedown", startDrag, true)
+
+            // Drag from collapsed icon when collapsed
+            this.collapsedIcon.el.addEventListener("mousedown", (e) => {
+                if (self.state.isCollapsed) {
+                    e.stopPropagation()  // Prevent expand on drag
+                    startDrag(e)
+                }
             }, true)
 
             document.addEventListener("mouseup", function () {
+                // Reset drag state after a short delay to allow click handler to check
+                setTimeout(() => {
+                    self.wasDragged = false
+                }, 50)
                 self.isDown = false
             }, true)
 
             document.addEventListener("mousemove", function (event) {
                 if (self.isDown) {
                     event.preventDefault()
+                    self.wasDragged = true  // Mark that a drag occurred
                     self.mousePosition = {
                         x: event.clientX,
                         y: event.clientY
@@ -262,7 +281,6 @@ export class Phone extends Component {
                 }
             }, true)
             // BroadcastChannel Events
-            const self = this
             this.bc.onmessage = ({data: {event, params}}) => {
                 return
                 // console.log('tbc.onMessage', {event, params})
@@ -988,8 +1006,11 @@ export class Phone extends Component {
         }
     }
 
-    _onClickClose(ev) {
+    // Hide phone entirely (to systray)
+    _onClickHide(ev) {
+        ev.stopPropagation()
         this.state.isDisplayLastState = !this.state.isDisplay
+        this.state.isCollapsed = false  // Reset collapsed state when hiding
         this.toggleDisplay()
     }
 
@@ -1071,9 +1092,9 @@ export class Phone extends Component {
         this.state.isCollapsed = true
     }
 
-    // Expand from collapsed icon
+    // Expand from collapsed icon (only if not dragging)
     _onClickCollapsedIcon(ev) {
-        if (this.state.isCollapsed) {
+        if (this.state.isCollapsed && !this.wasDragged) {
             ev.stopPropagation()
             this.state.isCollapsed = false
         }

@@ -77,6 +77,43 @@
       height: 100%;
       color: #ffffff;
       font-size: 24px;
+      cursor: grab;
+      position: relative;
+
+      &:active {
+        cursor: grabbing;
+      }
+
+      // Close button - appears on hover at top-right
+      .o_collapsed_close {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        width: 20px;
+        height: 20px;
+        background-color: var(--Phone-call-reject);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        cursor: pointer;
+        opacity: 0;
+        transform: scale(0.8);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+
+        &:hover {
+          background-color: #c82333;
+          transform: scale(1.1);
+        }
+      }
+
+      // Show close button on hover
+      &:hover .o_collapsed_close {
+        opacity: 1;
+        transform: scale(1);
+      }
 
       // Pulsing animation when in call
       &.in-call {
@@ -125,22 +162,23 @@
       display: flex;
       align-items: center;
       color: #ffffff;
-      padding: 0 12px;
+      padding: 0 8px 0 12px;
       width: 100%;
       cursor: default;
       gap: 8px;
+
+      // Push buttons to the right
+      .o_header_title {
+        flex: 1;
+        font-weight: 500;
+      }
     }
 
     .fa {
       font-size: 14px;
     }
 
-    .o_header_title {
-      font-weight: 500;
-    }
-
-    .o_header_close {
-      margin-left: auto;
+    .o_header_button {
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 4px;

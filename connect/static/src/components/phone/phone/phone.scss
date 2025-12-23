@@ -28,8 +28,9 @@
 }
 
 .o_root_connect_phone {
+  // Golden ratio: width × 1.618 = height
   width: 300px;
-  height: 520px;
+  height: 485px;
   position: fixed;
   background-color: var(--Phone-bg);
   color: var(--Phone-text);
@@ -41,6 +42,7 @@
   font-size: 13px;
   flex-flow: column nowrap;
   z-index: 1100;
+  overflow: hidden;
 
   .flex-container {
     display: flex;
@@ -61,6 +63,9 @@
     color: #ffffff;
     width: 100%;
     height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
 
@@ -114,6 +119,7 @@
 
     .o_phone_number_content {
       padding: 8px 12px;
+      margin: 0;
       position: relative;
       border-bottom: 1px solid var(--Phone-border);
       background-color: var(--Phone-bg);
@@ -226,21 +232,28 @@
 
     // Keypad
     .o_keypad {
-      padding: 8px;
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: center;
+      justify-content: center;
+      padding: 4px;
+      margin: 0;
 
       .o_keypad_button {
         color: var(--Phone-text);
         display: inline-flex;
         justify-content: center;
         align-items: center;
-        width: 94px;
-        height: 54px;
-        font-size: 28px;
+        width: 33.33%;
+        height: 48px;
+        font-size: 24px;
         font-weight: 300;
         border: none;
         background: transparent;
         border-radius: 8px;
         transition: background-color 0.15s ease;
+        box-sizing: border-box;
 
         &:hover {
           background: var(--Phone-hover-bg);
@@ -317,13 +330,22 @@
   // ==========================================================================
   .o_phone_tabs {
     border-bottom: 1px solid var(--Phone-border);
+    border-top: none;
     background: var(--Phone-bg);
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    flex-shrink: 0;
 
     button {
       color: var(--Phone-muted);
       border: none;
       background: transparent;
-      padding: 10px 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: color 0.15s ease, background-color 0.15s ease;
 
       &:hover {
@@ -351,8 +373,10 @@
     border-top: 1px solid var(--Phone-border);
     display: flex;
     height: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
     width: 100%;
-    flex-flow: row wrap;
+    flex-flow: row nowrap;
     padding: 4px 0;
 
     button {

@@ -2,12 +2,16 @@
 <templates xml:space="preserve">
 
     <t t-name="connect.phone" owl="1">
-        <div t-attf-class="{{state.isDisplay ? '' : 'o_hide'}} o_root_connect_phone" t-ref="phone-root">
+        <div t-attf-class="{{state.isDisplay ? '' : 'o_hide'}} {{state.isCollapsed ? 'o_collapsed' : ''}} o_root_connect_phone" t-ref="phone-root" t-on-click="_onClickCollapsedIcon">
+            <!--Collapsed Icon - shown when collapsed, context-aware for call status-->
+            <div t-attf-class="o_collapsed_icon {{state.inCall ? 'in-call' : ''}} {{state.inIncoming ? 'incoming' : ''}}">
+                <i t-attf-class="fa {{state.inCall ? 'fa-phone' : state.inIncoming ? 'fa-bell' : 'fa-phone'}}"/>
+            </div>
             <!--Header-->
-            <div class="o_header_phone" t-ref="phone-header">
+            <div class="o_header_phone" t-ref="phone-header" t-on-dblclick="_onHeaderDoubleClick">
                 <div class="o_header_content">
-                    <i class="fa fa-phone" role="img"/>
-                    <div class="o_header_title">
+                    <i class="fa fa-phone" role="img" t-on-click="_onClickCollapse" title="Collapse to icon" style="cursor: pointer;"/>
+                    <div class="o_header_title" t-on-click="_onClickCollapse" title="Click to collapse" style="cursor: pointer;">
                         <b t-out="title"/>
                     </div>
                     <div aria-label="Hide" class="fa fa-window-minimize o_header_close" title="Hide" t-on-click="_onClickClose"/>

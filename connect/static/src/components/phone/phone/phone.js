@@ -94,6 +94,7 @@ export class Phone extends Component {
             isActive: true,
             isDisplay: false,
             isDisplayLastState: false,
+            isCollapsed: false,  // New: collapsed to floating icon
             isMicrophoneMute: false,
             isSoundMute: localStorage.getItem('connect_is_sound_mute') === 'true',
             isKeypad: true,
@@ -127,6 +128,10 @@ export class Phone extends Component {
             phone_status: this.status.ended,
             calls: [],
         })
+        // Phone dimensions for drag constraints (golden ratio)
+        this.phoneWidth = 300
+        this.phoneHeight = 486
+        this.collapsedSize = 56
         this.callDuration = 0
         this.callDurationTimerInstance = null
         this.phoneInput = useRef('connect-phone-input')
@@ -239,13 +244,21 @@ export class Phone extends Component {
                     const cx = document.documentElement.clientWidth
                     const cy = document.documentElement.clientHeight
 
-                    let left = px < 10 ? 0 : px
-                    left = left + 310 > cx ? cx - 300 : left
-                    let top = py < 10 ? 0 : py
-                    top = top + 530 > cy ? cy - 520 : top
+                    // Get current dimensions based on collapsed state
+                    const currentWidth = self.state.isCollapsed ? self.collapsedSize : self.phoneWidth
+                    const currentHeight = self.state.isCollapsed ? self.collapsedSize : self.phoneHeight
+
+                    // Allow docking at edges with no margin
+                    let left = px < 0 ? 0 : px
+                    left = left + currentWidth > cx ? cx - currentWidth : left
+                    let top = py < 0 ? 0 : py
+                    // Allow phone to dock at the very bottom with no gap
+                    top = top + currentHeight > cy ? cy - currentHeight : top
 
                     phoneRoot.style.left = left + "px"
                     phoneRoot.style.top = top + "px"
+                    // Remove bottom style when manually positioned
+                    phoneRoot.style.bottom = "auto"
                 }
             }, true)
             // BroadcastChannel Events
@@ -1050,5 +1063,25 @@ export class Phone extends Component {
         } else {
             this.bc.postMessage({event: "tbcCancelForward"})
         }
+    }
+
+    // Collapse to floating phone icon
+    _onClickCollapse(ev) {
+        ev.stopPropagation()
+        this.state.isCollapsed = true
+    }
+
+    // Expand from collapsed icon
+    _onClickCollapsedIcon(ev) {
+        if (this.state.isCollapsed) {
+            ev.stopPropagation()
+            this.state.isCollapsed = false
+        }
+    }
+
+    // Double-click on header also collapses
+    _onHeaderDoubleClick(ev) {
+        ev.stopPropagation()
+        this.state.isCollapsed = !this.state.isCollapsed
     }
 }

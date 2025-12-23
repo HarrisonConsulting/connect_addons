@@ -842,9 +842,11 @@ export class Phone extends Component {
                 setFocus(this.phoneInput.el)
             }
             // When showing, ensure phone is within viewport bounds
-            // Defer until after DOM updates (element was display:none)
+            // Double rAF to ensure DOM is fully updated after OWL render
             if (this.state.isDisplay) {
-                requestAnimationFrame(() => this._ensureWithinViewport())
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => this._ensureWithinViewport())
+                })
             }
         } else {
             this.notify('Missing configs! Check "User / Preferences"!', {sticky: false})
@@ -861,38 +863,47 @@ export class Phone extends Component {
         const width = this.state.isCollapsed ? this.collapsedSize : this.phoneWidth
         const height = this.state.isCollapsed ? this.collapsedSize : this.phoneHeight
 
-        let currentLeft = phoneRoot.offsetLeft
-        let currentTop = phoneRoot.offsetTop
+        // Use getBoundingClientRect for accurate position of fixed element
+        const rect = phoneRoot.getBoundingClientRect()
+        let newLeft = rect.left
+        let newTop = rect.top
 
-        // Check if position needs adjustment
-        let needsAdjustment = false
+        // Fallback: if rect returns zeros (element was hidden), parse from inline style
+        if (rect.width === 0 && rect.height === 0) {
+            newLeft = parseFloat(phoneRoot.style.left) || 0
+            newTop = parseFloat(phoneRoot.style.top) || 0
+        }
 
-        // Right edge
-        if (currentLeft + width > cx) {
-            currentLeft = cx - width
-            needsAdjustment = true
+        // Clamp to viewport bounds
+        // Right edge: ensure dialog right edge doesn't exceed viewport
+        if (newLeft + width > cx) {
+            newLeft = cx - width
         }
         // Left edge
-        if (currentLeft < 0) {
-            currentLeft = 0
-            needsAdjustment = true
+        if (newLeft < 0) {
+            newLeft = 0
         }
-        // Bottom edge
-        if (currentTop + height > cy) {
-            currentTop = cy - height
-            needsAdjustment = true
+        // Bottom edge: ensure dialog bottom doesn't exceed viewport
+        if (newTop + height > cy) {
+            newTop = cy - height
         }
         // Top edge
-        if (currentTop < 0) {
-            currentTop = 0
-            needsAdjustment = true
+        if (newTop < 0) {
+            newTop = 0
         }
 
-        if (needsAdjustment) {
-            phoneRoot.style.left = currentLeft + "px"
-            phoneRoot.style.top = currentTop + "px"
-            phoneRoot.style.bottom = "auto"
-        }
+        // Always apply the clamped position
+        phoneRoot.style.left = newLeft + "px"
+        phoneRoot.style.top = newTop + "px"
+        phoneRoot.style.bottom = "auto"
+
+        console.log('_ensureWithinViewport:', {
+            viewport: {cx, cy},
+            size: {width, height},
+            rectSize: {w: rect.width, h: rect.height},
+            original: {left: rect.left, top: rect.top},
+            adjusted: {left: newLeft, top: newTop}
+        })
     }
 
     getCalls() {

@@ -3,6 +3,7 @@
 
     <record id="call_action" model="ir.actions.act_window">
         <field name="name">Calls</field>
+        <field name="path">connect-calls</field>
         <field name="res_model">connect.call</field>
         <field name="view_mode">list,form,graph,pivot</field>
     </record>
@@ -10,6 +11,7 @@
 
     <record id="call_channels_action" model="ir.actions.act_window">
         <field name="name">Channels</field>
+        <field name="path">connect-call-channels</field>
         <field name="res_model">connect.channel</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('call', '=', active_id)]</field>

@@ -16,15 +16,19 @@
     "data": [
         "security/user.xml",
         "security/admin.xml",
+        "data/outgoing_rules.xml",
         "views/byoc.xml",
         "views/domain.xml",
         "views/number.xml",
         "views/outgoing_rule.xml",
         "views/outgoing_callerid.xml",
-        "data/outgoing_rules.xml",
     ],
     "demo": [],
-    "qweb": ["static/src/xml/*.xml"],
+    "assets": {
+        "web.assets_backend": [
+            "connect_byoc/static/src/xml/*.xml",
+        ],
+    },
     "installable": True,
     "application": False,
     "auto_install": False,

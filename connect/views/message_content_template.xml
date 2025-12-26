@@ -2,6 +2,7 @@
 <odoo>
     <record id="action_connect_message_content_template" model="ir.actions.act_window">
         <field name="name">WhatsApp Templates</field>
+        <field name="path">connect-message-templates</field>
         <field name="res_model">connect.message_content_template</field>
         <field name="view_mode">list,form</field>
     </record>

@@ -17,6 +17,11 @@ from odoo.http import request, Response
 logger = logging.getLogger(__name__)
 
 
+def _get_webhook_user():
+    """Get the webhook user for authenticated operations."""
+    return request.env.ref("connect.user_connect_webhook")
+
+
 class VoiceWebhookController(http.Controller):
     """
     Controller for voice AI webhooks.
@@ -41,7 +46,8 @@ class VoiceWebhookController(http.Controller):
             dict: Acknowledgment response
         """
         try:
-            agent = request.env['connect.voice.agent'].sudo().browse(agent_id)
+            webhook_user = _get_webhook_user()
+            agent = request.env['connect.voice.agent'].with_user(webhook_user).browse(agent_id)
             if not agent.exists():
                 logger.error('Voice agent %s not found', agent_id)
                 return {'status': 'error', 'message': 'Agent not found'}
@@ -72,7 +78,7 @@ class VoiceWebhookController(http.Controller):
 
             # Update the call record if we have a call_id
             if call_id:
-                request.env['connect.call'].sudo().voice_agent_end_call_event(
+                request.env['connect.call'].with_user(webhook_user).voice_agent_end_call_event(
                     call_id=call_id,
                     conversation_id=conversation_id,
                     summary=summary,
@@ -203,7 +209,8 @@ class VoiceWebhookController(http.Controller):
         if not conversation_id:
             return
 
-        VoiceConversation = request.env['voice.conversation'].sudo()
+        webhook_user = _get_webhook_user()
+        VoiceConversation = request.env['voice.conversation'].with_user(webhook_user)
 
         # Check if conversation already exists
         existing = VoiceConversation.search([
@@ -268,13 +275,14 @@ class VoiceWebhookController(http.Controller):
             return
 
         # Get the call record
-        call = request.env['connect.call'].sudo().browse(int(call_id))
+        webhook_user = _get_webhook_user()
+        call = request.env['connect.call'].with_user(webhook_user).browse(int(call_id))
         if not call.exists():
             logger.warning('Cannot create voice recording: call %s not found', call_id)
             return
 
         # Check if recording already exists for this conversation
-        existing = request.env['connect.recording'].sudo().search([
+        existing = request.env['connect.recording'].with_user(webhook_user).search([
             ('voice_conversation_id', '=', conversation_id),
         ], limit=1)
         if existing:
@@ -301,7 +309,7 @@ class VoiceWebhookController(http.Controller):
 
         # Create the recording
         try:
-            request.env['connect.recording'].sudo().create_from_voice_conversation(
+            request.env['connect.recording'].with_user(webhook_user).create_from_voice_conversation(
                 call=call,
                 conversation_id=conversation_id,
                 audio_data=audio_data,
@@ -321,7 +329,8 @@ class VoiceWebhookController(http.Controller):
         # Log tool call to conversation if we have a conversation_id
         conversation_id = data.get('conversation_id')
         if conversation_id:
-            VoiceToolCall = request.env['voice.conversation.tool_call'].sudo()
+            webhook_user = _get_webhook_user()
+            VoiceToolCall = request.env['voice.conversation.tool_call'].with_user(webhook_user)
             VoiceToolCall.create({
                 'conversation_id': conversation_id,
                 'tool_name': tool_name,

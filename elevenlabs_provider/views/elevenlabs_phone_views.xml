@@ -94,6 +94,7 @@
     <!-- Phone Registration Action -->
     <record id="action_elevenlabs_phone_registration" model="ir.actions.act_window">
         <field name="name">Phone Registrations</field>
+        <field name="path">elevenlabs-phones</field>
         <field name="res_model">elevenlabs.phone.registration</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

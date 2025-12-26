@@ -115,6 +115,7 @@
     <!-- MCP Server Action -->
     <record id="action_voice_mcp_server" model="ir.actions.act_window">
         <field name="name">MCP Servers</field>
+        <field name="path">voice-mcp-servers</field>
         <field name="res_model">voice.mcp.server</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

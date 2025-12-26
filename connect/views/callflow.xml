@@ -3,6 +3,7 @@
 
     <record id="callflow_action" model="ir.actions.act_window">
         <field name="name">Call Flows</field>
+        <field name="path">connect-callflows</field>
         <field name="res_model">connect.callflow</field>
         <field name="view_mode">list,form</field>
     </record>

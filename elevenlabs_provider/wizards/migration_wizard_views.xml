@@ -123,6 +123,7 @@
     <!-- Migration Wizard Action -->
     <record id="elevenlabs_migration_wizard_action" model="ir.actions.act_window">
         <field name="name">Migrate from Legacy ElevenLabs</field>
+        <field name="path">elevenlabs-migration</field>
         <field name="res_model">elevenlabs.migration.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

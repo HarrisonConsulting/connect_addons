@@ -3,6 +3,7 @@
 
     <record id="outgoing_callerid_action" model="ir.actions.act_window">
         <field name="name">Outgoing CallerIds</field>
+        <field name="path">connect-caller-ids</field>
         <field name="res_model">connect.outgoing_callerid</field>
         <field name="view_mode">list,form</field>
     </record>

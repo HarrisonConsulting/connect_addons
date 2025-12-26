@@ -103,6 +103,7 @@
     <!-- ElevenLabs Provider Action -->
     <record id="action_voice_provider_elevenlabs" model="ir.actions.act_window">
         <field name="name">ElevenLabs Providers</field>
+        <field name="path">elevenlabs-providers</field>
         <field name="res_model">voice.provider.elevenlabs</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

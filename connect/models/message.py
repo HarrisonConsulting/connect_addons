@@ -1,4 +1,3 @@
-import ast
 import logging
 
 import phonenumbers
@@ -9,6 +8,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from odoo import models, fields, api, SUPERUSER_ID, release
 from odoo.exceptions import ValidationError
 from odoo.tools import mail
+from odoo.tools.safe_eval import safe_eval
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +268,7 @@ class ConnectMessage(models.Model):
                     defaults = {}
                     if config and config.default_values:
                         try:
-                            defaults = dict(ast.literal_eval(config.default_values or '{}'))
+                            defaults = dict(safe_eval(config.default_values or '{}'))
                         except Exception as e:
                             logger.error('Invalid default data: %s\n%s', config.default_values, e)
                     if dest_model in self.env:

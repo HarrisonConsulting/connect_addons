@@ -3,6 +3,7 @@
 
     <record id="byoc_action" model="ir.actions.act_window">
         <field name="name">BYOC</field>
+        <field name="path">byoc-carriers</field>
         <field name="res_model">connect.byoc</field>
         <field name="view_mode">list,form</field>
     </record>

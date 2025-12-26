@@ -98,6 +98,7 @@
     <!-- Action -->
     <record id="action_elevenlabs_phone_registration" model="ir.actions.act_window">
         <field name="name">Registered Phone Numbers</field>
+        <field name="path">elevenlabs-phone-registrations</field>
         <field name="res_model">connect.elevenlabs_phone_registration</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_registered': 1}</field>

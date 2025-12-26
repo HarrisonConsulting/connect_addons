@@ -3,6 +3,7 @@
     <data>
         <record id="connect_favorite" model="ir.actions.act_window">
             <field name="name">Favorite</field>
+            <field name="path">connect-favorites</field>
             <field name="res_model">connect.favorite</field>
             <field name="view_mode">list,form</field>
         </record>

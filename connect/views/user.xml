@@ -3,6 +3,7 @@
 
     <record id="user_action" model="ir.actions.act_window">
         <field name="name">Users</field>
+        <field name="path">connect-users</field>
         <field name="res_model">connect.user</field>
         <field name="view_mode">list,form</field>
     </record>

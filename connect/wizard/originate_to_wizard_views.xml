@@ -23,6 +23,7 @@
 
     <record id="action_connect_originate_to_wizard" model="ir.actions.act_window">
         <field name="name">Connect To</field>
+        <field name="path">connect-originate</field>
         <field name="res_model">connect.originate_to_wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

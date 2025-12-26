@@ -416,10 +416,7 @@ class Call(models.Model):
 
     def register_summary_to_rec(self, rec, summary):
         try:
-            if release.version_info[0] < 14:
-                rec.sudo(SUPERUSER_ID).message_post(body=summary)
-            else:
-                rec.with_user(SUPERUSER_ID).message_post(body=summary)
+            rec.with_user(SUPERUSER_ID).message_post(body=summary)
         except Exception as e:
             logger.error('Cannot register summary: %s', e)
 

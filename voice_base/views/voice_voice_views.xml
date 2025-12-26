@@ -166,6 +166,7 @@
     <!-- Voice Library Action -->
     <record id="action_voice_voice" model="ir.actions.act_window">
         <field name="name">Voice Library</field>
+        <field name="path">voice-voices</field>
         <field name="res_model">voice.voice</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="help" type="html">

@@ -3,6 +3,7 @@
     <!-- Action -->
     <record id="action_connect_whatsapp_sender" model="ir.actions.act_window">
         <field name="name">WhatsApp Senders</field>
+        <field name="path">connect-whatsapp-senders</field>
         <field name="res_model">connect.whatsapp_sender</field>
         <field name="view_mode">list,form</field>
     </record>

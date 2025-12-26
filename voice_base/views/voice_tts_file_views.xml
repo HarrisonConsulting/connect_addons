@@ -179,6 +179,7 @@
     <!-- Actions -->
     <record id="voice_tts_file_action" model="ir.actions.act_window">
         <field name="name">TTS Audio Files</field>
+        <field name="path">voice-tts-files</field>
         <field name="res_model">voice.tts.file</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_has_audio': 1}</field>
@@ -195,6 +196,7 @@
 
     <record id="voice_system_message_action" model="ir.actions.act_window">
         <field name="name">System Messages</field>
+        <field name="path">voice-system-messages</field>
         <field name="res_model">voice.system.message</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

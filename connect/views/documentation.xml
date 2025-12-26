@@ -24,6 +24,7 @@
     <!-- Action for Documentation -->
     <record id="action_connect_documentation" model="ir.actions.act_window">
         <field name="name">Connect Documentation</field>
+        <field name="path">connect-docs</field>
         <field name="res_model">connect.documentation</field>
         <field name="res_id">1</field>
         <field name="view_mode">form</field>

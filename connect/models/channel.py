@@ -220,25 +220,14 @@ class Channel(models.Model):
         </div>
         """.format(caller_avatar, caller)
 
-        if release.version_info[0] < 15:
-            self.env['bus.bus'].sendone(
-                'connect_actions_{}'.format(self.called_user.id),
-                {
-                    'action': 'notify',
-                    'message': message,
-                    'title': title,
-                    'sticky': sticky,
-                    'warning': warning
-                })
-        else:
-            self.env['bus.bus']._sendone(
-                'connect_actions_{}'.format(self.called_user.id),
-                'connect_notify',
-                {
-                    'message': message,
-                    'title': title,
-                    'sticky': sticky,
-                    'warning': warning
-                })
+        self.env['bus.bus']._sendone(
+            'connect_actions_{}'.format(self.called_user.id),
+            'connect_notify',
+            {
+                'message': message,
+                'title': title,
+                'sticky': sticky,
+                'warning': warning
+            })
 
         return True

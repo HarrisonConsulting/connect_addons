@@ -200,6 +200,7 @@
     <!-- Connect Voice Agent Action -->
     <record id="action_connect_voice_agent" model="ir.actions.act_window">
         <field name="name">Voice Agents</field>
+        <field name="path">connect-voice-agents</field>
         <field name="res_model">connect.voice.agent</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_active': 1}</field>

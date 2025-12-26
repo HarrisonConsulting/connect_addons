@@ -1,6 +1,6 @@
 from odoo import models, fields, api
-import ast
 from odoo.exceptions import ValidationError
+from odoo.tools.safe_eval import safe_eval
 
 
 class ConnectMessageConfiguration(models.Model):
@@ -18,7 +18,7 @@ class ConnectMessageConfiguration(models.Model):
     def _check_default_values(self):
         for rec in self:
             try:
-                dict(ast.literal_eval(rec.default_values or '{}'))
+                dict(safe_eval(rec.default_values or '{}'))
             except Exception as e:
                 raise ValidationError(
                     "Invalid expression, it must be a literal python dictionary definition e.g. '{\'field\': \'value\'}'"

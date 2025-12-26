@@ -85,7 +85,7 @@ class ConnectElevenlabsController(http.Controller):
             # Get caller/called numbers from dynamic_variables, fall back to call record
             caller_number = dynamic_variables.get('caller_number') or call.caller
             called_number = dynamic_variables.get('called_number') or call.called
-            recording.with_user(user_connect_webhook).sudo().create({
+            recording.with_user(user_connect_webhook).create({
                 'call': call_id,
                 'elevenlabs_transcript': transcript,
                 'elevenlabs_summary': transcript_summary,

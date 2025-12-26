@@ -3,6 +3,7 @@
 
     <record id="domain_action" model="ir.actions.act_window">
         <field name="name">Domains</field>
+        <field name="path">connect-domains</field>
         <field name="res_model">connect.domain</field>
         <field name="view_mode">list,form</field>
     </record>

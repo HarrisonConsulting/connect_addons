@@ -12,6 +12,7 @@
     <!-- Main Action -->
     <record id="agent_action" model="ir.actions.act_window">
         <field name="name">AI Agents</field>
+        <field name="path">elevenlabs-agents</field>
         <field name="res_model">connect.elevenlabs_agent</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_filter_active': 1}</field>

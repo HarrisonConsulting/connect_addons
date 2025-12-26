@@ -2,6 +2,7 @@
 <odoo>
     <record id="action_connect_message" model="ir.actions.act_window">
         <field name="name">Messages</field>
+        <field name="path">connect-messages</field>
         <field name="res_model">connect.message</field>
         <field name="view_mode">list,form</field>
     </record>

@@ -3,6 +3,7 @@
 
     <record id="agent_tool_action" model="ir.actions.act_window">
         <field name="name">Tools</field>
+        <field name="path">elevenlabs-agent-tools</field>
         <field name="res_model">connect.elevenlabs_agent_tool</field>
         <field name="view_mode">list,form</field>
     </record>

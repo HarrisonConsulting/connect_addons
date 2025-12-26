@@ -3,6 +3,7 @@
 
     <record id="exten_action" model="ir.actions.act_window">
         <field name="name">Extension</field>
+        <field name="path">connect-extensions</field>
         <field name="res_model">connect.exten</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_by_model': '1'}</field>

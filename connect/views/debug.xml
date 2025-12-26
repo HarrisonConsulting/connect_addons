@@ -3,6 +3,7 @@
 
     <record id="connect_debug_action" model="ir.actions.act_window">
       <field name="name">Debug Messages</field>
+      <field name="path">connect-debug</field>
       <field name="res_model">connect.debug</field>
       <field name="view_mode">list</field>
     </record>

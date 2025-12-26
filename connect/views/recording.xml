@@ -3,6 +3,7 @@
 
     <record id="recording_action" model="ir.actions.act_window">
         <field name="name">Recording</field>
+        <field name="path">connect-recordings</field>
         <field name="res_model">connect.recording</field>
         <field name="view_mode">list,form</field>
     </record>

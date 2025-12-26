@@ -63,25 +63,14 @@ class ResUser(models.Model):
         if not notify_uid:
             notify_uid = self.env.uid
 
-        if release.version_info[0] < 15:
-            self.env['bus.bus'].sendone(
-                'connect_actions_{}'.format(notify_uid),
-                {
-                    'action': 'notify',
-                    'message': message,
-                    'title': title,
-                    'sticky': sticky,
-                    'warning': warning
-                })
-        else:
-            self.env['bus.bus']._sendone(
-                'connect_actions_{}'.format(notify_uid),
-                'connect_notify',
-                {
-                    'message': message,
-                    'title': title,
-                    'sticky': sticky,
-                    'warning': warning
-                })
+        self.env['bus.bus']._sendone(
+            'connect_actions_{}'.format(notify_uid),
+            'connect_notify',
+            {
+                'message': message,
+                'title': title,
+                'sticky': sticky,
+                'warning': warning
+            })
 
         return True

@@ -2,6 +2,7 @@
 <odoo>
     <record id="action_connect_whatsapp_composer" model="ir.actions.act_window">
         <field name="name">Send WhatsApp</field>
+        <field name="path">connect-whatsapp-composer</field>
         <field name="res_model">connect.whatsapp_composer</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

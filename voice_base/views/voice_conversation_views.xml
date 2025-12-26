@@ -143,6 +143,7 @@
     <!-- Conversation Action -->
     <record id="action_voice_conversation" model="ir.actions.act_window">
         <field name="name">Conversations</field>
+        <field name="path">voice-conversations</field>
         <field name="res_model">voice.conversation</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

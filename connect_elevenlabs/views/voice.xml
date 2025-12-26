@@ -45,6 +45,7 @@
     <!-- Action to open ElevenlabsVoice views -->
     <record id="action_elevenlabs_voice" model="ir.actions.act_window">
         <field name="name">Elevenlabs Voices</field>
+        <field name="path">elevenlabs-voices</field>
         <field name="res_model">connect.elevenlabs_voice</field>
         <field name="view_mode">list,form</field>
     </record>

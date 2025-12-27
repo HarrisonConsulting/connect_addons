@@ -176,4 +176,15 @@
     <field name="perm_create" eval="1"/>
     <field name="perm_unlink" eval="0"/>
   </record>
+
+  <!-- Recording - required for ElevenLabs post_call webhook to save transcripts -->
+  <record id="connect_recording_webhook" model="ir.model.access">
+    <field name="name">connect_recording_webhook</field>
+    <field name="model_id" ref="connect.model_connect_recording"/>
+    <field name="group_id" ref="connect.group_connect_webhook"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
 </odoo>

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice Provider',
-    'version': '18.0.1.2.0',
+    'version': '18.0.1.3.0',
     'category': 'Productivity/Voice AI',
     'summary': 'ElevenLabs integration for Voice AI framework',
     'description': """
@@ -42,6 +42,9 @@ This module implements the abstract voice_base framework for ElevenLabs.
         'wizards/migration_wizard_views.xml',
         'views/menus.xml',
     ],
+    'pre_init_hook': 'pre_init_hook',
+    'post_init_hook': 'post_init_hook',
+    'uninstall_hook': 'uninstall_hook',
     'installable': True,
     'application': False,
     'auto_install': False,

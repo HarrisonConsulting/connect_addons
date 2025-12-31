@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Hide the OpenAI settings group from Connect settings -->
+    <!-- OpenAI configuration is now managed centrally via openai_base module -->
+    <record id="connect_settings_form_hide_openai" model="ir.ui.view">
+        <field name="name">connect.settings.form.hide_openai</field>
+        <field name="model">connect.settings</field>
+        <field name="inherit_id" ref="connect.connect_settings_form"/>
+        <field name="arch" type="xml">
+            <!-- Hide the OpenAI group and replace with info message -->
+            <group name="openai_api" position="replace">
+                <group name="openai_api" string="OpenAI">
+                    <div colspan="2" class="alert alert-info">
+                        <i class="fa fa-info-circle"/> OpenAI configuration is managed centrally.
+                        <br/>
+                        <a href="/web#action=base_setup.action_general_configuration" target="_blank">
+                            Go to Settings - Integrations - OpenAI Integration
+                        </a>
+                    </div>
+                </group>
+            </group>
+        </field>
+    </record>
+
+</odoo>

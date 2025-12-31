@@ -136,10 +136,6 @@
                         </group>
                         <group string="Intelligence">
                             <field name="llm"/>
-                            <field name="custom_llm_model_id"
-                                   invisible="llm != 'custom-llm'"
-                                   required="llm == 'custom-llm'"
-                                   options="{'no_create': True}"/>
                             <field name="temperature" widget="float"/>
                             <field name="max_tokens"/>
                         </group>
@@ -215,18 +211,6 @@
                             </group>
                             <group invisible="sync_status != 'error'">
                                 <field name="sync_error" readonly="1"/>
-                            </group>
-                            <group string="Custom LLM Settings" invisible="llm != 'custom-llm'">
-                                <field name="custom_llm_extra_body"
-                                       placeholder='{"user_id": "123", "custom_param": "value"}'/>
-                                <div class="text-muted" colspan="2">
-                                    <small>
-                                        Configure your OpenAI-compatible endpoint in
-                                        <a href="/web#action=base_setup.action_general_configuration" target="_blank">
-                                            Settings → Integrations → OpenAI Integration
-                                        </a>
-                                    </small>
-                                </div>
                             </group>
                         </page>
                     </notebook>

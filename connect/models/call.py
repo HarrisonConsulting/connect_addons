@@ -337,21 +337,55 @@ class Call(models.Model):
 
     @api.model
     def fetch_call_prices_batch(self):
-        """Cron job method to fetch prices for calls that don't have them yet"""
+        """Cron job method to fetch prices for calls that don't have them yet.
+
+        Twilio pricing notes:
+        - Price is "populated after the call is completed" but "may not be
+          immediately available" (can take minutes to hours)
+        - Zero-duration calls (never connected) will never have a price
+        - Calls stuck in 'initiated' status will never have a price
+        - After ~7 days, if no price is available, Twilio likely won't provide one
+
+        See: https://www.twilio.com/docs/voice/api/call-resource
+        """
         if not self.env['connect.settings'].sudo().get_param('fetch_call_prices'):
             debug(self, 'Call price fetching is disabled in settings')
             return
-            
-        # Find calls that need price fetching (completed calls without price)
+
+        # First, mark zero-duration calls as "fetched" - they'll never have prices
+        # (Twilio doesn't charge for calls that never connected)
+        zero_duration_calls = self.search([
+            ('is_price_fetched', '=', False),
+            ('call_sid', '!=', False),
+            ('duration', '=', 0),
+        ])
+        if zero_duration_calls:
+            zero_duration_calls.write({'is_price_fetched': True, 'price': 0.0})
+            debug(self, f'Marked {len(zero_duration_calls)} zero-duration calls as no-charge')
+
+        # Mark old calls (>7 days) as fetched - Twilio won't provide prices this late
+        cutoff_date = fields.Datetime.now() - timedelta(days=7)
+        old_calls = self.search([
+            ('is_price_fetched', '=', False),
+            ('call_sid', '!=', False),
+            ('create_date', '<', cutoff_date),
+        ])
+        if old_calls:
+            old_calls.write({'is_price_fetched': True})
+            debug(self, f'Marked {len(old_calls)} old calls (>7 days) as expired for price fetch')
+
+        # Find recent calls that need price fetching
+        # Only fetch calls with duration > 0 that completed in last 7 days
         calls_to_fetch = self.search([
             ('is_price_fetched', '=', False),
             ('call_sid', '!=', False),
             ('status', 'in', CALL_END_STATUSES),
-            ('create_date', '>=', fields.Datetime.now() - timedelta(days=30))  # Only last 30 days
+            ('duration', '>', 0),  # Only calls that actually connected
+            ('create_date', '>=', cutoff_date),
         ])
-        
+
         debug(self, f'Found {len(calls_to_fetch)} calls needing price fetch')
-        
+
         for call in calls_to_fetch:
             try:
                 success = self._fetch_call_price_from_api(call, call.call_sid)
@@ -362,7 +396,7 @@ class Call(models.Model):
                     debug(self, f'Price not yet available for call {call.id}, will retry next time')
             except Exception as e:
                 logger.error(f'Error fetching price for call {call.id}: {e}')
-        
+
         debug(self, f'Batch price fetch completed')
 
     def register_call(self, channel, params):

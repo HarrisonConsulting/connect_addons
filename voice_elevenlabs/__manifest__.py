@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice Provider',
-    'version': '18.0.1.4.0',
+    'version': '18.0.2.0.0',
     'category': 'Productivity/Voice AI',
     'summary': 'ElevenLabs integration for Voice AI framework',
     'description': """
@@ -15,19 +15,20 @@ Features:
 - Tools integration (webhooks, client, system)
 - MCP server support
 - Knowledge base integration
-- Twilio telephony integration
-- Phone number registration
+- Phone number registration with ElevenLabs
 - Post-call webhooks
 - Conversation tracking
 
 This module implements the abstract voice_base framework for ElevenLabs.
+
+For Connect telephony integration (Twilio phone numbers, outbound calling),
+install the voice_elevenlabs_connect bridge module.
     """,
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
     'depends': [
         'voice_base',
-        'connect',  # For phone number management
     ],
     'external_dependencies': {
         'python': ['elevenlabs'],
@@ -38,8 +39,6 @@ This module implements the abstract voice_base framework for ElevenLabs.
         'data/provider_data.xml',
         'views/elevenlabs_provider_views.xml',
         'views/elevenlabs_phone_views.xml',
-        'views/settings_views.xml',
-        'wizards/migration_wizard_views.xml',
         'views/menus.xml',
     ],
     'pre_init_hook': 'pre_init_hook',

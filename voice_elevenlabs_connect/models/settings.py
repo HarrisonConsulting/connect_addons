@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-ElevenLabs Settings Extension.
+ElevenLabs Connect Settings Extension.
 
 Extends connect.settings with ElevenLabs-specific configuration fields
-for the provider abstraction layer.
+for Connect telephony integration.
 """
 import logging
 import uuid
@@ -20,16 +20,16 @@ PROTECTED_FIELDS.append('display_elevenlabs_api_key')
 PROTECTED_FIELDS.append('display_elevenlabs_webhook_secret')
 
 
-class ElevenLabsSettings(models.Model):
+class ElevenLabsConnectSettings(models.Model):
     """
     Extend connect.settings with ElevenLabs configuration.
 
     Provides configuration fields and sync methods for the ElevenLabs
-    voice provider implementation.
+    voice provider when used with Connect telephony.
     """
     _inherit = 'connect.settings'
 
-    # API Configuration
+    # API Configuration (for convenience - mirrors provider api_key)
     elevenlabs_api_key = fields.Char(
         string='ElevenLabs API Key',
         groups="base.group_erp_manager",
@@ -100,10 +100,17 @@ class ElevenLabsSettings(models.Model):
 
     def _compute_elevenlabs_provider(self):
         """Get the ElevenLabs provider record."""
-        Provider = self.env['voice.provider'].sudo()
-        provider = Provider.search([('provider_type', '=', 'elevenlabs')], limit=1)
         for rec in self:
-            rec.elevenlabs_provider_id = provider.id if provider else False
+            rec.elevenlabs_provider_id = False
+
+        try:
+            Provider = self.env['voice.provider'].sudo()
+            provider = Provider.search([('provider_type', '=', 'elevenlabs')], limit=1)
+            for rec in self:
+                rec.elevenlabs_provider_id = provider.id if provider else False
+        except Exception as e:
+            # voice_base may not be properly installed (missing table)
+            logger.warning("Could not fetch ElevenLabs provider: %s", e)
 
     def open_elevenlabs_settings(self):
         """Open ElevenLabs settings form."""
@@ -118,7 +125,7 @@ class ElevenLabsSettings(models.Model):
             'res_id': rec.id,
             'name': 'ElevenLabs Settings',
             'view_mode': 'form',
-            'view_id': self.env.ref('voice_elevenlabs.elevenlabs_settings_form').id,
+            'view_id': self.env.ref('voice_elevenlabs_connect.elevenlabs_settings_form').id,
             'target': 'current',
         }
 

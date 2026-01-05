@@ -58,9 +58,6 @@
                             <field name="name" placeholder="e.g., Main Support Line"/>
                             <field name="provider_id" options="{'no_create': True}"/>
                             <field name="phone_number" placeholder="+14155551234"/>
-                            <field name="outgoing_callerid_id"
-                                   options="{'no_create': True}"
-                                   invisible="1"/>
                         </group>
                         <group>
                             <field name="label" placeholder="Optional label for ElevenLabs"/>

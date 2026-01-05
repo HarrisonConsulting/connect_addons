@@ -3,7 +3,7 @@
 ElevenLabs Phone Registration
 
 Manages Twilio phone number registration with ElevenLabs for outbound calling.
-Integrates with connect.outgoing_callerid for phone number management.
+This is the base model - install voice_elevenlabs_connect for Connect integration.
 """
 import logging
 from odoo import models, fields, api, _
@@ -18,6 +18,9 @@ class ElevenLabsPhoneRegistration(models.Model):
 
     This model manages the registration of Twilio phone numbers with
     ElevenLabs to enable outbound calling through ElevenLabs agents.
+
+    For Connect telephony integration (link to connect.outgoing_callerid),
+    install the voice_elevenlabs_connect bridge module.
     """
     _name = 'elevenlabs.phone.registration'
     _description = 'ElevenLabs Phone Registration'
@@ -48,16 +51,9 @@ class ElevenLabsPhoneRegistration(models.Model):
         help='The ElevenLabs provider for this registration'
     )
 
-    # === Phone Number (requires connect module) ===
-    # Note: This field requires connect.outgoing_callerid model
-    # If connect module is not installed, this will be a Char field
-    outgoing_callerid_id = fields.Many2one(
-        comodel_name='connect.outgoing_callerid',
-        string='Twilio Phone Number',
-        ondelete='cascade',
-        tracking=True,
-        help='The Twilio phone number to register with ElevenLabs'
-    )
+    # === Phone Number ===
+    # Note: For Connect integration (connect.outgoing_callerid linkage),
+    # install voice_elevenlabs_connect module
     phone_number = fields.Char(
         string='Phone Number',
         required=True,
@@ -158,6 +154,10 @@ class ElevenLabsPhoneRegistration(models.Model):
         """
         Get Twilio credentials for registration.
 
+        This base implementation only checks for override credentials on this record.
+        For Connect integration (fetching from connect.settings), install the
+        voice_elevenlabs_connect module which extends this method.
+
         Returns:
             tuple: (account_sid, auth_token)
         """
@@ -167,21 +167,11 @@ class ElevenLabsPhoneRegistration(models.Model):
         if self.twilio_account_sid and self.twilio_auth_token:
             return (self.twilio_account_sid, self.twilio_auth_token)
 
-        # Try to get from connect settings if available
-        if hasattr(self.env, 'ref') and self.env.ref('connect.module_connect', raise_if_not_found=False):
-            try:
-                settings = self.env['connect.settings'].sudo()
-                account_sid = settings.get_param('twilio_sid')
-                auth_token = settings.get_param('twilio_token')
-                if account_sid and auth_token:
-                    return (account_sid, auth_token)
-            except Exception as e:
-                logger.debug("Could not get Twilio credentials from connect settings: %s", e)
-
-        # No credentials found
+        # No credentials found - subclasses can extend to add more sources
         raise ValidationError(_(
             'Twilio credentials not configured. '
-            'Please configure them in this registration or in Connect settings.'
+            'Please configure them in this registration, or install '
+            'voice_elevenlabs_connect for Connect settings integration.'
         ))
 
     def action_register(self):

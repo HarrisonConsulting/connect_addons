@@ -3,4 +3,5 @@ from . import elevenlabs_provider
 from . import elevenlabs_voice
 from . import elevenlabs_phone
 from . import elevenlabs_config_builder
-from . import settings
+# Note: settings.py moved to voice_elevenlabs_connect module
+# for Connect telephony integration

@@ -12,7 +12,7 @@
 
     <!-- Settings Form View -->
     <record id="elevenlabs_settings_form" model="ir.ui.view">
-        <field name="name">elevenlabs_provider.settings.form</field>
+        <field name="name">elevenlabs_connect.settings.form</field>
         <field name="model">connect.settings</field>
         <field name="type">form</field>
         <field name="arch" type="xml">
@@ -121,19 +121,5 @@
             </form>
         </field>
     </record>
-
-    <!-- Add ElevenLabs submenu under Connect Settings -->
-    <menuitem id="elevenlabs_settings_submenu"
-              parent="connect.connect_settings_menu"
-              groups="connect.group_connect_admin"
-              name="ElevenLabs"
-              sequence="50"/>
-
-    <menuitem id="elevenlabs_settings_menu"
-              parent="elevenlabs_settings_submenu"
-              groups="connect.group_connect_admin"
-              action="elevenlabs_settings_action"
-              name="Settings"
-              sequence="10"/>
 
 </odoo>

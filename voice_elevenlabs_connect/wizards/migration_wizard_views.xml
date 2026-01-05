@@ -129,12 +129,4 @@
         <field name="target">new</field>
     </record>
 
-    <!-- Menu Item -->
-    <menuitem id="menu_elevenlabs_migration"
-              name="Migrate from Legacy"
-              parent="voice_base.menu_voice_configuration"
-              action="elevenlabs_migration_wizard_action"
-              sequence="100"
-              groups="base.group_system"/>
-
 </odoo>

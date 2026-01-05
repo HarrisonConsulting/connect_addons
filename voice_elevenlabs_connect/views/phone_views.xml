@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend Phone Registration Form to show Connect integration -->
+    <record id="view_elevenlabs_phone_registration_form_connect" model="ir.ui.view">
+        <field name="name">elevenlabs.phone.registration.form.connect</field>
+        <field name="model">elevenlabs.phone.registration</field>
+        <field name="inherit_id" ref="voice_elevenlabs.view_elevenlabs_phone_registration_form"/>
+        <field name="arch" type="xml">
+            <!-- Make outgoing_callerid_id visible and add before phone_number -->
+            <field name="phone_number" position="before">
+                <field name="outgoing_callerid_id"
+                       options="{'no_create': True}"
+                       help="Select a Twilio phone number from Connect"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

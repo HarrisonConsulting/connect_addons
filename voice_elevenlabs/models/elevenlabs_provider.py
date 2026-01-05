@@ -610,17 +610,17 @@ class VoiceProviderElevenLabs(models.Model):
         self.ensure_one()
         client = self.get_client()
 
-        # Get Twilio credentials from Connect settings
-        try:
-            Settings = self.env['connect.settings'].sudo()
-            twilio_account_sid = Settings.get_param('twilio_sid')
-            twilio_auth_token = Settings.get_param('twilio_token')
+        # Get Twilio credentials - must be provided or fetched by caller
+        # For Connect integration, use voice_elevenlabs_connect module
+        twilio_account_sid = kwargs.get('twilio_account_sid')
+        twilio_auth_token = kwargs.get('twilio_auth_token')
 
-            if not twilio_account_sid or not twilio_auth_token:
-                raise UserError(_('Twilio credentials not configured in Connect settings.'))
-
-        except Exception as e:
-            raise UserError(_('Failed to get Twilio credentials: %s') % str(e))
+        if not twilio_account_sid or not twilio_auth_token:
+            raise UserError(_(
+                'Twilio credentials not provided. '
+                'Pass twilio_account_sid and twilio_auth_token as parameters, '
+                'or install voice_elevenlabs_connect for Connect settings integration.'
+            ))
 
         # Find registered phone number if not provided
         if not phone_number_id:

@@ -132,13 +132,29 @@ TOOL_TYPE_LIST = [
     ('system', 'System'),
 ]
 
-# System Tool Types
+# System Tool Types (Generic - provider modules map to their specific implementations)
+# These represent common voice AI capabilities across providers
 SYSTEM_TOOL_TYPE_LIST = [
+    ('end_call', 'End Call'),                    # Terminate the conversation
+    ('transfer_call', 'Transfer Call'),          # Transfer to human/number/agent
+    ('detect_voicemail', 'Detect Voicemail'),    # Voicemail detection and handling
+    ('play_tones', 'Play Tones'),                # DTMF or other audio tones
+    ('pause_response', 'Pause Response'),        # Skip/pause agent turn
+    ('detect_language', 'Detect Language'),      # Language detection
+]
+
+# Transfer Destination Types (for transfer_call system tool)
+TRANSFER_DESTINATION_TYPE_LIST = [
+    ('phone', 'Phone Number'),
+    ('agent', 'Another Agent'),
+    ('queue', 'Call Queue'),
+]
+
+# Voicemail Action (what to do when voicemail detected)
+VOICEMAIL_ACTION_LIST = [
+    ('leave_message', 'Leave Message'),
     ('end_call', 'End Call'),
-    ('language_detection', 'Language Detection'),
-    ('agent_transfer', 'Agent Transfer'),
-    ('voicemail', 'Voicemail'),
-    ('dtmf', 'DTMF'),
+    ('retry', 'Retry Later'),
 ]
 
 # MCP Transport Types
@@ -155,11 +171,39 @@ MCP_AUTH_TYPE_LIST = [
     ('custom', 'Custom Header'),
 ]
 
-# MCP Approval Modes
-MCP_APPROVAL_MODE_LIST = [
-    ('auto', 'Auto-approve all'),
-    ('whitelist', 'Whitelist only'),
-    ('manual', 'Manual approval'),
+# MCP/Tool Approval Policies (Generic - providers map to their specific values)
+APPROVAL_POLICY_LIST = [
+    ('auto', 'Auto-approve All'),
+    ('manual', 'Require Approval for All'),
+    ('per_tool', 'Per-Tool Configuration'),
+]
+
+# Per-Tool Approval Status
+TOOL_APPROVAL_STATUS_LIST = [
+    ('approved', 'Auto-approved'),
+    ('requires_approval', 'Requires Approval'),
+    ('disabled', 'Disabled'),
+]
+
+# Tool Execution Modes (when to execute relative to speech)
+TOOL_EXECUTION_MODE_LIST = [
+    ('immediate', 'Immediate'),
+    ('after_speech', 'After Speech'),
+    ('background', 'Background/Async'),
+]
+
+# Tool Execution Sound Types (Generic categories - providers define specific sounds)
+TOOL_EXECUTION_SOUND_LIST = [
+    ('none', 'None'),
+    ('typing', 'Typing Sound'),
+    ('hold_music', 'Hold Music'),
+    ('processing', 'Processing Sound'),
+]
+
+# Tool Execution Sound Behavior
+TOOL_SOUND_BEHAVIOR_LIST = [
+    ('auto', 'Auto (when needed)'),
+    ('always', 'Always Play'),
 ]
 
 # HTTP Methods
@@ -169,6 +213,26 @@ HTTP_METHOD_LIST = [
     ('PUT', 'PUT'),
     ('PATCH', 'PATCH'),
     ('DELETE', 'DELETE'),
+]
+
+# Webhook Authentication Types (Industry standard patterns)
+WEBHOOK_AUTH_TYPE_LIST = [
+    ('none', 'None'),
+    ('bearer', 'Bearer Token'),
+    ('basic', 'Basic Auth'),
+    ('oauth2_client_credentials', 'OAuth2 Client Credentials'),
+    ('oauth2_jwt', 'OAuth2 JWT'),
+    ('custom_headers', 'Custom Headers'),
+]
+
+# OAuth2 JWT Algorithms
+OAUTH2_JWT_ALGORITHM_LIST = [
+    ('HS256', 'HS256'),
+    ('HS384', 'HS384'),
+    ('HS512', 'HS512'),
+    ('RS256', 'RS256'),
+    ('RS384', 'RS384'),
+    ('RS512', 'RS512'),
 ]
 
 # Parameter Types (for tool parameters)

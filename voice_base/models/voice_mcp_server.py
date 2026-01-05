@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
-from .constants import MCP_TRANSPORT_LIST, MCP_AUTH_TYPE_LIST, MCP_APPROVAL_MODE_LIST
+from .constants import (
+    MCP_TRANSPORT_LIST, MCP_AUTH_TYPE_LIST, APPROVAL_POLICY_LIST,
+    TOOL_EXECUTION_MODE_LIST, TOOL_EXECUTION_SOUND_LIST, TOOL_SOUND_BEHAVIOR_LIST,
+    TOOL_APPROVAL_STATUS_LIST,
+)
 
 
 class VoiceMCPServer(models.Model):
@@ -75,16 +79,92 @@ class VoiceMCPServer(models.Model):
     )
 
     # === Tool Approval ===
-    approval_mode = fields.Selection(
-        selection=MCP_APPROVAL_MODE_LIST,
-        string='Approval Mode',
+    approval_policy = fields.Selection(
+        selection=APPROVAL_POLICY_LIST,
+        string='Approval Policy',
         required=True,
         default='auto',
-        help='How to handle tool approvals: auto (all approved), whitelist (only allowed), manual (ask each time)'
+        help='How to handle tool approvals: auto (all approved), '
+             'manual (ask each time), per_tool (fine-grained per tool)'
     )
     allowed_tools = fields.Text(
         string='Allowed Tools',
-        help='Comma-separated list of allowed tool names (for whitelist mode)'
+        help='Comma-separated list of auto-approved tool names (for per_tool mode)'
+    )
+
+    # === Tool Config Overrides ===
+    tool_override_ids = fields.One2many(
+        comodel_name='voice.mcp.tool.override',
+        inverse_name='mcp_server_id',
+        string='Tool Overrides',
+        help='Per-tool configuration overrides'
+    )
+
+    # === Execution Settings ===
+    execution_mode = fields.Selection(
+        selection=TOOL_EXECUTION_MODE_LIST,
+        string='Execution Mode',
+        default='immediate',
+        help='When to execute tool calls: immediate, after speech, or background'
+    )
+    force_pre_tool_message = fields.Boolean(
+        string='Force Pre-Tool Message',
+        default=False,
+        help='Always speak before executing any tool from this server'
+    )
+    disable_interruptions = fields.Boolean(
+        string='Disable Interruptions',
+        default=False,
+        help='Prevent user from interrupting during tool execution'
+    )
+    disable_compression = fields.Boolean(
+        string='Disable Compression',
+        default=False,
+        help='Disable compression for MCP communication'
+    )
+
+    # === Tool Execution Sound ===
+    execution_sound = fields.Selection(
+        selection=TOOL_EXECUTION_SOUND_LIST,
+        string='Execution Sound',
+        default='none',
+        help='Ambient sound to play while tools from this server are executing'
+    )
+    execution_sound_behavior = fields.Selection(
+        selection=TOOL_SOUND_BEHAVIOR_LIST,
+        string='Sound Behavior',
+        default='auto',
+        help='When to play the execution sound'
+    )
+
+    # === Provider Sync (generic - works with any provider) ===
+    external_id = fields.Char(
+        string='External ID',
+        readonly=True,
+        copy=False,
+        help='MCP Server ID in the external provider (set after sync)'
+    )
+    sync_status = fields.Selection(
+        selection=[
+            ('draft', 'Draft'),
+            ('syncing', 'Syncing'),
+            ('synced', 'Synced'),
+            ('error', 'Error'),
+        ],
+        string='Sync Status',
+        default='draft',
+        readonly=True,
+        help='Synchronization status with external provider'
+    )
+    sync_error = fields.Text(
+        string='Sync Error',
+        readonly=True,
+        help='Last synchronization error message'
+    )
+    last_sync = fields.Datetime(
+        string='Last Sync',
+        readonly=True,
+        help='When this server was last synced with the provider'
     )
 
     # === Health Monitoring ===
@@ -138,14 +218,17 @@ class VoiceMCPServer(models.Model):
             if server.url and not server.url.startswith(('http://', 'https://')):
                 raise ValidationError(_('Server URL must start with http:// or https://'))
 
-    @api.constrains('approval_mode', 'allowed_tools')
-    def _check_whitelist(self):
-        """Validate whitelist configuration."""
+    @api.constrains('approval_policy', 'allowed_tools')
+    def _check_approval_config(self):
+        """Validate approval configuration."""
         for server in self:
-            if server.approval_mode == 'whitelist' and not server.allowed_tools:
-                raise ValidationError(_(
-                    'Whitelist approval mode requires allowed tools to be specified.'
-                ))
+            # Per-tool approval requires either allowed_tools or tool_override_ids
+            if server.approval_policy == 'per_tool':
+                if not server.allowed_tools and not server.tool_override_ids:
+                    raise ValidationError(_(
+                        'Per-tool approval policy requires either allowed tools '
+                        'or tool overrides to be configured.'
+                    ))
 
     def action_health_check(self):
         """Perform health check on MCP server."""
@@ -186,25 +269,159 @@ class VoiceMCPServer(models.Model):
 
     def is_tool_allowed(self, tool_name):
         """
-        Check if a tool is allowed based on approval mode.
+        Check if a tool is allowed based on approval policy.
 
         Args:
             tool_name (str): Name of the tool to check
 
         Returns:
-            bool: True if tool is allowed, False otherwise
+            str: 'approved', 'requires_approval', or 'disabled'
         """
         self.ensure_one()
 
-        if self.approval_mode == 'auto':
-            return True
-        elif self.approval_mode == 'whitelist':
-            if not self.allowed_tools:
-                return False
-            allowed = [t.strip() for t in self.allowed_tools.split(',')]
-            return tool_name in allowed
-        elif self.approval_mode == 'manual':
-            # Manual approval would need to be handled by the calling code
-            return False
+        if self.approval_policy == 'auto':
+            return 'approved'
+        elif self.approval_policy == 'manual':
+            return 'requires_approval'
+        elif self.approval_policy == 'per_tool':
+            # Check tool overrides first
+            override = self.tool_override_ids.filtered(
+                lambda o: o.tool_name == tool_name
+            )
+            if override:
+                return override[0].approval_status
 
-        return False
+            # Check allowed_tools list
+            if self.allowed_tools:
+                allowed = [t.strip() for t in self.allowed_tools.split(',')]
+                if tool_name in allowed:
+                    return 'approved'
+
+            # Default to requires approval for unlisted tools
+            return 'requires_approval'
+
+        return 'disabled'
+
+    def get_tool_config(self, tool_name):
+        """
+        Get configuration for a specific tool.
+
+        Args:
+            tool_name (str): Name of the tool
+
+        Returns:
+            dict: Tool configuration including approval status and any overrides
+        """
+        self.ensure_one()
+
+        config = {
+            'approval_status': self.is_tool_allowed(tool_name),
+            'pre_tool_message': None,
+            'force_pre_tool_message': self.force_pre_tool_message,
+            'execution_sound': self.execution_sound if self.execution_sound != 'none' else None,
+            'execution_sound_behavior': self.execution_sound_behavior,
+        }
+
+        # Apply tool-specific overrides
+        override = self.tool_override_ids.filtered(
+            lambda o: o.tool_name == tool_name
+        )
+        if override:
+            override = override[0]
+            if override.pre_tool_message:
+                config['pre_tool_message'] = override.pre_tool_message
+            if override.force_pre_tool_message:
+                config['force_pre_tool_message'] = True
+            if override.execution_sound and override.execution_sound != 'none':
+                config['execution_sound'] = override.execution_sound
+            if override.execution_sound_behavior:
+                config['execution_sound_behavior'] = override.execution_sound_behavior
+
+        return config
+
+
+class VoiceMCPToolOverride(models.Model):
+    """
+    Per-tool configuration overrides for MCP servers.
+
+    Allows fine-grained control over individual tools provided by an MCP server,
+    including approval status, pre-tool speech, and sound effects.
+    """
+    _name = 'voice.mcp.tool.override'
+    _description = 'MCP Tool Configuration Override'
+    _order = 'sequence, name'
+
+    # === Identity ===
+    mcp_server_id = fields.Many2one(
+        comodel_name='voice.mcp.server',
+        string='MCP Server',
+        required=True,
+        ondelete='cascade',
+        help='The MCP server this override belongs to'
+    )
+    tool_name = fields.Char(
+        string='Tool Name',
+        required=True,
+        help='Name of the tool from the MCP server to configure'
+    )
+    name = fields.Char(
+        string='Display Name',
+        help='Friendly display name for this tool (optional)'
+    )
+    sequence = fields.Integer(
+        string='Sequence',
+        default=10,
+        help='Display order'
+    )
+
+    # === Approval Status ===
+    approval_status = fields.Selection(
+        selection=[
+            ('auto_approved', 'Auto-approved'),
+            ('requires_approval', 'Requires Approval'),
+            ('disabled', 'Disabled'),
+        ],
+        string='Approval Status',
+        default='auto_approved',
+        required=True,
+        help='Whether this tool runs automatically, requires approval, or is disabled'
+    )
+
+    # === Pre-Tool Message ===
+    pre_tool_message = fields.Text(
+        string='Pre-Tool Message',
+        help='Message the agent speaks before executing this specific tool'
+    )
+    force_pre_tool_message = fields.Boolean(
+        string='Force Pre-Tool Message',
+        default=False,
+        help='Always speak the pre-tool message before execution'
+    )
+
+    # === Execution Sound ===
+    execution_sound = fields.Selection(
+        selection=TOOL_EXECUTION_SOUND_LIST,
+        string='Execution Sound',
+        default='none',
+        help='Override sound to play while this tool is executing'
+    )
+    execution_sound_behavior = fields.Selection(
+        selection=TOOL_SOUND_BEHAVIOR_LIST,
+        string='Sound Behavior',
+        help='Override sound behavior for this tool'
+    )
+
+    # === Additional Configuration ===
+    description_override = fields.Text(
+        string='Description Override',
+        help='Override the tool description provided by the MCP server'
+    )
+    parameters_override = fields.Text(
+        string='Parameters Override',
+        help='JSON override for tool parameters schema'
+    )
+
+    _sql_constraints = [
+        ('unique_mcp_tool', 'unique(mcp_server_id, tool_name)',
+         'Tool name must be unique per MCP server!')
+    ]

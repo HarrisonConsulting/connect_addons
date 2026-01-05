@@ -50,28 +50,118 @@
 
                     <notebook>
                         <page string="Configuration" name="config">
-                            <group invisible="tool_type != 'webhook'">
-                                <group string="Webhook Configuration">
-                                    <field name="webhook_url"/>
+                            <!-- Webhook Configuration -->
+                            <group invisible="tool_type != 'webhook'" string="Webhook Configuration">
+                                <group>
+                                    <field name="webhook_url" placeholder="https://api.example.com/endpoint"/>
                                     <field name="webhook_method"/>
                                     <field name="timeout_seconds"/>
                                 </group>
                                 <group>
-                                    <field name="webhook_headers" placeholder='{"Authorization": "Bearer token"}'/>
+                                    <field name="webhook_headers" placeholder='{"X-Custom-Header": "value"}'/>
                                 </group>
                             </group>
-                            <group invisible="tool_type != 'client'">
-                                <group string="Client Configuration">
+
+                            <!-- Webhook Authentication -->
+                            <group invisible="tool_type != 'webhook'" string="Authentication">
+                                <group>
+                                    <field name="webhook_auth_type"/>
+                                </group>
+                                <group invisible="webhook_auth_type == 'none'">
+                                    <field name="webhook_auth_token" password="True"
+                                           invisible="webhook_auth_type not in ('bearer', 'basic', 'oauth2_client_credentials')"/>
+                                    <field name="webhook_auth_username"
+                                           invisible="webhook_auth_type not in ('basic', 'oauth2_client_credentials')"/>
+                                </group>
+                            </group>
+
+                            <!-- OAuth2 Configuration -->
+                            <group invisible="webhook_auth_type not in ('oauth2_client_credentials', 'oauth2_jwt')" string="OAuth2 Settings">
+                                <group>
+                                    <field name="webhook_oauth2_token_url" placeholder="https://oauth.example.com/token"/>
+                                    <field name="webhook_oauth2_scopes" placeholder="read,write"/>
+                                </group>
+                                <group invisible="webhook_auth_type != 'oauth2_client_credentials'">
+                                    <field name="webhook_oauth2_extra_params" placeholder='{"custom_param": "value"}'/>
+                                </group>
+                            </group>
+
+                            <!-- JWT Configuration -->
+                            <group invisible="webhook_auth_type != 'oauth2_jwt'" string="JWT Settings">
+                                <group>
+                                    <field name="webhook_jwt_secret" password="True"/>
+                                    <field name="webhook_jwt_algorithm"/>
+                                </group>
+                                <group>
+                                    <field name="webhook_jwt_issuer"/>
+                                    <field name="webhook_jwt_audience"/>
+                                    <field name="webhook_jwt_subject"/>
+                                </group>
+                            </group>
+
+                            <!-- Client Tool Configuration -->
+                            <group invisible="tool_type != 'client'" string="Client Configuration">
+                                <group>
                                     <field name="wait_for_response"/>
                                     <field name="client_timeout_seconds"/>
                                 </group>
                             </group>
-                            <group invisible="tool_type != 'system'">
-                                <group string="System Configuration">
+
+                            <!-- System Tool Configuration -->
+                            <group invisible="tool_type != 'system'" string="System Configuration">
+                                <group>
                                     <field name="system_tool_type"/>
                                 </group>
                             </group>
+
+                            <!-- Transfer Call Configuration (Phone or Agent) -->
+                            <group invisible="system_tool_type != 'transfer_call'" string="Transfer Settings">
+                                <group>
+                                    <field name="transfer_destination_type"/>
+                                    <field name="transfer_destination" placeholder="+1234567890 or Agent ID"/>
+                                </group>
+                                <group invisible="transfer_destination_type == 'agent'">
+                                    <field name="transfer_message_caller" placeholder="Please hold while I transfer you..."/>
+                                    <field name="transfer_message_recipient" placeholder="Incoming transfer from AI agent..."/>
+                                </group>
+                            </group>
+
+                            <!-- Voicemail Detection Configuration -->
+                            <group invisible="system_tool_type != 'detect_voicemail'" string="Voicemail Settings">
+                                <group>
+                                    <field name="voicemail_action"/>
+                                </group>
+                                <group invisible="voicemail_action != 'leave_message'">
+                                    <field name="voicemail_message" placeholder="Hi, this is a message from..."/>
+                                </group>
+                            </group>
+
+                            <!-- Tone Configuration (DTMF) -->
+                            <group invisible="system_tool_type != 'play_tones'" string="Tone Settings">
+                                <group>
+                                    <field name="tone_sequence" placeholder="123#w456"/>
+                                    <field name="tone_out_of_band"/>
+                                </group>
+                            </group>
                         </page>
+
+                        <page string="Speech &amp; Sound" name="speech">
+                            <group string="Pre-Tool Message">
+                                <group>
+                                    <field name="force_pre_tool_message"/>
+                                </group>
+                                <group>
+                                    <field name="pre_tool_message" placeholder="Let me check that for you..."/>
+                                </group>
+                            </group>
+                            <group string="Execution Sound">
+                                <group>
+                                    <field name="execution_sound"/>
+                                    <field name="execution_sound_behavior" invisible="execution_sound == 'none'"/>
+                                </group>
+                            </group>
+                        </page>
+
                         <page string="Parameters" name="parameters">
                             <field name="parameter_ids">
                                 <list editable="bottom">

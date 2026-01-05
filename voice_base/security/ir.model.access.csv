@@ -5,6 +5,8 @@ access_voice_tool_parameter_user,voice.tool.parameter user,model_voice_tool_para
 access_voice_tool_parameter_manager,voice.tool.parameter manager,model_voice_tool_parameter,group_voice_manager,1,1,1,1
 access_voice_mcp_server_user,voice.mcp.server user,model_voice_mcp_server,group_voice_user,1,0,0,0
 access_voice_mcp_server_manager,voice.mcp.server manager,model_voice_mcp_server,group_voice_manager,1,1,1,1
+access_voice_mcp_tool_override_user,voice.mcp.tool.override user,model_voice_mcp_tool_override,group_voice_user,1,0,0,0
+access_voice_mcp_tool_override_manager,voice.mcp.tool.override manager,model_voice_mcp_tool_override,group_voice_manager,1,1,1,1
 access_voice_knowledge_base_user,voice.knowledge.base user,model_voice_knowledge_base,group_voice_user,1,0,0,0
 access_voice_knowledge_base_manager,voice.knowledge.base manager,model_voice_knowledge_base,group_voice_manager,1,1,1,1
 access_voice_conversation_user,voice.conversation user,model_voice_conversation,group_voice_user,1,1,1,0

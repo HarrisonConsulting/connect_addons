@@ -118,7 +118,7 @@ class ElevenLabsSettings(models.Model):
             'res_id': rec.id,
             'name': 'ElevenLabs Settings',
             'view_mode': 'form',
-            'view_id': self.env.ref('elevenlabs_provider.elevenlabs_settings_form').id,
+            'view_id': self.env.ref('voice_elevenlabs.elevenlabs_settings_form').id,
             'target': 'current',
         }
 

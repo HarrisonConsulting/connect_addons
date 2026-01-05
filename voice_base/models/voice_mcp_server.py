@@ -365,8 +365,8 @@ class VoiceMCPToolOverride(models.Model):
         help='Name of the tool from the MCP server to configure'
     )
     name = fields.Char(
-        string='Display Name',
-        help='Friendly display name for this tool (optional)'
+        string='Label',
+        help='Friendly display label for this tool (optional)'
     )
     sequence = fields.Integer(
         string='Sequence',

@@ -9,9 +9,9 @@ from odoo import models, fields
 
 class VoiceCalloutContact(models.Model):
     """
-    Extend connect.callout.contact with voice call tracking.
+    Extend connect.callout_contact with voice call tracking.
     """
-    _inherit = 'connect.callout.contact'
+    _inherit = 'connect.callout_contact'
 
     # === Voice Conversation Tracking ===
     voice_conversation_id = fields.Char(

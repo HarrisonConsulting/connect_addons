@@ -18,9 +18,45 @@ class ElevenLabsConfigBuilder(models.AbstractModel):
 
     This is a utility model that can be inherited by agent models
     to simplify configuration building.
+
+    Maps generic voice_base field names to ElevenLabs-specific API values.
     """
     _name = 'elevenlabs.config.builder'
     _description = 'ElevenLabs Configuration Builder Utility'
+
+    # === Field Name Mappings (generic -> ElevenLabs API) ===
+
+    # System tool type mapping
+    SYSTEM_TOOL_TYPE_MAP = {
+        'end_call': 'end_call',
+        'transfer_call': 'transfer_to_human',  # Maps to transfer_to_human or agent_transfer based on destination
+        'detect_voicemail': 'voicemail_detection',
+        'play_tones': 'play_dtmf',
+        'pause_response': 'skip_turn',
+        'detect_language': 'language_detection',
+    }
+
+    # Approval policy mapping (generic -> ElevenLabs)
+    APPROVAL_POLICY_MAP = {
+        'auto': 'auto_approve_all',
+        'manual': 'require_approval_all',
+        'per_tool': 'require_approval_per_tool',
+    }
+
+    # Execution sound mapping (generic -> ElevenLabs)
+    EXECUTION_SOUND_MAP = {
+        'none': 'none',
+        'typing': 'typing',
+        'hold_music': 'hold_music',
+        'processing': 'processing',
+    }
+
+    # Approval status mapping (generic -> ElevenLabs)
+    APPROVAL_STATUS_MAP = {
+        'approved': 'auto_approved',
+        'requires_approval': 'requires_approval',
+        'disabled': 'disabled',
+    }
 
     @api.model
     def build_conversation_config(self, **params):
@@ -182,54 +218,231 @@ class ElevenLabsConfigBuilder(models.AbstractModel):
             return None
 
     def _build_webhook_tool(self, tool):
-        """Build webhook tool config."""
+        """Build webhook tool config matching ElevenLabs API schema."""
+        import json
+
         config = {
             'type': 'webhook',
             'name': tool.name,
-            'description': tool.description,
-            'url': tool.webhook_url,
-            'method': tool.webhook_method,
+            'description': tool.description or '',
+            'api_schema': {
+                'url': tool.webhook_url,
+                'method': tool.webhook_method or 'POST',
+            },
             'response_timeout_secs': tool.timeout_seconds or 30,
         }
 
         # Add parameters schema
         if tool.parameter_ids:
-            config['parameters'] = tool.get_tool_schema()['function']['parameters']
+            config['api_schema']['request_body'] = {
+                'properties': {},
+                'required': [],
+            }
+            for param in tool.parameter_ids:
+                config['api_schema']['request_body']['properties'][param.name] = {
+                    'type': param.parameter_type,
+                    'description': param.description or '',
+                }
+                if param.enum_values:
+                    config['api_schema']['request_body']['properties'][param.name]['enum'] = \
+                        [v.strip() for v in param.enum_values.split(',')]
+                if param.required:
+                    config['api_schema']['request_body']['required'].append(param.name)
 
-        # Add headers if configured
+        # Add request headers
         if tool.webhook_headers:
             try:
-                import json
                 headers = json.loads(tool.webhook_headers)
-                # Convert headers to auth config if needed
-                # For now, just log that we need to handle this
-                logger.debug("Webhook headers for tool %s: %s", tool.name, headers)
+                config['api_schema']['request_headers'] = headers
             except Exception as e:
                 logger.warning("Could not parse webhook headers for tool %s: %s", tool.name, e)
 
+        # Add authentication configuration
+        auth_config = self._build_webhook_auth_config(tool)
+        if auth_config:
+            config['api_schema']['auth'] = auth_config
+
+        # Add pre-tool speech configuration (generic -> ElevenLabs API)
+        if tool.pre_tool_message:
+            config['pre_tool_speech'] = tool.pre_tool_message
+        if tool.force_pre_tool_message:
+            config['force_pre_tool_speech'] = True
+
+        # Add tool call sound (generic -> ElevenLabs API)
+        if tool.execution_sound and tool.execution_sound != 'none':
+            config['tool_call_sound'] = self.EXECUTION_SOUND_MAP.get(
+                tool.execution_sound, tool.execution_sound)
+            if tool.execution_sound_behavior:
+                config['tool_call_sound_behavior'] = tool.execution_sound_behavior
+
         return config
+
+    def _build_webhook_auth_config(self, tool):
+        """Build authentication configuration for webhook tool."""
+        if not tool.webhook_auth_type or tool.webhook_auth_type == 'none':
+            return None
+
+        if tool.webhook_auth_type == 'bearer':
+            return {
+                'type': 'bearer',
+                'token': tool.webhook_auth_token,
+            }
+        elif tool.webhook_auth_type == 'basic':
+            return {
+                'type': 'basic',
+                'username': tool.webhook_auth_username,
+                'password': tool.webhook_auth_token,
+            }
+        elif tool.webhook_auth_type == 'oauth2_client_credentials':
+            auth = {
+                'type': 'oauth2_client_credentials',
+                'client_id': tool.webhook_auth_username,
+                'client_secret': tool.webhook_auth_token,
+                'token_url': tool.webhook_oauth2_token_url,
+            }
+            if tool.webhook_oauth2_scopes:
+                auth['scopes'] = tool.webhook_oauth2_scopes
+            if tool.webhook_oauth2_extra_params:
+                try:
+                    import json
+                    auth['extra_params'] = json.loads(tool.webhook_oauth2_extra_params)
+                except Exception:
+                    pass
+            return auth
+        elif tool.webhook_auth_type == 'oauth2_jwt':
+            auth = {
+                'type': 'oauth2_jwt',
+                'jwt_secret': tool.webhook_jwt_secret,
+                'token_url': tool.webhook_oauth2_token_url,
+                'algorithm': tool.webhook_jwt_algorithm or 'HS256',
+            }
+            if tool.webhook_jwt_issuer:
+                auth['issuer'] = tool.webhook_jwt_issuer
+            if tool.webhook_jwt_audience:
+                auth['audience'] = tool.webhook_jwt_audience
+            if tool.webhook_jwt_subject:
+                auth['subject'] = tool.webhook_jwt_subject
+            return auth
+        elif tool.webhook_auth_type == 'custom_headers':
+            if tool.webhook_headers:
+                try:
+                    import json
+                    return {
+                        'type': 'custom',
+                        'headers': json.loads(tool.webhook_headers),
+                    }
+                except Exception:
+                    pass
+        return None
 
     def _build_client_tool(self, tool):
         """Build client tool config."""
         config = {
             'type': 'client',
             'name': tool.name,
-            'description': tool.description,
+            'description': tool.description or '',
             'wait_for_response': tool.wait_for_response,
         }
 
         # Add parameters schema
         if tool.parameter_ids:
-            config['parameters'] = tool.get_tool_schema()['function']['parameters']
+            config['parameters'] = {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            }
+            for param in tool.parameter_ids:
+                config['parameters']['properties'][param.name] = {
+                    'type': param.parameter_type,
+                    'description': param.description or '',
+                }
+                if param.enum_values:
+                    config['parameters']['properties'][param.name]['enum'] = \
+                        [v.strip() for v in param.enum_values.split(',')]
+                if param.required:
+                    config['parameters']['required'].append(param.name)
+
+        # Add pre-tool speech configuration (generic -> ElevenLabs API)
+        if tool.pre_tool_message:
+            config['pre_tool_speech'] = tool.pre_tool_message
+        if tool.force_pre_tool_message:
+            config['force_pre_tool_speech'] = True
+
+        # Add tool call sound (generic -> ElevenLabs API)
+        if tool.execution_sound and tool.execution_sound != 'none':
+            config['tool_call_sound'] = self.EXECUTION_SOUND_MAP.get(
+                tool.execution_sound, tool.execution_sound)
+            if tool.execution_sound_behavior:
+                config['tool_call_sound_behavior'] = tool.execution_sound_behavior
 
         return config
 
     def _build_system_tool(self, tool):
-        """Build system tool config."""
+        """
+        Build system tool config matching ElevenLabs API schema.
+
+        Maps generic voice_base system tool types to ElevenLabs-specific types.
+        """
+        # Map generic system tool type to ElevenLabs-specific type
+        elevenlabs_tool_type = self.SYSTEM_TOOL_TYPE_MAP.get(
+            tool.system_tool_type, tool.system_tool_type)
+
+        # Special case: transfer_call maps differently based on destination type
+        if tool.system_tool_type == 'transfer_call':
+            if tool.transfer_destination_type == 'agent':
+                elevenlabs_tool_type = 'agent_transfer'
+            else:
+                elevenlabs_tool_type = 'transfer_to_human'
+
         config = {
             'type': 'system',
-            'system_tool_type': tool.system_tool_type,
+            'system_tool_type': elevenlabs_tool_type,
         }
+
+        # Add system-tool-specific configuration
+        if tool.system_tool_type == 'end_call':
+            # End call has no additional config
+            pass
+
+        elif tool.system_tool_type == 'transfer_call':
+            # Map generic transfer fields to ElevenLabs-specific fields
+            if tool.transfer_destination_type == 'agent':
+                # Agent transfer
+                config['agent_id'] = tool.transfer_destination
+            else:
+                # Phone transfer (transfer_to_human)
+                config['phone_number'] = tool.transfer_destination
+                if tool.transfer_message_caller:
+                    config['customer_message'] = tool.transfer_message_caller
+                if tool.transfer_message_recipient:
+                    config['operator_message'] = tool.transfer_message_recipient
+
+        elif tool.system_tool_type == 'detect_voicemail':
+            # Map to ElevenLabs voicemail_detection
+            config['action'] = tool.voicemail_action or 'end_call'
+            if tool.voicemail_message:
+                config['voicemail_message'] = tool.voicemail_message
+
+        elif tool.system_tool_type == 'play_tones':
+            # Map generic tone fields to ElevenLabs DTMF fields
+            if tool.tone_sequence:
+                config['dtmf_tones'] = tool.tone_sequence
+            if tool.tone_out_of_band:
+                config['use_out_of_band_dtmf'] = True
+
+        elif tool.system_tool_type == 'pause_response':
+            # Maps to ElevenLabs skip_turn - no additional config
+            pass
+
+        elif tool.system_tool_type == 'detect_language':
+            # Maps to ElevenLabs language_detection - no additional config
+            pass
+
+        # Add pre-tool speech configuration (generic -> ElevenLabs API)
+        if tool.pre_tool_message:
+            config['pre_tool_speech'] = tool.pre_tool_message
+        if tool.force_pre_tool_message:
+            config['force_pre_tool_speech'] = True
 
         return config
 
@@ -238,44 +451,129 @@ class ElevenLabsConfigBuilder(models.AbstractModel):
         """
         Convert a voice.mcp.server record to ElevenLabs MCP config.
 
+        Matches the ElevenLabs MCP Server API schema.
+
         Args:
             mcp_server (voice.mcp.server): MCP server record
 
         Returns:
             dict: ElevenLabs MCP server configuration
         """
+        import json
+
+        # Build config matching ElevenLabs POST /v1/convai/mcp-servers schema
         config = {
             'url': mcp_server.url,
-            'transport': mcp_server.transport_type,
             'name': mcp_server.name,
         }
 
-        # Add auth if configured
-        if mcp_server.auth_type != 'none':
-            if mcp_server.auth_type == 'bearer':
-                config['auth'] = {
-                    'type': 'bearer',
-                    'token': mcp_server.auth_token,
-                }
-            elif mcp_server.auth_type == 'api_key':
-                config['auth'] = {
-                    'type': 'header',
-                    'name': 'X-API-Key',
-                    'value': mcp_server.auth_token,
-                }
-            elif mcp_server.auth_type == 'custom':
-                config['auth'] = {
-                    'type': 'header',
-                    'name': mcp_server.auth_header_name or 'Authorization',
-                    'value': mcp_server.auth_token,
-                }
+        # Add description if available
+        if mcp_server.description:
+            config['description'] = mcp_server.description
 
-        # Add tool approval settings
-        if hasattr(mcp_server, 'approval_mode'):
-            config['tool_approval'] = {
-                'mode': mcp_server.approval_mode,
+        # Add transport (SSE or STREAMABLE_HTTP)
+        if mcp_server.transport:
+            transport_map = {
+                'sse': 'SSE',
+                'http': 'STREAMABLE_HTTP',
             }
-            if mcp_server.approval_mode == 'whitelist' and hasattr(mcp_server, 'allowed_tool_names'):
-                config['tool_approval']['allowed_tools'] = mcp_server.allowed_tool_names.split(',')
+            config['transport'] = transport_map.get(mcp_server.transport, 'SSE')
+
+        # Add authentication (secret_token)
+        if mcp_server.auth_type != 'none' and mcp_server.auth_token:
+            config['secret_token'] = mcp_server.auth_token
+
+        # Add custom headers
+        if mcp_server.custom_headers:
+            try:
+                config['request_headers'] = json.loads(mcp_server.custom_headers)
+            except Exception as e:
+                logger.warning("Could not parse custom headers for MCP server %s: %s",
+                             mcp_server.name, e)
+
+        # Add approval policy (generic -> ElevenLabs API)
+        if mcp_server.approval_policy:
+            config['approval_policy'] = self.APPROVAL_POLICY_MAP.get(
+                mcp_server.approval_policy, mcp_server.approval_policy)
+
+        # Add tool approval hashes for per-tool approval
+        if mcp_server.approval_policy == 'per_tool' and mcp_server.tool_override_ids:
+            tool_approval_hashes = []
+            for override in mcp_server.tool_override_ids:
+                tool_approval_hashes.append({
+                    'tool_name': override.tool_name,
+                    'approval_status': self.APPROVAL_STATUS_MAP.get(
+                        override.approval_status, override.approval_status),
+                })
+            config['tool_approval_hashes'] = tool_approval_hashes
+
+        # Add execution settings (generic -> ElevenLabs API)
+        if mcp_server.force_pre_tool_message:
+            config['force_pre_tool_speech'] = True
+        if mcp_server.disable_interruptions:
+            config['disable_interruptions'] = True
+        if mcp_server.disable_compression:
+            config['disable_compression'] = True
+
+        # Add execution mode
+        if mcp_server.execution_mode and mcp_server.execution_mode != 'immediate':
+            config['execution_mode'] = mcp_server.execution_mode
+
+        # Add tool call sound (generic -> ElevenLabs API)
+        if mcp_server.execution_sound and mcp_server.execution_sound != 'none':
+            config['tool_call_sound'] = self.EXECUTION_SOUND_MAP.get(
+                mcp_server.execution_sound, mcp_server.execution_sound)
+            if mcp_server.execution_sound_behavior:
+                config['tool_call_sound_behavior'] = mcp_server.execution_sound_behavior
+
+        # Add per-tool config overrides
+        if mcp_server.tool_override_ids:
+            tool_config_overrides = []
+            for override in mcp_server.tool_override_ids:
+                tool_override = {'tool_name': override.tool_name}
+
+                if override.description_override:
+                    tool_override['description'] = override.description_override
+
+                if override.parameters_override:
+                    try:
+                        tool_override['parameters'] = json.loads(override.parameters_override)
+                    except Exception:
+                        pass
+
+                # Map generic pre-tool message -> ElevenLabs pre_tool_speech
+                if override.pre_tool_message:
+                    tool_override['pre_tool_speech'] = override.pre_tool_message
+                if override.force_pre_tool_message:
+                    tool_override['force_pre_tool_speech'] = True
+
+                # Map generic execution sound -> ElevenLabs tool_call_sound
+                if override.execution_sound and override.execution_sound != 'none':
+                    tool_override['tool_call_sound'] = self.EXECUTION_SOUND_MAP.get(
+                        override.execution_sound, override.execution_sound)
+                    if override.execution_sound_behavior:
+                        tool_override['tool_call_sound_behavior'] = override.execution_sound_behavior
+
+                # Only add if there are actual overrides beyond tool_name
+                if len(tool_override) > 1:
+                    tool_config_overrides.append(tool_override)
+
+            if tool_config_overrides:
+                config['tool_config_overrides'] = tool_config_overrides
 
         return config
+
+    @api.model
+    def build_mcp_server_create_request(self, mcp_server):
+        """
+        Build the full request body for creating an MCP server in ElevenLabs.
+
+        Args:
+            mcp_server (voice.mcp.server): MCP server record
+
+        Returns:
+            dict: Request body for POST /v1/convai/mcp-servers
+        """
+        return {
+            'config': self.mcp_server_to_elevenlabs_format(mcp_server)
+        }

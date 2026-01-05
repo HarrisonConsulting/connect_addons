@@ -813,11 +813,24 @@ class VoiceProviderElevenLabs(models.Model):
                 if tool_config:
                     config.add_tool(tool_config)
 
+        # Add MCP servers if configured
+        if hasattr(agent_record, 'mcp_server_ids') and agent_record.mcp_server_ids:
+            config_builder = self.env['elevenlabs.config.builder']
+            mcp_configs = []
+            for mcp_server in agent_record.mcp_server_ids:
+                mcp_config = config_builder.mcp_server_to_elevenlabs_format(mcp_server)
+                if mcp_config:
+                    mcp_configs.append(mcp_config)
+            if mcp_configs:
+                config.config['conversation_config']['mcp_servers'] = mcp_configs
+
         return config.build()
 
     def _build_tool_config(self, tool):
         """
         Build tool configuration for ElevenLabs.
+
+        Uses the config builder for consistent tool formatting.
 
         Args:
             tool: voice.tool record
@@ -825,30 +838,8 @@ class VoiceProviderElevenLabs(models.Model):
         Returns:
             dict: Tool configuration or None
         """
-        if tool.tool_type == 'webhook':
-            return {
-                'type': 'webhook',
-                'name': tool.name,
-                'description': tool.description or '',
-                'api_schema': {
-                    'url': tool.webhook_url,
-                    'method': tool.http_method or 'POST',
-                },
-            }
-        elif tool.tool_type == 'client':
-            return {
-                'type': 'client',
-                'name': tool.name,
-                'description': tool.description or '',
-            }
-        elif tool.tool_type == 'system':
-            return {
-                'type': 'system',
-                'name': tool.name,
-                'description': tool.description or '',
-                'system_tool_type': tool.system_tool_type,
-            }
-        return None
+        config_builder = self.env['elevenlabs.config.builder']
+        return config_builder.tool_to_elevenlabs_format(tool)
 
     # === Inbound Call Rendering ===
 
@@ -939,3 +930,303 @@ class VoiceProviderElevenLabs(models.Model):
             str: Audio URL
         """
         return f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}/audio"
+
+    # === MCP Server Management ===
+
+    def create_mcp_server(self, mcp_server_record):
+        """
+        Create an MCP server in ElevenLabs.
+
+        Args:
+            mcp_server_record: voice.mcp.server record
+
+        Returns:
+            dict: {'success': bool, 'mcp_server_id': str, 'details': dict}
+        """
+        self.ensure_one()
+        import requests
+
+        if not self.api_key:
+            raise UserError(_('API key not configured for provider "%s".') % self.name)
+
+        try:
+            # Build config using config builder
+            config_builder = self.env['elevenlabs.config.builder']
+            config = config_builder.mcp_server_to_elevenlabs_format(mcp_server_record)
+
+            url = "https://api.elevenlabs.io/v1/convai/mcp-servers"
+            headers = {
+                "Content-Type": "application/json",
+                "xi-api-key": self.api_key,
+            }
+
+            response = requests.post(
+                url,
+                json={'config': config},
+                headers=headers,
+                timeout=30
+            )
+
+            if response.status_code in (200, 201):
+                data = response.json()
+                mcp_server_id = data.get('id')
+
+                logger.info('Created ElevenLabs MCP server: %s', mcp_server_id)
+
+                # Update the record with the ElevenLabs ID
+                mcp_server_record.write({
+                    'external_id': mcp_server_id,
+                    'sync_status': 'synced',
+                    'sync_error': False,
+                    'last_sync': fields.Datetime.now(),
+                })
+
+                return {
+                    'success': True,
+                    'mcp_server_id': mcp_server_id,
+                    'details': data,
+                }
+            else:
+                error_msg = response.text
+                logger.error('Failed to create MCP server: HTTP %d - %s',
+                           response.status_code, error_msg)
+                mcp_server_record.write({
+                    'sync_status': 'error',
+                    'sync_error': f'HTTP {response.status_code}: {error_msg}',
+                })
+                raise UserError(_('Failed to create MCP server: %s') % error_msg)
+
+        except requests.RequestException as e:
+            logger.error('Failed to create MCP server: %s', e)
+            mcp_server_record.write({
+                'sync_status': 'error',
+                'sync_error': str(e),
+            })
+            raise UserError(_('Failed to create MCP server: %s') % str(e))
+
+    def update_mcp_server(self, mcp_server_record):
+        """
+        Update an MCP server in ElevenLabs.
+
+        Args:
+            mcp_server_record: voice.mcp.server record with external_mcp_server_id set
+
+        Returns:
+            dict: {'success': bool, 'details': dict}
+        """
+        self.ensure_one()
+        import requests
+
+        if not self.api_key:
+            raise UserError(_('API key not configured for provider "%s".') % self.name)
+
+        if not mcp_server_record.external_id:
+            raise UserError(_('MCP server has not been synced to ElevenLabs yet.'))
+
+        try:
+            # Build config using config builder
+            config_builder = self.env['elevenlabs.config.builder']
+            config = config_builder.mcp_server_to_elevenlabs_format(mcp_server_record)
+
+            url = f"https://api.elevenlabs.io/v1/convai/mcp-servers/{mcp_server_record.external_id}"
+            headers = {
+                "Content-Type": "application/json",
+                "xi-api-key": self.api_key,
+            }
+
+            response = requests.patch(
+                url,
+                json={'config': config},
+                headers=headers,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                logger.info('Updated ElevenLabs MCP server: %s',
+                           mcp_server_record.external_id)
+
+                mcp_server_record.write({
+                    'sync_status': 'synced',
+                    'sync_error': False,
+                    'last_sync': fields.Datetime.now(),
+                })
+
+                return {
+                    'success': True,
+                    'details': data,
+                }
+            else:
+                error_msg = response.text
+                logger.error('Failed to update MCP server: HTTP %d - %s',
+                           response.status_code, error_msg)
+                mcp_server_record.write({
+                    'sync_status': 'error',
+                    'sync_error': f'HTTP {response.status_code}: {error_msg}',
+                })
+                raise UserError(_('Failed to update MCP server: %s') % error_msg)
+
+        except requests.RequestException as e:
+            logger.error('Failed to update MCP server: %s', e)
+            mcp_server_record.write({
+                'sync_status': 'error',
+                'sync_error': str(e),
+            })
+            raise UserError(_('Failed to update MCP server: %s') % str(e))
+
+    def get_mcp_server(self, mcp_server_id):
+        """
+        Get MCP server details from ElevenLabs.
+
+        Args:
+            mcp_server_id (str): ElevenLabs MCP server ID
+
+        Returns:
+            dict: MCP server details
+        """
+        self.ensure_one()
+        import requests
+
+        if not self.api_key:
+            raise UserError(_('API key not configured for provider "%s".') % self.name)
+
+        try:
+            url = f"https://api.elevenlabs.io/v1/convai/mcp-servers/{mcp_server_id}"
+            headers = {
+                "Content-Type": "application/json",
+                "xi-api-key": self.api_key,
+            }
+
+            response = requests.get(url, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error('Failed to get MCP server %s: HTTP %d',
+                           mcp_server_id, response.status_code)
+                raise UserError(_('Failed to get MCP server: HTTP %d') % response.status_code)
+
+        except requests.RequestException as e:
+            logger.error('Failed to get MCP server: %s', e)
+            raise UserError(_('Failed to get MCP server: %s') % str(e))
+
+    def delete_mcp_server(self, mcp_server_record):
+        """
+        Delete an MCP server from ElevenLabs.
+
+        Args:
+            mcp_server_record: voice.mcp.server record with external_mcp_server_id set
+
+        Returns:
+            dict: {'success': bool}
+        """
+        self.ensure_one()
+        import requests
+
+        if not self.api_key:
+            raise UserError(_('API key not configured for provider "%s".') % self.name)
+
+        if not mcp_server_record.external_id:
+            # Not synced, nothing to delete
+            return {'success': True}
+
+        try:
+            url = f"https://api.elevenlabs.io/v1/convai/mcp-servers/{mcp_server_record.external_id}"
+            headers = {
+                "Content-Type": "application/json",
+                "xi-api-key": self.api_key,
+            }
+
+            response = requests.delete(url, headers=headers, timeout=30)
+
+            if response.status_code in (200, 204):
+                logger.info('Deleted ElevenLabs MCP server: %s',
+                           mcp_server_record.external_id)
+
+                mcp_server_record.write({
+                    'external_id': False,
+                    'sync_status': 'draft',
+                    'sync_error': False,
+                })
+
+                return {'success': True}
+            else:
+                error_msg = response.text
+                logger.error('Failed to delete MCP server: HTTP %d - %s',
+                           response.status_code, error_msg)
+                raise UserError(_('Failed to delete MCP server: %s') % error_msg)
+
+        except requests.RequestException as e:
+            logger.error('Failed to delete MCP server: %s', e)
+            raise UserError(_('Failed to delete MCP server: %s') % str(e))
+
+    def list_mcp_servers(self):
+        """
+        List all MCP servers from ElevenLabs account.
+
+        Returns:
+            list: List of MCP server dicts
+        """
+        self.ensure_one()
+        import requests
+
+        if not self.api_key:
+            raise UserError(_('API key not configured for provider "%s".') % self.name)
+
+        try:
+            url = "https://api.elevenlabs.io/v1/convai/mcp-servers"
+            headers = {
+                "Content-Type": "application/json",
+                "xi-api-key": self.api_key,
+            }
+
+            response = requests.get(url, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('mcp_servers', [])
+            else:
+                logger.error('Failed to list MCP servers: HTTP %d', response.status_code)
+                raise UserError(_('Failed to list MCP servers: HTTP %d') % response.status_code)
+
+        except requests.RequestException as e:
+            logger.error('Failed to list MCP servers: %s', e)
+            raise UserError(_('Failed to list MCP servers: %s') % str(e))
+
+    def sync_mcp_server(self, mcp_server_record):
+        """
+        Sync an MCP server to ElevenLabs (create or update).
+
+        Args:
+            mcp_server_record: voice.mcp.server record
+
+        Returns:
+            dict: {'success': bool, 'mcp_server_id': str, 'action': 'created'|'updated'}
+        """
+        self.ensure_one()
+
+        mcp_server_record.write({'sync_status': 'syncing'})
+
+        try:
+            if mcp_server_record.external_id:
+                # Update existing
+                result = self.update_mcp_server(mcp_server_record)
+                return {
+                    'success': True,
+                    'mcp_server_id': mcp_server_record.external_id,
+                    'action': 'updated',
+                }
+            else:
+                # Create new
+                result = self.create_mcp_server(mcp_server_record)
+                return {
+                    'success': True,
+                    'mcp_server_id': result['mcp_server_id'],
+                    'action': 'created',
+                }
+        except Exception as e:
+            mcp_server_record.write({
+                'sync_status': 'error',
+                'sync_error': str(e),
+            })
+            raise

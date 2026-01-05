@@ -1,4 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_voice_provider_user,voice.provider user,model_voice_provider,group_voice_user,1,0,0,0
+access_voice_provider_manager,voice.provider manager,model_voice_provider,group_voice_manager,1,1,1,1
 access_voice_tool_user,voice.tool user,model_voice_tool,group_voice_user,1,0,0,0
 access_voice_tool_manager,voice.tool manager,model_voice_tool,group_voice_manager,1,1,1,1
 access_voice_tool_parameter_user,voice.tool.parameter user,model_voice_tool_parameter,group_voice_user,1,0,0,0

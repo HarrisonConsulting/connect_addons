@@ -62,9 +62,9 @@
                     <group>
                         <field name="description" placeholder="Describe what this MCP server provides"/>
                     </group>
-                    <group invisible="not sync_error" class="alert alert-danger">
+                    <div invisible="not sync_error" class="alert alert-danger" role="alert">
                         <field name="sync_error" nolabel="1" readonly="1"/>
-                    </group>
+                    </div>
 
                     <notebook>
                         <page string="Authentication" name="auth">

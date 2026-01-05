@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Connect Voice Agent - OpenAI Custom LLM Extension.
 
+Extends connect.voice.agent with custom LLM support via OpenAI-compatible endpoints.
+"""
 import json
 import logging
 
@@ -8,8 +12,15 @@ from odoo import models, fields
 logger = logging.getLogger(__name__)
 
 
-class ElevenLabsAgentOpenAI(models.Model):
-    _inherit = 'elevenlabs.agent'
+class ConnectVoiceAgentOpenAI(models.Model):
+    """
+    Extend connect.voice.agent with custom LLM configuration.
+
+    This model adds fields for selecting a custom LLM model from an
+    OpenAI-compatible endpoint and provides the configuration to
+    the voice.agent.mixin via _build_custom_llm_config().
+    """
+    _inherit = 'connect.voice.agent'
 
     # === Custom LLM Configuration (via openai_base) ===
     custom_llm_model_id = fields.Many2one(
@@ -20,19 +31,23 @@ class ElevenLabsAgentOpenAI(models.Model):
     )
     custom_llm_extra_body = fields.Text(
         string="Extra Body (JSON)",
-        help="Additional JSON parameters to send with each request (e.g., {\"user_id\": \"123\"})",
+        help="Additional JSON parameters to send with each request "
+             '(e.g., {"user_id": "123"})',
     )
 
     def _build_custom_llm_config(self):
-        """Build custom LLM configuration from openai_base settings.
+        """
+        Build custom LLM configuration from openai_base settings.
 
         Returns a dict compatible with ElevenLabs custom_llm schema:
         {
             'url': 'https://your-endpoint.com/v1/chat/completions',
             'model_id': 'your-model-name',
             'api_key': 'your-api-key',
+            'extra_body': {...},
         }
         """
+        self.ensure_one()
         IrConfigParameter = self.env['ir.config_parameter'].sudo()
 
         # Get OpenAI base configuration

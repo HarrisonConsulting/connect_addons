@@ -208,3 +208,20 @@ class VoiceAgentMixin(models.AbstractModel):
                 self.max_tokens = 2000
             else:
                 self.max_tokens = 500
+
+    def _build_custom_llm_config(self):
+        """
+        Build custom LLM configuration for voice agents.
+
+        This is a stub method that returns None by default.
+        Install voice_elevenlabs_openai to enable custom LLM support
+        via OpenAI-compatible endpoints.
+
+        Returns:
+            dict or None: Custom LLM configuration dict with keys:
+                - url: Chat completions endpoint URL
+                - model_id: Model identifier
+                - api_key: API key (optional)
+                - extra_body: Additional request params (optional)
+        """
+        return None

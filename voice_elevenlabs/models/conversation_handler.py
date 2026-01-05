@@ -232,6 +232,35 @@ class ElevenLabsAgentConfig:
             agent_config['llm']['max_tokens'] = max_tokens
         return self
 
+    def set_custom_llm(self, url, model_id=None, api_key=None, extra_body=None):
+        """
+        Set custom LLM configuration for OpenAI-compatible endpoints.
+
+        Args:
+            url (str): Chat completions endpoint URL
+            model_id (str): Model identifier
+            api_key (str): API key for authentication
+            extra_body (dict): Additional request parameters
+        """
+        agent_config = self.config['conversation_config']['agent']
+
+        # Set base LLM model to custom-llm
+        agent_config['llm'] = {
+            'model': 'custom-llm',
+        }
+
+        # Add custom_llm configuration
+        custom_llm = {'url': url}
+        if model_id:
+            custom_llm['model_id'] = model_id
+        if api_key:
+            custom_llm['api_key'] = api_key
+        if extra_body:
+            custom_llm['extra_body'] = extra_body
+
+        agent_config['custom_llm'] = custom_llm
+        return self
+
     def set_voice(self, voice_id, stability=0.5, similarity_boost=0.8, model_id=None):
         """Set TTS voice configuration."""
         tts_config = self.config['conversation_config']['tts']

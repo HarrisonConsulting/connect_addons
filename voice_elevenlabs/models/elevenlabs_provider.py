@@ -756,11 +756,39 @@ class VoiceProviderElevenLabs(models.Model):
         )
 
         # Set LLM configuration
-        config.set_llm(
-            model=agent_record.llm_model or 'gpt-4o',
-            temperature=agent_record.temperature or 1.0,
-            max_tokens=agent_record.max_tokens or 500,
-        )
+        llm_model = agent_record.llm_model or 'gpt-4o'
+
+        if llm_model == 'custom-llm':
+            # Check if the agent has custom LLM configuration
+            custom_llm_config = None
+            if hasattr(agent_record, '_build_custom_llm_config'):
+                custom_llm_config = agent_record._build_custom_llm_config()
+
+            if custom_llm_config and custom_llm_config.get('url'):
+                config.set_custom_llm(
+                    url=custom_llm_config['url'],
+                    model_id=custom_llm_config.get('model_id'),
+                    api_key=custom_llm_config.get('api_key'),
+                    extra_body=custom_llm_config.get('extra_body'),
+                )
+            else:
+                # Fall back to default LLM if custom config not available
+                logger.warning(
+                    "custom-llm selected but no custom LLM config available for agent %s. "
+                    "Install voice_elevenlabs_openai module for custom LLM support.",
+                    agent_record.name if hasattr(agent_record, 'name') else agent_record.id
+                )
+                config.set_llm(
+                    model='gpt-4o',
+                    temperature=agent_record.temperature or 1.0,
+                    max_tokens=agent_record.max_tokens or 500,
+                )
+        else:
+            config.set_llm(
+                model=llm_model,
+                temperature=agent_record.temperature or 1.0,
+                max_tokens=agent_record.max_tokens or 500,
+            )
 
         # Set voice if available
         if agent_record.voice_id and agent_record.voice_id.external_voice_id:

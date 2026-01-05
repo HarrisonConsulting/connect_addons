@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice Provider',
-    'version': '18.0.1.3.0',
+    'version': '18.0.1.4.0',
     'category': 'Productivity/Voice AI',
     'summary': 'ElevenLabs integration for Voice AI framework',
     'description': """

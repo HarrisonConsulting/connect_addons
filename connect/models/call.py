@@ -557,6 +557,148 @@ class Call(models.Model):
         transfer_user()
         transfer_other()
 
+    @api.model
+    def forward_call(self, call_sid, target):
+        """Forward the current call to a target extension or phone number.
+
+        Args:
+            call_sid: The Twilio CallSid of the current user's channel
+            target: Extension number (e.g., "101") or phone number (e.g., "+12025551234")
+
+        Returns:
+            dict with 'success' boolean and optional 'error' message
+        """
+        # Find the channel by CallSid
+        channel = self.env['connect.channel'].search([('sid', '=', call_sid)], limit=1)
+        if not channel:
+            logger.warning('forward_call: Channel not found for CallSid %s', call_sid)
+            return {'success': False, 'error': 'Channel not found'}
+
+        call = channel.call
+        if not call:
+            logger.warning('forward_call: No call associated with channel %s', channel.id)
+            return {'success': False, 'error': 'No call associated with channel'}
+
+        # Get current user's connect.user
+        current_user = self.env.user.connect_user
+        if not current_user:
+            logger.warning('forward_call: Current user has no connect.user')
+            return {'success': False, 'error': 'User not configured for Connect'}
+
+        # Find the user's channel and other party's channel
+        user_channel = call.channels.filtered(
+            lambda x: x.caller_pbx_user == current_user or x.called_pbx_user == current_user
+        )
+        if not user_channel:
+            logger.warning('forward_call: Cannot find user channel for user %s in call %s',
+                          current_user.name, call.id)
+            return {'success': False, 'error': 'User channel not found'}
+
+        # Take the first one if multiple (shouldn't happen normally)
+        user_channel = user_channel[0]
+
+        other_channels = call.channels - user_channel
+        if not other_channels:
+            logger.warning('forward_call: No other channels to forward in call %s', call.id)
+            return {'success': False, 'error': 'No other party to forward'}
+
+        # Take the primary other channel (the external party)
+        other_channel = other_channels[0]
+
+        # Determine if target is an extension or phone number
+        target_user = None
+        if target and not target.startswith('+') and len(target) <= 5:
+            # Likely an extension number
+            target_user = self.env['connect.user'].search([('exten_number', '=', target)], limit=1)
+
+        client = self.env['connect.settings'].get_client()
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        conf_id = uuid.uuid4().hex
+        conf_name = 'forward-{}-{}'.format(call.id, conf_id)
+
+        try:
+            # Step 1: Put the other party into a conference (with hold music)
+            response_other = VoiceResponse()
+            self.tts_system_message(response_other, 'system.transfer')
+            dial_conf = Dial()
+            dial_conf.conference(
+                conf_name,
+                startConferenceOnEnter=True,
+                endConferenceOnExit=True,
+                waitUrl='http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical'
+            )
+            response_other.append(dial_conf)
+            client.calls(other_channel.sid).update(twiml=str(response_other))
+            logger.info('forward_call: Put channel %s into conference %s', other_channel.sid, conf_name)
+
+            # Step 2: Dial the target into the same conference
+            if target_user:
+                # Dial the extension - render TwiML to ring their devices
+                # Use the user's render method to create proper dial TwiML
+                response_target = VoiceResponse()
+                status_url = '{}/twilio/webhook/callstatus#e={}'.format(api_url.rstrip('/'), edge)
+
+                # Dial into the conference after the target answers
+                # We need to create an outbound call that joins the conference
+                dial_target = Dial()
+                dial_target.conference(
+                    conf_name,
+                    startConferenceOnEnter=True,
+                    endConferenceOnExit=True
+                )
+                response_target.append(dial_target)
+
+                # Create outbound call to the target user
+                # Determine caller ID for the forwarded call
+                caller_id = other_channel.caller_number or call.caller or current_user.outgoing_callerid
+
+                # Create call to target user's client
+                target_identity = target_user.get_client_identity()
+                client.calls.create(
+                    to='client:{}'.format(target_identity),
+                    from_=caller_id,
+                    twiml=str(response_target),
+                    status_callback=status_url,
+                    status_callback_event=['initiated', 'answered', 'completed']
+                )
+                logger.info('forward_call: Dialing target user %s (client:%s) into conference %s',
+                           target_user.name, target_identity, conf_name)
+            else:
+                # Target is a phone number - dial it directly into conference
+                target_number = target if target.startswith('+') else '+{}'.format(target)
+                response_target = VoiceResponse()
+                dial_target = Dial()
+                dial_target.conference(
+                    conf_name,
+                    startConferenceOnEnter=True,
+                    endConferenceOnExit=True
+                )
+                response_target.append(dial_target)
+
+                caller_id = other_channel.caller_number or call.caller or current_user.outgoing_callerid
+                status_url = '{}/twilio/webhook/callstatus#e={}'.format(api_url.rstrip('/'), edge)
+
+                client.calls.create(
+                    to=target_number,
+                    from_=caller_id,
+                    twiml=str(response_target),
+                    status_callback=status_url,
+                    status_callback_event=['initiated', 'answered', 'completed']
+                )
+                logger.info('forward_call: Dialing target number %s into conference %s',
+                           target_number, conf_name)
+
+            # Step 3: Hang up the current user's leg
+            client.calls(user_channel.sid).update(status='completed')
+            logger.info('forward_call: Hung up user channel %s', user_channel.sid)
+
+            return {'success': True, 'conference': conf_name}
+
+        except Exception as e:
+            logger.exception('forward_call: Error forwarding call %s to %s', call.id, target)
+            return {'success': False, 'error': str(e)}
+
     def redial(self):
         self.ensure_one()
         self.env['connect.settings'].originate_call(

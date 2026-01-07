@@ -145,6 +145,7 @@ export class Phone extends Component {
         this.session = null
         this.userAgent = null
         this.call_id = null
+        this.call_sid = null  // Twilio CallSid for the current call
         this.call_popup_is_enabled = false
         this.call_popup_is_sticky = false
         this.phone_ring_volume = 70
@@ -359,11 +360,9 @@ export class Phone extends Component {
                         self.session.refer(params.phoneNumber)
                     }
                 } else if (event === 'tbcForward') {
-                    // console.log('tbcForward', params)
+                    // Forward was initiated in another tab - just update UI state
+                    // The actual forward is handled by the tab that called forward_call RPC
                     this.state.isCallForwarded = true
-                    if (self.session) {
-                        this.session.sendDTMF(`${this.attended_transfer_sequence}${params.phoneNumber}#`)
-                    }
                 } else if (event === 'tbcMicrophoneMute') {
                     // console.log('tbcMicrophoneMute')
                     if (self.session) {
@@ -425,13 +424,32 @@ export class Phone extends Component {
     }
 
     async _busPhoneMakeForward(phoneNumber) {
-        if (this.session) {
-            // TODO: fix forward
-            // this.session.sendDTMF(`${this.attended_transfer_sequence}${phoneNumber}#`)
+        // Get the CallSid from the current session
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) {
+            console.error('Connect: Cannot forward - no CallSid available')
+            this.notify('Cannot forward: no active call', {type: 'warning'})
+            return
         }
-        this.bc.postMessage({event: "tbcForward", params: {phoneNumber}})
+
+        try {
+            // Call backend to perform the forward
+            const result = await this.orm.call('connect.call', 'forward_call', [callSid, phoneNumber])
+            if (result.success) {
+                this.notify('Call forwarded', {type: 'info'})
+                // The backend will hang up our leg, so clean up locally
+                this.state.isCallForwarded = true
+                this.bc.postMessage({event: "tbcForward", params: {phoneNumber}})
+            } else {
+                console.error('Connect: Forward failed:', result.error)
+                this.notify(`Forward failed: ${result.error}`, {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Connect: Error forwarding call:', e)
+            this.notify('Forward failed', {type: 'warning'})
+        }
+
         this.state.isDialingPanel = true
-        // this.state.isCallForwarded = true
         this.state.isForward = false
         this.state.isContacts = false
     }
@@ -565,6 +583,8 @@ export class Phone extends Component {
             // incoming call here
             session.on("accept", async function (data) {
                 // console.log('incoming -> accept: ', data)
+                // Store CallSid for forward functionality
+                self.call_sid = session.parameters?.CallSid || null
                 self.createCallCounter(phoneNumber)
                 self.state.phone_status = self.status.accepted
                 await self.setCallStatus("Answered")
@@ -657,6 +677,8 @@ export class Phone extends Component {
 
         self.session.on("accept", async function () {
             // console.log('outgoing -> accepted: ', data)
+            // Store CallSid for forward functionality
+            self.call_sid = self.session.parameters?.CallSid || null
             self.createCallCounter(phoneNumber)
             self.state.phone_status = self.status.accepted
             await self.setCallStatus("Answered")
@@ -704,6 +726,7 @@ export class Phone extends Component {
     }
 
     async endCall() {
+        this.call_sid = null  // Clear call SID
         this.state.isDisplay = this.state.isDisplayLastState
         this.state.isContactList = false
         this.state.isDialingPanel = false
@@ -1138,12 +1161,10 @@ export class Phone extends Component {
     }
 
     _cancelForward() {
+        // With the new forward implementation, cancel is no longer possible
+        // once forward is initiated - the user's leg is disconnected
         this.state.isCallForwarded = false
-        if (this.session) {
-            this.session.sendDTMF(this.disconnect_call_sequence)
-        } else {
-            this.bc.postMessage({event: "tbcCancelForward"})
-        }
+        this.bc.postMessage({event: "tbcCancelForward"})
     }
 
     // Collapse to floating phone icon at the minimize button's position

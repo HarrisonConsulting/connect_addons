@@ -27,7 +27,7 @@ class Call(models.Model):
     name = fields.Char(compute='_get_name')
     channels = fields.One2many('connect.channel', 'call', readonly=True)
     recording = fields.Many2one('connect.recording', compute='_get_recording_data')
-    transcript = fields.Text(compute='_get_recording_data')
+    transcript = fields.Text(compute='_get_recording_data', string='Recording Transcript')
     if release.version_info[0] >= 17.0:
         recording_widget = fields.Html(compute='_get_recording_data', sanitize=False)
     else:

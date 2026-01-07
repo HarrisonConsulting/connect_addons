@@ -29,7 +29,7 @@
                         </group>
                     </group>
                     <group>
-                        <field name="elevenlabs_transcript" string="Transcript"/>
+                        <field name="elevenlabs_transcript" string="Agent Transcript"/>
                     </group>
                 </page>
             </page>

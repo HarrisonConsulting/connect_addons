@@ -37,7 +37,7 @@
                 <page name="agent" string="Agent"
                         invisible="not elevenlabs_transcript">
                     <group>
-                        <field name="elevenlabs_transcript" string="Transcript"/>
+                        <field name="elevenlabs_transcript" string="Agent Transcript"/>
                     </group>
                 </page>
             </page>

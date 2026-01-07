@@ -42,9 +42,9 @@ class ConnectCallVoice(models.Model):
         help='AI-generated summary of the conversation'
     )
     voice_transcript = fields.Text(
-        string='Transcript',
+        string='Voice Transcript',
         readonly=True,
-        help='Full transcript of the conversation'
+        help='Full transcript of the voice AI conversation'
     )
 
     # === Recording Widget (Odoo 17+ uses Html) ===

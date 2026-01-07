@@ -31,7 +31,7 @@
                         </group>
                     </group>
                     <group>
-                        <field name="voice_transcript" string="Transcript"/>
+                        <field name="voice_transcript" string="Voice Transcript"/>
                     </group>
                 </page>
             </page>

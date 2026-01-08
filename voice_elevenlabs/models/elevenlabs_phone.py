@@ -116,14 +116,6 @@ class ElevenLabsPhoneRegistration(models.Model):
          'This phone number is already registered with this provider!'),
     ]
 
-    @api.onchange('outgoing_callerid_id')
-    def _onchange_outgoing_callerid_id(self):
-        """Auto-fill phone number from outgoing_callerid_id."""
-        if self.outgoing_callerid_id:
-            self.phone_number = self.outgoing_callerid_id.number
-            if not self.name:
-                self.name = f"ElevenLabs Registration - {self.phone_number}"
-
     @api.model_create_multi
     def create(self, vals_list):
         """Auto-register with ElevenLabs on create."""

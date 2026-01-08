@@ -589,7 +589,7 @@ class VoiceProviderElevenLabs(models.Model):
 
     def initiate_outbound_call(self, agent_id, to_number, dynamic_variables=None,
                                first_message=None, max_duration=None,
-                               phone_number_id=None):
+                               phone_number_id=None, **kwargs):
         """
         Initiate an outbound call using ElevenLabs Conversational AI.
 
@@ -603,6 +603,7 @@ class VoiceProviderElevenLabs(models.Model):
             first_message (str): Override agent's default first message
             max_duration (int): Maximum call duration in seconds
             phone_number_id (str): ElevenLabs phone number ID for caller ID
+            **kwargs: Additional options including twilio_account_sid, twilio_auth_token
 
         Returns:
             dict: {'call_sid': str, 'success': bool, 'details': dict}

@@ -8,12 +8,12 @@ from odoo.exceptions import UserError
 logger = logging.getLogger(__name__)
 
 
-class VoiceProvider(models.AbstractModel):
+class VoiceProvider(models.Model):
     """
-    Abstract interface for Voice AI providers.
+    Base model for Voice AI providers.
 
-    All provider implementations (voice_elevenlabs, voice_vapi, etc.) must inherit
-    from this abstract model and implement the required abstract methods.
+    All provider implementations (voice_elevenlabs, voice_vapi, etc.) inherit
+    from this model and implement the required methods.
 
     Capability flags are computed by implementations to indicate which features
     are supported by each provider.

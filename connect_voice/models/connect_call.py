@@ -70,10 +70,10 @@ class ConnectCallVoice(models.Model):
                 conversation = self.env['voice.conversation'].search([
                     ('external_conversation_id', '=', rec.voice_conversation_id),
                 ], limit=1)
-                if conversation and conversation.recording_url:
+                if conversation and conversation.audio_url:
                     rec.voice_recording_widget = (
                         f'<audio controls="controls" preload="none">'
-                        f'<source src="{conversation.recording_url}"/>'
+                        f'<source src="{conversation.audio_url}"/>'
                         f'</audio>'
                     )
                 else:

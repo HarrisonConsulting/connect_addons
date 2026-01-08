@@ -1,16 +1,16 @@
 {
     'name': 'Voice AI Base',
-    'version': '18.0.1.2.1',
+    'version': '18.0.1.2.2',
     'category': 'Productivity/Voice AI',
-    'summary': 'Abstract foundation for pluggable voice AI providers',
+    'summary': 'Base framework for pluggable voice AI providers',
     'description': """
 Voice AI Base Framework
 ========================
 
-This module provides the abstract foundation for pluggable voice AI providers.
+This module provides the base framework for pluggable voice AI providers.
 It defines:
-- Abstract provider interfaces
-- Shared models (tools, MCP servers, conversations)
+- Base provider model with common fields and interface
+- Shared models (tools, MCP servers, conversations, voices)
 - Common agent configuration mixin
 - Universal constants and enumerations
 

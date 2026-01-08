@@ -86,7 +86,7 @@ class ElevenLabsConnectSettings(models.Model):
 
     # Provider Reference
     elevenlabs_provider_id = fields.Many2one(
-        'voice.provider',
+        'voice.provider.elevenlabs',
         string='ElevenLabs Provider',
         compute='_compute_elevenlabs_provider',
         help="The ElevenLabs voice provider record"
@@ -104,12 +104,12 @@ class ElevenLabsConnectSettings(models.Model):
             rec.elevenlabs_provider_id = False
 
         try:
-            Provider = self.env['voice.provider'].sudo()
+            Provider = self.env['voice.provider.elevenlabs'].sudo()
             provider = Provider.search([('provider_type', '=', 'elevenlabs')], limit=1)
             for rec in self:
                 rec.elevenlabs_provider_id = provider.id if provider else False
         except Exception as e:
-            # voice_base may not be properly installed (missing table)
+            # voice_elevenlabs may not be properly installed (missing table)
             logger.warning("Could not fetch ElevenLabs provider: %s", e)
 
     def open_elevenlabs_settings(self):

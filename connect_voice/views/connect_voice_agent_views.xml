@@ -197,6 +197,14 @@
         </field>
     </record>
 
+    <!-- Import Agents Server Action -->
+    <record id="action_import_agents_from_provider" model="ir.actions.server">
+        <field name="name">Import from ElevenLabs</field>
+        <field name="model_id" ref="model_connect_voice_agent"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_import_from_provider()</field>
+    </record>
+
     <!-- Connect Voice Agent Action -->
     <record id="action_connect_voice_agent" model="ir.actions.act_window">
         <field name="name">Voice Agents</field>
@@ -212,6 +220,11 @@
                 Voice agents bridge Connect telephony with pluggable voice AI providers.
                 Configure extensions, callflows, and voice settings to create intelligent
                 phone assistants.
+            </p>
+            <p>
+                <a type="action" name="%(action_import_agents_from_provider)d">
+                    Import existing agents from ElevenLabs
+                </a>
             </p>
         </field>
     </record>

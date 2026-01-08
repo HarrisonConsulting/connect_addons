@@ -15,12 +15,4 @@
               name="Settings"
               sequence="10"/>
 
-    <!-- Migration wizard menu -->
-    <menuitem id="menu_elevenlabs_migration"
-              name="Migrate from Legacy"
-              parent="elevenlabs_settings_submenu"
-              action="elevenlabs_migration_wizard_action"
-              sequence="100"
-              groups="base.group_system"/>
-
 </odoo>

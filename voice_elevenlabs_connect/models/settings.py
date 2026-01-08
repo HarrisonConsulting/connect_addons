@@ -36,7 +36,7 @@ class ElevenLabsConnectSettings(models.Model):
         help="Your ElevenLabs API key for authentication"
     )
     display_elevenlabs_api_key = fields.Char(
-        string='API Key',
+        string='ElevenLabs API Key (Display)',
         help="Display field for API key (masked)"
     )
     elevenlabs_enabled = fields.Boolean(
@@ -71,7 +71,7 @@ class ElevenLabsConnectSettings(models.Model):
         help="Secret for validating webhook signatures"
     )
     display_elevenlabs_webhook_secret = fields.Char(
-        string='Webhook Secret',
+        string='ElevenLabs Webhook Secret (Display)',
         help="Display field for webhook secret (masked)"
     )
 

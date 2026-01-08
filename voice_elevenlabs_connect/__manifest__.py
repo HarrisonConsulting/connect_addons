@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice - Connect Integration',
-    'version': '18.0.1.0.1',
+    'version': '18.0.1.0.2',
     'category': 'Productivity/Voice AI',
     'summary': 'Bridge module connecting ElevenLabs voice provider with Connect telephony',
     'description': """
@@ -15,7 +15,6 @@ telephony system, providing:
 - Twilio credentials management via Connect settings
 - Outbound calling using Connect's Twilio integration
 - Settings UI under Connect Settings menu
-- Migration wizard from legacy connect_elevenlabs module
 
 Architecture:
 - Extends voice_elevenlabs with Connect-specific functionality
@@ -34,10 +33,8 @@ TTS/STT and agent management without Connect telephony integration.
         'connect',
     ],
     'data': [
-        'security/ir.model.access.csv',
         'views/settings_views.xml',
         'views/phone_views.xml',
-        'wizards/migration_wizard_views.xml',
         'views/menus.xml',
     ],
     'pre_init_hook': 'pre_init_hook',

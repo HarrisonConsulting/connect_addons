@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice Provider',
-    'version': '18.0.2.1.1',
+    'version': '18.0.2.2.0',
     'category': 'Productivity/Voice AI',
     'summary': 'ElevenLabs integration for Voice AI framework',
     'description': """
@@ -37,6 +37,7 @@ install the voice_elevenlabs_connect bridge module.
         'security/security.xml',
         'security/ir.model.access.csv',
         'data/provider_data.xml',
+        'views/res_config_settings_views.xml',
         'views/elevenlabs_provider_views.xml',
         'views/elevenlabs_phone_views.xml',
         'views/menus.xml',

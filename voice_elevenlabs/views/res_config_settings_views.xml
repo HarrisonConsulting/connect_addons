@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ElevenLabs Settings Extension -->
+    <record id="res_config_settings_view_form_elevenlabs" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.voice_elevenlabs</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="210"/>
+        <field name="inherit_id" ref="voice_base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Make ElevenLabs block visible -->
+            <xpath expr="//block[@name='voice_elevenlabs_block']" position="attributes">
+                <attribute name="invisible">False</attribute>
+            </xpath>
+
+            <!-- Add ElevenLabs settings content -->
+            <xpath expr="//block[@name='voice_elevenlabs_block']" position="inside">
+
+                <setting string="Enable ElevenLabs" help="Enable ElevenLabs voice provider">
+                    <field name="elevenlabs_enabled"/>
+                </setting>
+
+                <setting string="API Key" help="Your ElevenLabs API key"
+                         invisible="not elevenlabs_enabled">
+                    <div class="content-group">
+                        <div class="row mt8">
+                            <label for="elevenlabs_api_key" class="col-3 col-lg-2 o_light_label"/>
+                            <field name="elevenlabs_api_key" password="True"
+                                   placeholder="Enter your ElevenLabs API key..."/>
+                        </div>
+                        <div class="row mt4" invisible="not elevenlabs_api_key">
+                            <div class="col-3 col-lg-2"></div>
+                            <a class="btn btn-link ps-0"
+                               href="https://elevenlabs.io/app/settings/api-keys"
+                               target="_blank">
+                                <i class="fa fa-external-link"/> Get API Key
+                            </a>
+                        </div>
+                    </div>
+                </setting>
+
+                <setting string="Default TTS Model" help="Text-to-speech model for new agents"
+                         invisible="not elevenlabs_enabled">
+                    <field name="elevenlabs_default_tts_model"/>
+                </setting>
+
+                <setting string="Default LLM Model" help="Language model for new agents"
+                         invisible="not elevenlabs_enabled">
+                    <field name="elevenlabs_default_llm_model"/>
+                </setting>
+
+                <setting string="Default Voice" help="Default voice for text-to-speech"
+                         invisible="not elevenlabs_enabled">
+                    <field name="elevenlabs_default_voice_id"
+                           options="{'no_create': True}"/>
+                </setting>
+
+                <setting invisible="not elevenlabs_enabled">
+                    <div class="mt8">
+                        <button name="action_test_elevenlabs_connection"
+                                string="Test Connection"
+                                type="object" class="btn-secondary me-2" icon="fa-plug"/>
+                        <button name="action_sync_elevenlabs_voices"
+                                string="Sync Voices"
+                                type="object" class="btn-primary" icon="fa-refresh"/>
+                    </div>
+                </setting>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

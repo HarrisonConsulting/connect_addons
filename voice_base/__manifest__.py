@@ -1,6 +1,6 @@
 {
     'name': 'Voice AI Base',
-    'version': '18.0.1.2.3',
+    'version': '18.0.1.3.0',
     'category': 'Productivity/Voice AI',
     'summary': 'Base framework for pluggable voice AI providers',
     'description': """
@@ -28,6 +28,7 @@ voice_elevenlabs, voice_vapi, etc. to add actual functionality.
         'security/security.xml',
         'security/ir.model.access.csv',
         'data/voice_data.xml',
+        'views/res_config_settings_views.xml',
         'views/voice_provider_views.xml',
         'views/voice_mcp_server_views.xml',
         'views/voice_tool_views.xml',

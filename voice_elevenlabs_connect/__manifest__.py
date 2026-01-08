@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ElevenLabs Voice - Connect Integration',
-    'version': '18.0.1.0.2',
+    'version': '18.0.2.0.0',
     'category': 'Productivity/Voice AI',
     'summary': 'Bridge module connecting ElevenLabs voice provider with Connect telephony',
     'description': """
@@ -33,7 +33,7 @@ TTS/STT and agent management without Connect telephony integration.
         'connect',
     ],
     'data': [
-        'views/settings_views.xml',
+        'views/res_config_settings_views.xml',
         'views/phone_views.xml',
         'views/menus.xml',
     ],

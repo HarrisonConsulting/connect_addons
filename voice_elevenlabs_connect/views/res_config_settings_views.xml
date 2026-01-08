@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ElevenLabs Connect Settings Extension -->
+    <record id="res_config_settings_view_form_elevenlabs_connect" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.voice_elevenlabs_connect</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="220"/>
+        <field name="inherit_id" ref="voice_base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Make Agent Configuration block visible -->
+            <xpath expr="//block[@name='voice_agent_block']" position="attributes">
+                <attribute name="invisible">not elevenlabs_enabled</attribute>
+            </xpath>
+
+            <!-- Add Agent Configuration content -->
+            <xpath expr="//block[@name='voice_agent_block']" position="inside">
+
+                <setting string="Agent Stream URL" help="WebSocket URL for ElevenLabs Conversational AI">
+                    <div class="content-group">
+                        <div class="row mt8">
+                            <label for="elevenlabs_agent_url" class="col-3 col-lg-2 o_light_label"/>
+                            <field name="elevenlabs_agent_url"
+                                   placeholder="wss://api.elevenlabs.io/v1/convai/conversation"/>
+                        </div>
+                    </div>
+                </setting>
+
+                <setting string="Agent Security Token" help="Security token for agent communication"
+                         groups="base.group_erp_manager">
+                    <div class="content-group">
+                        <div class="row mt8">
+                            <label for="elevenlabs_agent_token" class="col-3 col-lg-2 o_light_label"/>
+                            <field name="elevenlabs_agent_token" password="True" readonly="1"/>
+                        </div>
+                        <div class="row mt4">
+                            <div class="col-3 col-lg-2"></div>
+                            <button name="action_regenerate_agent_token"
+                                    string="Regenerate Token"
+                                    type="object" class="btn-link ps-0" icon="fa-key"/>
+                        </div>
+                    </div>
+                </setting>
+
+                <setting>
+                    <div class="mt8">
+                        <button name="action_sync_elevenlabs_agents"
+                                string="Sync Agents to ElevenLabs"
+                                type="object" class="btn-primary" icon="fa-cloud-upload"/>
+                    </div>
+                </setting>
+
+            </xpath>
+
+            <!-- Make Webhooks block visible -->
+            <xpath expr="//block[@name='voice_webhooks_block']" position="attributes">
+                <attribute name="invisible">not elevenlabs_enabled</attribute>
+            </xpath>
+
+            <!-- Add Webhooks content -->
+            <xpath expr="//block[@name='voice_webhooks_block']" position="inside">
+
+                <setting string="Post-Call Webhook" help="Receive post-call data from ElevenLabs">
+                    <div class="content-group">
+                        <div class="alert alert-info mb-3" role="status">
+                            <p class="mb-0">
+                                Configure this webhook URL in your
+                                <a href="https://elevenlabs.io/app/conversational-ai/settings"
+                                   target="_blank">ElevenLabs Settings</a>
+                                to receive post-call data.
+                            </p>
+                        </div>
+                        <div class="row mt8">
+                            <label for="elevenlabs_webhook_url" class="col-3 col-lg-2 o_light_label"/>
+                            <field name="elevenlabs_webhook_url" readonly="1"/>
+                        </div>
+                    </div>
+                </setting>
+
+                <setting string="Webhook Secret" help="Secret for validating webhook signatures"
+                         groups="base.group_erp_manager">
+                    <div class="content-group">
+                        <div class="row mt8">
+                            <label for="elevenlabs_webhook_secret" class="col-3 col-lg-2 o_light_label"/>
+                            <field name="elevenlabs_webhook_secret" password="True"
+                                   placeholder="Enter webhook secret..."/>
+                        </div>
+                    </div>
+                </setting>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

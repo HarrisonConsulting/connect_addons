@@ -82,6 +82,15 @@ class VoiceProviderElevenLabs(models.Model):
         help='Default language model for this provider'
     )
 
+    def _get_api_key(self):
+        """
+        Get ElevenLabs API key from secure token storage.
+
+        Returns:
+            str: API key or None if not configured
+        """
+        return self.env['voice.token.storage'].get_secret('elevenlabs_api_key')
+
     @api.depends('provider_type')
     def _compute_capabilities(self):
         """Set ElevenLabs capabilities."""
@@ -123,6 +132,8 @@ class VoiceProviderElevenLabs(models.Model):
         """
         Return ElevenLabs SDK client instance.
 
+        Reads API key from voice.token.storage (configured via Settings).
+
         Returns:
             ElevenLabs: Configured ElevenLabs client
         """
@@ -134,18 +145,22 @@ class VoiceProviderElevenLabs(models.Model):
                 'Please install it with: pip install elevenlabs'
             ))
 
-        if not self.api_key:
+        # Get API key from secure token storage (set via Settings > Voice AI)
+        api_key = self.env['voice.token.storage'].get_secret('elevenlabs_api_key')
+        if not api_key:
             raise UserError(_(
-                'API key not configured for provider "%s". '
-                'Please set the API key in the provider settings.'
-            ) % self.name)
+                'ElevenLabs API key not configured. '
+                'Please set the API key in Settings > Voice AI.'
+            ))
 
         try:
-            client = ElevenLabs(api_key=self.api_key)
+            client = ElevenLabs(api_key=api_key)
 
             # Set custom endpoint if configured
-            if self.api_endpoint:
-                client.base_url = self.api_endpoint
+            IrConfigParameter = self.env['ir.config_parameter'].sudo()
+            api_endpoint = IrConfigParameter.get_param('voice_elevenlabs.api_endpoint')
+            if api_endpoint:
+                client.base_url = api_endpoint
 
             return client
         except Exception as e:
@@ -889,8 +904,9 @@ class VoiceProviderElevenLabs(models.Model):
         """
         self.ensure_one()
 
-        if not self.api_key:
-            logger.error('No API key configured for provider %s', self.name)
+        api_key = self.env['voice.token.storage'].get_secret('elevenlabs_api_key')
+        if not api_key:
+            logger.error('No API key configured for ElevenLabs')
             return None
 
         try:
@@ -899,7 +915,7 @@ class VoiceProviderElevenLabs(models.Model):
             url = f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}/audio"
             headers = {
                 "Content-Type": "application/json",
-                "xi-api-key": self.api_key,
+                "xi-api-key": api_key,
             }
 
             response = requests.get(url, headers=headers, timeout=30)
@@ -947,8 +963,9 @@ class VoiceProviderElevenLabs(models.Model):
         self.ensure_one()
         import requests
 
-        if not self.api_key:
-            raise UserError(_('API key not configured for provider "%s".') % self.name)
+        api_key = self._get_api_key()
+        if not api_key:
+            raise UserError(_('ElevenLabs API key not configured. Please set it in Settings > Voice AI.'))
 
         try:
             # Build config using config builder
@@ -958,7 +975,7 @@ class VoiceProviderElevenLabs(models.Model):
             url = "https://api.elevenlabs.io/v1/convai/mcp-servers"
             headers = {
                 "Content-Type": "application/json",
-                "xi-api-key": self.api_key,
+                "xi-api-key": api_key,
             }
 
             response = requests.post(
@@ -1018,8 +1035,9 @@ class VoiceProviderElevenLabs(models.Model):
         self.ensure_one()
         import requests
 
-        if not self.api_key:
-            raise UserError(_('API key not configured for provider "%s".') % self.name)
+        api_key = self._get_api_key()
+        if not api_key:
+            raise UserError(_('ElevenLabs API key not configured. Please set it in Settings > Voice AI.'))
 
         if not mcp_server_record.external_id:
             raise UserError(_('MCP server has not been synced to ElevenLabs yet.'))
@@ -1032,7 +1050,7 @@ class VoiceProviderElevenLabs(models.Model):
             url = f"https://api.elevenlabs.io/v1/convai/mcp-servers/{mcp_server_record.external_id}"
             headers = {
                 "Content-Type": "application/json",
-                "xi-api-key": self.api_key,
+                "xi-api-key": api_key,
             }
 
             response = requests.patch(
@@ -1088,14 +1106,15 @@ class VoiceProviderElevenLabs(models.Model):
         self.ensure_one()
         import requests
 
-        if not self.api_key:
-            raise UserError(_('API key not configured for provider "%s".') % self.name)
+        api_key = self._get_api_key()
+        if not api_key:
+            raise UserError(_('ElevenLabs API key not configured. Please set it in Settings > Voice AI.'))
 
         try:
             url = f"https://api.elevenlabs.io/v1/convai/mcp-servers/{mcp_server_id}"
             headers = {
                 "Content-Type": "application/json",
-                "xi-api-key": self.api_key,
+                "xi-api-key": api_key,
             }
 
             response = requests.get(url, headers=headers, timeout=30)
@@ -1124,8 +1143,9 @@ class VoiceProviderElevenLabs(models.Model):
         self.ensure_one()
         import requests
 
-        if not self.api_key:
-            raise UserError(_('API key not configured for provider "%s".') % self.name)
+        api_key = self._get_api_key()
+        if not api_key:
+            raise UserError(_('ElevenLabs API key not configured. Please set it in Settings > Voice AI.'))
 
         if not mcp_server_record.external_id:
             # Not synced, nothing to delete
@@ -1135,7 +1155,7 @@ class VoiceProviderElevenLabs(models.Model):
             url = f"https://api.elevenlabs.io/v1/convai/mcp-servers/{mcp_server_record.external_id}"
             headers = {
                 "Content-Type": "application/json",
-                "xi-api-key": self.api_key,
+                "xi-api-key": api_key,
             }
 
             response = requests.delete(url, headers=headers, timeout=30)
@@ -1171,14 +1191,15 @@ class VoiceProviderElevenLabs(models.Model):
         self.ensure_one()
         import requests
 
-        if not self.api_key:
-            raise UserError(_('API key not configured for provider "%s".') % self.name)
+        api_key = self._get_api_key()
+        if not api_key:
+            raise UserError(_('ElevenLabs API key not configured. Please set it in Settings > Voice AI.'))
 
         try:
             url = "https://api.elevenlabs.io/v1/convai/mcp-servers"
             headers = {
                 "Content-Type": "application/json",
-                "xi-api-key": self.api_key,
+                "xi-api-key": api_key,
             }
 
             response = requests.get(url, headers=headers, timeout=30)

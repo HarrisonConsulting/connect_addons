@@ -154,6 +154,77 @@ class Call(models.Model):
     def write(self, vals):
         return super().write(vals)
 
+    # =========================================================================
+    # STATUS RESOLUTION METHODS
+    # =========================================================================
+    # Priority-based status resolution for determining call outcome.
+    # When multiple users are dialed, we resolve to a single business-meaningful status.
+    # Priority (highest wins): answered > voicemail > rejected > busy > missed > failed
+    # =========================================================================
+
+    def _resolve_call_status(self, child_channels):
+        """
+        Resolve call status from multiple child channel outcomes.
+
+        Priority (highest wins):
+        1. answered - ANY child completed (someone picked up)
+        2. voicemail - handled separately by voicemail webhook
+        3. rejected - ANY child was rejected
+        4. busy - ANY child was busy
+        5. missed - all children no-answer/canceled
+        6. failed - ALL children failed
+
+        Returns: (status, completed_child or None)
+        """
+        child_statuses = [ch.status for ch in child_channels]
+
+        # Priority 1: ANSWERED - if any child completed
+        completed_child = next(
+            (ch for ch in child_channels if ch.status == 'completed'),
+            None
+        )
+        if completed_child:
+            return 'answered', completed_child
+
+        # Priority 2: VOICEMAIL - handled by voicemail webhook, not here
+        # (voicemail_url is set asynchronously after this runs)
+
+        # Priority 3: REJECTED - if any child was rejected
+        if 'rejected' in child_statuses:
+            return 'rejected', None
+
+        # Priority 4: BUSY - if any child was busy
+        if 'busy' in child_statuses:
+            return 'busy', None
+
+        # Priority 5: FAILED - if ALL children failed
+        if all(s == 'failed' for s in child_statuses):
+            return 'failed', None
+
+        # Priority 6: MISSED - default for no-answer, canceled, or mix
+        return 'missed', None
+
+    def _map_twilio_status(self, twilio_status):
+        """
+        Map Twilio's channel status to our business-meaningful status.
+
+        Twilio statuses: queued, ringing, in-progress, completed, busy,
+                         no-answer, canceled, failed
+        Our statuses: answered, voicemail, rejected, busy, missed, failed
+        """
+        mapping = {
+            'completed': 'answered',
+            'busy': 'busy',
+            'no-answer': 'missed',
+            'canceled': 'missed',
+            'failed': 'failed',
+            # In-progress states (shouldn't hit this for final status)
+            'queued': 'missed',
+            'ringing': 'missed',
+            'in-progress': 'answered',  # If we get this as final, call was connected
+        }
+        return mapping.get(twilio_status, 'missed')
+
     @api.model
     def on_call_status(self, params):
         self = self.sudo()
@@ -203,9 +274,23 @@ class Call(models.Model):
                 channel.call.direction = 'internal'
             elif channel.called_pbx_user and channel.parent_channel.caller_pbx_user:
                 channel.call.direction = 'internal'
-        # Set call status from the last channel
-        channel.call.status = channel.call.channels.sorted(key='id', reverse=True)[0].status
-        # Set call duration from the first channel
+        # Determine call status using priority-based resolution.
+        # When multiple users are dialed, we need to determine the ONE final outcome.
+        # Priority (highest wins): answered > voicemail > rejected > busy > missed > failed
+        child_channels = [ch for ch in channel.call.channels if ch.parent_channel]
+
+        if child_channels:
+            # Resolve status from child channels using priority
+            channel.call.status, completed_child = self._resolve_call_status(child_channels)
+            # Set answered user if someone answered
+            if completed_child and completed_child.called_pbx_user:
+                channel.call.answered_pbx_user = completed_child.called_pbx_user
+                channel.call.answered_user = completed_child.called_pbx_user.user
+        else:
+            # No children (single-channel call, e.g., direct SIP)
+            # Map Twilio status to our business status
+            channel.call.status = self._map_twilio_status(channel.status)
+        # Set call duration from the first channel (parent/inbound)
         channel.call.duration = channel.call.channels.sorted(key='id', reverse=False)[0].duration
         # Set called from 2nd call leg for click2call external calls.
         if channel.parent_channel.technical_direction == 'outbound-api':
@@ -215,12 +300,6 @@ class Call(models.Model):
             channel.call.called_users = [(4, channel.called_user.id)]
         if channel.called_pbx_user and channel.called_pbx_user not in channel.call.called_pbx_users:
             channel.call.called_pbx_users = [(4, channel.called_pbx_user.id)]
-        # Set the answered user
-        if channel.call.status == 'completed':
-            # Set call answered user from the last channel
-            answered_user = channel.call.channels[0].called_pbx_user
-            channel.call.answered_pbx_user = answered_user
-            channel.call.answered_user = answered_user.user
         # Check if we need to set a partner from child channel
         if not channel.call.partner and channel.partner:
             channel.call.partner = channel.partner
@@ -273,10 +352,15 @@ class Call(models.Model):
         debug(self.sudo(), 'On recording status: %s' % json.dumps(params, indent=2))
         channel = self.sudo().env['connect.channel'].search([('sid', '=', params['CallSid'])])
         if channel and channel.call:
-            channel.call.write({
+            updates = {
                 'voicemail_url': params.get('RecordingUrl'),
                 'voicemail_duration': int(params.get('RecordingDuration'))
-            })
+            }
+            # Voicemail was left - update status to 'voicemail'
+            # Only if not already 'answered' (answered takes priority over voicemail)
+            if channel.call.status != 'answered':
+                updates['status'] = 'voicemail'
+            channel.call.write(updates)
         return True
 
     @api.model
@@ -425,9 +509,10 @@ class Call(models.Model):
                     final_message = final_message[:-2] + '.'
                 channel.call.register_call_post_message(
                     channel.call.partner, body=final_message, subtype_xmlid='mail.mt_note')
-            # Register call to users
-            statuses = ['completed']
-            if channel.call.direction == 'incoming' and channel.call.status not in statuses and notify_users:
+            # Register call to users - send missed call notification if not handled
+            # 'answered' and 'voicemail' are considered "handled" - no missed notification
+            handled_statuses = ['answered', 'voicemail', 'completed']  # 'completed' for backwards compat
+            if channel.call.direction == 'incoming' and channel.call.status not in handled_statuses and notify_users:
                 debug(self, 'Missed call notification to users: {}'.format(notify_users))
                 final_message = ' '.join(message)
                 if final_message.endswith(', '):

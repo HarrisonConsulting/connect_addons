@@ -101,12 +101,12 @@ class CrmCall(models.Model):
             if not auto_create_leads_for_in_calls:
                 debug(self, 'Autocreate not enabled for incomig calls')
                 return False
-            # Incoming answered call
-            elif self.status == 'completed' \
+            # Incoming answered call (check for new 'answered' status and legacy 'completed')
+            elif self.status in ['answered', 'completed'] \
                     and auto_create_leads_for_in_answered_calls:
                 debug(self, 'Creating a lead for answered incoming call.')
-            # Not answered 2nd leg and auto create for missed calls is set.
-            elif self.status != 'completed' and \
+            # Not answered - missed, busy, rejected, voicemail, etc.
+            elif self.status not in ['answered', 'completed'] and \
                     auto_create_leads_for_in_missed_calls:
                 debug(self, 'Creating a lead for missed incoming call.')
             # Incoming Call from unknown caller.
@@ -137,12 +137,12 @@ class CrmCall(models.Model):
             if self.called_pbx_users:
                 debug(self, 'Autocreate skip "out" call to local users')
                 return False
-            # Answered call
-            elif self.status == 'completed' \
+            # Answered call (check for new 'answered' status and legacy 'completed')
+            elif self.status in ['answered', 'completed'] \
                     and auto_create_leads_for_out_answered_calls:
                 debug(self, 'Creating a lead for answered outgoing call.')
-            # Not answered 2nd leg and auto create for missed calls is set.
-            elif self.status != 'completed' and \
+            # Not answered - missed, busy, no_answer, etc.
+            elif self.status not in ['answered', 'completed'] and \
                     auto_create_leads_for_out_missed_calls:
                 debug(self, 'Creating a lead for missed outgoing call.')
             else:

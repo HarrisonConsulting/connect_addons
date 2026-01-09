@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <!-- Security groups inherit from voice_base groups -->
-    <!-- No additional groups needed for provider module -->
-</odoo>

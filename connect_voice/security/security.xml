@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <data noupdate="0">
-
-        <!-- Inherit Voice AI groups from voice_base -->
-        <!-- No new groups needed - use voice_base groups -->
-
-    </data>
-</odoo>

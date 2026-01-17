@@ -47,10 +47,10 @@ class ElevenlabsPhoneRegistration(models.Model):
     # Configuration
     label = fields.Char(help="Optional label for the phone number in ElevenLabs")
 
-    _sql_constraints = [
-        ('outgoing_callerid_uniq', 'UNIQUE(outgoing_callerid_id)',
-         'This phone number is already registered with ElevenLabs!'),
-    ]
+    _outgoing_callerid_uniq = models.Constraint(
+        "UNIQUE(outgoing_callerid_id)",
+        "This phone number is already registered with ElevenLabs!"
+    )
 
     @api.model_create_multi
     def create(self, vals_list):

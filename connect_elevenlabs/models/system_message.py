@@ -24,9 +24,10 @@ class ElevenLabsSystemMessage(models.Model):
 
     message_key = fields.Char(required=True, index=True)
 
-    _sql_constraints = [
-        ('unique_message_key', 'UNIQUE(message_key)', 'Message key must be unique')
-    ]
+    _unique_message_key = models.Constraint(
+        "UNIQUE(message_key)",
+        "Message key must be unique"
+    )
 
     @api.model
     def regenerate_all_system_messages(self):

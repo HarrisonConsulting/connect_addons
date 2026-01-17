@@ -8,6 +8,7 @@ import requests
 from markupsafe import Markup
 
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import ValidationError
 from .settings import debug
 
@@ -51,10 +52,9 @@ class ConnectWhatsappSender(models.Model):
     # Local controls
     no_sync = fields.Boolean(string='Do not sync', default=False)
     is_default = fields.Boolean(string='Default WhatsApp Sender', help='Used as default when user has no personal sender set.')
-    _sql_constraints = [
-        ('sid_unique', 'UNIQUE(sid)', 'This Sender SID already exists!'),
-        ('number_unique', 'UNIQUE(number)', 'This number already exists!'),
-    ]
+
+    _sid_unique = Constraint('UNIQUE(sid)', 'This Sender SID already exists!')
+    _number_unique = Constraint('UNIQUE(number)', 'This number already exists!')
 
     @api.constrains('is_default')
     def _check_single_default(self):

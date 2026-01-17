@@ -56,7 +56,7 @@
                 <filter name="filter_archived_el" string="Archived in ElevenLabs" domain="[('elevenlabs_archived', '=', True)]"/>
                 <separator/>
                 <filter name="filter_inactive" string="Archived" domain="[('active', '=', False)]"/>
-                <group expand="0" string="Group By">
+                <group>
                     <filter name="group_llm" string="LLM Model" context="{'group_by': 'llm'}"/>
                     <filter name="group_language" string="Language" context="{'group_by': 'language'}"/>
                     <filter name="group_sync_status" string="Sync Status" context="{'group_by': 'sync_status'}"/>

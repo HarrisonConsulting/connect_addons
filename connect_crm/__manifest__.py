@@ -28,7 +28,6 @@
     'images': ['static/description/logo.png'],
     'assets': {
         'web.assets_backend': [
-            'connect_crm/static/src/xml/*.xml',
             'connect_crm/static/src/services/active_calls/*',
         ],
     }

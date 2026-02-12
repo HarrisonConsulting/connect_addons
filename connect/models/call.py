@@ -274,35 +274,47 @@ class Call(models.Model):
                 channel.call.direction = 'internal'
             elif channel.called_pbx_user and channel.parent_channel.caller_pbx_user:
                 channel.call.direction = 'internal'
+        # Lock the call row to serialize concurrent webhook updates.
+        # Twilio sends callstatus webhooks for each channel nearly simultaneously,
+        # causing SERIALIZATION_FAILURE without explicit locking.
+        if channel.call:
+            self.env.cr.execute(
+                "SELECT id FROM connect_call WHERE id = %s FOR UPDATE",
+                [channel.call.id]
+            )
+            channel.call.invalidate_recordset()
+
         # Determine call status using priority-based resolution.
         # When multiple users are dialed, we need to determine the ONE final outcome.
         # Priority (highest wins): answered > voicemail > rejected > busy > missed > failed
         child_channels = [ch for ch in channel.call.channels if ch.parent_channel]
 
+        # Consolidate all field updates into a single write() to minimize ORM round-trips.
+        call_updates = {}
+
         if child_channels:
-            # Resolve status from child channels using priority
-            channel.call.status, completed_child = self._resolve_call_status(child_channels)
-            # Set answered user if someone answered
+            status, completed_child = self._resolve_call_status(child_channels)
+            call_updates['status'] = status
             if completed_child and completed_child.called_pbx_user:
-                channel.call.answered_pbx_user = completed_child.called_pbx_user
-                channel.call.answered_user = completed_child.called_pbx_user.user
+                call_updates['answered_pbx_user'] = completed_child.called_pbx_user.id
+                call_updates['answered_user'] = completed_child.called_pbx_user.user.id
         else:
-            # No children (single-channel call, e.g., direct SIP)
-            # Map Twilio status to our business status
-            channel.call.status = self._map_twilio_status(channel.status)
-        # Set call duration from the first channel (parent/inbound)
-        channel.call.duration = channel.call.channels.sorted(key='id', reverse=False)[0].duration
-        # Set called from 2nd call leg for click2call external calls.
+            call_updates['status'] = self._map_twilio_status(channel.status)
+
+        call_updates['duration'] = channel.call.channels.sorted(key='id')[0].duration
+
         if channel.parent_channel.technical_direction == 'outbound-api':
-            channel.call.called = channel.called_number
-        # Set called users (avoid duplicates to prevent serialization errors)
+            call_updates['called'] = channel.called_number
+
         if channel.called_user and channel.called_user not in channel.call.called_users:
-            channel.call.called_users = [(4, channel.called_user.id)]
+            call_updates['called_users'] = [(4, channel.called_user.id)]
         if channel.called_pbx_user and channel.called_pbx_user not in channel.call.called_pbx_users:
-            channel.call.called_pbx_users = [(4, channel.called_pbx_user.id)]
-        # Check if we need to set a partner from child channel
+            call_updates['called_pbx_users'] = [(4, channel.called_pbx_user.id)]
+
         if not channel.call.partner and channel.partner:
-            channel.call.partner = channel.partner
+            call_updates['partner'] = channel.partner.id
+
+        channel.call.write(call_updates)
         if (channel.call.direction == 'incoming' and params.get('CallStatus') == 'initiated' and
                 params.get('To').startswith('sip:')):
             # Desktop notification only for SIP calls.

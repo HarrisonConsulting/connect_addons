@@ -30,23 +30,37 @@ class ConnectController(Controller):
     def domain_webhook(self, **kw):
         if not self.check_signature(kw):
             return '<Response><Say>Invalid Twilio request!</Say></Response>'
-        domain = request.env['connect.domain'].with_user(request.env.ref("connect.user_connect_webhook"))
-        res = domain.route_call(kw)
-        return f'{res}'
+        try:
+            domain = request.env['connect.domain'].with_user(request.env.ref("connect.user_connect_webhook"))
+            res = domain.route_call(kw)
+            return f'{res}'
+        except Exception:
+            logger.exception('domain_webhook failed for CallSid=%s', kw.get('CallSid'))
+            return '<Response><Say>A system error occurred. Please try again later.</Say></Response>'
 
     @route('/twilio/webhook/callstatus', methods=['POST'], type='http', auth='public', csrf=False)
     def callstatus_webhook(self, **kw):
         if not self.check_signature(kw):
             return False
-        res = request.env['connect.call'].with_user(request.env.ref("connect.user_connect_webhook")).on_call_status(kw)
-        return f'{res}'
+        try:
+            res = request.env['connect.call'].with_user(
+                request.env.ref("connect.user_connect_webhook")
+            ).on_call_status(kw)
+            return f'{res}'
+        except Exception:
+            logger.exception('callstatus_webhook failed for CallSid=%s', kw.get('CallSid'))
+            return '0'
 
     @route('/twilio/webhook/number', methods=['POST'], type='http', auth='public', csrf=False)
     def number_webhook(self, **kw):
         if not self.check_signature(kw):
             return '<Response><Say>Invalid Twilio request!</Say></Response>'
-        res = request.env['connect.number'].with_user(request.env.ref("connect.user_connect_webhook")).route_call(kw)
-        return f'{res}'
+        try:
+            res = request.env['connect.number'].with_user(request.env.ref("connect.user_connect_webhook")).route_call(kw)
+            return f'{res}'
+        except Exception:
+            logger.exception('number_webhook failed for CallSid=%s', kw.get('CallSid'))
+            return '<Response><Say>A system error occurred. Please try again later.</Say></Response>'
 
     @route('/twilio/webhook/outgoing_callerid', methods=['POST'], type='http', auth='public', csrf=False)
     def outgoing_callerid_webhook(self, **kw):

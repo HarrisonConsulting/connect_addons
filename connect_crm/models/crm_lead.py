@@ -85,26 +85,34 @@ class Lead(models.Model):
     def _get_phone_normalized(self):
         for rec in self:
             if release.version_info[0] >= 14:
-                # Odoo > 14.0
                 if rec.phone:
                     rec.phone_normalized = self.env['res.partner']._normalize_phone(rec.phone)
+                else:
+                    rec.phone_normalized = False
                 if rec.mobile:
                     rec.mobile_normalized = self.env['res.partner']._normalize_phone(rec.mobile)
+                else:
+                    rec.mobile_normalized = False
             else:
-                # Old Odoo versions
                 if rec.partner_id:
-                    # We have partner set, take phones from him.
                     if rec.partner_address_phone:
                         rec.phone_normalized = self.env['res.partner']._normalize_phone(
                             rec.partner_address_phone)
+                    else:
+                        rec.phone_normalized = False
                     if rec.mobile:
                         rec.mobile_normalized = self.env['res.partner']._normalize_phone(rec.mobile)
+                    else:
+                        rec.mobile_normalized = False
                 else:
-                    # No partner set takes phones from lead.
                     if rec.phone:
                         rec.phone_normalized = self.env['res.partner']._normalize_phone(rec.phone)
+                    else:
+                        rec.phone_normalized = False
                     if rec.mobile:
                         rec.mobile_normalized = self.env['res.partner']._normalize_phone(rec.mobile)
+                    else:
+                        rec.mobile_normalized = False
 
     @api.depends('connect_calls')
     def _get_connect_calls_count(self):
@@ -113,12 +121,11 @@ class Lead(models.Model):
                 'connect.call'].search_count([('lead', '=', rec.id)])
 
     def _search_lead_by_number(self, number):
-        # Odoo <= 12 does not have 'is_won' field
         try:
-            open_stages_ids = [k.id for k in self.env['crm.stage'].sudo().search(
-                [('is_won', '=', False)])]
-        except:
-            open_stages_ids = [k.id for k in self.env['crm.stage'].sudo().search([])]
+            open_stages_ids = self.env['crm.stage'].sudo().search(
+                [('is_won', '=', False)]).ids
+        except Exception:
+            open_stages_ids = self.env['crm.stage'].sudo().search([]).ids
         domain = [
             ('active', '=', True),
             '|',
@@ -126,13 +133,17 @@ class Lead(models.Model):
             ('stage_id', '=', False),
             '|',
             ('phone_normalized', '=', number),
-            ('mobile_normalized', '=', number)]
+            ('mobile_normalized', '=', number),
+        ]
         found = self.env['crm.lead'].sudo().search(domain, order='id desc')
         if len(found) > 1:
-            logger.warning('[ASTCALLS] MULTIPLE LEADS FOUND BY NUMBER %s', number)
-        debug(self, 'Number {} belongs to leads: {}'.format(
-            number, found.mapped('id')
-        ))
+            # Prefer leads with existing calls (active relationship)
+            with_calls = found.filtered(lambda l: l.connect_calls_count > 0)
+            selected = with_calls[0] if with_calls else found[0]
+            logger.warning(
+                '[ASTCALLS] MULTIPLE LEADS FOUND BY NUMBER %s: IDs=%s, selected=%s',
+                number, found.ids, selected.id)
+            return selected
         return found[:1]
 
     # TODO: Test caching as we call it many times on call status.

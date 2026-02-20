@@ -9,7 +9,6 @@
     <!-- Privilege (Odoo 19: links groups to category) -->
     <record model="res.groups.privilege" id="privilege_connect">
         <field name="name">Connect</field>
-        <field name="category_id" ref="connect.module_connect_category"/>
         <field name="sequence">10</field>
     </record>
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import phonenumbers
 import re
 from urllib.parse import urljoin
 from odoo import fields, models, api, release
@@ -550,7 +551,19 @@ class Domain(models.Model):
             # Render extensions dialplan
             res = exten.render(request=request, params=params)
             return res
-        elif isinstance(found_num, str) and found_num.startswith("+"):
+        elif isinstance(found_num, str):
+            # Apply default country code if number doesn't start with +
+            if not found_num.startswith("+"):
+                default_country = self.env['connect.settings'].sudo().get_param('default_country_code') or None
+                try:
+                    parsed = phonenumbers.parse(found_num, default_country)
+                    if phonenumbers.is_possible_number(parsed):
+                        found_num = phonenumbers.format_number(
+                            parsed, phonenumbers.PhoneNumberFormat.E164)
+                    else:
+                        found_num = "+{}".format(found_num)
+                except phonenumbers.NumberParseException:
+                    found_num = "+{}".format(found_num)
             # Decide call type (phone vs WhatsApp)
             call_type = 'whatsapp' if (isinstance(to_val, str) and to_val.startswith('whatsapp:')) else 'phone'
             if call_type == 'whatsapp':

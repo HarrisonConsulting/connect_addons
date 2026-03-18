@@ -8,6 +8,7 @@ import secrets
 
 import httpx
 import openai
+import phonenumbers
 import requests
 import random
 import re
@@ -190,6 +191,12 @@ class Settings(models.Model):
     pronunciation_rules = fields.Text(
         string='Pronunciation Rules',
         help='JSON map of text to pronunciation substitutions (e.g., {"3CHI": "3-chee", "CEO": "C-E-O"})'
+    )
+    # Dialing defaults
+    default_country_code = fields.Char(
+        string='Default Country Code',
+        help='ISO country code (e.g. US, GB, DE) to assume when dialing numbers without a country code. '
+             'Numbers dialed without a + prefix will be interpreted as belonging to this country.'
     )
 
     def get_module_version(self, module_name):
@@ -715,7 +722,16 @@ class Settings(models.Model):
     def originate_call(self, number, res_model=None, res_id=None, user=None, whatsapp_call=False):
         number = strip_number(number)
         if len(number) > MAX_EXTEN_LEN:
-            number = "+{}".format(number)
+            default_country = self.sudo().get_param('default_country_code') or None
+            try:
+                parsed = phonenumbers.parse(number, default_country)
+                if phonenumbers.is_possible_number(parsed):
+                    number = phonenumbers.format_number(
+                        parsed, phonenumbers.PhoneNumberFormat.E164)
+                else:
+                    number = "+{}".format(number)
+            except phonenumbers.NumberParseException:
+                number = "+{}".format(number)
         client = self.get_client()
         partner_id = False
         obj = self.env[res_model].browse(res_id) if res_model and res_id else False

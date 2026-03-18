@@ -51,6 +51,7 @@
                       <field name="twilio_api_key" string="API Key SID"/>
                       <field name="display_twilio_api_secret" string="API Key Secret" password="1"/>
                       <field name="twilio_edge" string="Edge"/>
+                      <field name="default_country_code" string="Default Country" placeholder="e.g. US, GB, DE"/>
                       <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary"/>
                     </group>
                     <group name="openai_api" string="OpenAI">

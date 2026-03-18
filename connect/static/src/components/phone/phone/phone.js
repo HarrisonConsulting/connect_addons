@@ -6,7 +6,7 @@ import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, setFocus} from "@connect/js/utils"
-import {Component, useState, useRef, onWillStart, onMounted} from "@odoo/owl"
+import {Component, useState, useRef, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 import {useDebounced} from "@web/core/utils/timing"
 import {user} from "@web/core/user"
 
@@ -223,6 +223,16 @@ export class Phone extends Component {
         })
 
         onMounted(() => {
+            // Suppress AbortError from Twilio SDK audio play/pause race conditions.
+            // These are harmless but crash Odoo's error handler (no .stack property).
+            this._abortErrorHandler = (event) => {
+                const error = event.reason
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    event.preventDefault()
+                }
+            }
+            window.addEventListener('unhandledrejection', this._abortErrorHandler)
+
             // Setup audio unlock handler for browser autoplay restrictions
             setupAudioUnlock()
             this.initUserAgent()
@@ -410,6 +420,12 @@ export class Phone extends Component {
                 }
             }
             this.bc.postMessage({event: "tbcNewTab", params: {id: this.id}})
+        })
+
+        onWillUnmount(() => {
+            if (this._abortErrorHandler) {
+                window.removeEventListener('unhandledrejection', this._abortErrorHandler)
+            }
         })
     }
 

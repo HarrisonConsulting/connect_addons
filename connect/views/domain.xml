@@ -21,6 +21,7 @@
             <list>
                 <field name="friendly_name"/>
                 <field name="domain_name"/>
+                <field name="secure_media"/>
                 <field name="delete_protection"/>
             </list>
         </field>
@@ -41,6 +42,7 @@
                     <group>
                         <group>
                             <field name="subdomain"/>
+                            <field name="secure_media"/>
                             <field name="application"/>
                         </group>
                         <group>

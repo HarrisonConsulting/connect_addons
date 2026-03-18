@@ -4,6 +4,7 @@ import random
 import uuid
 from odoo import models, fields, api, tools
 from odoo.models import Constraint
+
 logger = logging.getLogger(__name__)
 
 PIN_CODE_RANGE = [100000, 999999]

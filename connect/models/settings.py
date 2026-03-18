@@ -2,7 +2,9 @@
 import inspect
 import json
 import logging
+from multiprocessing import RLock
 import os
+import secrets
 
 import httpx
 import openai
@@ -25,6 +27,7 @@ MODULE_NAME = "connect"
 MAX_EXTEN_LEN = 4
 PROTECTED_FIELDS = [
     "display_auth_token",
+    "display_region_auth_token",
     "display_twilio_api_secret",
     "display_openai_api_key",
 ]
@@ -114,6 +117,10 @@ class Settings(models.Model):
         groups="base.group_erp_manager,connect.group_connect_webhook"
     )
     display_auth_token = fields.Char()
+    region_auth_token = fields.Char(
+        groups="base.group_erp_manager,connect.group_connect_webhook"
+    )
+    display_region_auth_token = fields.Char()
     twilio_api_key = fields.Char()
     twilio_api_secret = fields.Char(groups="base.group_erp_manager")
     display_twilio_api_secret = fields.Char()
@@ -162,15 +169,28 @@ class Settings(models.Model):
     odoo_version = fields.Char(compute="_get_instance_data")
     admin_name = fields.Char()
     admin_phone = fields.Char(
-        help='It is required to contact this instance’s administrator in case any critical vulnerabilities are found in the application.')
+        help='It is required to contact this instance\u2019s administrator in case any critical vulnerabilities are found in the application.')
     admin_email = fields.Char(
         help='It is required to contact this instance administrator by email in case any non-critical vulnerabilities are found in the application.')
     company_name = fields.Char(help='Company name of this instance.')
     company_country = fields.Many2one('res.country',
-                                      help='We use the company’s country information for statistical tracking of our product installations by country.')
+                                      help='We use the company\u2019s country information for statistical tracking of our product installations by country.')
     web_base_url = fields.Char(compute="_get_instance_data", string="Odoo URL")
     call_duration_limit = fields.Integer(compute="_get_instance_data", string="Call Duration Limit (seconds)")
     latest_versions = fields.Html(readonly=True)
+    # Voice settings
+    system_voice = fields.Selection([
+        ('Polly.Danielle-Generative', 'Danielle Generative (en-US)'),
+        ('Polly.Joanna-Generative', 'Joanna Generative (en-US)'),
+        ('Polly.Matthew-Generative', 'Matthew Generative (en-US)'),
+        ('Polly.Ruth-Generative', 'Ruth Generative (en-US)'),
+        ('Polly.Stephen-Generative', 'Stephen Generative (en-US)')
+    ], string='System Voice', default='Polly.Ruth-Generative', required=True,
+       help='Voice used for all system prompts (callflow messages, voicemail, transfers, etc.)')
+    pronunciation_rules = fields.Text(
+        string='Pronunciation Rules',
+        help='JSON map of text to pronunciation substitutions (e.g., {"3CHI": "3-chee", "CEO": "C-E-O"})'
+    )
 
     def get_module_version(self, module_name):
         module = (
@@ -260,7 +280,7 @@ class Settings(models.Model):
             rec.call_duration_limit = int(
                 self.env["ir.config_parameter"]
                 .sudo()
-                .get_param("connect.call_duration_limit", "240")
+                .get_param("connect.call_duration_limit", "7200")
             )
 
     @api.model
@@ -320,6 +340,10 @@ class Settings(models.Model):
             self.env["ir.config_parameter"].set_param(
                 "connect.installation_date", installation_date
             )
+            user = self.env.ref("connect.user_connect_webhook")
+            chars = string.ascii_letters + string.digits + string.punctuation
+            password = 'X1!x' + ''.join(secrets.choice(chars) for _ in range(16))
+            user.write({'password': password})
 
     @api.model
     def _get_name(self):
@@ -525,10 +549,7 @@ class Settings(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        if release.version_info[0] >= 17:
-            self.env.registry.clear_cache()
-        else:
-            self.clear_caches()
+        self.env.registry.clear_cache()
         return super(Settings, self).create(vals_list)
 
     def write(self, vals):
@@ -550,28 +571,64 @@ class Settings(models.Model):
             # Set keys user super access.
             self.with_context(skip_protected_fields=True).sudo().write(changed_fields)
         # Reset cache
-        if release.version_info[0] >= 17:
-            self.env.registry.clear_cache()
-        else:
-            self.clear_caches()
+        self.env.registry.clear_cache()
 
     @api.model
-    def get_client(self):
+    def get_system_voice(self):
+        """Get the system-wide voice setting for all TwiML say() calls"""
+        voice = self.sudo().get_param('system_voice', 'Polly.Ruth-Generative')
+        return voice
+
+    @api.model
+    def process_pronunciation(self, text):
+        """Process text to apply SSML pronunciation substitutions"""
+        if not text:
+            return text
+
         try:
-            (
-                self.check_access_rule("read")
-                if release.version_info[0] < 18
-                else self.check_access("read")
-            )
+            rules_json = self.sudo().get_param('pronunciation_rules')
+            if not rules_json:
+                return text
+
+            rules = json.loads(rules_json)
+            processed_text = text
+            has_substitutions = False
+
+            for original, pronunciation in rules.items():
+                pattern = re.compile(re.escape(original), re.IGNORECASE)
+                if pattern.search(processed_text):
+                    def replace_func(match):
+                        return f'<sub alias="{pronunciation}">{match.group(0)}</sub>'
+
+                    processed_text = pattern.sub(replace_func, processed_text)
+                    has_substitutions = True
+
+            if has_substitutions:
+                processed_text = f'<speak>{processed_text}</speak>'
+
+            return processed_text
+
+        except (json.JSONDecodeError, Exception) as e:
+            logger.warning(f'Error processing pronunciation rules: {e}')
+            return text
+
+    @api.model
+    def get_client(self, region=True):
+        try:
+            self.check_access("read")
             account_sid = self.sudo().get_param("account_sid")
             auth_token = self.sudo().get_param("auth_token")
             client = Client(account_sid, auth_token)
-            twilio_region = self.sudo().get_param("twilio_region")
-            if twilio_region:
-                client.region = twilio_region
-            twilio_edge = self.sudo().get_param("twilio_edge")
-            if twilio_edge:
-                client.edge = twilio_edge
+            if region:
+                region_auth_token = self.sudo().get_param("region_auth_token")
+                token_to_use = region_auth_token if region_auth_token else auth_token
+                client = Client(account_sid, token_to_use)
+                twilio_region = self.sudo().get_param("twilio_region")
+                if twilio_region:
+                    client.region = twilio_region
+                twilio_edge = self.sudo().get_param("twilio_edge")
+                if twilio_edge:
+                    client.edge = twilio_edge
             client.http_client.logger.setLevel(TWILIO_LOG_LEVEL)
             return client
         except Exception as e:
@@ -642,14 +699,15 @@ class Settings(models.Model):
     def compute_sip_uri(self, user):
         return "sip:{}".format(self.env.user.connect_user.uri)
 
-    def get_external_call_route(self, number, callerId, status_url):
+    def get_external_call_route(self, number, callerId, status_url,
+            record='do-not-record', record_status_url=None):
         call_duration_limit = int(self.sudo().get_param('call_duration_limit'))
         twiml = """
         <Response>
-            <Dial callerId="{}" timeLimit="{}"><Number statusCallback='{}' statusCallbackEvent='initiated answered completed'>{}</Number></Dial>
+            <Dial record="{}" recordingStatusCallback="{}" callerId="{}" timeLimit="{}"><Number statusCallback='{}' statusCallbackEvent='initiated answered completed'>{}</Number></Dial>
         </Response>
         """.format(
-            callerId, call_duration_limit, status_url, number
+            record, record_status_url, callerId, call_duration_limit, status_url, number
         )
         return twiml
 
@@ -694,6 +752,8 @@ class Settings(models.Model):
         api_url = self.sudo().get_param("api_url")
         edge = self.twilio_edge or self.env['connect.settings'].get_param('twilio_edge')
         status_url = urljoin(api_url, "twilio/webhook/callstatus#e={}".format(edge))
+        record = 'record-from-answer-dual' if self.env.user.connect_user.record_calls else 'do-not-record'
+        record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
         # Resolve callerId
         if exten:
             # Internal call to an extension.
@@ -709,14 +769,12 @@ class Settings(models.Model):
                     raise ValidationError("You must configure a WhatsApp sender!")
                 callerId = f"whatsapp:{caller_number}"
                 # Build WhatsApp Dial
-                call_duration_limit = int(self.sudo().get_param('call_duration_limit'))
-                record_attrs = 'record=""' if pbx_user.record_calls else ""
                 twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Dial callerId="{}">
+    <Dial callerId="{}" record="{}" recordingStatusCallback="{}">
         <WhatsApp statusCallback="{}" statusCallbackEvent="ringing answered completed">{}</WhatsApp>
     </Dial>
-</Response>""".format(callerId, status_url, number)
+</Response>""".format(callerId, record, record_status_url, status_url, number)
             else:
                 # Regular phone call
                 default_number = self.env["connect.outgoing_callerid"].search(
@@ -726,19 +784,14 @@ class Settings(models.Model):
                     callerId = user.connect_user.outgoing_callerid.number
                 else:
                     callerId = default_number.number
-                twiml = self.get_external_call_route(number, callerId, status_url)
-        record = self.env.user.connect_user.record_calls
-        record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
+                twiml = self.get_external_call_route(
+                    number, callerId, status_url, record=record, record_status_url=record_status_url)
         debug(self, 'Originate destination TwiML: {}'.format(twiml))
         channel = client.calls.create(
             twiml=twiml,
             to=to,
             from_=callerId,
             status_callback=status_url,
-            record=record,
-            recording_channels="dual",
-            recording_status_callback=record_status_url,
-            recording_status_callback_event=["completed"],
             status_callback_event=["initiated", "answered", "completed"],
         )
         self.env["connect.channel"].sudo().create(
@@ -759,15 +812,11 @@ class Settings(models.Model):
             raise ValidationError("You must set OpenAI key first!")
 
     def action_open_system_parameters(self):
-        if release.version_info[0] >= 18:
-            view_mode = "list,form"
-        else:
-            view_mode = "tree,form"
         return {
             "type": "ir.actions.act_window",
             "name": "System Parameters",
             "res_model": "ir.config_parameter",
-            "view_mode": view_mode,
+            "view_mode": "list,form",
             "target": "current",
             "context": {"search_default_key": "connect.api_url"},
         }

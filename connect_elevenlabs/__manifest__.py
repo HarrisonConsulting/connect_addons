@@ -3,13 +3,13 @@
 {
     'name': 'Connect ElevenLabs',
     'version': '1.4.2',
-    'author': 'Oduist',
+    'author': 'Harrison Consulting, LLC',
     'price': 0,
     'currency': 'EUR',
-    'maintainer': 'Oduist',
-    'live_test_url': 'https://connect-demo-18.oduist.com/',
+    'maintainer': 'Harrison Consulting, LLC',
+    'website': 'https://www.harrison.consulting',
     'support': 'support@oduist.com',
-    'license': 'Other proprietary',
+    'license': 'OPL-1',
     'category': 'Phone',
     'summary': 'Connect ElevenLabs Conversational AI Integration',
     'description': """
@@ -30,6 +30,7 @@ Features:
     'data': [
         # Data
         'data/tools.xml',
+        'data/agent_templates.xml',
         # Security
         'security/admin.xml',
         'security/user.xml',
@@ -41,6 +42,9 @@ Features:
         'views/callflow.xml',
         'views/user.xml',
         'views/agent.xml',
+        'views/agent_prompt.xml',
+        'views/agent_transfer.xml',
+        'views/agent_template.xml',
         'views/agent_tool.xml',
         'views/agent_tool_params.xml',
         'views/number.xml',

@@ -195,6 +195,8 @@ export class Phone extends Component {
 
             this.bus.addEventListener('busPhoneMakeForward', ({detail}) => this._busPhoneMakeForward(detail))
 
+            this.bus.addEventListener('busPhoneMakeTransfer', ({detail}) => this._busPhoneMakeTransfer(detail))
+
             this.bus.addEventListener('busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
 
             this.bus.addEventListener('busPhoneHangUp', ({detail}) => this._busPhoneHangUp(detail))
@@ -355,10 +357,7 @@ export class Phone extends Component {
                         self.sendDTMF(params.key)
                     }
                 } else if (event === 'tbcTransfer') {
-                    // console.log('tbcTransfer', params)
-                    if (self.session) {
-                        self.session.refer(params.phoneNumber)
-                    }
+                    // Transfer is handled by backend via Twilio API, no SIP action needed
                 } else if (event === 'tbcForward') {
                     // Forward was initiated in another tab - just update UI state
                     // The actual forward is handled by the tab that called forward_call RPC
@@ -452,6 +451,29 @@ export class Phone extends Component {
         this.state.isDialingPanel = true
         this.state.isForward = false
         this.state.isContacts = false
+    }
+
+    async _busPhoneMakeTransfer({phoneNumber} = {}) {
+        if (this.session) {
+            try {
+                const result = await this.orm.call('connect.transfer_wizard', 'execute_transfer', [
+                    phoneNumber,
+                    'blind',
+                    this.call_id,
+                    this.session.parameters.CallSid
+                ])
+                if (result.success) {
+                    this.notify(result.message, {sticky: false, type: 'success'})
+                } else {
+                    this.notify(result.error || 'Transfer failed', {sticky: false, type: 'warning'})
+                }
+            } catch (error) {
+                console.error('Transfer error:', error)
+                this.notify('Transfer failed', {sticky: false, type: 'warning'})
+            }
+        }
+        this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber}})
+        this.endCall()
     }
 
     async prepareCall(props) {
@@ -1010,16 +1032,6 @@ export class Phone extends Component {
         this.state.isKeypad = true
         this.state.isDialingPanel = false
         setFocus(this.phoneInput.el)
-    }
-
-    _onClickTransfer(ev) {
-        if (this.state.isTransfer) return
-        this.state.isForward = false
-        this.state.isKeypad = false
-        this.state.isDialingPanel = false
-        this.state.isContacts = true
-        this.state.isTransfer = true
-        this.bus.trigger('busContactSetState', {isTransfer: true, isContactMode: true})
     }
 
     _onClickForward(ev) {

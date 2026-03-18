@@ -143,6 +143,8 @@
                     <notebook>
                         <page name="prompt" string="Prompt">
                             <group>
+                                <field name="template" invisible="prompt"/>
+                                <field name="active_prompt_version" options="{'no_create': True, 'no_create_edit': True}"/>
                                 <field name="first_message" placeholder="Hi there! How can I help you today?"/>
                             </group>
                             <field name="prompt" placeholder="You are a helpful assistant..."/>
@@ -161,6 +163,7 @@
                                     <field name="user_input_audio_format"/>
                                 </group>
                             </group>
+
                         </page>
                         <page string="Conversation" name="conversation">
                             <group>
@@ -185,6 +188,15 @@
                                     <field name="is_enabled"/>
                                 </list>
                             </field>
+                            <field name="has_transfer_tool" invisible="1"/>
+                            <group invisible="not has_transfer_tool">
+                                <field name="transfer_to_agent">
+                                    <list>
+                                        <field name="transfer_to_agent" string="Agent"/>
+                                        <field name="condition"/>
+                                    </list>
+                                </field>
+                            </group>
                         </page>
                         <page name="knowledge_base" string="Knowledge Base">
                             <group>

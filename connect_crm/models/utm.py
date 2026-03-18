@@ -2,6 +2,7 @@ import logging
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 from odoo.models import Constraint
+
 logger = logging.getLogger(__name__)
 
 

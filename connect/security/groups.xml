@@ -6,30 +6,27 @@
         <field name="description">Connect Security</field>
     </record>
 
-    <!-- Privilege (Odoo 19: links groups to category) -->
-    <record model="res.groups.privilege" id="privilege_connect">
+    <record id="module_connect_privilege" model="res.groups.privilege" >
         <field name="name">Connect</field>
-        <field name="sequence">10</field>
+        <field name="sequence">9</field>
+        <field name="category_id" ref="connect.module_connect_category"/>
     </record>
 
     <record model="res.groups" id="group_connect_user">
         <field name="name">User</field>
-        <field name="privilege_id" ref="privilege_connect"/>
-        <field name="sequence">10</field>
+        <field name="privilege_id" ref="module_connect_privilege"/>
     </record>
 
     <record model="res.groups" id="group_connect_admin">
         <field name="name">Admin</field>
-        <field name="privilege_id" ref="privilege_connect"/>
-        <field name="sequence">20</field>
+        <field name="privilege_id" ref="module_connect_privilege"/>
         <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
         <field name="implied_ids" eval="[(4, ref('group_connect_user'))]"/>
     </record>
 
     <record model="res.groups" id="group_connect_webhook">
         <field name="name">Webhook</field>
-        <field name="privilege_id" ref="privilege_connect"/>
-        <field name="sequence">30</field>
+        <field name="privilege_id" ref="module_connect_privilege"/>
         <field name="user_ids" eval="[(4, ref('connect.user_connect_webhook'))]"/>
     </record>
 

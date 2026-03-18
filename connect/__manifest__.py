@@ -3,13 +3,13 @@
 {
     'name': 'Connect',
     'version': '1.0.31',
-    'author': 'Oduist',
-    'maintainer': 'Oduist',
-    'live_test_url': 'https://connect-demo-18.oduist.com/',
+    'author': 'Harrison Consulting, LLC',
+    'maintainer': 'Harrison Consulting, LLC',
+    'website': 'https://www.harrison.consulting',
     'price': 0,
     'currency': 'EUR',
     'support': 'support@oduist.com',
-    'license': 'Other proprietary',
+    'license': 'OPL-1',
     'category': 'Phone',
     'summary': 'Twilio and Odoo integration application',
     'description': '',
@@ -17,7 +17,7 @@
     'external_dependencies': {
         'python': ['twilio', 'openai'],
     },
-'data': [
+    'data': [
         'data/res_users.xml',
         'data/data.xml',
         'data/functions.xml',
@@ -49,14 +49,14 @@
         'views/favorite.xml',
         'views/res_partner.xml',
         'views/message.xml',
-'views/message_configuration.xml',
+        'views/message_configuration.xml',
         'views/message_content_template.xml',
         'views/whatsapp_sender.xml',
         'views/versions.xml',
         'views/documentation.xml',
         # Wizard
         'wizard/transfer.xml',
-'wizard/sms_composer_views.xml',
+        'wizard/sms_composer_views.xml',
         'wizard/whatsapp_composer_views.xml',
         'wizard/originate_to_wizard_views.xml',
     ],

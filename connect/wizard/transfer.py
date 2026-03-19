@@ -2,6 +2,7 @@ from odoo import models, fields, api
 from twilio.twiml.voice_response import VoiceResponse, Dial
 from urllib.parse import urljoin
 import logging
+import phonenumbers
 
 logger = logging.getLogger(__name__)
 
@@ -203,15 +204,19 @@ class CallForwardHandler(models.TransientModel):
                 client_target = f'client:user{phone_number}'
                 return client_target
         else:
-            # External phone number - ensure it has proper formatting
+            # External phone number - ensure it has proper E.164 formatting
             if not phone_number.startswith('+'):
-                # Try to get default country code from settings, fallback to US
+                default_country = self.env['connect.settings'].sudo().get_param('default_country_code') or 'US'
                 try:
-                    default_country = self.env['connect.settings'].sudo().get_param('default_country_code') or '1'
-                    phone_number = f'+{default_country}{phone_number}'
-                except:
-                    phone_number = f'+1{phone_number}'  # Fallback to US
-            
+                    parsed = phonenumbers.parse(phone_number, default_country)
+                    if phonenumbers.is_possible_number(parsed):
+                        phone_number = phonenumbers.format_number(
+                            parsed, phonenumbers.PhoneNumberFormat.E164)
+                    else:
+                        phone_number = f'+{phone_number}'
+                except phonenumbers.NumberParseException:
+                    phone_number = f'+{phone_number}'
+
             logger.info('Resolved external number to %s', phone_number)
             return phone_number
 

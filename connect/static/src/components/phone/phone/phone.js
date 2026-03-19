@@ -223,11 +223,13 @@ export class Phone extends Component {
         })
 
         onMounted(() => {
-            // Suppress AbortError from Twilio SDK audio play/pause race conditions.
-            // These are harmless but crash Odoo's error handler (no .stack property).
+            // Suppress harmless errors that crash Odoo's error handler:
+            // - AbortError: Twilio SDK audio play/pause race conditions (no .stack property)
+            // - InvalidStateError: IDB connection closed by browser on idle tabs
             this._abortErrorHandler = (event) => {
                 const error = event.reason
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (error instanceof DOMException &&
+                    (error.name === 'AbortError' || error.name === 'InvalidStateError')) {
                     event.preventDefault()
                 }
             }
@@ -235,6 +237,25 @@ export class Phone extends Component {
 
             // Setup audio unlock handler for browser autoplay restrictions
             setupAudioUnlock()
+
+            // Handle tab visibility changes: when user returns to an idle tab,
+            // the browser may have closed IDB connections and Twilio websocket.
+            // Re-initialize the device if needed.
+            this._visibilityHandler = () => {
+                if (!document.hidden && this.state.isActive) {
+                    if (this._needsTokenRefresh) {
+                        this._needsTokenRefresh = false
+                        this.updateToken()
+                    }
+                    // If Twilio device lost connection while tab was hidden, re-register
+                    if (this.userAgent && this.userAgent.state === 'destroyed') {
+                        console.log('Connect: Twilio device was destroyed while tab was hidden, re-initializing')
+                        this.initUserAgent()
+                    }
+                }
+            }
+            document.addEventListener('visibilitychange', this._visibilityHandler)
+
             this.initUserAgent()
 
             const self = this
@@ -426,6 +447,9 @@ export class Phone extends Component {
             if (this._abortErrorHandler) {
                 window.removeEventListener('unhandledrejection', this._abortErrorHandler)
             }
+            if (this._visibilityHandler) {
+                document.removeEventListener('visibilitychange', this._visibilityHandler)
+            }
         })
     }
 
@@ -507,8 +531,13 @@ export class Phone extends Component {
     }
 
     async updateToken() {
-        const {token} = await this.orm.call('connect.user', 'get_client_token')
-        if (token) this.userAgent.updateToken(token)
+        try {
+            const {token} = await this.orm.call('connect.user', 'get_client_token')
+            if (token) this.userAgent.updateToken(token)
+        } catch (e) {
+            console.warn('Connect: Token refresh failed, will retry when tab is active:', e.message)
+            this._needsTokenRefresh = true
+        }
     }
 
     initUserAgent() {

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.1.0',
+    'version': '1.1.1',
     'author': 'Harrison Consulting, LLC',
     'maintainer': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',

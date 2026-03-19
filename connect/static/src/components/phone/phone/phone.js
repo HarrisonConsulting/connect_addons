@@ -698,9 +698,6 @@ export class Phone extends Component {
     async makeCall(props) {
         const self = this
         let phoneNumber = props.phone
-        if (phoneNumber.length > 8 && phoneNumber[0] !== '+') {
-            phoneNumber = `+${phoneNumber}`
-        }
         self.startCall()
 
         const syncParams = self.getJsonCallData()

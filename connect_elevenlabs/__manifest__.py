@@ -3,11 +3,10 @@
 {
     'name': 'Connect ElevenLabs',
     'version': '1.4.2',
-    'author': 'Harrison Consulting, LLC',
+    'author': 'Oduist',
+    'maintainer': 'Oduist',
     'price': 0,
     'currency': 'EUR',
-    'maintainer': 'Harrison Consulting, LLC',
-    'website': 'https://www.harrison.consulting',
     'support': 'support@oduist.com',
     'license': 'OPL-1',
     'category': 'Phone',

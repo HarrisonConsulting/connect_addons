@@ -223,13 +223,10 @@ export class Phone extends Component {
         })
 
         onMounted(() => {
-            // Suppress harmless errors that crash Odoo's error handler:
-            // - AbortError: Twilio SDK audio play/pause race conditions (no .stack property)
-            // - InvalidStateError: IDB connection closed by browser on idle tabs
+            // Suppress AbortError from Twilio SDK audio play/pause race conditions
             this._abortErrorHandler = (event) => {
                 const error = event.reason
-                if (error instanceof DOMException &&
-                    (error.name === 'AbortError' || error.name === 'InvalidStateError')) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
                     event.preventDefault()
                 }
             }

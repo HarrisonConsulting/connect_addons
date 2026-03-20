@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.1.1',
+    'version': '1.1.2',
     'author': 'Harrison Consulting, LLC',
     'maintainer': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
@@ -69,6 +69,7 @@
         'web.assets_backend': [
             '/connect/static/src/icomoon/style.css',
             '/connect/static/src/components/phone/*/*',
+            '/connect/static/src/js/idb_error_handler.js',
             '/connect/static/src/js/main.js',
             '/connect/static/src/js/utils.js',
             '/connect/static/src/widgets/phone_field/*',

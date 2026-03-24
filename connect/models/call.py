@@ -243,19 +243,25 @@ class Call(models.Model):
             self.status = 'completed'
             logger.info(f"Call {self.id}: Status set to 'completed' (answered by {self.answered_user.login})")
         else:
-            channel_statuses = self.channels.mapped('status')
-            if 'failed' in channel_statuses:
-                self.status = 'failed'
-                logger.info(f"Call {self.id}: Status set to 'failed' (channel failed)")
-            elif 'no-answer' in channel_statuses:
-                self.status = 'no-answer'
-                logger.info(f"Call {self.id}: Status set to 'no-answer' (at least one channel rang)")
-            elif 'busy' in channel_statuses:
-                self.status = 'busy'
-                logger.info(f"Call {self.id}: Status set to 'busy' (all channels busy)")
+            # Last resort: check root channel for evidence of answered call
+            root_channel = self.channels.filtered(lambda c: not c.parent_channel)
+            if root_channel and root_channel[0].status == 'completed' and root_channel[0].duration and root_channel[0].duration > 0:
+                self.status = 'completed'
+                logger.info(f"Call {self.id}: Status set to 'completed' (root channel completed with {root_channel[0].duration}s, child webhook likely lost)")
             else:
-                self.status = 'no-answer'
-                logger.info(f"Call {self.id}: Status set to 'no-answer' (default)")
+                channel_statuses = self.channels.mapped('status')
+                if 'failed' in channel_statuses:
+                    self.status = 'failed'
+                    logger.info(f"Call {self.id}: Status set to 'failed' (channel failed)")
+                elif 'no-answer' in channel_statuses:
+                    self.status = 'no-answer'
+                    logger.info(f"Call {self.id}: Status set to 'no-answer' (at least one channel rang)")
+                elif 'busy' in channel_statuses:
+                    self.status = 'busy'
+                    logger.info(f"Call {self.id}: Status set to 'busy' (all channels busy)")
+                else:
+                    self.status = 'no-answer'
+                    logger.info(f"Call {self.id}: Status set to 'no-answer' (default)")
 
     def _populate_user_fields_direct_call(self):
         """Populate user fields for direct call pattern."""
@@ -293,7 +299,18 @@ class Call(models.Model):
             self.answered_pbx_user = answered_channel.called_pbx_user
             logger.info(f"Call {self.id}: answered_user set to {self.answered_user.login} (completed channel, no transfers)")
         else:
-            logger.info(f"Call {self.id}: No completed channels found - leaving answered_user empty")
+            # Safety net: if root channel completed with duration, call was answered
+            # but child channel webhook was lost (e.g. SerializationFailure rollback)
+            root_channel = self.channels.filtered(lambda c: not c.parent_channel)
+            if root_channel and root_channel[0].status == 'completed' and root_channel[0].duration and root_channel[0].duration > 0:
+                if len(user_channels) == 1:
+                    self.answered_user = user_channels[0].called_pbx_user.user
+                    self.answered_pbx_user = user_channels[0].called_pbx_user
+                    logger.info(f"Call {self.id}: answered_user inferred from root channel duration ({root_channel[0].duration}s, sole called user {self.answered_user.login})")
+                else:
+                    logger.warning(f"Call {self.id}: Root channel completed with {root_channel[0].duration}s but {len(user_channels)} users called - cannot determine answerer")
+            else:
+                logger.info(f"Call {self.id}: No completed channels found - leaving answered_user empty")
         if self.transferred_users:
             if not self.completed_by_user:
                 all_user_channels = self.channels.filtered(lambda c: c.called_pbx_user and c.called_pbx_user.user)
@@ -382,7 +399,18 @@ class Call(models.Model):
             return
         completed_ring_channels = ring_group_channels.filtered(lambda c: c.status == 'completed')
         if not completed_ring_channels:
-            logger.info(f"Call {self.id}: No completed ring_group channels found - no one answered")
+            # Safety net: check root channel for evidence of answered call
+            root_channel = self.channels.filtered(lambda c: not c.parent_channel)
+            if root_channel and root_channel[0].status == 'completed' and root_channel[0].duration and root_channel[0].duration > 0:
+                unique_users = list({ch.called_pbx_user.user for ch in ring_group_channels if ch.called_pbx_user.user})
+                if len(unique_users) == 1:
+                    self.answered_user = unique_users[0]
+                    self.answered_pbx_user = ring_group_channels[0].called_pbx_user
+                    logger.info(f"Call {self.id}: answered_user inferred from root channel duration ({root_channel[0].duration}s, sole ring group user {self.answered_user.login})")
+                else:
+                    logger.warning(f"Call {self.id}: Root channel completed with {root_channel[0].duration}s but {len(unique_users)} ring group users - cannot determine answerer")
+            else:
+                logger.info(f"Call {self.id}: No completed ring_group channels found - no one answered")
             return
         if self.transferred_users:
             genuine_ring_answered = completed_ring_channels.filtered(
@@ -777,15 +805,24 @@ class Call(models.Model):
             elif channel.called_pbx_user and channel.parent_channel.caller_pbx_user:
                 if not channel.call.transferred_users:
                     channel.call.direction = 'internal'
-        # Set called from 2nd call leg for click2call external calls.
-        if channel.parent_channel and channel.parent_channel.technical_direction == 'outbound-api':
-            channel.call.called = channel.called_number
-        # User processing moved to earlier in webhook processing to prevent race conditions
+        if (channel.call.direction == 'incoming' and params.get('CallStatus') == 'initiated' and
+                params.get('To').startswith('sip:')):
+            # Desktop notification only for SIP calls.
+            channel.connect_notify()
+        # DATABASE LOCKING: Acquire exclusive lock on call record to prevent concurrent modifications.
+        # All writes to the call record MUST happen after this lock to prevent SerializationFailure
+        # when multiple child call webhooks arrive simultaneously (e.g. Client + SIP legs).
+        self.env.cr.execute("SELECT id FROM connect_call WHERE id = %s FOR UPDATE", (channel.call.id,))
+        # Set called pbx users
         if channel.called_pbx_user:
-            channel.call.called_pbx_users = [(4, channel.called_pbx_user.id)]
+            if channel.called_pbx_user.id not in channel.call.called_pbx_users.ids:
+                channel.call.called_pbx_users = [(4, channel.called_pbx_user.id)]
         # Check if we need to set a partner from child channel
         if not channel.call.partner and channel.partner:
             channel.call.partner = channel.partner
+        # Set called from 2nd call leg for click2call external calls.
+        if channel.parent_channel and channel.parent_channel.technical_direction == 'outbound-api':
+            channel.call.called = channel.called_number
         # Update call duration based on all channels
         if channel.call:
             if channel.call.channels:
@@ -797,12 +834,6 @@ class Call(models.Model):
                 if detected_pattern:
                     channel.call.call_pattern = detected_pattern
                     logger.info(f"Call {channel.call.id}: Pattern detection set to '{detected_pattern}'")
-        if (channel.call.direction == 'incoming' and params.get('CallStatus') == 'initiated' and
-                params.get('To').startswith('sip:')):
-            # Desktop notification only for SIP calls.
-            channel.connect_notify()
-        # DATABASE LOCKING: Acquire exclusive lock on call record to prevent concurrent modifications
-        self.env.cr.execute("SELECT id FROM connect_call WHERE id = %s FOR UPDATE", (channel.call.id,))
         # Set called users - all called users including transfer recipients
         if channel.called_user:
             if channel.called_user.id not in channel.call.called_users.ids:

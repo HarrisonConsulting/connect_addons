@@ -59,6 +59,9 @@
         <field name="arch" type="xml">
             <form create="false">
                 <header>
+                    <button name="action_transcribe" type="object" string="Transcribe"
+                            icon="fa-microphone"
+                            invisible="not recording and not voicemail_url"/>
                     <button string="Partner" name="create_partner_button" type="object" class="btn-primary" icon='fa-user'
                             invisible="not partner"/>
                     <button string="Partner" name="create_partner_button" type="object" class="btn-primary" icon='fa-user-plus'

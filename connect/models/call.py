@@ -165,6 +165,12 @@ class Call(models.Model):
             else:
                 rec.voicemail_icon = ''
 
+    def action_transcribe(self):
+        """Transcribe call recording. Extended by other modules for voicemail."""
+        self.ensure_one()
+        if self.recording:
+            self.recording.get_transcript()
+
     @api.depends('duration')
     def _get_duration_human(self):
         for record in self:

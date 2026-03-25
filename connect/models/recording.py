@@ -64,7 +64,9 @@ class Recording(models.Model):
         temp_file_path = None
         try:
             client = self.env['connect.settings'].get_openai_client()
-            response = requests.get(self.media_url, stream=True)
+            account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
+            auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+            response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token))
             response.raise_for_status()
             with NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
                 for chunk in response.iter_content(chunk_size=8192):

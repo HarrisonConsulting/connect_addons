@@ -51,6 +51,14 @@ class Recording(models.Model):
 
     ############## TRANSCRIPTION METHODS #####################################
 
+    def _get_transcription_model(self):
+        """Return transcription model name. Override to make configurable."""
+        return 'whisper-1'
+
+    def _get_completion_model(self):
+        """Return completion/summary model name. Override to make configurable."""
+        return os.environ.get('OPENAI_COMPLETION_MODEL', 'gpt-4o')
+
     def transcribe_recording(self, openai_api_key, summary_prompt):
         result = {}
         temp_file_path = None
@@ -71,7 +79,7 @@ class Recording(models.Model):
                 return
             with open(temp_file_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1", file=audio_file,
+                    model=self._get_transcription_model(), file=audio_file,
                     response_format='verbose_json', timestamp_granularities=["segment"])
             segments = ''
             for s in transcript.segments:
@@ -93,7 +101,7 @@ class Recording(models.Model):
         logger.info('Make summary!')
         try:
             response = client.chat.completions.create(
-                model=os.environ.get('OPENAI_COMPLETION_MODEL', 'gpt-4o'),
+                model=self._get_completion_model(),
                 messages=[
                     {
                         'role': 'user',
@@ -108,12 +116,9 @@ class Recording(models.Model):
                 max_tokens=int(os.environ.get('OPENAI_COMPLETION_MAX_TOKENS', 4096)),
                 top_p=float(os.environ.get('OPENAI_COMPLETION_TOP_P', 1.0)),
                 frequency_penalty=float(os.environ.get('OPENAI_COMPLETION_FREQUENCY_PENALTY', 0.0)),
-                presence_penalty=float(os.environ.get('OPENAI_COMPLETION_PRESENSE_PENALTY', 0.0)),
+                presence_penalty=float(os.environ.get('OPENAI_COMPLETION_PRESENCE_PENALTY', 0.0)),
             )
             logger.info('%s', response.usage)
-            # result['finish_reason'] = response.choices[0].finish_reason
-            # result['completion_tokens'] = response.usage.completion_tokens
-            # result['prompt_tokens'] = response.usage.prompt_tokens
             return {'summary': response.choices[0].message.content.strip('\n\n')}
         except Exception as e:
             logger.exception(f'Summary error: {e}')

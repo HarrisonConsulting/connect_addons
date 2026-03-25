@@ -89,6 +89,9 @@
                              invisible="transcript_calls == False"/>
                       <field name="summary_prompt"
                              invisible="transcript_calls == False"/>
+                      <small colspan="2" invisible="transcript_calls == False">
+                        Placeholders: {number_name}, {number_description}, {caller_name}, {called_name}, {caller_number}, {called_number}, {direction}, {transcript}
+                      </small>
                       <field name="register_summary"
                              invisible="transcript_calls == False"/>
                     </group>

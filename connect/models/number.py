@@ -22,6 +22,11 @@ class Number(models.Model):
     is_default = fields.Boolean(string='Default') # TODO: Remove after version 1.0
     phone_number = fields.Char(required=True)
     friendly_name = fields.Char()
+    description = fields.Text(
+        help="Description of this number's identity/purpose. Used in call summary prompts "
+             "via {number_description} placeholder (e.g. 'an Official Odoo Partner, "
+             "experienced software developer and graphic designer')."
+    )
     voice_url = fields.Char(compute='_get_twilio_urls', compute_sudo=True)
     voice_fallback_url = fields.Char(compute='_get_twilio_urls', compute_sudo=True)
     voice_status_url = fields.Char(compute='_get_twilio_urls', compute_sudo=True)

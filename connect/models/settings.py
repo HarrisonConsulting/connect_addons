@@ -141,7 +141,20 @@ class Settings(models.Model):
     )
     transcript_calls = fields.Boolean()
     transcript_provider = fields.Selection(selection=[('openai', 'Open AI')], default='openai', required=True)
-    summary_prompt = fields.Text(required=True, default="Summarise this phone call")
+    summary_prompt = fields.Text(
+        required=True,
+        default=(
+            "{number_name} is {number_description}.\n"
+            "Your task is to produce a comprehensive summary of the {direction} call "
+            "from {caller_name} ({caller_number}) to {called_name} ({called_number}) "
+            "with the following transcription:\n"
+            "```\n{transcript}\n```"
+        ),
+        help="Supports placeholders: {number_name}, {number_description}, "
+             "{caller_name}, {called_name}, {caller_number}, {called_number}, "
+             "{direction}, {transcript}. If {transcript} is included, it will be "
+             "embedded in the prompt; otherwise the transcript is sent separately."
+    )
     register_summary = fields.Boolean(
         default=True, help="Register summary at partner of reference chat."
     )

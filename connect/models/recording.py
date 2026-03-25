@@ -51,6 +51,59 @@ class Recording(models.Model):
 
     ############## TRANSCRIPTION METHODS #####################################
 
+    def _get_summary_context(self):
+        """Build template context for summary prompt rendering.
+
+        Available placeholders: {caller_name}, {called_name}, {caller_number},
+        {called_number}, {direction}, {number_name}, {number_description}
+        """
+        self.ensure_one()
+        ctx = {
+            'caller_number': self.caller_number or '',
+            'called_number': self.called_number or '',
+            'direction': (self.call.direction or 'unknown') if self.call else 'unknown',
+        }
+        # Resolve caller display name: prefer partner, then user, then number
+        if self.call and self.call.partner:
+            ctx['caller_name'] = self.call.partner.display_name
+        elif self.caller_user:
+            ctx['caller_name'] = self.caller_user.display_name
+        else:
+            ctx['caller_name'] = self.caller_number or 'Unknown Caller'
+        # Resolve called display name: prefer user, then number
+        if self.called_user:
+            ctx['called_name'] = self.called_user.display_name
+        else:
+            ctx['called_name'] = self.called_number or 'Unknown'
+        # Look up connect.number for identity context
+        number = False
+        if self.call:
+            our_number = self.called_number if ctx['direction'] == 'inbound' else self.caller_number
+            if our_number:
+                number = self.env['connect.number'].sudo().search(
+                    [('phone_number', '=', our_number)], limit=1)
+        ctx['number_name'] = (number.friendly_name or number.phone_number) if number else ''
+        ctx['number_description'] = (number.description or '') if number else ''
+        return ctx
+
+    def _render_summary_prompt(self, summary_prompt, transcript=''):
+        """Render summary prompt template with call context.
+
+        Uses safe formatting: unrecognized {placeholders} are left as-is.
+        """
+        ctx = self._get_summary_context()
+        ctx['transcript'] = transcript
+
+        class SafeDict(dict):
+            def __missing__(self, key):
+                return '{' + key + '}'
+
+        try:
+            return summary_prompt.format_map(SafeDict(ctx))
+        except Exception:
+            logger.warning('Failed to render summary prompt template, using as-is')
+            return summary_prompt
+
     def _get_transcription_model(self):
         """Return transcription model name. Override to make configurable."""
         return 'whisper-1'
@@ -102,18 +155,21 @@ class Recording(models.Model):
     def make_summary(self, client, summary_prompt, transcript):
         logger.info('Make summary!')
         try:
+            # Render prompt template with call context
+            transcript_in_prompt = '{transcript}' in summary_prompt
+            rendered = self._render_summary_prompt(summary_prompt, transcript)
+            if transcript_in_prompt:
+                # Transcript embedded in prompt via {transcript} placeholder
+                messages = [{'role': 'user', 'content': rendered}]
+            else:
+                # Legacy: prompt and transcript as separate messages
+                messages = [
+                    {'role': 'user', 'content': rendered},
+                    {'role': 'user', 'content': transcript},
+                ]
             response = client.chat.completions.create(
                 model=self._get_completion_model(),
-                messages=[
-                    {
-                        'role': 'user',
-                        'content': summary_prompt
-                    },
-                    {
-                        'role': 'user',
-                        'content': transcript,
-                    },
-                ],
+                messages=messages,
                 temperature=float(os.environ.get('OPENAI_COMPLETION_TEMPERATURE', 0.5)),
                 max_tokens=int(os.environ.get('OPENAI_COMPLETION_MAX_TOKENS', 4096)),
                 top_p=float(os.environ.get('OPENAI_COMPLETION_TOP_P', 1.0)),

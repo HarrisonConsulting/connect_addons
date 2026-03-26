@@ -31,7 +31,7 @@ function setupAudioUnlock() {
                     ctx.resume().then(() => {
                         ctx.close()
                         audioUnlocked = true
-                        console.log('Connect: Audio unlocked after user interaction')
+                        console.debug('Connect: Audio unlocked after user interaction')
                     }).catch(() => ctx.close())
                 } else {
                     ctx.close()
@@ -103,8 +103,12 @@ export class Phone extends Component {
             isCalls: false,
             isPartner: false,
             isTransfer: false,
-            isForward: false,
-            isCallForwarded: false,
+            isOnHold: false,
+            holdInProgress: false,
+            isAddParticipant: false,
+            isAttendedTransfer: false,
+            showTransferChoice: false,
+            pendingTransferNumber: '',
             isDialingPanel: false,
             inCall: false,
             inIncoming: false,
@@ -122,11 +126,14 @@ export class Phone extends Component {
             activeTab: this.tabs.phone,
             callDurationTime: '',
             callerId: {},
+            hasWaitingCall: false,
+            waitingCallerId: {},  // {phoneNumber, partnerName, partnerId}
             xTransferTo: '',
             xTransferInfo: '',
             xTransferPartner: false,
             phone_status: this.status.ended,
             calls: [],
+            connectionStatus: 'connecting',  // 'connecting', 'ready', 'error', 'offline'
         })
         // Phone dimensions for drag constraints (golden ratio)
         this.phoneWidth = 300
@@ -143,6 +150,11 @@ export class Phone extends Component {
         this.sipRegistered = false
         this.lastActiveTab = this.tabs.phone
         this.session = null
+        this.waitingSession = null  // Incoming call waiting while user is in active call
+        this.heldSession = null
+        this.heldCallSid = null
+        this.heldCallId = null
+        this.heldCallerId = null
         this.userAgent = null
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
@@ -193,9 +205,9 @@ export class Phone extends Component {
             // EVENTS
             this.bus.addEventListener('busPhoneMakeCall', ({detail}) => this.prepareCall(detail))
 
-            this.bus.addEventListener('busPhoneMakeForward', ({detail}) => this._busPhoneMakeForward(detail))
-
             this.bus.addEventListener('busPhoneMakeTransfer', ({detail}) => this._busPhoneMakeTransfer(detail))
+
+            this.bus.addEventListener('busPhoneAddParticipant', ({detail}) => this._busPhoneAddParticipant(detail))
 
             this.bus.addEventListener('busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
 
@@ -213,6 +225,8 @@ export class Phone extends Component {
             })
 
             window.addEventListener("unload", (event) => {
+                // Best-effort presence offline on tab close
+                this._updatePresence('offline')
                 if (this.session) {
                     const params = {id: this.id, action: 'pop'}
                     this.bc.postMessage({event: 'tbcSipSession', params})
@@ -246,7 +260,7 @@ export class Phone extends Component {
                     }
                     // If Twilio device lost connection while tab was hidden, re-register
                     if (this.userAgent && this.userAgent.state === 'destroyed') {
-                        console.log('Connect: Twilio device was destroyed while tab was hidden, re-initializing')
+                        console.debug('Connect: Twilio device was destroyed while tab was hidden, re-initializing')
                         this.initUserAgent()
                     }
                 }
@@ -276,15 +290,16 @@ export class Phone extends Component {
                 }
             }, true)
 
-            document.addEventListener("mouseup", function () {
+            this._mouseUpHandler = function () {
                 // Reset drag state after a short delay to allow click handler to check
                 setTimeout(() => {
                     self.wasDragged = false
                 }, 50)
                 self.isDown = false
-            }, true)
+            }
+            document.addEventListener("mouseup", this._mouseUpHandler, true)
 
-            document.addEventListener("mousemove", function (event) {
+            this._mouseMoveHandler = function (event) {
                 if (self.isDown) {
                     event.preventDefault()
                     self.wasDragged = true  // Mark that a drag occurred
@@ -313,14 +328,12 @@ export class Phone extends Component {
                     // Remove bottom style when manually positioned
                     phoneRoot.style.bottom = "auto"
                 }
-            }, true)
+            }
+            document.addEventListener("mousemove", this._mouseMoveHandler, true)
             // BroadcastChannel Events
             this.bc.onmessage = ({data: {event, params}}) => {
-                return
-                // console.log('tbc.onMessage', {event, params})
                 const localStartCall = () => {
                     if (self.session) return
-                    // console.log('tbcStartCall -> ... INIT')
                     const {callerId, isPartner} = params
                     self.state.isPartner = isPartner
                     self.state.callerId = callerId
@@ -330,7 +343,6 @@ export class Phone extends Component {
                     self.startCall()
                 }
                 if (event === 'tbcStartCall') {
-                    // console.log('tbcStartCall', params)
                     if (!self.session && !self.state.inIncoming) {
                         self.state.isDisplayLastState = self.state.isDisplay
                     }
@@ -340,7 +352,6 @@ export class Phone extends Component {
                         self.bc.postMessage({event: "tbcRing", params: ringParams})
                     }
                 } else if (event === 'tbcAnswerCall') {
-                    // console.log('tbcAnswerCall', params)
                     if (self.session && params.id === self.id) {
                         self.session.accept()
                     }
@@ -356,7 +367,6 @@ export class Phone extends Component {
                     }
 
                 } else if (event === "tbcEndCall") {
-                    // console.log("tbcEndCall")
                     if (self.session) {
                         self.suppressBroadcastChannel = true
                         self.session.disconnect()
@@ -364,34 +374,34 @@ export class Phone extends Component {
                     self.state.phone_status = self.status.ended
                     self.endCall().then()
                 } else if (event === 'tbcNewTab') {
-                    // console.log('tbcNewTab', params)
                     self.windows.push(params.id)
                     if (self.session) {
                         const syncParams = self.getJsonCallData()
                         self.bc.postMessage({event: "tbcSync", params: syncParams})
                     }
                 } else if (event === 'tbcCloseTab') {
-                    // console.log('tbcCloseTab', params)
                     const index = self.windows.indexOf(params.id)
                     if (index > -1) {
                         self.windows.splice(index, 1)
-                        if (self.id === self.windows.at(-1)) {
+                        if (self.id === self.windows.at(-1) && self.userAgent && self.userAgent.state !== 'destroyed') {
                             self.userAgent.register()
                         }
                     }
                 } else if (event === 'tbcDtmf') {
-                    // console.log('tbcDtmf', params)
                     if (self.session) {
                         self.sendDTMF(params.key)
                     }
                 } else if (event === 'tbcTransfer') {
                     // Transfer is handled by backend via Twilio API, no SIP action needed
-                } else if (event === 'tbcForward') {
-                    // Forward was initiated in another tab - just update UI state
-                    // The actual forward is handled by the tab that called forward_call RPC
-                    this.state.isCallForwarded = true
+                } else if (event === 'tbcHold') {
+                    // Sync hold state from another tab (display only, no Twilio SDK call)
+                    self.state.isOnHold = params.isOnHold
+                    self.state.holdInProgress = false
+                } else if (event === 'tbcWaitingCall') {
+                    // Sync call waiting state from the tab that owns the session
+                    self.state.hasWaitingCall = params.hasWaitingCall
+                    self.state.waitingCallerId = params.waitingCallerId || {}
                 } else if (event === 'tbcMicrophoneMute') {
-                    // console.log('tbcMicrophoneMute')
                     if (self.session) {
                         if (params.mute === true) {
                             self.session.mute()
@@ -401,14 +411,9 @@ export class Phone extends Component {
                     }
                     self.state.isMicrophoneMute = params.mute
                 } else if (event === 'tbcSoundMute') {
-                    // console.log('tbcSoundMute')
                     self.state.isSoundMute = params.mute
                     self.setIncomingVolume()
-                } else if (event === 'tbcCancelForward') {
-                    // console.log('tbcCancelForward')
-                    self._cancelForward()
                 } else if (event === 'tbcSync') {
-                    // console.log('tbcSync', params)
                     if (self.state.inCall === false) {
                         self.state.callerId = params.callerId
                         self.state.isPartner = params.isPartner
@@ -417,7 +422,6 @@ export class Phone extends Component {
                         self.startCall()
                     }
                 } else if (event === 'tbcSipSession') {
-                    // console.log('tbcSipSession', params)
                     const {action} = params
                     if (action === 'push') {
                         self.sipSessions.push(params.id)
@@ -434,7 +438,7 @@ export class Phone extends Component {
                         }
                     }
                 } else if (event === 'tbcRing') {
-                    // if (params.id === self.id) self.incomingPlayer.play().catch()
+                    // Ring handled by Twilio SDK on the tab that owns the session
                 }
             }
             this.bc.postMessage({event: "tbcNewTab", params: {id: this.id}})
@@ -447,6 +451,14 @@ export class Phone extends Component {
             if (this._visibilityHandler) {
                 document.removeEventListener('visibilitychange', this._visibilityHandler)
             }
+            if (this._mouseUpHandler) {
+                document.removeEventListener('mouseup', this._mouseUpHandler, true)
+            }
+            if (this._mouseMoveHandler) {
+                document.removeEventListener('mousemove', this._mouseMoveHandler, true)
+            }
+            this.destroyCallCounter()
+            this.bc.close()
         })
     }
 
@@ -459,38 +471,20 @@ export class Phone extends Component {
         await this._onClickEndCall()
     }
 
-    async _busPhoneMakeForward(phoneNumber) {
-        // Get the CallSid from the current session
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
-        if (!callSid) {
-            console.error('Connect: Cannot forward - no CallSid available')
-            this.notify('Cannot forward: no active call', {type: 'warning'})
-            return
-        }
-
-        try {
-            // Call backend to perform the forward
-            const result = await this.orm.call('connect.call', 'forward_call', [callSid, phoneNumber])
-            if (result.success) {
-                this.notify('Call forwarded', {type: 'info'})
-                // The backend will hang up our leg, so clean up locally
-                this.state.isCallForwarded = true
-                this.bc.postMessage({event: "tbcForward", params: {phoneNumber}})
-            } else {
-                console.error('Connect: Forward failed:', result.error)
-                this.notify(`Forward failed: ${result.error}`, {type: 'warning'})
-            }
-        } catch (e) {
-            console.error('Connect: Error forwarding call:', e)
-            this.notify('Forward failed', {type: 'warning'})
-        }
-
-        this.state.isDialingPanel = true
-        this.state.isForward = false
+    async _busPhoneMakeTransfer({phoneNumber} = {}) {
+        // Show transfer choice dialog (Blind vs Attended)
+        this.state.pendingTransferNumber = phoneNumber
+        this.state.showTransferChoice = true
         this.state.isContacts = false
+        this.state.isTransfer = false
+        this.state.isDialingPanel = true
+        this.state.xTransferTo = phoneNumber
     }
 
-    async _busPhoneMakeTransfer({phoneNumber} = {}) {
+    async _onClickBlindTransfer() {
+        const phoneNumber = this.state.pendingTransferNumber
+        this.state.showTransferChoice = false
+        this.state.pendingTransferNumber = ''
         if (this.session) {
             try {
                 const result = await this.orm.call('connect.transfer_wizard', 'execute_transfer', [
@@ -513,6 +507,96 @@ export class Phone extends Component {
         this.endCall()
     }
 
+    async _onClickAttendedTransfer() {
+        const phoneNumber = this.state.pendingTransferNumber
+        this.state.showTransferChoice = false
+        this.state.pendingTransferNumber = ''
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        try {
+            const result = await this.orm.call('connect.call', 'initiate_attended_transfer', [callSid])
+            if (result.success) {
+                this.state.isAttendedTransfer = true
+                this.state.isOnHold = true
+                this.state.xTransferTo = phoneNumber
+                this.state.xTransferInfo = 'Caller on hold — dial ' + phoneNumber + ' to consult'
+                this.notify('Caller on hold. Dial the consult target.', {type: 'info'})
+            } else {
+                this.notify(result.error || 'Failed to hold caller', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Attended transfer error:', e)
+            this.notify('Failed to initiate attended transfer', {type: 'warning'})
+        }
+    }
+
+    async _onClickCompleteTransfer() {
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const consultTarget = this.state.xTransferTo
+        if (!callSid || !consultTarget) {
+            this.notify('Missing call or transfer target', {type: 'warning'})
+            return
+        }
+        try {
+            const result = await this.orm.call('connect.call', 'complete_attended_transfer', [callSid, consultTarget])
+            if (result.success) {
+                this.notify('Transfer completed', {type: 'success'})
+                this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber: consultTarget}})
+                this.endCall()
+            } else {
+                this.notify(result.error || 'Transfer completion failed', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Complete transfer error:', e)
+            this.notify('Transfer completion failed', {type: 'warning'})
+        }
+    }
+
+    async _onClickCancelTransfer() {
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) return
+        try {
+            const result = await this.orm.call('connect.call', 'cancel_attended_transfer', [callSid])
+            if (result.success) {
+                this.state.isAttendedTransfer = false
+                this.state.isOnHold = false
+                this.state.xTransferTo = ''
+                this.state.xTransferInfo = ''
+                this.notify('Transfer cancelled, caller resumed', {type: 'info'})
+            } else {
+                this.notify(result.error || 'Cancel failed', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Cancel transfer error:', e)
+            this.notify('Cancel transfer failed', {type: 'warning'})
+        }
+    }
+
+    async _busPhoneAddParticipant({phoneNumber} = {}) {
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        try {
+            const result = await this.orm.call('connect.call', 'add_conference_participant', [callSid, phoneNumber])
+            if (result.success) {
+                this.notify('Adding participant...', {type: 'info'})
+            } else {
+                this.notify(result.error || 'Failed to add participant', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Add participant error:', e)
+            this.notify('Failed to add participant', {type: 'warning'})
+        }
+        this.state.isAddParticipant = false
+        this.state.isContacts = false
+        this.state.isDialingPanel = true
+    }
+
     async prepareCall(props) {
         if (!this.state.inCall) {
             this.state.isContactList = false
@@ -530,7 +614,10 @@ export class Phone extends Component {
     async updateToken() {
         try {
             const {token} = await this.orm.call('connect.user', 'get_client_token')
-            if (token) this.userAgent.updateToken(token)
+            if (token) {
+                this.userAgent.updateToken(token)
+                this.token = token
+            }
         } catch (e) {
             console.warn('Connect: Token refresh failed, will retry when tab is active:', e.message)
             this._needsTokenRefresh = true
@@ -573,23 +660,43 @@ export class Phone extends Component {
             console.warn('Connect: Could not set incoming volume (AudioContext may be blocked):', e)
         }
         self.userAgent.on('tokenWillExpire', () => {
-            console.log('tokenWillExpire REFRESH')
+            console.debug('Connect: Token expiring, refreshing')
             self.updateToken().then()
         })
 
+        self.userAgent.on('registered', () => {
+            self.state.connectionStatus = 'ready'
+            self.sipRegistered = true
+            self._updatePresence('available')
+        })
+
+        self.userAgent.on('unregistered', () => {
+            self.state.connectionStatus = 'offline'
+            self.sipRegistered = false
+            self._updatePresence('offline')
+        })
+
         self.userAgent.on('error', (error) => {
-            if (error.name === 'AccessTokenExpired') {
-                console.log('AccessTokenExpired')
+            console.error('Connect: Device error:', error.message || error)
+            self.state.connectionStatus = 'error'
+            self._updatePresence('offline')
+            if (error.code === 31009 || error.code === 31005) {
+                // Transport/connection error — try to re-register after 5 seconds
+                setTimeout(() => {
+                    try {
+                        self.userAgent.register()
+                    } catch (e) {
+                        console.error('Connect: Re-registration failed:', e)
+                    }
+                }, 5000)
+            } else if (error.name === 'AccessTokenExpired') {
                 self.updateToken().then()
             } else if (error.name === 'AccessTokenInvalid') {
-                console.log('AccessTokenInvalid')
                 self.bus.trigger('busTraySetException', {exception: error.name})
             } else if (error.name === 'NotSupportedError') {
                 console.error('Connect: Browser does not support required features:', error.message)
                 self.state.isActive = false
                 self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
-            } else {
-                console.error('Connect: Twilio error:', error)
             }
         })
         let lastTime = (new Date()).getTime()
@@ -612,9 +719,70 @@ export class Phone extends Component {
                 const params = {id: self.id, action: 'push'}
                 self.bc.postMessage({event: 'tbcSipSession', params})
             } else {
-                let isPartner = false
-                let callerId = {phoneNumber}
-                session.reject()
+                // During attended transfer, incoming call may be the consult leg — don't reject
+                if (self.state.isAttendedTransfer) {
+                    self.waitingSession = session
+                    self.state.hasWaitingCall = true
+                    self.state.waitingCallerId = {
+                        phoneNumber,
+                        partnerName: callCallerName || '',
+                        partnerId: callPartnerId !== 'false' ? callPartnerId : false,
+                    }
+                    self.notify('Consult call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
+                    self.bc.postMessage({event: "tbcWaitingCall", params: {
+                        hasWaitingCall: true,
+                        waitingCallerId: {...self.state.waitingCallerId},
+                    }})
+                    return
+                }
+                // Call waiting: store the incoming session instead of rejecting
+                if (self.waitingSession) {
+                    // Already have a waiting call — reject the third one
+                    session.reject()
+                    return
+                }
+                self.waitingSession = session
+                self.state.hasWaitingCall = true
+
+                // Extract caller info for display
+                self.state.waitingCallerId = {
+                    phoneNumber,
+                    partnerName: callCallerName || '',
+                    partnerId: callPartnerId !== 'false' ? callPartnerId : false,
+                }
+
+                // Notify user and sync waiting call state to other tabs
+                self.notify('Incoming call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
+                self.bc.postMessage({event: "tbcWaitingCall", params: {
+                    hasWaitingCall: true,
+                    waitingCallerId: {...self.state.waitingCallerId},
+                }})
+
+                // Set up handlers for the waiting session
+                session.on('cancel', () => {
+                    // Caller hung up before we answered
+                    self.waitingSession = null
+                    self.state.hasWaitingCall = false
+                    self.state.waitingCallerId = {}
+                    self.notify('Waiting call ended', {type: 'info'})
+                    self.bc.postMessage({event: "tbcWaitingCall", params: {
+                        hasWaitingCall: false,
+                        waitingCallerId: {},
+                    }})
+                })
+
+                session.on('disconnect', () => {
+                    if (self.waitingSession === session) {
+                        self.waitingSession = null
+                        self.state.hasWaitingCall = false
+                        self.state.waitingCallerId = {}
+                        self.bc.postMessage({event: "tbcWaitingCall", params: {
+                            hasWaitingCall: false,
+                            waitingCallerId: {},
+                        }})
+                    }
+                })
+
                 return
             }
 
@@ -651,6 +819,7 @@ export class Phone extends Component {
                 self.call_sid = session.parameters?.CallSid || null
                 self.createCallCounter(phoneNumber)
                 self.state.phone_status = self.status.accepted
+                self._updatePresence('on_call')
                 await self.setCallStatus("Answered")
             })
             session.on("disconnect", async function (data) {
@@ -697,9 +866,23 @@ export class Phone extends Component {
             }
         })
 
-        self.userAgent.register().catch(() => {
-            console.warn('Failed to registered device!')
-        })
+        // Register with exponential backoff retry (3 attempts: 2s, 4s, 8s)
+        const registerWithRetry = async (attempt = 0) => {
+            const maxAttempts = 3
+            try {
+                await self.userAgent.register()
+            } catch (e) {
+                if (attempt < maxAttempts - 1) {
+                    const delay = Math.pow(2, attempt + 1) * 1000
+                    console.warn(`Connect: Registration attempt ${attempt + 1} failed, retrying in ${delay}ms`)
+                    setTimeout(() => registerWithRetry(attempt + 1), delay)
+                } else {
+                    console.error('Connect: Registration failed after all retries')
+                    self.notify('Phone registration failed. Try refreshing the page.', {type: 'warning', sticky: true})
+                }
+            }
+        }
+        registerWithRetry()
     }
 
     setIncomingVolume() {
@@ -709,6 +892,15 @@ export class Phone extends Component {
             }
         } catch (e) {
             console.warn('Connect: Could not set incoming volume:', e)
+        }
+    }
+
+    async _updatePresence(status) {
+        try {
+            await this.orm.call('connect.user', 'update_presence', [status])
+        } catch (e) {
+            // Don't let presence failures affect call operations
+            console.warn('Connect: Presence update failed:', e)
         }
     }
 
@@ -742,6 +934,7 @@ export class Phone extends Component {
             self.call_sid = self.session.parameters?.CallSid || null
             self.createCallCounter(phoneNumber)
             self.state.phone_status = self.status.accepted
+            self._updatePresence('on_call')
             await self.setCallStatus("Answered")
             const params = self.getJsonCallData()
             self.bc.postMessage({event: "tbcAnswerCall", params})
@@ -787,6 +980,7 @@ export class Phone extends Component {
     }
 
     async endCall() {
+        this._updatePresence(this.sipRegistered ? 'available' : 'offline')
         this.call_sid = null  // Clear call SID
         this.state.isDisplay = this.state.isDisplayLastState
         this.state.isContactList = false
@@ -797,8 +991,12 @@ export class Phone extends Component {
         this.state.isFavorites = this.lastActiveTab === this.tabs.favorites
         this.state.isCalls = this.lastActiveTab === this.tabs.calls
         this.state.isTransfer = false
-        this.state.isForward = false
-        this.state.isCallForwarded = false
+        this.state.isOnHold = false
+        this.state.holdInProgress = false
+        this.state.isAddParticipant = false
+        this.state.isAttendedTransfer = false
+        this.state.showTransferChoice = false
+        this.state.pendingTransferNumber = ''
         this.state.isMicrophoneMute = false
         this.state.isPartner = false
         this.state.isWhatsapp = false
@@ -819,6 +1017,14 @@ export class Phone extends Component {
         this.state.xTransferTo = ''
         this.state.xTransferInfo = ''
         this.state.xTransferPartner = false
+        // Clear call waiting state
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+        this.heldSession = null
+        this.heldCallSid = null
+        this.heldCallId = null
+        this.heldCallerId = null
     }
 
     _openPartner(id) {
@@ -1056,7 +1262,7 @@ export class Phone extends Component {
         this.state.activeTab = this.tabs.phone
         this.state.isContacts = false
         this.state.isTransfer = false
-        this.state.isForward = false
+        this.state.isAddParticipant = false
         this.state.isCalls = false
         this.state.isKeypad = false
         this.state.isDialingPanel = true
@@ -1066,21 +1272,70 @@ export class Phone extends Component {
         this.state.activeTab = this.tabs.phone
         this.state.isContacts = false
         this.state.isTransfer = false
-        this.state.isForward = false
+        this.state.isAddParticipant = false
         this.state.isCalls = false
         this.state.isKeypad = true
         this.state.isDialingPanel = false
         setFocus(this.phoneInput.el)
     }
 
-    _onClickForward(ev) {
-        if (this.state.isForward) return
+    async _onClickHold(ev) {
+        if (this.state.holdInProgress) return
+        this.state.holdInProgress = true
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) {
+            this.state.holdInProgress = false
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        try {
+            if (this.state.isOnHold) {
+                const result = await this.orm.call('connect.call', 'resume_call', [callSid])
+                if (result.success) {
+                    this.state.isOnHold = false
+                    this._updatePresence('on_call')
+                    this.notify('Call resumed', {type: 'info'})
+                    this.bc.postMessage({event: "tbcHold", params: {isOnHold: false}})
+                } else {
+                    this.notify(result.error || 'Resume failed', {type: 'warning'})
+                }
+            } else {
+                const result = await this.orm.call('connect.call', 'hold_call', [callSid])
+                if (result.success) {
+                    this.state.isOnHold = true
+                    this._updatePresence('on_hold')
+                    this.notify('Call on hold', {type: 'info'})
+                    this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
+                } else {
+                    this.notify(result.error || 'Hold failed', {type: 'warning'})
+                }
+            }
+        } catch (e) {
+            console.error('Hold error:', e)
+            this.notify('Hold operation failed', {type: 'warning'})
+        } finally {
+            this.state.holdInProgress = false
+        }
+    }
+
+    _onClickTransfer(ev) {
+        if (this.state.isTransfer) return
+        this.state.isAddParticipant = false
+        this.state.isKeypad = false
+        this.state.isDialingPanel = false
+        this.state.isTransfer = true
+        this.state.isContacts = true
+        this.bus.trigger('busContactSetState', {isTransfer: true, isContactMode: true})
+    }
+
+    _onClickAddParticipant(ev) {
+        if (this.state.isAddParticipant) return
         this.state.isTransfer = false
         this.state.isKeypad = false
         this.state.isDialingPanel = false
-        this.state.isForward = true
+        this.state.isAddParticipant = true
         this.state.isContacts = true
-        this.bus.trigger('busContactSetState', {isForward: true, isContactMode: true})
+        this.bus.trigger('busContactSetState', {isAddParticipant: true, isContactMode: true})
     }
 
     _onClickMicrophoneMute(ev) {
@@ -1138,6 +1393,48 @@ export class Phone extends Component {
         if (this.lastActiveTab === this.tabs.phone) {
             setFocus(this.phoneInput.el)
         }
+    }
+
+    async _onClickAcceptWaiting() {
+        if (!this.waitingSession) return
+
+        // Put current call on hold first
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (callSid) {
+            try {
+                await this.orm.call('connect.call', 'hold_call', [callSid])
+                this.state.isOnHold = true
+            } catch (e) {
+                console.error('Connect: Failed to hold current call:', e)
+            }
+        }
+
+        // Store current session info for potential swap-back
+        this.heldSession = this.session
+        this.heldCallSid = this.call_sid
+        this.heldCallId = this.call_id
+        this.heldCallerId = {...this.state.callerId}
+
+        // Accept the waiting call
+        this.session = this.waitingSession
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+
+        this.session.accept()
+        this.state.phone_status = this.status.accepted
+        this.state.inIncoming = false
+        this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
+        this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
+    }
+
+    _onClickRejectWaiting() {
+        if (!this.waitingSession) return
+        this.waitingSession.reject()
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+        this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
     }
 
     // Hide phone entirely (to systray)
@@ -1209,13 +1506,6 @@ export class Phone extends Component {
             type: 'ir.actions.act_window',
             views: [[false, 'form']],
         })
-    }
-
-    _cancelForward() {
-        // With the new forward implementation, cancel is no longer possible
-        // once forward is initiated - the user's leg is disconnected
-        this.state.isCallForwarded = false
-        this.bc.postMessage({event: "tbcCancelForward"})
     }
 
     // Collapse to floating phone icon at the minimize button's position

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Graph View: Call Volume -->
+    <record id="connect_call_graph_view" model="ir.ui.view">
+        <field name="name">connect.call.graph</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <graph string="Call Analytics" type="bar" sample="1">
+                <field name="create_date" interval="day"/>
+                <field name="direction" type="col"/>
+                <field name="id" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Pivot View: Detailed Analysis -->
+    <record id="connect_call_pivot_view" model="ir.ui.view">
+        <field name="name">connect.call.pivot</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <pivot string="Call Analysis" sample="1">
+                <field name="direction" type="col"/>
+                <field name="call_result" type="row"/>
+                <field name="id" type="measure"/>
+                <field name="duration" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Dashboard Action -->
+    <record id="connect_call_analytics_action" model="ir.actions.act_window">
+        <field name="name">Call Analytics</field>
+        <field name="res_model">connect.call</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('connect_call_graph_view')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('connect_call_pivot_view')}),
+        ]"/>
+        <field name="search_view_id" ref="connect_call_analytics_search"/>
+        <field name="context">{'search_default_filter_month': 1}</field>
+    </record>
+
+    <!-- Search View with analytics filters -->
+    <record id="connect_call_analytics_search" model="ir.ui.view">
+        <field name="name">connect.call.analytics.search</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <search string="Call Analytics">
+                <field name="caller"/>
+                <field name="called"/>
+                <field name="partner"/>
+                <field name="answered_user"/>
+                <field name="direction"/>
+                <field name="call_result"/>
+                <filter name="filter_today" string="Today"
+                        domain="[('create_date', '>=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_week" string="This Week"
+                        domain="[('create_date', '>=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_month" string="This Month"
+                        domain="[('create_date', '>=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <filter name="filter_incoming" string="Incoming"
+                        domain="[('direction', '=', 'incoming')]"/>
+                <filter name="filter_outgoing" string="Outgoing"
+                        domain="[('direction', '=', 'outgoing')]"/>
+                <separator/>
+                <filter name="filter_missed" string="Missed"
+                        domain="[('is_missed', '=', True)]"/>
+                <filter name="filter_answered" string="Answered"
+                        domain="[('call_result', '=', 'answered')]"/>
+                <filter name="filter_voicemail" string="Voicemail"
+                        domain="[('call_result', '=', 'voicemail')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_direction" string="Direction"
+                            context="{'group_by': 'direction'}"/>
+                    <filter name="group_result" string="Result"
+                            context="{'group_by': 'call_result'}"/>
+                    <filter name="group_user" string="Answered By"
+                            context="{'group_by': 'answered_user'}"/>
+                    <filter name="group_day" string="Day"
+                            context="{'group_by': 'create_date:day'}"/>
+                    <filter name="group_week" string="Week"
+                            context="{'group_by': 'create_date:week'}"/>
+                    <filter name="group_month" string="Month"
+                            context="{'group_by': 'create_date:month'}"/>
+                    <filter name="group_hour" string="Hour of Day"
+                            context="{'group_by': 'hour_of_day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Menu item under Reports -->
+    <menuitem id="connect_call_analytics_menu"
+              parent="connect.connect_reports_menu"
+              name="Call Analytics"
+              action="connect_call_analytics_action"
+              sequence="10"
+              groups="connect.group_connect_admin"/>
+
+</odoo>

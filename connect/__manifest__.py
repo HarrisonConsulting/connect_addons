@@ -40,6 +40,7 @@
         'views/debug.xml',
         'views/exten.xml',
         'views/call.xml',
+        'views/call_analytics.xml',
         'views/park_slot.xml',
         'views/callflow.xml',
         'views/channel.xml',

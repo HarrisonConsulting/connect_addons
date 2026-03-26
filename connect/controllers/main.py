@@ -36,18 +36,24 @@ class ConnectController(http.Controller):
 
     @http.route('/connect/recording/<int:record_id>', type='http', auth='user')
     def serve_recording(self, record_id):
-        # Access the recording as logged in user.
         recording = http.request.env['connect.recording'].browse(record_id)
         if not recording.exists() or not recording.media_url:
             return http.Response(status=404)
+        # ACL: user must be a connect user or admin
+        if not http.request.env.user.has_group('connect.group_connect_user') and \
+                not http.request.env.user.has_group('connect.group_connect_admin'):
+            return http.Response(status=403)
         return self._serve_media(recording.media_url)
 
     @http.route('/connect/voicemail/<int:record_id>', type='http', auth='user')
     def serve_voicemail(self, record_id):
-        # Access the recording as logged in user.
         call = http.request.env['connect.call'].browse(record_id)
         if not call.exists() or not call.voicemail_url:
             return http.Response(status=404)
+        # ACL: user must be a connect user or admin
+        if not http.request.env.user.has_group('connect.group_connect_user') and \
+                not http.request.env.user.has_group('connect.group_connect_admin'):
+            return http.Response(status=403)
         return self._serve_media(call.voicemail_url)
 
     def _serve_media(self, media_url):

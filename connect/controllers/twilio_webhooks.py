@@ -58,7 +58,7 @@ class ConnectController(Controller):
             return f'{res}'
         except Exception:
             logger.exception('callstatus_webhook failed for CallSid=%s', kw.get('CallSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'
 
     @route('/twilio/webhook/number', methods=['POST'], type='http', auth='public', csrf=False)
     def number_webhook(self, **kw):
@@ -82,7 +82,7 @@ class ConnectController(Controller):
             return f'{res}'
         except Exception:
             logger.exception('outgoing_callerid_webhook failed')
-            return Response("Internal error", status=500)
+            return '<Response/>'
 
     @route('/twilio/webhook/callflow/<int:flow_id>/gather', methods=['POST'], type='http', auth='public', csrf=False)
     def gather_webhook(self, flow_id, **kw):
@@ -106,12 +106,20 @@ class ConnectController(Controller):
             return f'{res}'
         except Exception:
             logger.exception('vm_recording_status_webhook failed for CallSid=%s', kw.get('CallSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'
+
+    ALLOWED_CALL_ACTION_MODELS = frozenset([
+        'connect.callflow', 'connect.user', 'connect.twiml',
+        'connect.number', 'connect.domain',
+    ])
 
     @route('/twilio/webhook/<string:model_name>/call_action/<int:record_id>', methods=['POST'], type='http', auth='public', csrf=False)
     def call_action_edit_webhook(self, model_name, record_id, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        if model_name not in self.ALLOWED_CALL_ACTION_MODELS:
+            logger.error('call_action_edit_webhook: rejected disallowed model %s', model_name)
+            return '<Response><Hangup/></Response>'
         try:
             model = request.env[model_name].with_user(request.env.ref("connect.user_connect_webhook"))
             res = model.on_call_action(record_id, kw)
@@ -130,7 +138,7 @@ class ConnectController(Controller):
             return f'{res}'
         except Exception:
             logger.exception('recording_status_webhook failed for RecordingSid=%s', kw.get('RecordingSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'
 
     @route('/twilio/webhook/callaction', methods=['POST'], type='http', auth='public', csrf=False)
     def call_action_webhook(self, **kw):
@@ -166,7 +174,7 @@ class ConnectController(Controller):
             return f'{res}'
         except Exception:
             logger.exception('message_webhook failed for MessageSid=%s', kw.get('MessageSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'
 
     @route('/twilio/webhook/message_status', methods=['POST'], type='http', auth='public', csrf=False)
     def message_status_webhook(self, **kw):
@@ -177,7 +185,7 @@ class ConnectController(Controller):
             return 'OK'
         except Exception:
             logger.exception('message_status_webhook failed for MessageSid=%s', kw.get('MessageSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'
 
     @route('/twilio/webhook/whatsapp_message_status', methods=['POST'], type='http', auth='public', csrf=False)
     def whatsapp_message_status_webhook(self, **kw):
@@ -188,7 +196,7 @@ class ConnectController(Controller):
             return 'OK'
         except Exception:
             logger.exception('whatsapp_message_status_webhook failed for MessageSid=%s', kw.get('MessageSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'
 
     @route('/twilio/webhook/transfer_continuation', methods=['POST'], type='http', auth='public', csrf=False)
     def transfer_continuation_webhook(self, **kw):
@@ -213,4 +221,4 @@ class ConnectController(Controller):
             return f'{res}'
         except Exception:
             logger.exception('conference_event_webhook failed for ConferenceSid=%s', kw.get('ConferenceSid'))
-            return Response("Internal error", status=500)
+            return '<Response/>'

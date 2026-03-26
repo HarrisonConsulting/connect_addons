@@ -168,8 +168,12 @@ class Channel(models.Model):
                     data['parent_channel'] = parent_channel.id
                 elif params.get('ParentCallSid'):
                     parent_channel = self.search([('sid', '=', params.get('ParentCallSid'))])
-                    data['parent_channel'] = parent_channel.id
-                    data['parent_sid'] = parent_channel.parent_channel.sid
+                    if parent_channel:
+                        data['parent_channel'] = parent_channel.id
+                        if parent_channel.parent_channel:
+                            data['parent_sid'] = parent_channel.parent_channel.sid
+                        else:
+                            data['parent_sid'] = parent_channel.sid
             channel.write(data)
             debug(self, 'Channel %s updated.' % channel.id)
 
@@ -195,12 +199,16 @@ class Channel(models.Model):
             # Check if channel has parent_sid without channel
             if channel.parent_sid:
                 parent_channel = self.search([('sid', '=', channel.parent_sid)])
-                data['parent_channel'] = parent_channel.id
+                if parent_channel:
+                    data['parent_channel'] = parent_channel.id
             elif params.get('ParentCallSid'):
                 parent_channel = self.search([('sid', '=', params.get('ParentCallSid'))])
                 if parent_channel:
                     data['parent_channel'] = parent_channel.id
-                    data['parent_sid'] = parent_channel.parent_channel.sid
+                    if parent_channel.parent_channel:
+                        data['parent_sid'] = parent_channel.parent_channel.sid
+                    else:
+                        data['parent_sid'] = parent_channel.sid
                 else:
                     logger.warning(f"NEW CHANNEL: ParentCallSid {params.get('ParentCallSid')} not found in existing channels!")
             # Find caller user

@@ -3,9 +3,8 @@
 {
     'name': 'Connect',
     'version': '1.2.3',
-    'author': 'Harrison Consulting, LLC',
-    'maintainer': 'Harrison Consulting, LLC',
-    'website': 'https://www.harrison.consulting',
+    'author': 'Oduist',
+    'maintainer': 'Oduist',
     'price': 0,
     'currency': 'EUR',
     'support': 'support@oduist.com',

@@ -617,6 +617,14 @@ export class Phone extends Component {
             if (token) {
                 this.userAgent.updateToken(token)
                 this.token = token
+                // Re-register after token update to ensure device stays connected
+                if (this.userAgent.state !== 'destroyed') {
+                    try {
+                        this.userAgent.register()
+                    } catch (regErr) {
+                        console.warn('Connect: Re-registration after token refresh failed:', regErr.message)
+                    }
+                }
             }
         } catch (e) {
             console.warn('Connect: Token refresh failed, will retry when tab is active:', e.message)

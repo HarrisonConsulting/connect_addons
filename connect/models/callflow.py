@@ -51,10 +51,72 @@ class CallFlow(models.Model):
     voicemail_prompt = fields.Text()
     voicemail_enabled = fields.Boolean()
     # fallback_extension
+    business_hours_enabled = fields.Boolean(
+        string='Enable Business Hours', default=False,
+        help='Route calls differently outside business hours')
+    business_hours_start = fields.Float(
+        string='Business Hours Start', default=9.0,
+        help='Start of business hours (24h format, e.g., 9.0 = 9:00 AM)')
+    business_hours_end = fields.Float(
+        string='Business Hours End', default=17.0,
+        help='End of business hours (24h format, e.g., 17.0 = 5:00 PM)')
+    business_hours_timezone = fields.Selection(
+        '_tz_get', string='Timezone', default='US/Eastern',
+        help='Timezone for business hours calculation')
+    after_hours_message = fields.Text(
+        string='After Hours Message',
+        default='Thank you for calling. Our office is currently closed.',
+        help='Message played outside business hours')
+    after_hours_voicemail = fields.Boolean(
+        string='After Hours Voicemail', default=True,
+        help='Allow voicemail after hours message')
 
     def create_extension(self):
         self.ensure_one()
         return self.env['connect.exten'].create_extension(self, 'callflow')
+
+    @api.model
+    def _tz_get(self):
+        import pytz
+        return [(tz, tz) for tz in sorted(pytz.all_timezones_set)]
+
+    def _is_business_hours(self):
+        """Check if current time is within configured business hours."""
+        self.ensure_one()
+        if not self.business_hours_enabled:
+            return True  # No hours configured = always open
+
+        import pytz
+        from datetime import datetime
+
+        tz = pytz.timezone(self.business_hours_timezone or 'UTC')
+        now = datetime.now(tz)
+        current_hour = now.hour + now.minute / 60.0
+
+        # Handle overnight hours (e.g., 22:00 - 06:00)
+        if self.business_hours_start <= self.business_hours_end:
+            return self.business_hours_start <= current_hour < self.business_hours_end
+        else:
+            return current_hour >= self.business_hours_start or current_hour < self.business_hours_end
+
+    def _render_after_hours(self):
+        """Render TwiML for after-hours calls."""
+        self.ensure_one()
+        response = VoiceResponse()
+
+        if self.after_hours_message:
+            self.tts_say(response, self.after_hours_message,
+                         language=self.language, voice=self.voice)
+
+        if self.after_hours_voicemail:
+            self.tts_say(response, 'Please leave a message after the tone.',
+                         language=self.language, voice=self.voice)
+            response.record(maxLength=120, finishOnKey='#', playBeep=True)
+        else:
+            response.hangup()
+
+        debug(self, pretty_xml(str(response)))
+        return response
 
     def _get_gather_action_url(self):
         api_url = self.env['connect.settings'].get_param('api_url')
@@ -78,6 +140,9 @@ class CallFlow(models.Model):
 
     def render(self, request={}, params={}):
         self.ensure_one()
+        # Check business hours
+        if not self._is_business_hours():
+            return self._render_after_hours()
         api_url = self.env['connect.settings'].sudo().get_param('api_url')
         edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
         voicemail_record_status_url = urljoin(api_url,

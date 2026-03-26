@@ -72,6 +72,24 @@
                             <field name="exten_number"/>
                         </group>
                     </group>
+                    <separator string="Business Hours"/>
+                    <group>
+                        <group>
+                            <field name="business_hours_enabled"/>
+                            <field name="business_hours_start" widget="float_time"
+                                invisible="not business_hours_enabled"/>
+                            <field name="business_hours_end" widget="float_time"
+                                invisible="not business_hours_enabled"/>
+                            <field name="business_hours_timezone"
+                                invisible="not business_hours_enabled"/>
+                        </group>
+                        <group>
+                            <field name="after_hours_message"
+                                invisible="not business_hours_enabled"/>
+                            <field name="after_hours_voicemail"
+                                invisible="not business_hours_enabled"/>
+                        </group>
+                    </group>
                 </sheet>
             </form>
         </field>

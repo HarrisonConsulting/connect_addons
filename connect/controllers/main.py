@@ -66,82 +66,104 @@ class ConnectController(http.Controller):
     @http.route('/connect/<string:extension_number>', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
     def extension_handler(self, extension_number, **kw):
         """Handle extension calls via direct URL"""
-        exten = http.request.env['connect.exten'].sudo().search([('number', '=', extension_number)])
-        if not exten:
-            return '<Response><Say>Extension not found. Goodbye!</Say></Response>'
-        return exten.render(request=kw, params=kw)
+        try:
+            exten = http.request.env['connect.exten'].sudo().search([('number', '=', extension_number)])
+            if not exten:
+                return http.Response(
+                    '<Response><Say>Extension not found. Goodbye!</Say><Hangup/></Response>',
+                    content_type='text/xml',
+                )
+            result = exten.render(request=kw, params=kw)
+            return http.Response(f'{result}', content_type='text/xml')
+        except Exception:
+            logger.exception('extension_handler failed for extension=%s', extension_number)
+            return http.Response(
+                '<Response><Say>A system error occurred. Please try again later.</Say><Hangup/></Response>',
+                content_type='text/xml',
+            )
 
     @http.route('/connect/dial_complete', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
     def dial_complete_handler(self, **kw):
         """Handle Dial action completion for transfer redirects and update call completion fields"""
-        from twilio.twiml.voice_response import VoiceResponse
-
-        dial_status = kw.get('DialCallStatus')
-        dial_call_sid = kw.get('DialCallSid')
-        original_call_sid = kw.get('CallSid')
-
         try:
-            self._process_extension_redirect_completion(kw)
-        except Exception as e:
-            logger.error(f'Failed to process transfer completion: {e}', exc_info=True)
+            from twilio.twiml.voice_response import VoiceResponse
 
-        response = VoiceResponse()
+            dial_status = kw.get('DialCallStatus')
+            dial_call_sid = kw.get('DialCallSid')
+            original_call_sid = kw.get('CallSid')
 
-        if dial_status == 'completed':
-            response.hangup()
-        else:
             try:
-                original_call = self._find_original_call_for_redirect_completion(original_call_sid, dial_call_sid)
-                if original_call:
-                    transfer_recipient = None
+                self._process_extension_redirect_completion(kw)
+            except Exception as e:
+                logger.error(f'Failed to process transfer completion: {e}', exc_info=True)
 
-                    if original_call_sid:
-                        transfer_recipient = original_call.get_transfer_target(original_call_sid)
+            response = VoiceResponse()
 
-                    if not transfer_recipient and dial_call_sid:
-                        transfer_recipient = original_call.get_transfer_target(dial_call_sid)
+            if dial_status == 'completed':
+                response.hangup()
+            else:
+                try:
+                    original_call = self._find_original_call_for_redirect_completion(original_call_sid, dial_call_sid)
+                    if original_call:
+                        transfer_recipient = None
 
-                    if not transfer_recipient:
-                        parent_call_sid = kw.get('ParentCallSid')
-                        if parent_call_sid:
-                            transfer_recipient = original_call.get_transfer_target(parent_call_sid)
+                        if original_call_sid:
+                            transfer_recipient = original_call.get_transfer_target(original_call_sid)
 
-                    if not transfer_recipient and original_call.transferred_users:
-                        transfer_recipient = original_call.transferred_users[-1]
+                        if not transfer_recipient and dial_call_sid:
+                            transfer_recipient = original_call.get_transfer_target(dial_call_sid)
 
-                    if transfer_recipient:
-                        pbx_user = http.request.env['connect.user'].sudo().search([
-                            ('user', '=', transfer_recipient.id)
-                        ], limit=1)
+                        if not transfer_recipient:
+                            parent_call_sid = kw.get('ParentCallSid')
+                            if parent_call_sid:
+                                transfer_recipient = original_call.get_transfer_target(parent_call_sid)
 
-                        if pbx_user and pbx_user.voicemail_enabled and pbx_user.voicemail_prompt:
-                            personalized_prompt = pbx_user.render_voicemail_prompt()
-                            system_voice = http.request.env['connect.settings'].get_system_voice()
-                            processed_text = http.request.env['connect.settings'].process_pronunciation(personalized_prompt)
-                            response.say(processed_text, voice=system_voice)
+                        if not transfer_recipient and original_call.transferred_users:
+                            transfer_recipient = original_call.transferred_users[-1]
+                            logger.warning(
+                                'Using last transferred_users entry as fallback for voicemail lookup on call %s',
+                                original_call.id,
+                            )
+
+                        if transfer_recipient:
+                            pbx_user = http.request.env['connect.user'].sudo().search([
+                                ('user', '=', transfer_recipient.id)
+                            ], limit=1)
+
+                            if pbx_user and pbx_user.voicemail_enabled and pbx_user.voicemail_prompt:
+                                personalized_prompt = pbx_user.render_voicemail_prompt()
+                                system_voice = http.request.env['connect.settings'].get_system_voice()
+                                processed_text = http.request.env['connect.settings'].process_pronunciation(personalized_prompt)
+                                response.say(processed_text, voice=system_voice)
+                            else:
+                                system_voice = http.request.env['connect.settings'].get_system_voice()
+                                processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')
+                                response.say(processed_text, voice=system_voice)
                         else:
+                            logger.warning(f'Could not find transfer recipient for personalized voicemail')
                             system_voice = http.request.env['connect.settings'].get_system_voice()
                             processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')
                             response.say(processed_text, voice=system_voice)
                     else:
-                        logger.warning(f'Could not find transfer recipient for personalized voicemail')
+                        logger.warning(f'Could not find original call for personalized voicemail')
                         system_voice = http.request.env['connect.settings'].get_system_voice()
                         processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')
                         response.say(processed_text, voice=system_voice)
-                else:
-                    logger.warning(f'Could not find original call for personalized voicemail')
+                except Exception as e:
+                    logger.error(f'Error setting up personalized voicemail: {e}')
                     system_voice = http.request.env['connect.settings'].get_system_voice()
                     processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')
                     response.say(processed_text, voice=system_voice)
-            except Exception as e:
-                logger.error(f'Error setting up personalized voicemail: {e}')
-                system_voice = http.request.env['connect.settings'].get_system_voice()
-                processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')
-                response.say(processed_text, voice=system_voice)
 
-            response.record(maxLength=120, finishOnKey='#', playBeep=True)
+                response.record(maxLength=120, finishOnKey='#', playBeep=True)
 
-        return response.to_xml()
+            return http.Response(response.to_xml(), content_type='text/xml')
+        except Exception:
+            logger.exception('dial_complete_handler failed for CallSid=%s', kw.get('CallSid'))
+            return http.Response(
+                '<Response><Say>A system error occurred. Please try again later.</Say><Hangup/></Response>',
+                content_type='text/xml',
+            )
 
     def _process_extension_redirect_completion(self, webhook_params):
         """
@@ -172,9 +194,13 @@ class ConnectController(http.Controller):
 
         if not transfer_recipient and original_call.transferred_users:
             transfer_recipient = original_call.transferred_users[-1]
+            logger.warning(
+                'Using last transferred_users entry as fallback for call %s - this is a heuristic and may be wrong',
+                original_call.id,
+            )
 
         if not transfer_recipient:
-            logger.warning(f'Could not find transfer recipient for completion processing - no transferred_users found')
+            logger.warning('Could not find transfer recipient for completion processing - no transferred_users found')
             return
 
         if dial_call_status == 'completed':
@@ -189,6 +215,11 @@ class ConnectController(http.Controller):
         Call = http.request.env['connect.call'].sudo()
         cutoff = fields.Datetime.now() - timedelta(minutes=5)
 
+        logger.debug(
+            'Looking up original call for redirect completion: original_call_sid=%s dial_call_sid=%s',
+            original_call_sid, dial_call_sid,
+        )
+
         recent_calls = Call.search([
             ('transfer_context', '!=', False),
             ('create_date', '>=', cutoff),
@@ -199,7 +230,16 @@ class ConnectController(http.Controller):
                 context_str = str(call.transfer_context)
                 if ((original_call_sid and original_call_sid in context_str) or
                     (dial_call_sid and dial_call_sid in context_str)):
+                    logger.info(
+                        'Found original call %s via transfer_context match (original_sid=%s, dial_sid=%s)',
+                        call.id, original_call_sid, dial_call_sid,
+                    )
                     return call
+
+        logger.info(
+            'No transfer_context match found among %d recent calls, falling back to active transfer search',
+            len(recent_calls),
+        )
 
         # Fallback: find recent calls with transfers still in progress
         recent_transfers = Call.search([
@@ -209,8 +249,17 @@ class ConnectController(http.Controller):
         ], limit=5)
 
         if recent_transfers:
+            logger.warning(
+                'Using heuristic fallback: returning call %s (first of %d active transfers). '
+                'This may be incorrect if multiple transfers are in progress.',
+                recent_transfers[0].id, len(recent_transfers),
+            )
             return recent_transfers[0]
 
+        logger.warning(
+            'No original call found for redirect completion (original_sid=%s, dial_sid=%s)',
+            original_call_sid, dial_call_sid,
+        )
         return None
 
     def _create_or_update_transfer_channel(self, call, dial_call_sid, transfer_recipient, status, webhook_params):

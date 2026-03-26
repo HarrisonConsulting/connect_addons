@@ -65,27 +65,17 @@
                             <img alt="Avatar" class="o_partner_avatar" t-if="state.callerId.partnerId" t-att-src="state.callerId.partnerIconUrl"/>
                             <span class="o_partner_name"><t t-out="state.callerId.partnerName"/></span>
                             <span class="o_partner_name"><i t-if="state.isWhatsapp" class="fa fa-whatsapp custom-whatsapp"/><t t-out="state.callerId.phoneNumber"/></span>
-                            <span class="o_partner_name"><t t-out="state.callDurationTime"/></span>
-                        </div>
-                        <div t-if="state.isCallForwarded" class="text-center mt-1" title="Cancel Forward">
-                            <button class="btn p-3 border rounded-circle" t-on-click="_cancelForward">
-                                <i aria-label="Customer" class="fa fa-fw fa-lg icon-enlarge2"/>
-                            </button>
+                            <span class="o_partner_name"><t t-out="state.callDurationTime"/><span t-if="state.isOnHold" class="badge bg-warning text-dark ms-1">ON HOLD</span></span>
                         </div>
                     </t>
                     <t t-else="">
                         <img t-if="state.callerId.partnerId" alt="Avatar" class="o_partner_avatar" t-att-src="state.callerId.partnerIconUrl"/>
                         <span t-if="state.callerId.partnerId" class="o_partner_name"><t t-out="state.callerId.partnerName"/></span>
                         <span class="o_partner_name"><t t-out="state.callerId.phoneNumber"/></span>
-                        <span class="o_partner_name"><t t-out="state.callDurationTime"/></span>
+                        <span class="o_partner_name"><t t-out="state.callDurationTime"/><span t-if="state.isOnHold" class="badge bg-warning text-dark ms-1">ON HOLD</span></span>
                         <div class="text-center" title="Customer">
                             <button class="btn p-3 border rounded-circle" t-on-click="_createPartner">
                                 <i aria-label="Customer" class="fa fa-fw fa-lg fa-user-plus"/>
-                            </button>
-                        </div>
-                        <div t-if="state.isCallForwarded" class="text-center mt-1" title="Cancel Forward">
-                            <button class="btn p-3 border rounded-circle" t-on-click="_cancelForward">
-                                <i aria-label="Customer" class="fa fa-fw fa-lg icon-enlarge2"/>
                             </button>
                         </div>
                     </t>
@@ -99,11 +89,28 @@
                         <span class="o_partner_name"><i class="fa fa-arrow-down"/></span>
                         <span class="o_partner_name"><t t-out="state.xTransferInfo"/></span>
                     </div>
+                    <!--Transfer choice dialog: Blind vs Attended-->
+                    <div t-if="state.showTransferChoice and !state.isAttendedTransfer" class="text-center mt-2">
+                        <span class="o_partner_name">Transfer to <t t-out="state.xTransferTo"/></span>
+                        <div class="d-flex justify-content-center gap-2 mt-2">
+                            <button class="btn btn-sm btn-primary" t-on-click="_onClickBlindTransfer">Blind</button>
+                            <button class="btn btn-sm btn-outline-primary" t-on-click="_onClickAttendedTransfer">Attended</button>
+                        </div>
+                    </div>
+                    <!--Attended transfer controls: Complete or Cancel-->
+                    <div t-if="state.isAttendedTransfer" class="text-center mt-2">
+                        <button class="btn btn-sm btn-success" t-on-click="_onClickCompleteTransfer">
+                            <i class="fa fa-check"/> Complete Transfer
+                        </button>
+                        <button class="btn btn-sm btn-danger ms-2" t-on-click="_onClickCancelTransfer">
+                            <i class="fa fa-times"/> Cancel
+                        </button>
+                    </div>
                 </div>
             </div>
             <!--Contacts-->
             <div t-attf-class="{{ state.isContacts || state.isContactList ? '' : 'o_hide' }} o_body_phone">
-                <Contacts bus="bus" isTransfer="state.isTransfer" isForward="state.isForward"/>
+                <Contacts bus="bus" isTransfer="state.isTransfer" isAddParticipant="state.isAddParticipant"/>
             </div>
             <!--Favorites-->
             <div t-attf-class="{{ state.isFavorites ? '' : 'o_hide' }} o_body_phone">
@@ -116,6 +123,18 @@
 
 
             <div class="mt-auto">
+                <!--Call waiting notification-->
+                <div t-if="state.hasWaitingCall" class="o_dial_panel o_call_waiting_panel text-center p-2">
+                    <span class="small">Incoming: <t t-out="state.waitingCallerId.partnerName || state.waitingCallerId.phoneNumber"/></span>
+                    <div class="d-flex justify-content-center gap-2 mt-1">
+                        <button class="btn btn-sm btn-success" t-on-click="_onClickAcceptWaiting" title="Accept waiting call">
+                            <i class="fa fa-phone"/>
+                        </button>
+                        <button class="btn btn-sm btn-danger" t-on-click="_onClickRejectWaiting" title="Reject waiting call">
+                            <i class="fa fa-phone" style="transform: rotate(135deg)"/>
+                        </button>
+                    </div>
+                </div>
                 <!--Optional call buttons-->
                 <div t-attf-class="{{ state.isKeypad or state.inCall or state.inIncoming ? '' : 'o_hide' }} o_dial_panel o_optional_dial_panel_position flex-container">
                     <button t-if="state.phone_status === status.accepted" aria-label="Call" t-attf-class="flex-item {{ state.isDialingPanel ? 'active' : '' }}" title="Call" t-on-click="_onClickDialingPanel">
@@ -124,8 +143,14 @@
                     <button t-if="state.phone_status === status.accepted" aria-label="DTMF" t-attf-class="flex-item {{ state.isKeypad ? 'active' : '' }}" title="DTMF" t-on-click="_onClickKeypad">
                         <i class="icon-dialpad fa"/>
                     </button>
-                    <button t-if="state.phone_status === status.accepted" aria-label="Forward" t-attf-class="flex-item {{ state.isForward ? 'active' : '' }}" title="Forward" t-on-click="_onClickForward">
-                        <i class="fa fa-exchange"/>
+                    <button t-if="state.phone_status === status.accepted" aria-label="Hold" t-attf-class="flex-item {{ state.isOnHold ? 'hold' : '' }}" t-attf-title="{{ state.isOnHold ? 'Resume' : 'Hold' }}" t-on-click="_onClickHold">
+                        <i t-attf-class="fa {{ state.isOnHold ? 'fa-play' : 'fa-pause' }}"/>
+                    </button>
+                    <button t-if="state.phone_status === status.accepted" aria-label="Transfer" t-attf-class="flex-item {{ state.isTransfer ? 'active' : '' }}" title="Transfer" t-on-click="_onClickTransfer">
+                        <i class="fa fa-share"/>
+                    </button>
+                    <button t-if="state.phone_status === status.accepted" aria-label="Add Participant" t-attf-class="flex-item {{ state.isAddParticipant ? 'active' : '' }}" title="Add Participant" t-on-click="_onClickAddParticipant">
+                        <i class="fa fa-user-plus"/>
                     </button>
                     <button t-if="state.phone_status !== status.accepted" aria-label="Mute Sound" class="flex-item" t-attf-title="{{ state.isSoundMute ? 'Unmute Sound' : 'Mute Sound' }}" t-on-click="_onClickSoundMute">
                         <i t-attf-class="fa {{ state.isSoundMute ? 'icon-volume_off' : 'icon-volume_up'}}"/>

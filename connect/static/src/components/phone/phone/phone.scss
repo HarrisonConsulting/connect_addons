@@ -514,6 +514,17 @@
   .o_optional_dial_panel_position {
     border-top: none;
     border-bottom: 1px solid var(--Phone-border);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+
+    button {
+      padding: 4px 6px;
+      min-width: 0;
+
+      i, .fa {
+        font-size: 14px;
+      }
+    }
   }
 
   // ==========================================================================

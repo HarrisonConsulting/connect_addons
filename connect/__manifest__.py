@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.2.3',
+    'version': '1.6.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -40,6 +40,7 @@
         'views/debug.xml',
         'views/exten.xml',
         'views/call.xml',
+        'views/park_slot.xml',
         'views/callflow.xml',
         'views/channel.xml',
         'views/outgoing_callerid.xml',

@@ -21,3 +21,4 @@ from . import user
 from . import documentation
 from . import whatsapp_sender
 from . import message_content_template
+from . import park_slot

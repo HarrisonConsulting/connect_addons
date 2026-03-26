@@ -1,6 +1,6 @@
 phonenumbers
 twilio
-elevenlabs
+elevenlabs>=2.0.0
 openai
 
 # For Odoo 18.0 official docker image:

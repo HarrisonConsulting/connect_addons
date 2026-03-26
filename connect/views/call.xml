@@ -62,6 +62,9 @@
                     <button name="action_transcribe" type="object" string="Transcribe"
                             icon="fa-microphone"
                             invisible="not recording and not voicemail_url"/>
+                    <button name="action_summarize" type="object" string="Summarize"
+                            icon="fa-magic"
+                            invisible="not recording and not voicemail_url"/>
                     <button string="Partner" name="create_partner_button" type="object" class="btn-primary" icon='fa-user'
                             invisible="not partner"/>
                     <button string="Partner" name="create_partner_button" type="object" class="btn-primary" icon='fa-user-plus'
@@ -119,6 +122,11 @@
                                     <field name="recording"/>
                                 </group>
                             </group>
+                            <div class="alert alert-danger" role="alert"
+                                 invisible="not transcription_error">
+                                <strong>Transcription Error:</strong>
+                                <field name="transcription_error" nolabel="1"/>
+                            </div>
                             <group>
                                 <field name="transcript"
                                     invisible="not transcript"/>

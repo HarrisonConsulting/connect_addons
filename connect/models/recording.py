@@ -112,37 +112,38 @@ class Recording(models.Model):
         """Return completion/summary model name. Override to make configurable."""
         return os.environ.get('OPENAI_COMPLETION_MODEL', 'gpt-4o')
 
+    def _download_recording_audio(self):
+        """Download recording audio to a temporary file. Returns path or None."""
+        if not self.media_url:
+            return None
+        account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
+        auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+        response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token))
+        response.raise_for_status()
+        with NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    temp_file.write(chunk)
+            return temp_file.name
+
     def transcribe_recording(self, openai_api_key, summary_prompt):
         result = {}
         temp_file_path = None
         try:
             client = self.env['connect.settings'].get_openai_client()
-            account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-            auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
-            response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token))
-            response.raise_for_status()
-            with NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        temp_file.write(chunk)
-                temp_file_path = temp_file.name
+            temp_file_path = self._download_recording_audio()
+            if not temp_file_path:
+                result['transcription_error'] = 'Recording media not available'
+                return
             file_size = os.path.getsize(temp_file_path)
             if file_size > 26214400:
                 error_msg = 'File exceeds size limit (26MB). Please use the Elevenlabs module for larger files.'
                 logger.error(error_msg)
                 result['transcription_error'] = error_msg
                 return
-            with open(temp_file_path, 'rb') as audio_file:
-                transcript = client.audio.transcriptions.create(
-                    model=self._get_transcription_model(), file=audio_file,
-                    response_format='verbose_json', timestamp_granularities=["segment"])
-            segments = ''
-            for s in transcript.segments:
-                seconds = int(s.start)
-                ts = f"{int(seconds // 3600):02d}:{int((seconds % 3600) // 60):02d}:{int(seconds % 60):02d}"
-                segments += '{} {}\n'.format(ts, s.text)
-            result['transcript'] = segments
-            result.update(self.make_summary(client, summary_prompt, result['transcript']))
+            transcript_text = self._call_transcription_api(client, temp_file_path)
+            result['transcript'] = transcript_text
+            result.update(self.make_summary(client, summary_prompt, transcript_text))
             result['transcription_error'] = False
         except Exception as e:
             logger.exception(f'Transcribe error: {e}')
@@ -151,6 +152,37 @@ class Recording(models.Model):
             if temp_file_path and os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
             self.write(result)
+
+    def _call_transcription_api(self, client, audio_path):
+        """Call transcription API with fallback for non-standard models.
+
+        First tries verbose_json with timestamps (Whisper native).
+        Falls back to plain text if the model/proxy doesn't support it.
+        """
+        model = self._get_transcription_model()
+        # Try verbose format with timestamps first
+        try:
+            with open(audio_path, 'rb') as audio_file:
+                transcript = client.audio.transcriptions.create(
+                    model=model, file=audio_file,
+                    response_format='verbose_json',
+                    timestamp_granularities=["segment"])
+            segments = ''
+            for s in transcript.segments:
+                seconds = int(s.start)
+                ts = f"{int(seconds // 3600):02d}:{int((seconds % 3600) // 60):02d}:{int(seconds % 60):02d}"
+                segments += '{} {}\n'.format(ts, s.text)
+            return segments
+        except Exception as e:
+            logger.info(
+                'verbose_json transcription failed (%s), falling back to text format: %s',
+                model, e)
+        # Fallback: plain text transcription (works with more providers/proxies)
+        with open(audio_path, 'rb') as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model=model, file=audio_file,
+                response_format='text')
+        return transcript if isinstance(transcript, str) else str(transcript)
 
     def make_summary(self, client, summary_prompt, transcript):
         logger.info('Make summary!')
@@ -297,17 +329,34 @@ class Recording(models.Model):
             'duration': params['RecordingDuration'],
             'status': params['RecordingStatus']
         }
+        call = None
         channel = self.env['connect.channel'].search([('sid', '=', params['CallSid'])], limit=1)
-        called_user = channel.search([
-            '|', ('sid', '=', params['CallSid']),
-            ('parent_channel', '=', channel.id),
-            ('called_user', '!=', False)], limit=1).called_user
         if channel:
             call = channel.call
+        # Conference recordings include ConferenceSid; fall back to call lookup
+        if not call and params.get('ConferenceSid'):
+            call = self.env['connect.call'].search([
+                ('conference_sid', '=', params['ConferenceSid'])
+            ], limit=1)
+            if not call:
+                # Try matching by conference friendly name
+                friendly_name = params.get('FriendlyName', '')
+                if friendly_name:
+                    call = self.env['connect.call'].search([
+                        ('conference_name', '=', friendly_name)
+                    ], limit=1)
+        called_user = False
+        if channel:
+            called_user = channel.search([
+                '|', ('sid', '=', params['CallSid']),
+                ('parent_channel', '=', channel.id),
+                ('called_user', '!=', False)], limit=1).called_user
             data['channel'] = channel.id
+        if call:
             data['call'] = call.id
             data['partner'] = call.partner.id
-            data['called_user'] = called_user.id
+            if called_user:
+                data['called_user'] = called_user.id
             data['caller_number'] = call.caller
             data['called_number'] = call.called
         # Fetch recording

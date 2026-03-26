@@ -30,6 +30,7 @@ class Call(models.Model):
     channels = fields.One2many('connect.channel', 'call', readonly=True)
     recording = fields.Many2one('connect.recording', compute='_get_recording_data')
     transcript = fields.Text(compute='_get_recording_data', string='Recording Transcript')
+    transcription_error = fields.Char(compute='_get_recording_data', string='Transcription Error')
     recording_widget = fields.Html(compute='_get_recording_data', sanitize=False)
     recording_icon = fields.Html(compute='_get_recording_data', string='R')
     summary = fields.Html()
@@ -188,11 +189,13 @@ class Call(models.Model):
                 recording = max(recording, key=lambda x: x.id)
                 rec.recording = recording
                 rec.transcript = recording.transcript
+                rec.transcription_error = recording.transcription_error or ''
                 rec.recording_icon = '<span class="fa fa-file-sound-o"/>'
                 rec.recording_widget = recording.recording_widget
             else:
                 rec.recording_icon = ''
                 rec.transcript = ''
+                rec.transcription_error = ''
                 rec.recording = False
                 rec.recording_widget = ''
 
@@ -224,6 +227,23 @@ class Call(models.Model):
         self.ensure_one()
         if self.recording:
             self.recording.get_transcript()
+
+    def action_summarize(self):
+        """Generate summary from transcript. Transcribes first if needed."""
+        self.ensure_one()
+        if self.recording:
+            # Transcribe if no transcript exists yet
+            if not self.recording.transcript:
+                self.recording.get_transcript()
+            # If transcript is available now, (re)generate summary
+            if self.recording.transcript:
+                summary_prompt = self.env['connect.settings'].get_param('summary_prompt')
+                client = self.env['connect.settings'].get_openai_client()
+                if client and summary_prompt:
+                    result = self.recording.make_summary(
+                        client, summary_prompt, self.recording.transcript)
+                    if result.get('summary'):
+                        self.recording.write({'summary': result['summary']})
 
     @api.depends('duration')
     def _get_duration_human(self):
@@ -1491,62 +1511,6 @@ class Call(models.Model):
             'name': 'Transfer Wizard'
         }
 
-    def transfer(self, user=None):
-        self.ensure_one()
-        if False:  # self.status not in ['in-progress', 'ringing']:
-            logger.warning('Call not in progress, cannot transfer')
-            return
-        # Get the PBX user doing trasnfer
-        if not user:
-            user = self.env.user.connect_user
-            user = self.channels[0].caller_pbx_user or self.channels[0].called_pbx_user
-        """
-        # Case 1: User is on primary channel.
-        primary_channel = self.channels.filtered(lambda x: x.parent_channel == False)
-        if primary_channel and primary_channel.caller_pbx_user:
-            print(111, 'PRIMARY CHANNEL CALLER', primary_channel)
-        elif primary_channel and primary_channel.called_pbx_user:
-            print(1111, 'PRIMARY CHANNEL CALLED', primary_channel)
-        # Find current user on all channels.
-        print(111111, self.channels)
-        """
-        user_channel = self.channels.filtered(
-            lambda x: (x.caller_pbx_user == user or x.called_pbx_user == user))
-        if not user_channel:
-            logger.warning('Cannot get user channel for call %s for user %s', self.id, user.name)
-            return
-        other_channel = self.channels - user_channel
-        if len(other_channel) != 1:
-            logger.warning('Cannot transfer call, number of other channels: %s', len(other_channel))
-            return
-        client = self.env['connect.settings'].get_client()
-        conf_id = uuid.uuid4().hex
-
-        def transfer_other():
-            # Put other channel into conference.
-            response = VoiceResponse()
-            self.tts_system_message(response, 'system.transfer')
-            dial = Dial()
-            dial.conference('user-{}-{}'.format(user.id, conf_id))
-            response.append(dial)
-            # response.play('http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3')
-            client.calls(other_channel.sid).update(twiml=response)
-
-        def transfer_user():
-            # Dial a new call party.
-            response = VoiceResponse()
-            self.tts_system_message(response, 'system.transfer')
-            dial = Dial()
-            sip = Sip('sip:user@devmax17.sip.twilio.com')
-            # dial.conference('user-{}-{}'.format(user.id,  conf_id))
-            dial.append(sip)
-            response.append(dial)
-            # response.play('http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3')
-            client.calls(user_channel.sid).update(twiml=response)
-
-        transfer_user()
-        transfer_other()
-
     @api.model
     def forward_call(self, call_sid, target):
         """Forward the current call to a target extension or phone number.
@@ -1804,7 +1768,8 @@ class Call(models.Model):
                 conferences = client.conferences.list(
                     friendly_name=conf_name, status='in-progress', limit=1)
                 conf_sid = conferences[0].sid if conferences else None
-            except Exception:
+            except Exception as e:
+                logger.warning('promote_to_conference: Could not fetch SID for %s: %s', conf_name, e)
                 conf_sid = None
 
             call.write({
@@ -1831,7 +1796,9 @@ class Call(models.Model):
                 if p.call_sid == target_call_sid:
                     return p
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning('_get_conference_participant: Failed for conf %s, call %s: %s',
+                           conf_sid, target_call_sid, e)
             return None
 
     def _ensure_conference_sid(self, client):

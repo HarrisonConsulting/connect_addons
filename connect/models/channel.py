@@ -135,8 +135,10 @@ class Channel(models.Model):
         # Look for existing channels with same CallSid
         channel = self.search([('sid', '=', call_sid)])
         if channel:
-            # Allow webhooks with newer sequence numbers OR same sequence with different status (legitimate status updates)
-            if sequence_number < channel.sequence_number or (sequence_number == channel.sequence_number and call_status == channel.status):
+            # Only filter exact duplicates (same sequence AND same status)
+            # Twilio doesn't guarantee monotonic sequence numbers across event types,
+            # so we allow all webhooks through except exact duplicates
+            if sequence_number == channel.sequence_number and call_status == channel.status:
                 logger.warning(f"DUPLICATE WEBHOOK FILTERED: CallSid {call_sid} SequenceNumber {sequence_number} (existing: {channel.sequence_number}) CallStatus {call_status} (existing: {channel.status}) - ignoring webhook")
                 return
             else:
@@ -267,14 +269,16 @@ class Channel(models.Model):
             debug(self, 'Channel %s created.' % channel.id)
 
             # Store external call leg for outgoing call transfers
+            # Handles both click-to-call (parent outbound-api) and standard outgoing calls.
+            # The child channel with outbound-dial direction is the external party's leg.
             if (params.get('Direction') == 'outbound-dial' and
                 data.get('parent_channel') and
                 params.get('CallSid')):
 
-                parent_channel = self.browse(data['parent_channel'])
-                if parent_channel.call and parent_channel.call.direction == 'outgoing':
+                parent_channel_obj = self.browse(data['parent_channel'])
+                if parent_channel_obj.call and parent_channel_obj.call.direction == 'outgoing':
                     # This is the external call leg for an outgoing call - store it for transfers
-                    parent_channel.call.store_external_call_leg(params['CallSid'])
+                    parent_channel_obj.call.store_external_call_leg(params['CallSid'])
         return channel
 
     def _handle_failed_outgoing_transfer(self, channel, params):
@@ -335,7 +339,6 @@ class Channel(models.Model):
         try:
             call = channel.call
             call_sid = params.get('CallSid')
-            call_status = params.get('CallStatus')
 
             # Only process if call has transfer context with termination info
             if not call.transfer_context or '_external_termination' not in call.transfer_context:
@@ -345,16 +348,31 @@ class Channel(models.Model):
             transfer_recipient_sid = termination_info.get('transfer_recipient_sid')
             external_call_sid = termination_info.get('external_call_sid')
 
+            # Log the match decision for debugging complex call leg scenarios
+            is_match = call_sid == transfer_recipient_sid
+            logger.info(
+                f'External termination check: CallSid={call_sid} '
+                f'transfer_recipient_sid={transfer_recipient_sid} '
+                f'match={is_match} external_call_sid={external_call_sid}'
+            )
+
             # Check if this is the transfer recipient hanging up
-            if call_sid == transfer_recipient_sid:
-                # Terminate the external call
+            if is_match:
                 client = self.env['connect.settings'].get_client()
                 try:
-                    # Check if external call is still active
+                    # Verify external call is still active before attempting termination
                     external_call = client.calls(external_call_sid).fetch()
+                    logger.info(
+                        f'External call {external_call_sid} status: {external_call.status}'
+                    )
                     if external_call.status in ['in-progress', 'ringing']:
-                        # Terminate the external call
-                        hangup_result = client.calls(external_call_sid).update(status='completed')
+                        client.calls(external_call_sid).update(status='completed')
+                        logger.info(f'Terminated external call {external_call_sid}')
+                    else:
+                        logger.info(
+                            f'External call {external_call_sid} already ended '
+                            f'(status: {external_call.status}), no termination needed'
+                        )
                 except Exception as e:
                     logger.error(f'Failed to terminate external call {external_call_sid}: {e}')
 

@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import time
 from urllib.parse import urljoin
 from markupsafe import Markup
 import uuid
@@ -82,6 +83,59 @@ class Call(models.Model):
     price_currency = fields.Char(string='Price Currency', readonly=True, default='USD')
     call_sid = fields.Char(string='Twilio Call SID', readonly=True, index=True, help='Twilio CallSid for fetching price information')
     is_price_fetched = fields.Boolean(string='Price Fetched', default=False, readonly=True, index=True, help='Indicates if call price has been fetched from Twilio API')
+    # Conference call control fields
+    conference_sid = fields.Char(string='Conference SID', readonly=True, help='Twilio Conference SID when call is promoted to conference')
+    conference_name = fields.Char(string='Conference Name', readonly=True, help='Twilio Conference friendly name')
+    is_on_hold = fields.Boolean(string='On Hold', default=False, help='Whether the remote party is currently on hold')
+    is_finalized = fields.Boolean(string='Finalized', default=False, help='Whether call finalization has completed')
+    # Analytics fields
+    hour_of_day = fields.Integer(
+        string='Hour of Day', compute='_compute_analytics_fields', store=True,
+        help='Hour when call started (0-23)')
+    day_of_week = fields.Char(
+        string='Day of Week', compute='_compute_analytics_fields', store=True,
+        help='Day of week when call started')
+    is_missed = fields.Boolean(
+        string='Missed Call', compute='_compute_analytics_fields', store=True,
+        help='Call was missed (incoming, unanswered)')
+    call_result = fields.Selection([
+        ('answered', 'Answered'),
+        ('missed', 'Missed'),
+        ('voicemail', 'Voicemail'),
+        ('failed', 'Failed'),
+        ('busy', 'Busy'),
+    ], string='Result', compute='_compute_analytics_fields', store=True,
+        help='Computed call outcome for analytics')
+
+    @api.depends('create_date', 'direction', 'status', 'answered_user', 'voicemail_url')
+    def _compute_analytics_fields(self):
+        for rec in self:
+            # Time dimensions
+            if rec.create_date:
+                rec.hour_of_day = rec.create_date.hour
+                rec.day_of_week = rec.create_date.strftime('%A')
+            else:
+                rec.hour_of_day = 0
+                rec.day_of_week = ''
+            # Call result classification
+            if rec.voicemail_url:
+                rec.call_result = 'voicemail'
+                rec.is_missed = False
+            elif rec.status == 'busy':
+                rec.call_result = 'busy'
+                rec.is_missed = False
+            elif rec.status in ('failed', 'canceled'):
+                rec.call_result = 'failed'
+                rec.is_missed = False
+            elif rec.direction == 'incoming' and not rec.answered_user and rec.status in ('no-answer', 'completed'):
+                rec.call_result = 'missed'
+                rec.is_missed = True
+            elif rec.answered_user or rec.status == 'completed':
+                rec.call_result = 'answered'
+                rec.is_missed = False
+            else:
+                rec.call_result = 'missed' if rec.direction == 'incoming' else 'failed'
+                rec.is_missed = rec.direction == 'incoming'
 
     def _get_name(self):
         for rec in self:
@@ -221,8 +275,49 @@ class Call(models.Model):
     def _finalize_call_details(self):
         """
         Called once when all channels are closed to do final call processing.
+        Acquires an exclusive row lock to prevent concurrent finalization from
+        racing webhooks. Idempotent: skips if already finalized.
         """
         self.ensure_one()
+        # Idempotent guard — if already finalized, nothing to do
+        if self.is_finalized:
+            logger.info(f"Call {self.id}: Already finalized, skipping")
+            return
+        # Acquire exclusive lock. Use NOWAIT so we fail fast if another worker
+        # holds the lock, then retry once after a short delay.
+        lock_acquired = False
+        for attempt in range(2):
+            try:
+                self.env.cr.execute(
+                    "SELECT id FROM connect_call WHERE id = %s FOR UPDATE NOWAIT",
+                    (self.id,)
+                )
+                if self.env.cr.fetchone():
+                    lock_acquired = True
+                    break
+            except Exception:
+                # Lock contention — rollback the failed statement and retry
+                self.env.cr.rollback()
+                if attempt == 0:
+                    logger.info(f"Call {self.id}: Lock contention on finalization, retrying in 0.5s")
+                    time.sleep(0.5)
+                    # Re-check idempotent guard after retry delay — the other
+                    # worker may have completed finalization
+                    self.invalidate_recordset(['is_finalized'])
+                    if self.is_finalized:
+                        logger.info(f"Call {self.id}: Finalized by another worker during retry")
+                        return
+        if not lock_acquired:
+            logger.warning(f"Call {self.id}: Could not acquire finalization lock after retries")
+            return
+        # Refresh in-memory values after acquiring the lock so we see the
+        # latest database state (another transaction may have committed).
+        self.invalidate_recordset()
+        # Double-check after refresh in case another worker finalized between
+        # our initial check and lock acquisition
+        if self.is_finalized:
+            logger.info(f"Call {self.id}: Already finalized (detected after lock), skipping")
+            return
         logger.info(f"=== FINALIZING CALL DETAILS FOR CALL {self.id} ===")
         if not self.call_pattern:
             detected_pattern = self._detect_call_pattern()
@@ -238,6 +333,9 @@ class Call(models.Model):
             self._populate_user_fields_fallback()
         self._set_final_call_status()
         logger.info(f"Call {self.id}: Final status='{self.status}', answered_user='{self.answered_user.login if self.answered_user else None}', completed_by_user='{self.completed_by_user.login if self.completed_by_user else None}', transferred_users={len(self.transferred_users)}")
+        # Mark as finalized and clean up transfer context
+        self.is_finalized = True
+        self.transfer_context = False
 
     def _set_final_call_status(self):
         """Simplified call status logic based on answered_user field."""
@@ -829,11 +927,11 @@ class Call(models.Model):
         # Set called from 2nd call leg for click2call external calls.
         if channel.parent_channel and channel.parent_channel.technical_direction == 'outbound-api':
             channel.call.called = channel.called_number
-        # Update call duration based on all channels
+        # Update call duration based on longest channel (actual elapsed time)
         if channel.call:
             if channel.call.channels:
-                total_duration = sum(channel.call.channels.mapped('duration') or [0])
-                channel.call.duration = total_duration
+                channel_durations = [d for d in channel.call.channels.mapped('duration') if d]
+                channel.call.duration = max(channel_durations) if channel_durations else 0
             # Pattern detection from explicit tagging
             if not channel.call.call_pattern:
                 detected_pattern = channel.call._detect_call_pattern()
@@ -938,7 +1036,73 @@ class Call(models.Model):
             if channel.call.status != 'answered':
                 updates['status'] = 'voicemail'
             channel.call.write(updates)
+            # Send voicemail notification email
+            try:
+                channel.call._send_voicemail_email()
+            except Exception as e:
+                logger.exception('Voicemail email error: %s', e)
         return True
+
+    def _send_voicemail_email(self):
+        """Send voicemail notification email to the intended recipient."""
+        self.ensure_one()
+        if not self.voicemail_url:
+            return
+
+        # Determine recipients — the user(s) who were called but didn't answer
+        recipients = self.called_users or self.env['res.users']
+        if self.transferred_users and not self.completed_by_user:
+            recipients = self.transferred_users
+
+        for user in recipients:
+            connect_user = user.connect_user
+            if not connect_user or not connect_user.voicemail_email_enabled:
+                continue
+            if not user.email:
+                continue
+
+            # Build email
+            caller_display = self.caller or 'Unknown'
+            if self.partner:
+                caller_display = self.partner.name
+
+            subject = 'Voicemail from {}'.format(caller_display)
+
+            # Get transcription if available (may arrive later via recording pipeline)
+            transcript_text = ''
+            if self.recording and self.recording.transcript:
+                transcript_text = self.recording.transcript
+
+            body_html = (
+                '<p>You have a new voicemail:</p>'
+                '<ul>'
+                '<li><strong>From:</strong> {caller}</li>'
+                '<li><strong>Duration:</strong> {duration}s</li>'
+                '<li><strong>Date:</strong> {date}</li>'
+                '</ul>'
+            ).format(
+                caller=caller_display,
+                duration=self.voicemail_duration or 0,
+                date=self.create_date.strftime('%Y-%m-%d %H:%M') if self.create_date else '',
+            )
+
+            if transcript_text:
+                body_html += '<p><strong>Transcription:</strong></p><p>{}</p>'.format(
+                    transcript_text)
+
+            if self.voicemail_url:
+                body_html += '<p><a href="{}">Listen to voicemail</a></p>'.format(
+                    self.voicemail_url)
+
+            mail_values = {
+                'subject': subject,
+                'body_html': body_html,
+                'email_to': user.email,
+                'email_from': self.env.company.email or 'noreply@example.com',
+                'auto_delete': True,
+            }
+            self.env['mail.mail'].sudo().create(mail_values).send()
+            logger.info('Voicemail email sent to %s for call %s', user.email, self.id)
 
     @api.model
     def on_call_action(self, params):
@@ -1261,8 +1425,10 @@ class Call(models.Model):
                     body=notify_body,
                     partner_ids=[k.partner_id.id for k in notify_users]
                 )
-            # Clear temporary transfer context after call processing is complete
-            channel.call.clear_transfer_context()
+            # Transfer context is NOT cleared here — clearing it prematurely
+            # causes _create_missing_transfer_channel() to fail when late
+            # webhooks arrive. The context is harmless when left around and
+            # will be ignored once the call is finalized.
         except Exception as e:
             logger.exception('Register call error:', e)
 
@@ -1441,17 +1607,26 @@ class Call(models.Model):
         conf_id = uuid.uuid4().hex
         conf_name = 'forward-{}-{}'.format(call.id, conf_id)
 
+        # Check if recording is enabled for the current user
+        record_calls = current_user.record_calls if current_user else False
+        recording_url = '{}/twilio/webhook/recordingstatus#e={}'.format(
+            api_url.rstrip('/'), edge) if record_calls else None
+
         try:
             # Step 1: Put the other party into a conference (with hold music)
             response_other = VoiceResponse()
             self.tts_system_message(response_other, 'system.transfer')
             dial_conf = Dial()
-            dial_conf.conference(
-                conf_name,
-                startConferenceOnEnter=True,
-                endConferenceOnExit=True,
-                waitUrl='http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical'
-            )
+            conf_kwargs = {
+                'startConferenceOnEnter': True,
+                'endConferenceOnExit': True,
+                'waitUrl': call._get_hold_music_url(),
+                'record': 'record-from-start' if record_calls else 'do-not-record',
+            }
+            if recording_url:
+                conf_kwargs['recordingStatusCallback'] = recording_url
+                conf_kwargs['recordingStatusCallbackEvent'] = 'completed'
+            dial_conf.conference(conf_name, **conf_kwargs)
             response_other.append(dial_conf)
             client.calls(other_channel.sid).update(twiml=str(response_other))
             logger.info('forward_call: Put channel %s into conference %s', other_channel.sid, conf_name)
@@ -1522,6 +1697,521 @@ class Call(models.Model):
         except Exception as e:
             logger.exception('forward_call: Error forwarding call %s to %s', call.id, target)
             return {'success': False, 'error': str(e)}
+
+    def _get_hold_music_url(self):
+        """Return the hold music URL. Centralized for easy configuration later."""
+        return 'http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical'
+
+    # -------------------------------------------------------------------------
+    # Conference Call Control: Hold, Transfer, Add Participant, Merge
+    # -------------------------------------------------------------------------
+
+    def _find_call_channels(self, call_sid):
+        """Find call, user channel, and other channel from a CallSid.
+        Returns (call, user_channel, other_channel) or raises."""
+        channel = self.env['connect.channel'].search([('sid', '=', call_sid)], limit=1)
+        if not channel:
+            return None, None, None
+        call = channel.call
+        if not call:
+            return None, None, None
+        current_user = self.env.user.connect_user
+        if not current_user:
+            return call, None, None
+        user_channel = call.channels.filtered(
+            lambda x: x.caller_pbx_user == current_user or x.called_pbx_user == current_user
+        )
+        if not user_channel:
+            return call, None, None
+        user_channel = user_channel[0]
+        other_channels = call.channels - user_channel
+        other_channel = other_channels[0] if other_channels else None
+        return call, user_channel, other_channel
+
+    @api.model
+    def promote_to_conference(self, call_sid):
+        """Promote a peer-to-peer call to a Twilio Conference for advanced call control.
+
+        Both parties are moved into a named conference room. The user gets
+        endConferenceOnExit=True (leaving cleans up), the remote party gets
+        endConferenceOnExit=False (so hold/transfer don't kill the call).
+
+        Returns dict with success, conference_sid, conference_name.
+        """
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+        if not user_channel or not other_channel:
+            return {'success': False, 'error': 'Cannot identify call parties'}
+
+        # Already promoted
+        if call.conference_name:
+            return {
+                'success': True,
+                'conference_sid': call.conference_sid,
+                'conference_name': call.conference_name,
+            }
+
+        client = self.env['connect.settings'].get_client()
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        conf_name = 'callcontrol-{}-{}'.format(call.id, uuid.uuid4().hex)
+        status_url = '{}/twilio/webhook/conference_event#e={}'.format(
+            api_url.rstrip('/'), edge)
+
+        # Check if recording is enabled for the current user
+        current_user = self.env.user.connect_user
+        record_calls = current_user.record_calls if current_user else False
+        recording_url = '{}/twilio/webhook/recordingstatus#e={}'.format(
+            api_url.rstrip('/'), edge) if record_calls else None
+
+        try:
+            # Put remote party into conference (endConferenceOnExit=False so hold works)
+            response_other = VoiceResponse()
+            dial_other = Dial()
+            conf_kwargs = {
+                'startConferenceOnEnter': True,
+                'endConferenceOnExit': False,
+                'beep': False,
+                'waitUrl': call._get_hold_music_url(),
+                'statusCallback': status_url,
+                'statusCallbackEvent': 'join leave end',
+                'record': 'record-from-start' if record_calls else 'do-not-record',
+            }
+            if recording_url:
+                conf_kwargs['recordingStatusCallback'] = recording_url
+                conf_kwargs['recordingStatusCallbackEvent'] = 'completed'
+            dial_other.conference(conf_name, **conf_kwargs)
+            response_other.append(dial_other)
+            client.calls(other_channel.sid).update(twiml=str(response_other))
+
+            # Put user into conference (endConferenceOnExit=True for cleanup)
+            response_user = VoiceResponse()
+            dial_user = Dial()
+            dial_user.conference(
+                conf_name,
+                startConferenceOnEnter=True,
+                endConferenceOnExit=True,
+                beep=False,
+            )
+            response_user.append(dial_user)
+            client.calls(user_channel.sid).update(twiml=str(response_user))
+
+            # Try once to get SID; don't block the worker if not available yet.
+            # The conference_name is the primary identifier and is always set.
+            # _ensure_conference_sid() will lazily resolve the SID when needed.
+            try:
+                conferences = client.conferences.list(
+                    friendly_name=conf_name, status='in-progress', limit=1)
+                conf_sid = conferences[0].sid if conferences else None
+            except Exception:
+                conf_sid = None
+
+            call.write({
+                'conference_sid': conf_sid,
+                'conference_name': conf_name,
+            })
+            logger.info('promote_to_conference: Call %s promoted to conference %s (SID: %s)',
+                        call.id, conf_name, conf_sid)
+            return {
+                'success': True,
+                'conference_sid': conf_sid,
+                'conference_name': conf_name,
+            }
+
+        except Exception as e:
+            logger.exception('promote_to_conference: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    def _get_conference_participant(self, client, conf_sid, target_call_sid):
+        """Find a conference participant by their call SID."""
+        try:
+            participants = client.conferences(conf_sid).participants.list()
+            for p in participants:
+                if p.call_sid == target_call_sid:
+                    return p
+            return None
+        except Exception:
+            return None
+
+    def _ensure_conference_sid(self, client):
+        """Lazily resolve and cache the conference SID from the conference name.
+
+        Called before any operation that requires conference_sid. If the SID
+        was not available when promote_to_conference ran (Twilio hadn't created
+        the conference yet), this retries with exponential backoff (up to ~3s
+        total) before giving up.
+        """
+        self.ensure_one()
+        if self.conference_sid:
+            return self.conference_sid
+        if not self.conference_name:
+            return None
+        # Retry with exponential backoff: 0.25s, 0.5s, 1.0s, 2.0s (~3.75s total)
+        delays = [0.25, 0.5, 1.0, 2.0]
+        for attempt, delay in enumerate(delays, 1):
+            try:
+                conferences = client.conferences.list(
+                    friendly_name=self.conference_name, status='in-progress', limit=1)
+                if conferences:
+                    self.conference_sid = conferences[0].sid
+                    logger.info('_ensure_conference_sid: Resolved SID %s for conference %s (attempt %d)',
+                                self.conference_sid, self.conference_name, attempt)
+                    return self.conference_sid
+            except Exception as e:
+                logger.warning('_ensure_conference_sid: Attempt %d failed for %s: %s',
+                               attempt, self.conference_name, e)
+            if attempt < len(delays):
+                time.sleep(delay)
+        logger.warning('_ensure_conference_sid: Could not resolve SID for %s after %d attempts',
+                       self.conference_name, len(delays))
+        return None
+
+    @api.model
+    def hold_call(self, call_sid):
+        """Put the remote party on hold with hold music."""
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+        if not other_channel:
+            return {'success': False, 'error': 'No remote party found'}
+
+        # Promote to conference if not already
+        if not call.conference_name:
+            result = self.promote_to_conference(call_sid)
+            if not result.get('success'):
+                return result
+            call.invalidate_recordset(['conference_sid', 'conference_name'])
+
+        client = self.env['connect.settings'].get_client()
+        conf_sid = call._ensure_conference_sid(client)
+        if not conf_sid:
+            return {'success': False, 'error': 'Conference SID not available'}
+        try:
+            participant = self._get_conference_participant(
+                client, conf_sid, other_channel.sid)
+            if not participant:
+                return {'success': False, 'error': 'Remote party not in conference'}
+
+            client.conferences(conf_sid).participants(
+                participant.call_sid
+            ).update(
+                hold=True,
+                hold_url=call._get_hold_music_url(),
+            )
+            call.is_on_hold = True
+            logger.info('hold_call: Call %s remote party on hold', call.id)
+            return {'success': True}
+
+        except Exception as e:
+            logger.exception('hold_call: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def resume_call(self, call_sid):
+        """Resume the remote party from hold."""
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+        if not call.conference_name:
+            return {'success': False, 'error': 'Call not in conference mode'}
+        if not other_channel:
+            return {'success': False, 'error': 'No remote party found'}
+
+        client = self.env['connect.settings'].get_client()
+        conf_sid = call._ensure_conference_sid(client)
+        if not conf_sid:
+            return {'success': False, 'error': 'Conference SID not available'}
+        try:
+            participant = self._get_conference_participant(
+                client, conf_sid, other_channel.sid)
+            if not participant:
+                return {'success': False, 'error': 'Remote party not in conference'}
+
+            client.conferences(conf_sid).participants(
+                participant.call_sid
+            ).update(hold=False)
+            call.is_on_hold = False
+            logger.info('resume_call: Call %s remote party resumed', call.id)
+            return {'success': True}
+
+        except Exception as e:
+            logger.exception('resume_call: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def add_conference_participant(self, call_sid, target):
+        """Add a new participant to the call's conference.
+
+        Args:
+            call_sid: The user's current CallSid
+            target: Extension number or phone number to add
+        """
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+
+        # Promote to conference if not already
+        if not call.conference_name:
+            result = self.promote_to_conference(call_sid)
+            if not result.get('success'):
+                return result
+            call.invalidate_recordset(['conference_sid', 'conference_name'])
+
+        client = self.env['connect.settings'].get_client()
+        conf_sid = call._ensure_conference_sid(client)
+        if not conf_sid:
+            return {'success': False, 'error': 'Conference SID not available'}
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        current_user = self.env.user.connect_user
+        status_url = '{}/twilio/webhook/callstatus#e={}'.format(api_url.rstrip('/'), edge)
+
+        # Determine caller ID
+        caller_id = None
+        if other_channel:
+            caller_id = other_channel.caller_number or call.caller
+        if not caller_id and current_user:
+            caller_id = current_user.outgoing_callerid
+        if not caller_id:
+            caller_id = self.env['connect.settings'].sudo().get_param('default_caller_id')
+
+        # Resolve target
+        target_user = None
+        if target and not target.startswith('+') and len(target) <= 5:
+            target_user = self.env['connect.user'].search(
+                [('exten_number', '=', target)], limit=1)
+
+        try:
+            if target_user:
+                target_identity = target_user.get_client_identity()
+                to_param = 'client:{}'.format(target_identity)
+            else:
+                to_param = target if target.startswith('+') else '+{}'.format(target)
+
+            # Add participant via Conference Participant API
+            client.conferences(conf_sid).participants.create(
+                from_=caller_id,
+                to=to_param,
+                end_conference_on_exit=False,
+                beep=False,
+                status_callback=status_url,
+                status_callback_event='initiated ringing answered completed',
+            )
+            logger.info('add_conference_participant: Added %s to conference %s',
+                        target, call.conference_name)
+            return {'success': True}
+
+        except Exception as e:
+            logger.exception('add_conference_participant: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def initiate_attended_transfer(self, call_sid):
+        """Begin attended transfer: put remote party on hold so user can consult.
+
+        The user stays connected and can dial the consult target from the phone UI.
+        """
+        result = self.hold_call(call_sid)
+        if not result.get('success'):
+            return result
+        logger.info('initiate_attended_transfer: Remote party on hold for call_sid %s', call_sid)
+        return {'success': True}
+
+    @api.model
+    def complete_attended_transfer(self, call_sid, consult_target):
+        """Complete attended transfer: connect held caller with consult target, remove user.
+
+        Args:
+            call_sid: The user's CallSid (in the original call)
+            consult_target: Extension or phone number the user consulted with
+        """
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+        if not call.conference_name:
+            return {'success': False, 'error': 'Call not in conference mode'}
+
+        client = self.env['connect.settings'].get_client()
+        conf_sid = call._ensure_conference_sid(client)
+        if not conf_sid:
+            return {'success': False, 'error': 'Conference SID not available'}
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        current_user = self.env.user.connect_user
+        status_url = '{}/twilio/webhook/callstatus#e={}'.format(api_url.rstrip('/'), edge)
+
+        # Determine caller ID
+        caller_id = None
+        if other_channel:
+            caller_id = other_channel.caller_number or call.caller
+        if not caller_id and current_user:
+            caller_id = current_user.outgoing_callerid
+        if not caller_id:
+            caller_id = self.env['connect.settings'].sudo().get_param('default_caller_id')
+
+        # Resolve consult target
+        target_user = None
+        if consult_target and not consult_target.startswith('+') and len(consult_target) <= 5:
+            target_user = self.env['connect.user'].search(
+                [('exten_number', '=', consult_target)], limit=1)
+
+        try:
+            if target_user:
+                target_identity = target_user.get_client_identity()
+                to_param = 'client:{}'.format(target_identity)
+            else:
+                to_param = consult_target if consult_target.startswith('+') else '+{}'.format(consult_target)
+
+            # Add consult target to conference with endConferenceOnExit=True
+            # so the call ends cleanly when the last real party hangs up
+            client.conferences(conf_sid).participants.create(
+                from_=caller_id,
+                to=to_param,
+                end_conference_on_exit=True,
+                beep=False,
+                status_callback=status_url,
+                status_callback_event='initiated ringing answered completed',
+            )
+
+            # Resume the held party
+            if call.is_on_hold and other_channel:
+                participant = self._get_conference_participant(
+                    client, conf_sid, other_channel.sid)
+                if participant:
+                    client.conferences(conf_sid).participants(
+                        participant.call_sid).update(hold=False)
+                    call.is_on_hold = False
+
+            # Remove user from conference
+            if user_channel:
+                user_participant = self._get_conference_participant(
+                    client, conf_sid, user_channel.sid)
+                if user_participant:
+                    client.conferences(conf_sid).participants(
+                        user_participant.call_sid).update(status='completed')
+                else:
+                    # Fallback: terminate user's call leg directly to prevent eavesdropping
+                    try:
+                        client.calls(user_channel.sid).update(status='completed')
+                    except Exception as e:
+                        logger.warning('complete_attended_transfer: Could not terminate user leg %s: %s',
+                                      user_channel.sid, e)
+
+            # Track transfer
+            if target_user and target_user.user:
+                call.add_transferred_user(target_user.user)
+                call.completed_by_user = target_user.user
+
+            logger.info('complete_attended_transfer: Call %s transferred to %s',
+                        call.id, consult_target)
+            return {'success': True}
+
+        except Exception as e:
+            logger.exception('complete_attended_transfer: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def cancel_attended_transfer(self, call_sid):
+        """Cancel attended transfer: resume the held caller."""
+        result = self.resume_call(call_sid)
+        if not result.get('success'):
+            return result
+        logger.info('cancel_attended_transfer: Resumed caller for call_sid %s', call_sid)
+        return {'success': True}
+
+    @api.model
+    def merge_calls(self, primary_call_sid, secondary_call_sid):
+        """Merge two calls by moving secondary call's participants into primary's conference.
+
+        Args:
+            primary_call_sid: CallSid of the primary call (will keep its conference)
+            secondary_call_sid: CallSid of the call to merge in
+        """
+        primary_call, primary_user_ch, primary_other_ch = self._find_call_channels(primary_call_sid)
+        secondary_call, secondary_user_ch, secondary_other_ch = self._find_call_channels(secondary_call_sid)
+
+        if not primary_call or not secondary_call:
+            return {'success': False, 'error': 'One or both calls not found'}
+
+        # Promote primary to conference if not already
+        if not primary_call.conference_name:
+            result = self.promote_to_conference(primary_call_sid)
+            if not result.get('success'):
+                return result
+            primary_call.invalidate_recordset(['conference_sid', 'conference_name'])
+
+        client = self.env['connect.settings'].get_client()
+        conf_sid = primary_call._ensure_conference_sid(client)
+        if not conf_sid:
+            return {'success': False, 'error': 'Conference SID not available'}
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        current_user = self.env.user.connect_user
+        caller_id = current_user.outgoing_callerid if current_user else None
+        if not caller_id:
+            caller_id = self.env['connect.settings'].sudo().get_param('default_caller_id')
+
+        try:
+            # Move secondary's remote party into primary conference
+            if secondary_other_ch:
+                response = VoiceResponse()
+                dial = Dial()
+                dial.conference(
+                    primary_call.conference_name,
+                    startConferenceOnEnter=True,
+                    endConferenceOnExit=False,
+                    beep=False,
+                )
+                response.append(dial)
+                client.calls(secondary_other_ch.sid).update(twiml=str(response))
+
+            logger.info('merge_calls: Merged call %s into call %s conference %s',
+                        secondary_call.id, primary_call.id, primary_call.conference_name)
+            return {'success': True}
+
+        except Exception as e:
+            logger.exception('merge_calls: Failed merging call %s into %s',
+                             secondary_call.id, primary_call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def on_conference_event(self, params):
+        """Handle Twilio conference status callback events."""
+        event = params.get('StatusCallbackEvent', '')
+        conf_name = params.get('FriendlyName', '')
+        conf_sid = params.get('ConferenceSid', '')
+
+        if not conf_name.startswith('callcontrol-'):
+            return '<Response/>'
+
+        if event == 'conference-end':
+            call = self.search([('conference_name', '=', conf_name)], limit=1)
+            if call:
+                call.write({
+                    'conference_sid': False,
+                    'conference_name': False,
+                    'is_on_hold': False,
+                })
+                logger.info('on_conference_event: Conference %s ended, cleaned up call %s',
+                            conf_name, call.id)
+
+        elif event == 'participant-leave':
+            # Check if only one participant remains — if so, end conference
+            call = self.search([('conference_name', '=', conf_name)], limit=1)
+            if call and (call.conference_sid or conf_sid):
+                client = self.env['connect.settings'].get_client()
+                try:
+                    participants = client.conferences(conf_sid).participants.list()
+                    if len(participants) <= 1:
+                        # End conference — last party shouldn't be left alone
+                        client.conferences(conf_sid).update(status='completed')
+                        logger.info('on_conference_event: Ended conference %s (last participant)',
+                                    conf_name)
+                except Exception as e:
+                    logger.warning('on_conference_event: Error checking participants: %s', e)
+
+        return '<Response/>'
 
     def redial(self):
         self.ensure_one()

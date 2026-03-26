@@ -1,3 +1,18 @@
+// Presence Indicator (BLF)
+.o_presence_indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+
+  &.available { background-color: #28a745; }
+  &.on_call { background-color: #dc3545; }
+  &.on_hold { background-color: #ffc107; }
+  &.offline { background-color: #6c757d; }
+}
+
 // Contacts
 .o_dial_contact_list {
   flex: 1;

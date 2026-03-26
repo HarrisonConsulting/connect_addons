@@ -2,7 +2,7 @@
 
 import {useService} from "@web/core/utils/hooks"
 import {setFocus} from "@connect/js/utils"
-import {Component, useState, useRef, onWillStart} from "@odoo/owl"
+import {Component, useState, useRef, onWillStart, onMounted} from "@odoo/owl"
 
 const searching = {
     all: 'all',
@@ -16,17 +16,17 @@ export class Contacts extends Component {
         bus: Object,
         isTransfer: {type: Boolean, optional: true},
         isContact: {type: Boolean, optional: true},
-        isForward: {type: Boolean, optional: true},
+        isAddParticipant: {type: Boolean, optional: true},
         contactSearch: {type: String, optional: true},
     }
 
     constructor() {
         super(...arguments)
-        const {bus, isTransfer = false, isForward = false, isContact = false, contactSearch = 'all'} = this.props
+        const {bus, isTransfer = false, isContact = false, isAddParticipant = false, contactSearch = 'all'} = this.props
         this.bus = bus
         this.isTransfer = isTransfer
-        this.isForward = isForward
         this.isContact = isContact
+        this.isAddParticipant = isAddParticipant
         this.contactSearch = contactSearch
         this.searchQuery = ''
         this.users = []
@@ -36,6 +36,7 @@ export class Contacts extends Component {
         super.setup()
         this.orm = useService('orm')
         this.action = useService('action')
+        this.busService = useService('bus_service')
         this.contactInput = useRef('contact-input')
         this.state = useState({
             isContactMode: false,
@@ -47,13 +48,30 @@ export class Contacts extends Component {
             this.bus.addEventListener('busContactSetState', ({detail}) => this._busContactSetState(detail))
             this.bus.addEventListener('busContactSearchQuery', ({detail}) => this._busContactSearchQuery(detail))
         })
+
+        onMounted(() => {
+            this._presenceHandler = (payload) => this._onPresenceUpdate(payload)
+            this.busService.subscribe('presence_update', this._presenceHandler)
+        })
     }
 
-    _busContactSetState({isTransfer = false, isForward = false, isContact = false, isContactMode = false}) {
+    _onPresenceUpdate(payload) {
+        // Update presence status for matching user in current results
+        const userId = payload.user_id
+        const status = payload.status
+        this.state.users = this.state.users.map(u => {
+            if (u.id === userId) {
+                return {...u, presence_status: status}
+            }
+            return u
+        })
+    }
+
+    _busContactSetState({isTransfer = false, isContact = false, isAddParticipant = false, isContactMode = false}) {
         this.state.isContactMode = isContactMode
         this.isTransfer = isTransfer
         this.isContact = isContact
-        this.isForward = isForward
+        this.isAddParticipant = isAddParticipant
         this.state.partners = []
         this.state.users = []
         this.searchQuery = ''
@@ -106,8 +124,8 @@ export class Contacts extends Component {
             this._onClickMakeTransfer(phoneNumber)
         } else if (this.isContact) {
             this._onClickMakeCall(phoneNumber)
-        } else if (this.isForward) {
-            this._onClickMakeForward(phoneNumber)
+        } else if (this.isAddParticipant) {
+            this._onClickAddParticipant(phoneNumber)
         }
     }
 
@@ -146,7 +164,7 @@ export class Contacts extends Component {
                     '|', ['exten_number', '=ilike', `%${self.searchQuery}%`],
                     ['user', '=ilike', `%${self.searchQuery}%`]
                 ],
-                ['id', 'name', 'exten_number', 'user'],
+                ['id', 'name', 'exten_number', 'user', 'presence_status'],
                 {order: 'exten_number asc', limit: 10}
             ).then((records) => {
                 self.state.users = records
@@ -164,9 +182,8 @@ export class Contacts extends Component {
         this.bus.trigger('busPhoneMakeTransfer', {phoneNumber})
     }
 
-    _onClickMakeForward(phoneNumber) {
-        const normalized = phoneNumber ? phoneNumber.replace('+', '') : phoneNumber
-        this.bus.trigger('busPhoneMakeForward', {phoneNumber: normalized})
+    _onClickAddParticipant(phoneNumber) {
+        this.bus.trigger('busPhoneAddParticipant', {phoneNumber})
     }
 
     _openPartner(id) {

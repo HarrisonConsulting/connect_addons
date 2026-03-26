@@ -18,6 +18,7 @@ export const pbxActionService = {
 
         bus_service.addChannel(personal_channel)
         bus_service.addChannel(common_channel)
+        bus_service.addChannel('connect_presence')
         bus_service.subscribe("connect_notify", (action) => this.connect_handle_notify(action))
         bus_service.subscribe("reload_view", (action) => this.connect_handle_reload_view(action))
     },

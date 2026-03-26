@@ -17,6 +17,7 @@
                             </td>
                             <td class="o_contact_info">
                                 <div>
+                                    <span t-attf-class="o_presence_indicator {{ user.presence_status === 'available' ? 'available' : user.presence_status === 'on_call' ? 'on_call' : user.presence_status === 'on_hold' ? 'on_hold' : 'offline' }}" t-attf-title="{{ user.presence_status || 'offline' }}"/>
                                     <span><t t-out="user.name"/></span>
                                 </div>
                                 <div>
@@ -32,8 +33,8 @@
                                         <button t-if="isContact" t-attf-title="Call to {{user.exten_number}}" t-on-click="() => this._onClickMakeCall(user.exten_number)">
                                             <i class="fa icon-dialer_sip"/>
                                         </button>
-                                        <button t-if="isForward" t-attf-title="Forward to {{user.exten_number}}" t-on-click="() => this._onClickMakeForward(user.exten_number)">
-                                            <i class="fa icon-dialer_sip"/>
+                                        <button t-if="isAddParticipant" t-attf-title="Add {{user.exten_number}} to call" t-on-click="() => this._onClickAddParticipant(user.exten_number)">
+                                            <i class="fa fa-user-plus"/>
                                         </button>
                                     </div>
                                 </div>
@@ -72,8 +73,8 @@
                                             <button t-if="isContact" t-attf-title="Call {{callNumber}}" t-on-click="() => this._onClickMakeCall(callNumber)">
                                                 <i class="fa icon-phone"/>
                                             </button>
-                                            <button t-if="isForward" t-attf-title="Forward to {{callNumber}}" t-on-click="() => this._onClickMakeForward(callNumber)">
-                                                <i class="fa icon-phone"/>
+                                            <button t-if="isAddParticipant" t-attf-title="Add {{callNumber}} to call" t-on-click="() => this._onClickAddParticipant(callNumber)">
+                                                <i class="fa fa-user-plus"/>
                                             </button>
                                         </t>
                                     </div>

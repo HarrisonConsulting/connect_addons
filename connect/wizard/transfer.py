@@ -3,6 +3,8 @@ from twilio.twiml.voice_response import VoiceResponse, Dial
 from urllib.parse import urljoin
 import logging
 import phonenumbers
+import re
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +50,13 @@ class CallForwardHandler(models.TransientModel):
 
             # Determine if phone_number is an extension or external number
             target_number = self._resolve_phone_number(phone_number)
+            if target_number is None:
+                return {
+                    'success': False,
+                    'error': 'Invalid phone number format'
+                }
             logger.info('Resolved transfer target: %s -> %s', phone_number, target_number)
-            
+
             if transfer_type == 'blind':
                 success = self._execute_blind_transfer(client, session_id, target_number, call_id)
             elif transfer_type == 'attended':
@@ -81,8 +88,7 @@ class CallForwardHandler(models.TransientModel):
                 'error': f'Transfer failed: {str(e)}'
             }
 
-    @api.model
-    def debug_user_identity(self, extension_number):
+    def _debug_user_identity(self, extension_number):
         """
         Debug method to understand how client identities work in your system
         """
@@ -124,8 +130,7 @@ class CallForwardHandler(models.TransientModel):
             logger.error(f'Debug user identity failed: {e}', exc_info=True)
             return {'error': str(e)}
 
-    @api.model
-    def debug_current_call_state(self, session_id):
+    def _debug_current_call_state(self, session_id):
         """
         Debug the current state of a call before and after transfer - fixed attributes
         """
@@ -164,7 +169,7 @@ class CallForwardHandler(models.TransientModel):
         # Check if it's a numeric extension (internal)
         if phone_number.isdigit() and len(phone_number) <= 4:
             # Get detailed debug info
-            debug_info = self.debug_user_identity(phone_number)
+            debug_info = self._debug_user_identity(phone_number)
             
             # Look up the extension in connect.exten
             extension = self.env['connect.exten'].search([('number', '=', phone_number)], limit=1)
@@ -217,17 +222,21 @@ class CallForwardHandler(models.TransientModel):
                 except phonenumbers.NumberParseException:
                     phone_number = f'+{phone_number}'
 
+            # Validate result looks like E.164: + followed by 7-14 digits
+            if not re.match(r'^\+\d{7,14}$', phone_number):
+                logger.error('Phone number %s does not match E.164 format after resolution', phone_number)
+                return None
+
             logger.info('Resolved external number to %s', phone_number)
             return phone_number
 
     def _execute_blind_transfer(self, client, session_id, target_number, call_id=None):
         """
-        Execute immediate blind transfer using extension render method (like ElevenLabs)
+        Execute immediate blind transfer.
+        Extensions use direct redirect. External numbers use conference bridge.
         """
         try:
             if target_number.startswith('client:'):
-                # Extract extension number from client identity
-                # We need to find which extension this client identity maps to
                 extension_number = self._find_extension_by_client_identity(target_number)
                 if extension_number:
                     return self._execute_extension_transfer(client, session_id, extension_number, 'blind', call_id)
@@ -235,28 +244,19 @@ class CallForwardHandler(models.TransientModel):
                     logger.error(f'Could not find extension for client identity: {target_number}')
                     return False
             else:
-                # External number - use our original TwiML approach
-                response = VoiceResponse()
-                dial = Dial(timeout=30)
-                dial.number(target_number)
-                response.append(dial)
-                
-                twiml_str = str(response)
-                
-                result = client.calls(session_id).update(twiml=twiml_str)
-                return True
-            
+                return self._execute_external_number_transfer(client, session_id, target_number, call_id)
+
         except Exception as e:
             logger.error(f'Blind transfer failed: {e}', exc_info=True)
             return False
 
     def _execute_attended_transfer(self, client, session_id, target_number, call_id=None):
         """
-        Execute attended transfer using extension render method
+        Execute attended transfer.
+        Extensions use extension transfer. External numbers use conference bridge.
         """
         try:
             if target_number.startswith('client:'):
-                # Extract extension number from client identity
                 extension_number = self._find_extension_by_client_identity(target_number)
                 if extension_number:
                     return self._execute_extension_transfer(client, session_id, extension_number, 'attended', call_id)
@@ -264,22 +264,152 @@ class CallForwardHandler(models.TransientModel):
                     logger.error(f'Could not find extension for attended transfer: {target_number}')
                     return False
             else:
-                # External number - use TwiML approach with announcement
-                response = VoiceResponse()
-                system_voice = self.env['connect.settings'].get_system_voice()
-                processed_text = self.env['connect.settings'].process_pronunciation('Transferring your call now.')
-                response.say(processed_text, voice=system_voice)
-                dial = Dial(timeout=30)
-                dial.number(target_number)
-                response.append(dial)
-                
-                twiml_str = str(response)
-                
-                result = client.calls(session_id).update(twiml=twiml_str)
-                return True
-                
+                return self._execute_external_number_transfer(client, session_id, target_number, call_id)
+
         except Exception as e:
             logger.error(f'Attended transfer failed: {e}', exc_info=True)
+            return False
+
+    def _execute_external_number_transfer(self, client, session_id, target_number, call_id=None):
+        """
+        Transfer to an external phone number using a conference bridge.
+        Properly handles both incoming and outgoing call directions by identifying
+        each call leg and using a conference to connect the external caller with
+        the transfer target.
+        """
+        try:
+            # Find the call record to determine direction and identify legs
+            call = None
+            if call_id:
+                call = self.env['connect.call'].sudo().browse(call_id)
+            if not call or not call.exists():
+                channel = self.env['connect.channel'].sudo().search(
+                    [('sid', '=', session_id)], limit=1)
+                if channel and channel.call:
+                    call = channel.call
+
+            if not call:
+                logger.error('External transfer: Could not find call record')
+                return False
+
+            # Find user and other party channels
+            current_user = self.env.user.connect_user
+            if not current_user:
+                logger.error('External transfer: No connect.user for current user')
+                return False
+
+            user_channel = call.channels.filtered(
+                lambda x: x.caller_pbx_user == current_user or x.called_pbx_user == current_user
+            )
+            if not user_channel:
+                logger.error('External transfer: User channel not found')
+                return False
+            user_channel = user_channel[0]
+
+            other_channels = call.channels - user_channel
+            if not other_channels:
+                logger.error('External transfer: No other party channel')
+                return False
+            other_channel = other_channels[0]
+
+            # Validate both call legs are still active before attempting transfer
+            active_statuses = ('in-progress', 'ringing', 'queued')
+            try:
+                other_call_info = client.calls(other_channel.sid).fetch()
+                if other_call_info.status not in active_statuses:
+                    logger.error(
+                        'External transfer: Other party call leg %s is no longer active (status=%s)',
+                        other_channel.sid, other_call_info.status)
+                    return False
+            except Exception as e:
+                logger.error('External transfer: Could not verify other party call leg %s: %s',
+                             other_channel.sid, e)
+                return False
+
+            try:
+                user_call_info = client.calls(user_channel.sid).fetch()
+                if user_call_info.status not in active_statuses:
+                    logger.error(
+                        'External transfer: User call leg %s is no longer active (status=%s)',
+                        user_channel.sid, user_call_info.status)
+                    return False
+            except Exception as e:
+                logger.error('External transfer: Could not verify user call leg %s: %s',
+                             user_channel.sid, e)
+                return False
+
+            # Set up conference bridge
+            api_url = self.env['connect.settings'].sudo().get_param('api_url')
+            edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+            conf_name = 'transfer-{}-{}'.format(call.id, uuid.uuid4().hex)
+            status_url = '{}/twilio/webhook/callstatus#e={}'.format(
+                api_url.rstrip('/'), edge)
+            caller_id = other_channel.caller_number or call.caller or current_user.outgoing_callerid
+
+            # Step 1: Put external caller into conference with hold music
+            response_other = VoiceResponse()
+            system_voice = self.env['connect.settings'].get_system_voice()
+            processed_text = self.env['connect.settings'].process_pronunciation(
+                'Transferring your call now.')
+            response_other.say(processed_text, voice=system_voice)
+            dial_conf = Dial()
+            dial_conf.conference(
+                conf_name,
+                startConferenceOnEnter=True,
+                endConferenceOnExit=True,
+                waitUrl='http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical',
+            )
+            response_other.append(dial_conf)
+            client.calls(other_channel.sid).update(twiml=str(response_other))
+
+            # Step 2: Dial target number into the same conference
+            # If this fails, the caller is already in the conference alone — send fallback TwiML
+            target = target_number if target_number.startswith('+') else '+{}'.format(target_number)
+            try:
+                response_target = VoiceResponse()
+                dial_target = Dial()
+                dial_target.conference(
+                    conf_name,
+                    startConferenceOnEnter=True,
+                    endConferenceOnExit=True,
+                )
+                response_target.append(dial_target)
+
+                client.calls.create(
+                    to=target,
+                    from_=caller_id,
+                    twiml=str(response_target),
+                    status_callback=status_url,
+                    status_callback_event=['initiated', 'answered', 'completed'],
+                )
+            except Exception as e:
+                logger.error('External transfer: Failed to dial target %s: %s', target, e, exc_info=True)
+                # Rollback: reconnect the caller with a fallback message
+                try:
+                    fallback = VoiceResponse()
+                    fallback_voice = self.env['connect.settings'].get_system_voice()
+                    fallback_text = self.env['connect.settings'].process_pronunciation(
+                        'Transfer failed. Please hold while we reconnect you.')
+                    fallback.say(fallback_text, voice=fallback_voice)
+                    fallback.hangup()
+                    client.calls(other_channel.sid).update(twiml=str(fallback))
+                except Exception as rollback_err:
+                    logger.error('External transfer: Rollback also failed: %s', rollback_err)
+                return False
+
+            # Step 3: Hang up the user's leg (best-effort, transfer is already in progress)
+            try:
+                client.calls(user_channel.sid).update(status='completed')
+            except Exception as e:
+                logger.warning('External transfer: Could not hang up user leg %s: %s',
+                               user_channel.sid, e)
+
+            logger.info('External transfer: Call %s transferred to %s via conference %s',
+                        call.id, target_number, conf_name)
+            return True
+
+        except Exception as e:
+            logger.error(f'External number transfer failed: {e}', exc_info=True)
             return False
 
     def _find_extension_by_client_identity(self, client_identity):
@@ -344,7 +474,7 @@ class CallForwardHandler(models.TransientModel):
                 extension_number, transfer_type, session_id, call_id
             )
             # Debug call state BEFORE transfer
-            pre_transfer_state = self.debug_current_call_state(session_id)
+            pre_transfer_state = self._debug_current_call_state(session_id)
             
             # Check if this is a child call with a parent
             parent_call_sid = pre_transfer_state.get('parent_call_sid')
@@ -352,7 +482,7 @@ class CallForwardHandler(models.TransientModel):
                 target_call_sid = parent_call_sid
                 
                 # Debug the parent call state
-                parent_state = self.debug_current_call_state(parent_call_sid)
+                parent_state = self._debug_current_call_state(parent_call_sid)
             else:
                 target_call_sid = session_id
             
@@ -504,6 +634,11 @@ class CallForwardHandler(models.TransientModel):
         This is simpler and provides better UX than conference transfers.
         """
         try:
+            # Validate user has an extension assigned
+            if not user.exten or not user.exten.number:
+                logger.error('Extension redirect failed: User %s has no extension assigned', user.name)
+                return False
+
             # Create the redirect URL
             api_url = self.env['connect.settings'].sudo().get_param('api_url')
             edge = self.env['connect.settings'].get_param('twilio_edge')

@@ -22,6 +22,11 @@
                 <field name="username"/>
                 <field name="user"/>
                 <field name="exten_number" string="Exten"/>
+                <field name="presence_status" string="Presence" widget="badge"
+                       decoration-success="presence_status == 'available'"
+                       decoration-danger="presence_status == 'on_call'"
+                       decoration-warning="presence_status == 'on_hold'"
+                       decoration-muted="presence_status == 'offline'"/>
                 <field name="outgoing_callerid"/>
                 <field name="user"/>
                 <field name="sip_enabled" string="SIP"/>
@@ -97,6 +102,8 @@
                                 </group>
                                 <group>
                                     <field name="voicemail_enabled"/>
+                                    <field name="voicemail_email_enabled"
+                                           invisible="not voicemail_enabled"/>
                                     <field name="voicemail_prompt"
                                            invisible="not voicemail_enabled"
                                            required="voicemail_enabled"/>
@@ -108,6 +115,10 @@
                             <group>
                                 <group>
                                     <field name="missed_calls_notify"/>
+                                </group>
+                                <group string="Presence">
+                                    <field name="presence_status" readonly="1"/>
+                                    <field name="presence_updated" readonly="1"/>
                                 </group>
                             </group>
                         </page>

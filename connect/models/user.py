@@ -65,8 +65,12 @@ class User(models.Model):
     password = fields.Char(groups="connect.group_connect_admin,connect.group_connect_user")
     uri = fields.Char('SIP URI', compute='_get_sip_uri')
     connect_uri = fields.Char('SIP Connect URI', compute='_get_sip_uri')
+    dnd_enabled = fields.Boolean(string='Do Not Disturb', help='When enabled, all incoming calls go directly to voicemail')
     record_calls = fields.Boolean(default=True)
     voicemail_enabled = fields.Boolean()
+    voicemail_email_enabled = fields.Boolean(
+        string='Voicemail to Email', default=True,
+        help='Send voicemail recordings and transcriptions via email')
     voicemail_prompt = fields.Text(default="Hello, this is {{user.name}}. I'm unable to take your call right now. Please leave a message after the tone.")
     application = fields.Many2one('connect.twiml')
     sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
@@ -82,6 +86,13 @@ class User(models.Model):
     greeting_message = fields.Char()
     summary_prompt = fields.Char()
     twilio_edge = fields.Selection(selection=SIP_TWILIO_EDGES, required=True, default='roaming')
+    presence_status = fields.Selection([
+        ('offline', 'Offline'),
+        ('available', 'Available'),
+        ('on_call', 'On Call'),
+        ('on_hold', 'On Hold'),
+    ], string='Presence', default='offline', help='Current telephony presence status')
+    presence_updated = fields.Datetime(string='Presence Updated', help='Last presence status change timestamp')
 
     _user_uniq = Constraint('UNIQUE("user")', 'This Odoo user account is already defined!')
     _username_uniq = Constraint('UNIQUE(username)', 'This PBX username is already defined!')
@@ -449,6 +460,15 @@ class User(models.Model):
 
     def render(self, request={}, params={}):
         self.ensure_one()
+        # DND: send directly to voicemail
+        if self.dnd_enabled:
+            response = VoiceResponse()
+            if self.voicemail_enabled and self.voicemail_prompt:
+                self.render_voicemail(response, request, params)
+            else:
+                self.tts_system_message(response, 'system.dnd')
+                response.hangup()
+            return response.to_xml()
         channel = self.env['connect.channel'].search(
             [('sid', '=', request.get('CallSid'))], order='id desc')
         call = channel.call
@@ -534,6 +554,38 @@ class User(models.Model):
         except Exception as e:
             logger.exception('Error getting Twilio JWT:')
             return {'error': str(e)}
+
+    @api.model
+    def update_presence(self, status):
+        """Update current user's telephony presence status. Called from JS on Device/call events."""
+        user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
+        if user:
+            user.with_context(skip_sync=True, no_clear_cache=True).write({
+                'presence_status': status,
+                'presence_updated': fields.Datetime.now(),
+            })
+            self.env['bus.bus']._sendone(
+                'connect_presence',
+                'presence_update',
+                {
+                    'user_id': user.id,
+                    'status': status,
+                    'name': user.name,
+                }
+            )
+        return True
+
+    @api.model
+    def get_all_presence(self):
+        """Get presence status of all connect users."""
+        users = self.sudo().search([])
+        return [{
+            'id': u.id,
+            'name': u.name,
+            'exten_number': u.exten_number or '',
+            'presence_status': u.presence_status,
+            'user_id': u.user.id if u.user else False,
+        } for u in users]
 
     @api.model
     def get_user_by_exten_number(self, search_query):

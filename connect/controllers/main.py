@@ -162,7 +162,9 @@ class ConnectController(http.Controller):
                     processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')
                     response.say(processed_text, voice=system_voice)
 
-                response.record(maxLength=120, finishOnKey='#', playBeep=True)
+                vm_max_length = http.request.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
+                vm_finish_key = http.request.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
+                response.record(maxLength=vm_max_length, finishOnKey=vm_finish_key, playBeep=True)
 
             return http.Response(response.to_xml(), content_type='text/xml')
         except Exception:
@@ -366,6 +368,60 @@ class ConnectController(http.Controller):
             call.transfer_context = current_context
         except Exception as e:
             logger.error(f'Failed to store external termination context: {e}')
+
+    @http.route('/connect/health/status', methods=['GET'], type='http', auth='user')
+    def health_status(self, **kw):
+        """Health check endpoint for monitoring Twilio connectivity."""
+        settings = http.request.env['connect.settings'].sudo()
+        checks = {}
+
+        # Check 1: Credentials configured
+        account_sid = settings.get_param('account_sid')
+        auth_token = settings.get_param('auth_token')
+        checks['credentials_configured'] = bool(account_sid and auth_token)
+
+        # Check 2: Twilio API reachable
+        checks['twilio_api_reachable'] = False
+        if checks['credentials_configured']:
+            try:
+                client = settings.get_client(region=False)
+                account = client.api.accounts(account_sid).fetch()
+                checks['twilio_api_reachable'] = account.status == 'active'
+                checks['twilio_account_status'] = account.status
+            except Exception as e:
+                checks['twilio_api_error'] = str(e)
+
+        # Check 3: Phone numbers configured
+        number_count = http.request.env['connect.number'].sudo().search_count([])
+        checks['phone_numbers_configured'] = number_count > 0
+        checks['phone_number_count'] = number_count
+
+        # Check 4: Webhook base URL
+        api_url = settings.get_param('api_url')
+        checks['webhook_url_configured'] = bool(api_url)
+        if api_url:
+            checks['webhook_base_url'] = api_url
+
+        # Check 5: Active PBX users
+        user_count = http.request.env['connect.user'].sudo().search_count([])
+        checks['pbx_users_configured'] = user_count > 0
+        checks['pbx_user_count'] = user_count
+
+        # Overall status
+        critical_checks = [
+            checks['credentials_configured'],
+            checks['twilio_api_reachable'],
+            checks['phone_numbers_configured'],
+            checks['webhook_url_configured'],
+        ]
+        checks['status'] = 'healthy' if all(critical_checks) else 'unhealthy'
+
+        status_code = 200 if checks['status'] == 'healthy' else 503
+        return http.Response(
+            json.dumps(checks, indent=2),
+            status=status_code,
+            content_type='application/json',
+        )
 
     @http.route('/connect/health/<string:uid>/', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
     def health_check(self, uid):

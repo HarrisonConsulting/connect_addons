@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 from markupsafe import Markup
 import uuid
 from datetime import timedelta
+from psycopg2 import OperationalError
 from odoo import fields, models, api, SUPERUSER_ID, tools
 from odoo.exceptions import ValidationError
 from twilio.twiml.voice_response import VoiceResponse, Say, Dial, Conference, Client, Number, Sip
@@ -328,7 +329,7 @@ class Call(models.Model):
                         logger.info(f"Call {self.id}: Finalized by another worker during retry")
                         return
         if not lock_acquired:
-            logger.warning(f"Call {self.id}: Could not acquire finalization lock after retries")
+            logger.warning(f"Call {self.id}: Could not acquire finalization lock after retries, will be retried by cron")
             return
         # Refresh in-memory values after acquiring the lock so we see the
         # latest database state (another transaction may have committed).
@@ -356,6 +357,23 @@ class Call(models.Model):
         # Mark as finalized and clean up transfer context
         self.is_finalized = True
         self.transfer_context = False
+
+    @api.model
+    def _retry_stuck_finalizations(self):
+        """Cron: retry finalization for calls stuck as unfinalized for >5 minutes."""
+        cutoff = fields.Datetime.subtract(fields.Datetime.now(), minutes=5)
+        stuck_calls = self.search([
+            ('is_finalized', '=', False),
+            ('create_date', '<', cutoff),
+            ('status', 'in', CALL_END_STATUSES),
+        ], limit=50)
+        if stuck_calls:
+            logger.info('Cron: Found %d stuck unfinalized calls to retry', len(stuck_calls))
+        for call in stuck_calls:
+            try:
+                call._finalize_call_details()
+            except Exception:
+                logger.exception('Cron: Failed to finalize call %s', call.id)
 
     def _set_final_call_status(self):
         """Simplified call status logic based on answered_user field."""
@@ -1692,6 +1710,13 @@ class Call(models.Model):
         other_channel = other_channels[0] if other_channels else None
         return call, user_channel, other_channel
 
+    def _acquire_call_lock(self):
+        """Acquire exclusive row lock for call control operations."""
+        self.env.cr.execute(
+            "SELECT id FROM connect_call WHERE id = %s FOR UPDATE NOWAIT",
+            (self.id,)
+        )
+
     @api.model
     def promote_to_conference(self, call_sid):
         """Promote a peer-to-peer call to a Twilio Conference for advanced call control.
@@ -1814,8 +1839,8 @@ class Call(models.Model):
             return self.conference_sid
         if not self.conference_name:
             return None
-        # Retry with exponential backoff: 0.25s, 0.5s, 1.0s, 2.0s (~3.75s total)
-        delays = [0.25, 0.5, 1.0, 2.0]
+        # Retry with exponential backoff: 0.25s, 0.5s, 1.0s, 2.0s, 3.0s (~6.75s total)
+        delays = [0.25, 0.5, 1.0, 2.0, 3.0]
         for attempt, delay in enumerate(delays, 1):
             try:
                 conferences = client.conferences.list(
@@ -1840,6 +1865,11 @@ class Call(models.Model):
         call, user_channel, other_channel = self._find_call_channels(call_sid)
         if not call:
             return {'success': False, 'error': 'Call not found'}
+        try:
+            call._acquire_call_lock()
+        except OperationalError:
+            self.env.cr.rollback()
+            return {'success': False, 'error': 'Call is being modified by another operation, please try again'}
         if not other_channel:
             return {'success': False, 'error': 'No remote party found'}
 
@@ -1880,6 +1910,11 @@ class Call(models.Model):
         call, user_channel, other_channel = self._find_call_channels(call_sid)
         if not call:
             return {'success': False, 'error': 'Call not found'}
+        try:
+            call._acquire_call_lock()
+        except OperationalError:
+            self.env.cr.rollback()
+            return {'success': False, 'error': 'Call is being modified by another operation, please try again'}
         if not call.conference_name:
             return {'success': False, 'error': 'Call not in conference mode'}
         if not other_channel:
@@ -1917,6 +1952,11 @@ class Call(models.Model):
         call, user_channel, other_channel = self._find_call_channels(call_sid)
         if not call:
             return {'success': False, 'error': 'Call not found'}
+        try:
+            call._acquire_call_lock()
+        except OperationalError:
+            self.env.cr.rollback()
+            return {'success': False, 'error': 'Call is being modified by another operation, please try again'}
 
         # Promote to conference if not already
         if not call.conference_name:
@@ -1996,6 +2036,11 @@ class Call(models.Model):
         call, user_channel, other_channel = self._find_call_channels(call_sid)
         if not call:
             return {'success': False, 'error': 'Call not found'}
+        try:
+            call._acquire_call_lock()
+        except OperationalError:
+            self.env.cr.rollback()
+            return {'success': False, 'error': 'Call is being modified by another operation, please try again'}
         if not call.conference_name:
             return {'success': False, 'error': 'Call not in conference mode'}
 
@@ -2050,20 +2095,42 @@ class Call(models.Model):
                         participant.call_sid).update(hold=False)
                     call.is_on_hold = False
 
-            # Remove user from conference
+            # Remove user from conference with retry to prevent eavesdropping
+            user_removed = False
             if user_channel:
-                user_participant = self._get_conference_participant(
-                    client, conf_sid, user_channel.sid)
-                if user_participant:
-                    client.conferences(conf_sid).participants(
-                        user_participant.call_sid).update(status='completed')
-                else:
-                    # Fallback: terminate user's call leg directly to prevent eavesdropping
+                for attempt in range(1, 4):
+                    try:
+                        user_participant = self._get_conference_participant(
+                            client, conf_sid, user_channel.sid)
+                        if user_participant:
+                            client.conferences(conf_sid).participants(
+                                user_participant.call_sid).update(status='completed')
+                            user_removed = True
+                            break
+                    except Exception as e:
+                        logger.warning('complete_attended_transfer: Attempt %d to remove user from conf %s failed: %s',
+                                       attempt, conf_sid, e)
+                    if attempt < 3:
+                        time.sleep(0.5)
+
+                if not user_removed:
+                    # Fallback: terminate user's call leg directly
                     try:
                         client.calls(user_channel.sid).update(status='completed')
+                        user_removed = True
                     except Exception as e:
-                        logger.warning('complete_attended_transfer: Could not terminate user leg %s: %s',
-                                      user_channel.sid, e)
+                        logger.error('complete_attended_transfer: Fallback termination of user leg %s failed: %s',
+                                     user_channel.sid, e)
+
+                if not user_removed:
+                    # Nuclear option: terminate conference to prevent eavesdropping
+                    logger.error('complete_attended_transfer: PRIVACY BREACH PREVENTION - '
+                                 'terminating conference %s because user could not be removed', conf_sid)
+                    try:
+                        client.conferences(conf_sid).update(status='completed')
+                    except Exception as e:
+                        logger.error('complete_attended_transfer: Failed to terminate conference %s: %s',
+                                     conf_sid, e)
 
             # Track transfer
             if target_user and target_user.user:

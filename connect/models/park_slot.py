@@ -39,9 +39,10 @@ class ParkSlot(models.Model):
     park_duration = fields.Integer(string='Duration (s)', compute='_compute_park_duration',
                                    help='How long the call has been parked in seconds')
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Park slot number must be unique'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        'Park slot number must be unique',
+    )
 
     @api.constrains('name')
     def _check_slot_number(self):

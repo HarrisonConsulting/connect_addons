@@ -284,16 +284,28 @@ export class Phone extends Component {
                         this._needsTokenRefresh = false
                         this.updateToken()
                     }
-                    // If Twilio device lost connection while tab was hidden, re-register
-                    if (this.userAgent && this.userAgent.state === 'destroyed') {
+                    if (!this.userAgent || this.userAgent.state === 'destroyed') {
+                        // Device was destroyed while tab was hidden — full re-init
                         console.debug('Connect: Twilio device was destroyed while tab was hidden, re-initializing')
                         this.initUserAgent()
+                    } else if (this.userAgent.state === 'unregistered') {
+                        // Device lost registration while tab was hidden — refresh token and re-register
+                        console.debug('Connect: Twilio device unregistered while tab was hidden, re-registering')
+                        this.updateToken()
                     }
                 }
             }
             document.addEventListener('visibilitychange', this._visibilityHandler)
 
             this.initUserAgent()
+
+            // Proactive token refresh every 50 minutes (token TTL is 3600s/60min).
+            // Prevents silent expiry on idle tabs that miss error-driven refresh.
+            this._tokenRefreshInterval = setInterval(() => {
+                if (this.state.isActive && this.userAgent && this.userAgent.state !== 'destroyed') {
+                    this.updateToken()
+                }
+            }, 50 * 60 * 1000)
 
             // Network connectivity monitoring
             this._onlineHandler = () => {
@@ -503,6 +515,9 @@ export class Phone extends Component {
             }
             if (this._errorTimeout) {
                 clearTimeout(this._errorTimeout)
+            }
+            if (this._tokenRefreshInterval) {
+                clearInterval(this._tokenRefreshInterval)
             }
             this.destroyCallCounter()
             this.bc.close()
@@ -793,9 +808,20 @@ export class Phone extends Component {
         })
 
         self.userAgent.on('unregistered', () => {
-            self.state.connectionStatus = 'offline'
             self.sipRegistered = false
-            self._updatePresence('offline')
+            // If not in a call, attempt silent auto-recovery instead of staying offline
+            if (!self.state.inCall && self.state.isActive) {
+                self.state.connectionStatus = 'connecting'
+                console.debug('Connect: Device unregistered, attempting silent re-registration')
+                setTimeout(() => {
+                    if (self.userAgent && self.userAgent.state === 'unregistered') {
+                        self.updateToken()
+                    }
+                }, 3000)
+            } else {
+                self.state.connectionStatus = 'offline'
+                self._updatePresence('offline')
+            }
         })
 
         self.userAgent.on('error', (error) => {

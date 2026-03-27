@@ -39,6 +39,12 @@ class ConnectController(Controller):
     def domain_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid', 'Called', 'Caller']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'domain_webhook', missing, list(kw.keys()))
+            return '<Response><Say>A system error occurred. Please try again.</Say><Hangup/></Response>'
         try:
             domain = request.env['connect.domain'].with_user(request.env.ref("connect.user_connect_webhook"))
             res = domain.route_call(kw)
@@ -51,6 +57,12 @@ class ConnectController(Controller):
     def callstatus_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid', 'CallStatus']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'callstatus_webhook', missing, list(kw.keys()))
+            return '<Response/>'
         try:
             res = request.env['connect.call'].with_user(
                 request.env.ref("connect.user_connect_webhook")
@@ -64,6 +76,12 @@ class ConnectController(Controller):
     def number_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid', 'Called', 'Caller']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'number_webhook', missing, list(kw.keys()))
+            return '<Response><Say>A system error occurred. Please try again.</Say><Hangup/></Response>'
         try:
             res = request.env['connect.number'].with_user(request.env.ref("connect.user_connect_webhook")).route_call(kw)
             return f'{res}'
@@ -88,6 +106,14 @@ class ConnectController(Controller):
     def gather_webhook(self, flow_id, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid']
+        missing = [f for f in required if not kw.get(f)]
+        if not kw.get('Digits') and not kw.get('SpeechResult'):
+            missing.append('Digits or SpeechResult')
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'gather_webhook', missing, list(kw.keys()))
+            return '<Response><Say>A system error occurred. Please try again.</Say><Hangup/></Response>'
         try:
             callflow = request.env['connect.callflow'].with_user(request.env.ref("connect.user_connect_webhook"))
             res = callflow.gather_action(flow_id, kw)
@@ -100,6 +126,12 @@ class ConnectController(Controller):
     def vm_recording_status_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid', 'RecordingUrl']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'vm_recording_status_webhook', missing, list(kw.keys()))
+            return '<Response/>'
         try:
             call = request.env['connect.call'].with_user(request.env.ref("connect.user_connect_webhook"))
             res = call.on_vm_recording_status(kw)
@@ -117,6 +149,12 @@ class ConnectController(Controller):
     def call_action_edit_webhook(self, model_name, record_id, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'call_action_edit_webhook', missing, list(kw.keys()))
+            return '<Response><Say>A system error occurred. Please try again.</Say><Hangup/></Response>'
         if model_name not in self.ALLOWED_CALL_ACTION_MODELS:
             logger.error('call_action_edit_webhook: rejected disallowed model %s', model_name)
             return '<Response><Hangup/></Response>'
@@ -132,6 +170,12 @@ class ConnectController(Controller):
     def recording_status_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid', 'RecordingSid', 'RecordingStatus']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'recording_status_webhook', missing, list(kw.keys()))
+            return '<Response/>'
         try:
             recording = request.env['connect.recording'].with_user(request.env.ref("connect.user_connect_webhook"))
             res = recording.on_recording_status(kw)
@@ -168,6 +212,12 @@ class ConnectController(Controller):
     def message_webhook(self, **kw):
         if not self.check_signature(kw, region=False):
             return self._reject_invalid_request()
+        required = ['MessageSid', 'From', 'Body']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'message_webhook', missing, list(kw.keys()))
+            return '<Response/>'
         try:
             message = request.env['connect.message'].with_user(request.env.ref("connect.user_connect_webhook"))
             res = message.receive(kw)
@@ -202,6 +252,12 @@ class ConnectController(Controller):
     def transfer_continuation_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['CallSid']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'transfer_continuation_webhook', missing, list(kw.keys()))
+            return '<Response><Say>A system error occurred. Please try again.</Say><Hangup/></Response>'
         try:
             transfer_wizard = request.env['connect.transfer_wizard'].with_user(request.env.ref("connect.user_connect_webhook"))
             res = transfer_wizard.handle_transfer_continuation(kw)
@@ -214,6 +270,12 @@ class ConnectController(Controller):
     def conference_event_webhook(self, **kw):
         if not self.check_signature(kw):
             return self._reject_invalid_request()
+        required = ['ConferenceSid']
+        missing = [f for f in required if not kw.get(f)]
+        if missing:
+            logger.warning('Webhook %s missing required params: %s (got: %s)',
+                           'conference_event_webhook', missing, list(kw.keys()))
+            return '<Response/>'
         try:
             res = request.env['connect.call'].with_user(
                 request.env.ref("connect.user_connect_webhook")

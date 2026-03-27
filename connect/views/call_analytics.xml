@@ -82,6 +82,7 @@
     <!-- Dashboard Action -->
     <record id="connect_call_analytics_action" model="ir.actions.act_window">
         <field name="name">Call Analytics</field>
+        <field name="path">call-analytics</field>
         <field name="res_model">connect.call</field>
         <field name="view_mode">graph,pivot,list</field>
         <field name="view_ids" eval="[

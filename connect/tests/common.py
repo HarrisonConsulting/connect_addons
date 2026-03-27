@@ -95,9 +95,9 @@ class ConnectTestCase(TransactionCase):
             'email': 'test@example.com',
         })
 
-        # Check if connect.settings exists and get/create settings
+        # Ensure connect.settings record exists (get_param auto-creates if missing)
         if 'connect.settings' in cls.env:
-            cls.connect_settings = cls.env['connect.settings'].get_settings()
+            cls.env['connect.settings'].get_param('account_sid')
 
     @contextmanager
     def mockTwilioClient(self):
@@ -114,12 +114,14 @@ class ConnectTestCase(TransactionCase):
 
     def _create_test_call(self, direction='incoming', status='completed', **kwargs):
         """Helper to create a test call with channels."""
+        # Keys that are handled separately and must not be passed to create()
+        _internal_keys = {'caller', 'called', 'create_channel'}
         call_vals = {
             'direction': direction,
             'status': status,
             'caller': kwargs.get('caller', '+15551234567'),
             'called': kwargs.get('called', '+15559876543'),
-            **{k: v for k, v in kwargs.items() if k not in ['caller', 'called']}
+            **{k: v for k, v in kwargs.items() if k not in _internal_keys}
         }
 
         # Set partner if provided or auto-match

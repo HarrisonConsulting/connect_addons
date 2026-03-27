@@ -67,10 +67,14 @@ class TestRecording(ConnectTestCase):
         self.assertEqual(rec.duration_human, '00:00')
 
     def test_recording_widget_with_media_url(self):
-        """Test recording_widget generates an <audio> tag when media_url is set."""
+        """Test recording_widget generates an <audio> tag when media_url is set.
+
+        proxy_recordings defaults to True, so the widget uses a proxied URL
+        (/connect/recording/<id>) instead of the direct media_url.
+        """
         rec = self._create_recording(media_url='https://example.com/audio.mp3')
         self.assertIn('<audio', rec.recording_widget)
-        self.assertIn('https://example.com/audio.mp3', rec.recording_widget)
+        self.assertIn('/connect/recording/%s' % rec.id, rec.recording_widget)
 
     def test_recording_widget_without_media_url(self):
         """Test recording_widget returns empty string without media_url."""
@@ -369,6 +373,7 @@ class TestRecordingTranscription(ConnectTestCase):
         ), patch('os.path.getsize', return_value=1000), \
                 patch('os.path.exists', return_value=True), \
                 patch('os.remove'), \
+                patch('builtins.open', MagicMock()), \
                 patch.object(
                     self.env['connect.settings'].__class__,
                     'get_openai_client',
@@ -377,7 +382,8 @@ class TestRecordingTranscription(ConnectTestCase):
 
         self.assertTrue(rec.transcript)
         self.assertIn('Hello, this is a test', rec.transcript)
-        self.assertEqual(rec.summary, 'Test call summary.')
+        # summary is an Html field; Odoo wraps plain text in <p> tags
+        self.assertIn('Test call summary.', str(rec.summary))
         self.assertFalse(rec.transcription_error)
 
     def test_transcribe_recording_api_error(self):
@@ -393,6 +399,7 @@ class TestRecordingTranscription(ConnectTestCase):
         ), patch('os.path.getsize', return_value=1000), \
                 patch('os.path.exists', return_value=True), \
                 patch('os.remove'), \
+                patch('builtins.open', MagicMock()), \
                 patch.object(
                     self.env['connect.settings'].__class__,
                     'get_openai_client',

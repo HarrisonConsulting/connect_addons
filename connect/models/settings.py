@@ -209,6 +209,40 @@ class Settings(models.Model):
         string='Pronunciation Rules',
         help='JSON map of text to pronunciation substitutions (e.g., {"3CHI": "3-chee", "CEO": "C-E-O"})'
     )
+    # Voicemail settings
+    voicemail_max_length = fields.Integer(
+        string='Voicemail Max Length',
+        default=120,
+        help="Maximum voicemail recording length in seconds"
+    )
+    voicemail_finish_key = fields.Selection(
+        [('0', '0'), ('1', '1'), ('2', '2'), ('3', '3'), ('4', '4'),
+         ('5', '5'), ('6', '6'), ('7', '7'), ('8', '8'), ('9', '9'),
+         ('*', '*'), ('#', '#')],
+        string='Voicemail Finish Key',
+        default='#',
+        help="Key that callers press to finish recording a voicemail"
+    )
+    # Park slot settings
+    park_slot_count = fields.Integer(
+        string='Park Slot Count',
+        default=9,
+        help="Number of available call parking slots (1-99)"
+    )
+    park_timeout = fields.Integer(
+        string='Park Timeout',
+        default=300,
+        help="Seconds before a parked call times out and rings back the parker (0 = no timeout)"
+    )
+    park_hold_music_url = fields.Char(
+        string='Park Hold Music URL',
+        help="Custom hold music URL for parked calls. Leave empty for default classical music"
+    )
+    park_announcement_enabled = fields.Boolean(
+        string='Park Announcement',
+        default=False,
+        help="Play slot number announcement when parking a call"
+    )
     # Dialing defaults
     default_country_code = fields.Char(
         string='Default Country Code',
@@ -389,6 +423,10 @@ class Settings(models.Model):
             "view_id": self.env.ref("connect.connect_settings_form").id,
             "target": "current",
         }
+
+    def action_sync_park_slots(self):
+        """Button action to sync park slots with current park_slot_count setting."""
+        self.env['connect.park_slot'].sync_slots()
 
     @api.model
     # @ormcache('param')
@@ -642,6 +680,10 @@ class Settings(models.Model):
             self.check_access("read")
             account_sid = self.sudo().get_param("account_sid")
             auth_token = self.sudo().get_param("auth_token")
+            if not account_sid or not auth_token:
+                logger.warning("Twilio credentials not configured (account_sid=%s, auth_token=%s)",
+                               bool(account_sid), bool(auth_token))
+                return None
             client = Client(account_sid, auth_token)
             if region:
                 region_auth_token = self.sudo().get_param("region_auth_token")

@@ -104,8 +104,9 @@ class TwiML(models.Model):
             return super().create(vals_list)
         client = self.env['connect.settings'].get_client()
         records = super().create(vals_list)
-        for rec in records:
-            rec.create_twilio_app(client)
+        if client:
+            for rec in records:
+                rec.create_twilio_app(client)
         return records
 
     def write(self, vals):

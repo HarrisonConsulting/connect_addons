@@ -362,9 +362,10 @@ class Domain(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         rec = super().create(vals_list)
-        client = self.env["connect.settings"].get_client()
         if not self.env.context.get("no_twilio_create"):
-            rec.create_domain(client)
+            client = self.env["connect.settings"].get_client()
+            if client:
+                rec.create_domain(client)
         return rec
 
     def unlink(self):
@@ -527,17 +528,21 @@ class Domain(models.Model):
             return "<Response><Say>Oops</Say><Pause length='1'/><Say>Whatsapp Extension not found! Please create an extenstion for this Whatsapp number!</Say></Response>"
         if not exten:
             # Get all extensions and match by pattern.
-            # TODO: Handle bad exten numbers like 70[ that cannot be used by re.match.
             all_extensions = self.env["connect.exten"].sudo().search([])
             # Handle case of extension number is defined as E1.64 (with +).
-            matching_extensions = all_extensions.filtered(
-                lambda x: re.match(
-                    r"^{}$".format(
-                        "\\" + x.number if x.number.startswith("+") else x.number
-                    ),
-                    found_num,
+            def _safe_match_exten(x):
+                pattern = r"^{}$".format(
+                    "\\" + x.number if x.number.startswith("+") else x.number
                 )
-            )
+                try:
+                    return re.match(pattern, found_num)
+                except re.error:
+                    logger.warning(
+                        "Invalid regex pattern in extension %s (number=%s), skipping",
+                        x.id, x.number,
+                    )
+                    return False
+            matching_extensions = all_extensions.filtered(_safe_match_exten)
             if len(matching_extensions) > 1:
                 logger.error(
                     "Multiple extensions %s found for number %s",

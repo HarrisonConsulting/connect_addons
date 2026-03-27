@@ -421,7 +421,7 @@ export class Phone extends Component {
                     const index = self.windows.indexOf(params.id)
                     if (index > -1) {
                         self.windows.splice(index, 1)
-                        if (self.id === self.windows.at(-1) && self.userAgent && self.userAgent.state !== 'destroyed') {
+                        if (self.id === self.windows.at(-1) && self.userAgent && self.userAgent.state === 'unregistered') {
                             self.userAgent.register()
                         }
                     }
@@ -730,8 +730,9 @@ export class Phone extends Component {
             if (token) {
                 this.userAgent.updateToken(token)
                 this.token = token
-                // Re-register after token update to ensure device stays connected
-                if (this.userAgent.state !== 'destroyed') {
+                // Re-register only if device is unregistered (e.g. after disconnect)
+                // Calling register() on an already-registered device throws InvalidStateError
+                if (this.userAgent.state === 'unregistered') {
                     try {
                         this.userAgent.register()
                     } catch (regErr) {
@@ -806,14 +807,14 @@ export class Phone extends Component {
                 // Transport/connection error — show banner and try to re-register after 5 seconds
                 self.state.connectionStatus = 'connecting'
                 setTimeout(() => {
-                    if (self.userAgent && self.userAgent.state !== 'destroyed') {
+                    if (self.userAgent && self.userAgent.state === 'unregistered') {
                         try {
                             self.userAgent.register()
                         } catch (e) {
                             console.error('Connect: Re-registration failed:', e)
                             self.state.connectionStatus = 'error'
                         }
-                    } else {
+                    } else if (!self.userAgent || self.userAgent.state === 'destroyed') {
                         self._reconnect()
                     }
                 }, 5000)

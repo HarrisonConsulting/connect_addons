@@ -9,6 +9,8 @@ import {dialTone, setFocus} from "@connect/js/utils"
 import {Component, useState, useRef, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 import {useDebounced} from "@web/core/utils/timing"
 import {user} from "@web/core/user"
+import {ConfirmationDialog} from "@web/core/confirmation_dialog/confirmation_dialog"
+import {_t} from "@web/core/l10n/translation"
 
 const uid = user.userId
 
@@ -134,6 +136,18 @@ export class Phone extends Component {
             phone_status: this.status.ended,
             calls: [],
             connectionStatus: 'connecting',  // 'connecting', 'ready', 'error', 'offline'
+            lastOperationError: false,
+            // Call quality metrics (from Twilio RTCStats samples)
+            callQuality: 'unknown',  // 'excellent', 'good', 'fair', 'poor', 'unknown'
+            callQualityMos: 0,
+            callQualityJitter: 0,
+            callQualityRtt: 0,
+            callQualityPacketLoss: 0,
+            callQualityWarnings: [],
+            showQualityDetails: false,
+            isAudioSettings: false,
+            audioEnabled: localStorage.getItem('connect_audio_enabled') !== 'false',
+            audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
         })
         // Phone dimensions for drag constraints (golden ratio)
         this.phoneWidth = 300
@@ -185,6 +199,9 @@ export class Phone extends Component {
         this.orm = useService('orm')
         this.action = useService('action')
         this.notification = useService("notification")
+        this.dialog = useService("dialog")
+        this.audioNotification = this.env.services.connect_audio
+        this.busService = useService('bus_service')
 
         this.notify = (message, {title = 'Connect', sticky = null, type = 'info'}) => {
             if (sticky === null) {
@@ -212,6 +229,8 @@ export class Phone extends Component {
             this.bus.addEventListener('busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
 
             this.bus.addEventListener('busPhoneHangUp', ({detail}) => this._busPhoneHangUp(detail))
+
+            this.bus.addEventListener('busPhoneReconnect', () => this._reconnect())
 
             window.addEventListener("beforeunload", (event) => {
                 if (this.session) {
@@ -249,6 +268,13 @@ export class Phone extends Component {
             // Setup audio unlock handler for browser autoplay restrictions
             setupAudioUnlock()
 
+            // Subscribe to bus events for park slot notifications
+            this.busService.subscribe("reload_view", (payload) => {
+                if (payload && payload.model === "connect.park_slot") {
+                    this.audioNotification.play("park")
+                }
+            })
+
             // Handle tab visibility changes: when user returns to an idle tab,
             // the browser may have closed IDB connections and Twilio websocket.
             // Re-initialize the device if needed.
@@ -268,6 +294,18 @@ export class Phone extends Component {
             document.addEventListener('visibilitychange', this._visibilityHandler)
 
             this.initUserAgent()
+
+            // Network connectivity monitoring
+            this._onlineHandler = () => {
+                if (this.state.connectionStatus === 'offline') {
+                    this._reconnect()
+                }
+            }
+            this._offlineHandler = () => {
+                this.state.connectionStatus = 'offline'
+            }
+            window.addEventListener('online', this._onlineHandler)
+            window.addEventListener('offline', this._offlineHandler)
 
             const self = this
             const phoneRoot = this.phoneRoot.el
@@ -457,6 +495,15 @@ export class Phone extends Component {
             if (this._mouseMoveHandler) {
                 document.removeEventListener('mousemove', this._mouseMoveHandler, true)
             }
+            if (this._onlineHandler) {
+                window.removeEventListener('online', this._onlineHandler)
+            }
+            if (this._offlineHandler) {
+                window.removeEventListener('offline', this._offlineHandler)
+            }
+            if (this._errorTimeout) {
+                clearTimeout(this._errorTimeout)
+            }
             this.destroyCallCounter()
             this.bc.close()
         })
@@ -482,10 +529,20 @@ export class Phone extends Component {
     }
 
     async _onClickBlindTransfer() {
+        const confirmed = await new Promise(resolve => {
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Blind Transfer"),
+                body: _t("This will immediately transfer the call. The caller cannot be retrieved. Continue?"),
+                confirm: () => resolve(true),
+                cancel: () => resolve(false),
+            })
+        })
+        if (!confirmed) return
         const phoneNumber = this.state.pendingTransferNumber
         this.state.showTransferChoice = false
         this.state.pendingTransferNumber = ''
         if (this.session) {
+            this.notification.add(_t("Transfer initiated"), {title: 'Connect', type: 'info'})
             try {
                 const result = await this.orm.call('connect.transfer_wizard', 'execute_transfer', [
                     phoneNumber,
@@ -495,12 +552,17 @@ export class Phone extends Component {
                 ])
                 if (result.success) {
                     this.notify(result.message, {sticky: false, type: 'success'})
+                    this.audioNotification.play('transfer_complete')
                 } else {
+                    this._setOperationError(result.error || 'Transfer failed')
                     this.notify(result.error || 'Transfer failed', {sticky: false, type: 'warning'})
+                    this.audioNotification.play('transfer_failed')
                 }
             } catch (error) {
                 console.error('Transfer error:', error)
+                this._setOperationError('Transfer failed')
                 this.notify('Transfer failed', {sticky: false, type: 'warning'})
+                this.audioNotification.play('transfer_failed')
             }
         }
         this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber}})
@@ -525,10 +587,12 @@ export class Phone extends Component {
                 this.state.xTransferInfo = 'Caller on hold — dial ' + phoneNumber + ' to consult'
                 this.notify('Caller on hold. Dial the consult target.', {type: 'info'})
             } else {
+                this._setOperationError(result.error || 'Failed to hold caller')
                 this.notify(result.error || 'Failed to hold caller', {type: 'warning'})
             }
         } catch (e) {
             console.error('Attended transfer error:', e)
+            this._setOperationError('Failed to initiate attended transfer')
             this.notify('Failed to initiate attended transfer', {type: 'warning'})
         }
     }
@@ -544,14 +608,17 @@ export class Phone extends Component {
             const result = await this.orm.call('connect.call', 'complete_attended_transfer', [callSid, consultTarget])
             if (result.success) {
                 this.notify('Transfer completed', {type: 'success'})
+                this.audioNotification.play('transfer_complete')
                 this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber: consultTarget}})
                 this.endCall()
             } else {
                 this.notify(result.error || 'Transfer completion failed', {type: 'warning'})
+                this.audioNotification.play('transfer_failed')
             }
         } catch (e) {
             console.error('Complete transfer error:', e)
             this.notify('Transfer completion failed', {type: 'warning'})
+            this.audioNotification.play('transfer_failed')
         }
     }
 
@@ -567,10 +634,12 @@ export class Phone extends Component {
                 this.state.xTransferInfo = ''
                 this.notify('Transfer cancelled, caller resumed', {type: 'info'})
             } else {
+                this._setOperationError(result.error || 'Cancel failed')
                 this.notify(result.error || 'Cancel failed', {type: 'warning'})
             }
         } catch (e) {
             console.error('Cancel transfer error:', e)
+            this._setOperationError('Cancel transfer failed')
             this.notify('Cancel transfer failed', {type: 'warning'})
         }
     }
@@ -586,15 +655,59 @@ export class Phone extends Component {
             if (result.success) {
                 this.notify('Adding participant...', {type: 'info'})
             } else {
+                this._setOperationError(result.error || 'Failed to add participant')
                 this.notify(result.error || 'Failed to add participant', {type: 'warning'})
             }
         } catch (e) {
             console.error('Add participant error:', e)
+            this._setOperationError('Failed to add participant')
             this.notify('Failed to add participant', {type: 'warning'})
         }
         this.state.isAddParticipant = false
         this.state.isContacts = false
         this.state.isDialingPanel = true
+    }
+
+    async _reconnect() {
+        this.state.connectionStatus = 'connecting'
+        this.bus.trigger('busTraySetException', {exception: null})
+
+        // Destroy existing device if present
+        if (this.userAgent) {
+            try {
+                this.userAgent.destroy()
+            } catch (e) {
+                console.warn('Connect: Error destroying existing device:', e)
+            }
+            this.userAgent = null
+        }
+
+        // Fetch a new token and re-initialize
+        try {
+            const {token} = await this.orm.call('connect.user', 'get_client_token')
+            if (token) {
+                this.token = token
+                this.initUserAgent()
+                this.notification.add('Reconnecting to phone service...', {title: 'Connect', type: 'info'})
+            } else {
+                this.state.connectionStatus = 'error'
+                this.notification.add('Failed to obtain phone token. Please try again.', {title: 'Connect', type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Connect: Reconnect failed:', e)
+            this.state.connectionStatus = 'error'
+            this.notification.add('Reconnection failed: ' + (e.message || 'Unknown error'), {title: 'Connect', type: 'danger'})
+        }
+    }
+
+    _onClickReconnect() {
+        this._reconnect()
+    }
+
+    _setOperationError(message) {
+        this.state.lastOperationError = message
+        if (this._errorTimeout) clearTimeout(this._errorTimeout)
+        this._errorTimeout = setTimeout(() => { this.state.lastOperationError = false }, 10000)
     }
 
     async prepareCall(props) {
@@ -688,16 +801,24 @@ export class Phone extends Component {
             console.error('Connect: Device error:', error.message || error)
             self.state.connectionStatus = 'error'
             self._updatePresence('offline')
+            self.audioNotification.play('error')
             if (error.code === 31009 || error.code === 31005) {
-                // Transport/connection error — try to re-register after 5 seconds
+                // Transport/connection error — show banner and try to re-register after 5 seconds
+                self.state.connectionStatus = 'connecting'
                 setTimeout(() => {
-                    try {
-                        self.userAgent.register()
-                    } catch (e) {
-                        console.error('Connect: Re-registration failed:', e)
+                    if (self.userAgent && self.userAgent.state !== 'destroyed') {
+                        try {
+                            self.userAgent.register()
+                        } catch (e) {
+                            console.error('Connect: Re-registration failed:', e)
+                            self.state.connectionStatus = 'error'
+                        }
+                    } else {
+                        self._reconnect()
                     }
                 }, 5000)
             } else if (error.name === 'AccessTokenExpired') {
+                self.state.connectionStatus = 'connecting'
                 self.updateToken().then()
             } else if (error.name === 'AccessTokenInvalid') {
                 self.bus.trigger('busTraySetException', {exception: error.name})
@@ -828,6 +949,7 @@ export class Phone extends Component {
                 self.createCallCounter(phoneNumber)
                 self.state.phone_status = self.status.accepted
                 self._updatePresence('on_call')
+                self._attachQualityMonitor(session)
                 await self.setCallStatus("Answered")
             })
             session.on("disconnect", async function (data) {
@@ -886,7 +1008,8 @@ export class Phone extends Component {
                     setTimeout(() => registerWithRetry(attempt + 1), delay)
                 } else {
                     console.error('Connect: Registration failed after all retries')
-                    self.notify('Phone registration failed. Try refreshing the page.', {type: 'warning', sticky: true})
+                    self.state.connectionStatus = 'error'
+                    self.notify('Phone registration failed. Click Retry to reconnect.', {type: 'warning', sticky: true})
                 }
             }
         }
@@ -901,6 +1024,75 @@ export class Phone extends Component {
         } catch (e) {
             console.warn('Connect: Could not set incoming volume:', e)
         }
+    }
+
+    /**
+     * Attach call quality monitoring listeners to a Twilio Call session.
+     * Listens for 'sample' (every ~1s with RTCStats), 'warning', and 'warning-cleared'.
+     * Only updates state when quality level changes or metrics shift meaningfully
+     * to avoid unnecessary re-renders.
+     */
+    _attachQualityMonitor(session) {
+        const self = this
+
+        session.on('sample', (sample) => {
+            const mos = sample.mos
+            let quality = 'unknown'
+            if (mos >= 4.2) quality = 'excellent'
+            else if (mos >= 3.8) quality = 'good'
+            else if (mos >= 3.2) quality = 'fair'
+            else if (mos > 0) quality = 'poor'
+
+            const jitter = sample.jitter ? Math.round(sample.jitter) : 0
+            const rtt = sample.rtt ? Math.round(sample.rtt) : 0
+            let packetLoss = 0
+            if (sample.packetsReceived > 0) {
+                packetLoss = parseFloat(((sample.packetsLost / (sample.packetsReceived + sample.packetsLost)) * 100).toFixed(1))
+            }
+
+            // Only update state if quality level changed or metrics shifted meaningfully (>10%)
+            const qualityChanged = quality !== self.state.callQuality
+            const metricsChanged = (
+                Math.abs(jitter - self.state.callQualityJitter) > Math.max(1, self.state.callQualityJitter * 0.1) ||
+                Math.abs(rtt - self.state.callQualityRtt) > Math.max(1, self.state.callQualityRtt * 0.1) ||
+                Math.abs(packetLoss - self.state.callQualityPacketLoss) > 0.5
+            )
+
+            if (qualityChanged || metricsChanged) {
+                self.state.callQuality = quality
+                self.state.callQualityMos = mos ? mos.toFixed(1) : '—'
+                self.state.callQualityJitter = jitter
+                self.state.callQualityRtt = rtt
+                self.state.callQualityPacketLoss = packetLoss
+            }
+        })
+
+        session.on('warning', (warningName) => {
+            if (!self.state.callQualityWarnings.includes(warningName)) {
+                self.state.callQualityWarnings = [...self.state.callQualityWarnings, warningName]
+            }
+        })
+
+        session.on('warning-cleared', (warningName) => {
+            self.state.callQualityWarnings = self.state.callQualityWarnings.filter(w => w !== warningName)
+        })
+    }
+
+    /**
+     * Reset all call quality state to defaults.
+     */
+    _resetCallQuality() {
+        this.state.callQuality = 'unknown'
+        this.state.callQualityMos = 0
+        this.state.callQualityJitter = 0
+        this.state.callQualityRtt = 0
+        this.state.callQualityPacketLoss = 0
+        this.state.callQualityWarnings = []
+        this.state.showQualityDetails = false
+    }
+
+    _onClickQualityIndicator() {
+        this.state.showQualityDetails = !this.state.showQualityDetails
     }
 
     async _updatePresence(status) {
@@ -943,6 +1135,8 @@ export class Phone extends Component {
             self.createCallCounter(phoneNumber)
             self.state.phone_status = self.status.accepted
             self._updatePresence('on_call')
+            self._attachQualityMonitor(self.session)
+            self.audioNotification.play('connected')
             await self.setCallStatus("Answered")
             const params = self.getJsonCallData()
             self.bc.postMessage({event: "tbcAnswerCall", params})
@@ -990,6 +1184,7 @@ export class Phone extends Component {
     async endCall() {
         this._updatePresence(this.sipRegistered ? 'available' : 'offline')
         this.call_sid = null  // Clear call SID
+        this._resetCallQuality()
         this.state.isDisplay = this.state.isDisplayLastState
         this.state.isContactList = false
         this.state.isDialingPanel = false
@@ -1008,6 +1203,7 @@ export class Phone extends Component {
         this.state.isMicrophoneMute = false
         this.state.isPartner = false
         this.state.isWhatsapp = false
+        this.state.lastOperationError = false
         this.state.callerId = {}
         this.state.phoneNumber = ''
         this.state.xPhoneInfoDisplay = ''
@@ -1218,6 +1414,7 @@ export class Phone extends Component {
     _onClickPhone(ev) {
         this.state.activeTab = this.tabs.phone
         this.setLastActiveTab()
+        this.state.isAudioSettings = false
         if (this.state.inCall) {
             this.state.isKeypad = false
             this.state.isDialingPanel = true
@@ -1234,6 +1431,7 @@ export class Phone extends Component {
     _onClickContacts(ev) {
         this.state.activeTab = this.tabs.contacts
         this.setLastActiveTab()
+        this.state.isAudioSettings = false
         this.bus.trigger('busContactSetState', {isContact: true, isContactMode: true})
         this.state.isKeypad = false
         this.state.isContacts = true
@@ -1246,6 +1444,7 @@ export class Phone extends Component {
     _onClickFavorites(ev) {
         this.state.activeTab = this.tabs.favorites
         this.setLastActiveTab()
+        this.state.isAudioSettings = false
         this.state.isKeypad = false
         this.state.isContacts = false
         this.state.isContactList = false
@@ -1257,6 +1456,7 @@ export class Phone extends Component {
     _onClickHistory(ev) {
         this.state.activeTab = this.tabs.calls
         this.setLastActiveTab()
+        this.state.isAudioSettings = false
         this.state.isKeypad = false
         this.state.isContacts = false
         this.state.isContactList = false
@@ -1303,8 +1503,10 @@ export class Phone extends Component {
                     this.state.isOnHold = false
                     this._updatePresence('on_call')
                     this.notify('Call resumed', {type: 'info'})
+                    this.audioNotification.play('unpark')
                     this.bc.postMessage({event: "tbcHold", params: {isOnHold: false}})
                 } else {
+                    this._setOperationError(result.error || 'Resume failed')
                     this.notify(result.error || 'Resume failed', {type: 'warning'})
                 }
             } else {
@@ -1313,13 +1515,16 @@ export class Phone extends Component {
                     this.state.isOnHold = true
                     this._updatePresence('on_hold')
                     this.notify('Call on hold', {type: 'info'})
+                    this.audioNotification.play('park')
                     this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
                 } else {
+                    this._setOperationError(result.error || 'Hold failed')
                     this.notify(result.error || 'Hold failed', {type: 'warning'})
                 }
             }
         } catch (e) {
             console.error('Hold error:', e)
+            this._setOperationError('Hold operation failed')
             this.notify('Hold operation failed', {type: 'warning'})
         } finally {
             this.state.holdInProgress = false
@@ -1365,8 +1570,48 @@ export class Phone extends Component {
         this.setIncomingVolume()
     }
 
+    _onClickAudioSettings(ev) {
+        const show = !this.state.isAudioSettings
+        this.state.isAudioSettings = show
+        if (show) {
+            this.state.isKeypad = false
+            this.state.isContacts = false
+            this.state.isContactList = false
+            this.state.isFavorites = false
+            this.state.isCalls = false
+            this.state.isDialingPanel = false
+        }
+    }
+
+    _onChangeAudioEnabled(ev) {
+        this.state.audioEnabled = ev.target.checked
+        this.audioNotification.setEnabled(this.state.audioEnabled)
+    }
+
+    _onChangeAudioVolume(ev) {
+        this.state.audioVolume = parseFloat(ev.target.value)
+        this.audioNotification.setVolume(this.state.audioVolume)
+    }
+
+    _onClickPreviewSound(ev) {
+        const soundKey = ev.target.dataset.sound || ev.target.closest('[data-sound]')?.dataset.sound
+        if (soundKey) {
+            this.audioNotification.preview(soundKey)
+        }
+    }
 
     async _onClickEndCall(ev) {
+        if (this.state.phone_status === this.status.accepted) {
+            const confirmed = await new Promise(resolve => {
+                this.dialog.add(ConfirmationDialog, {
+                    title: _t("End Call"),
+                    body: _t("Are you sure you want to end this call?"),
+                    confirm: () => resolve(true),
+                    cancel: () => resolve(false),
+                })
+            })
+            if (!confirmed) return
+        }
         if (this.session) {
             this.suppressBroadcastChannel = true
             this.session.disconnect()
@@ -1387,6 +1632,7 @@ export class Phone extends Component {
         this.bc.postMessage({event: "tbcAnswerCall", params})
         this.state.phone_status = this.status.accepted
         this.state.inIncoming = false
+        this.audioNotification.play('connected')
         this.startCall()
     }
 

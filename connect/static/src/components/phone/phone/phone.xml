@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="connect.phone" owl="1">
-        <div t-attf-class="{{state.isDisplay ? '' : 'o_hide'}} {{state.isCollapsed ? 'o_collapsed' : ''}} o_root_connect_phone" t-ref="phone-root" t-on-click="_onClickCollapsedIcon">
+        <div t-attf-class="{{state.isDisplay ? '' : 'o_hide'}} {{state.isCollapsed ? 'o_collapsed' : ''}} o_root_connect_phone" t-ref="phone-root" t-on-click="_onClickCollapsedIcon" role="application" aria-label="Connect Phone">
             <!--Collapsed Icon - shown when collapsed, context-aware for call status, draggable-->
             <div t-ref="collapsed-icon" t-attf-class="o_collapsed_icon {{state.inCall ? 'in-call' : ''}} {{state.inIncoming ? 'incoming' : ''}}">
                 <i t-attf-class="fa {{state.inCall ? 'fa-phone' : state.inIncoming ? 'fa-bell' : 'fa-phone'}}"/>
@@ -10,6 +10,22 @@
                 <div class="o_collapsed_close" t-on-click.stop="_onClickHide" title="Hide">
                     <i class="fa fa-times"/>
                 </div>
+            </div>
+            <!--Connection status banner-->
+            <div t-if="state.connectionStatus === 'connecting'" class="connect-status-banner connecting" aria-live="polite" role="status">
+                <i class="fa fa-spinner fa-spin"/> Connecting...
+            </div>
+            <div t-if="state.connectionStatus === 'error'" class="connect-status-banner error" aria-live="assertive" role="alert">
+                <i class="fa fa-exclamation-triangle"/> Connection lost
+                <button class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
+                    <i class="fa fa-refresh"/> Retry
+                </button>
+            </div>
+            <div t-if="state.connectionStatus === 'offline'" class="connect-status-banner offline" aria-live="assertive" role="alert">
+                <i class="fa fa-wifi"/> Offline - calls unavailable
+                <button class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
+                    <i class="fa fa-refresh"/> Retry
+                </button>
             </div>
             <!--Header-->
             <div class="o_header_phone" t-ref="phone-header" t-on-dblclick="_onHeaderDoubleClick">
@@ -26,15 +42,63 @@
                 <button aria-label="Keypad" t-attf-class="flex-item{{state.activeTab === tabs.phone ? ' active' : ''}}" title="Keypad" t-on-click="_onClickPhone">
                     <i class="fa fa-mobile"/>
                 </button>
-                <!--<button aria-label="Contacts" t-attf-class="flex-item{{state.activeTab === tabs.contacts ? ' active' : ''}}" title="Contacts" t-on-click="_onClickContacts">-->
-                <!--    <i class="fa fa-address-book"/>-->
-                <!--</button>-->
+                <button aria-label="Contacts" t-attf-class="flex-item{{state.activeTab === tabs.contacts ? ' active' : ''}}" title="Contacts" t-on-click="_onClickContacts">
+                    <i class="fa fa-address-book"/>
+                </button>
                 <button aria-label="Favorites" t-attf-class="flex-item{{state.activeTab === tabs.favorites ? ' active' : ''}}" title="Favorites" t-on-click="_onClickFavorites">
                     <i class="fa fa-star"/>
                 </button>
                 <button aria-label="History" t-attf-class="flex-item{{state.activeTab === tabs.calls ? ' active' : ''}}" title="History" t-on-click="_onClickHistory">
                     <i class="fa fa-history"/>
                 </button>
+                <button aria-label="Audio Settings" t-attf-class="flex-item{{state.isAudioSettings ? ' active' : ''}}" title="Audio Settings" t-on-click="_onClickAudioSettings">
+                    <i class="fa fa-volume-up"/>
+                </button>
+            </div>
+            <!--Audio Settings Panel-->
+            <div t-attf-class="{{state.isAudioSettings ? '' : 'o_hide'}} o_body_phone o_audio_settings">
+                <div class="p-2">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <label class="small fw-bold mb-0">Notification Sounds</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" t-att-checked="state.audioEnabled" t-on-change="_onChangeAudioEnabled"/>
+                        </div>
+                    </div>
+                    <div t-attf-class="{{state.audioEnabled ? '' : 'opacity-50'}}">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="fa fa-volume-down small"/>
+                            <input type="range" class="form-range flex-grow-1" min="0" max="1" step="0.05" t-att-value="state.audioVolume" t-on-input="_onChangeAudioVolume" t-att-disabled="!state.audioEnabled"/>
+                            <i class="fa fa-volume-up small"/>
+                            <span class="volume-level"><t t-esc="Math.round(state.audioVolume * 100)"/>%</span>
+                        </div>
+                        <div class="o_audio_preview_list">
+                            <div class="d-flex align-items-center justify-content-between py-1" data-sound="connected" t-on-click="_onClickPreviewSound">
+                                <span class="small">Connected</span>
+                                <i class="fa fa-play-circle text-muted" role="button"/>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between py-1" data-sound="park" t-on-click="_onClickPreviewSound">
+                                <span class="small">Call Parked</span>
+                                <i class="fa fa-play-circle text-muted" role="button"/>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between py-1" data-sound="unpark" t-on-click="_onClickPreviewSound">
+                                <span class="small">Call Retrieved</span>
+                                <i class="fa fa-play-circle text-muted" role="button"/>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between py-1" data-sound="transfer_complete" t-on-click="_onClickPreviewSound">
+                                <span class="small">Transfer Complete</span>
+                                <i class="fa fa-play-circle text-muted" role="button"/>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between py-1" data-sound="transfer_failed" t-on-click="_onClickPreviewSound">
+                                <span class="small">Transfer Failed</span>
+                                <i class="fa fa-play-circle text-muted" role="button"/>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between py-1" data-sound="error" t-on-click="_onClickPreviewSound">
+                                <span class="small">Error</span>
+                                <i class="fa fa-play-circle text-muted" role="button"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <!--Keypad-->
             <div t-attf-class="{{state.isKeypad ? '' : 'o_hide'}} o_body_phone">
@@ -57,28 +121,73 @@
                     <button class="o_keypad_button" t-on-click="_onClickKeypadButton">#</button>
                 </div>
             </div>
+            <!--Inline operation error-->
+            <div t-if="state.lastOperationError" class="connect-operation-error" aria-live="assertive" role="alert">
+                <i class="fa fa-exclamation-circle"/>
+                <span t-out="state.lastOperationError"/>
+                <button class="btn-close btn-close-sm" t-on-click="() => this.state.lastOperationError = false"/>
+            </div>
             <!--Dial panel-->
-            <div t-attf-class="{{ state.isDialingPanel ? '' : 'o_hide' }} o_body_phone">
-                <div class="o_phone_call_details flex-column">
+            <div t-attf-class="{{ state.isDialingPanel ? '' : 'o_hide' }} o_body_phone" aria-live="polite" role="status">
+                <div t-attf-class="o_phone_call_details flex-column {{ state.isOnHold ? 'on-hold' : '' }}">
                     <t t-if="state.isPartner">
                         <div class="o_partner_link" t-on-click="() => this._openPartner(state.callerId.partnerId)">
                             <img alt="Avatar" class="o_partner_avatar" t-if="state.callerId.partnerId" t-att-src="state.callerId.partnerIconUrl"/>
                             <span class="o_partner_name"><t t-out="state.callerId.partnerName"/></span>
                             <span class="o_partner_name"><i t-if="state.isWhatsapp" class="fa fa-whatsapp custom-whatsapp"/><t t-out="state.callerId.phoneNumber"/></span>
-                            <span class="o_partner_name"><t t-out="state.callDurationTime"/><span t-if="state.isOnHold" class="badge bg-warning text-dark ms-1">ON HOLD</span></span>
+                            <span class="o_partner_name"><t t-out="state.callDurationTime"/><span t-if="state.isOnHold" class="o_hold_badge"><i class="fa fa-pause"/> ON HOLD</span></span>
                         </div>
                     </t>
                     <t t-else="">
                         <img t-if="state.callerId.partnerId" alt="Avatar" class="o_partner_avatar" t-att-src="state.callerId.partnerIconUrl"/>
                         <span t-if="state.callerId.partnerId" class="o_partner_name"><t t-out="state.callerId.partnerName"/></span>
                         <span class="o_partner_name"><t t-out="state.callerId.phoneNumber"/></span>
-                        <span class="o_partner_name"><t t-out="state.callDurationTime"/><span t-if="state.isOnHold" class="badge bg-warning text-dark ms-1">ON HOLD</span></span>
+                        <span class="o_partner_name"><t t-out="state.callDurationTime"/><span t-if="state.isOnHold" class="o_hold_badge"><i class="fa fa-pause"/> ON HOLD</span></span>
                         <div class="text-center" title="Customer">
                             <button class="btn p-3 border rounded-circle" t-on-click="_createPartner">
                                 <i aria-label="Customer" class="fa fa-fw fa-lg fa-user-plus"/>
                             </button>
                         </div>
                     </t>
+                    <!--Call Quality Indicator - show during active call-->
+                    <div t-if="state.inCall and state.callQuality !== 'unknown'" class="connect-quality-indicator"
+                         t-att-title="'Call Quality: ' + (state.callQuality === 'excellent' ? 'Excellent (4.0+)' : state.callQuality === 'good' ? 'Good (3.5-4.0)' : state.callQuality === 'fair' ? 'Fair (3.0-3.5)' : 'Poor (below 3.0)') + ' | MOS: ' + state.callQualityMos + ' | Jitter: ' + state.callQualityJitter + 'ms | RTT: ' + state.callQualityRtt + 'ms | Loss: ' + state.callQualityPacketLoss + '%'"
+                         t-on-click="_onClickQualityIndicator">
+                        <div t-attf-class="quality-bars quality-{{ state.callQuality }}">
+                            <span class="bar bar-1"/>
+                            <span class="bar bar-2"/>
+                            <span class="bar bar-3"/>
+                            <span class="bar bar-4"/>
+                        </div>
+                        <span class="quality-label-text" t-esc="state.callQuality === 'excellent' ? 'Excellent' : state.callQuality === 'good' ? 'Good' : state.callQuality === 'fair' ? 'Fair' : 'Poor'"/>
+                        <span t-if="state.callQuality === 'poor'" class="quality-warning">
+                            <i class="fa fa-exclamation-triangle"/>
+                        </span>
+                    </div>
+                    <!--Expanded quality details on click-->
+                    <div t-if="state.showQualityDetails and state.inCall" class="connect-quality-details">
+                        <div class="quality-row">
+                            <span class="quality-label">MOS Score</span>
+                            <span t-attf-class="quality-value quality-{{ state.callQuality }}"><t t-out="state.callQualityMos"/></span>
+                        </div>
+                        <div class="quality-row">
+                            <span class="quality-label">Jitter</span>
+                            <span class="quality-value"><t t-out="state.callQualityJitter"/>ms</span>
+                        </div>
+                        <div class="quality-row">
+                            <span class="quality-label">Latency</span>
+                            <span class="quality-value"><t t-out="state.callQualityRtt"/>ms</span>
+                        </div>
+                        <div class="quality-row">
+                            <span class="quality-label">Packet Loss</span>
+                            <span class="quality-value"><t t-out="state.callQualityPacketLoss"/>%</span>
+                        </div>
+                        <div t-if="state.callQualityWarnings.length" class="quality-warnings">
+                            <span t-foreach="state.callQualityWarnings" t-as="warning" t-key="warning" class="badge bg-warning text-dark me-1">
+                                <t t-out="warning"/>
+                            </span>
+                        </div>
+                    </div>
                     <div t-if="state.xTransferPartner" class="o_partner_link" t-on-click="() => this._openPartner(state.xTransferPartner.partnerId)">
                         <span class="o_partner_name"><i class="fa fa-arrow-down"/></span>
                         <img alt="Avatar" class="o_partner_avatar" t-if="state.xTransferPartner.partnerId" t-att-src="state.xTransferPartner.partnerIconUrl"/>
@@ -124,14 +233,18 @@
 
             <div class="mt-auto">
                 <!--Call waiting notification-->
-                <div t-if="state.hasWaitingCall" class="o_dial_panel o_call_waiting_panel text-center p-2">
-                    <span class="small">Incoming: <t t-out="state.waitingCallerId.partnerName || state.waitingCallerId.phoneNumber"/></span>
-                    <div class="d-flex justify-content-center gap-2 mt-1">
+                <div t-if="state.hasWaitingCall" class="o_dial_panel o_call_waiting_panel text-center p-2" aria-live="assertive" role="alert">
+                    <div class="call-waiting-header">
+                        <i class="fa fa-phone call-waiting-icon"/>
+                        <span class="fw-bold">Incoming Call</span>
+                    </div>
+                    <span class="call-waiting-caller"><t t-out="state.waitingCallerId.partnerName || state.waitingCallerId.phoneNumber"/></span>
+                    <div class="d-flex justify-content-center gap-2 mt-2">
                         <button class="btn btn-sm btn-success" t-on-click="_onClickAcceptWaiting" title="Accept waiting call">
-                            <i class="fa fa-phone"/>
+                            <i class="fa fa-phone"/> Accept
                         </button>
                         <button class="btn btn-sm btn-danger" t-on-click="_onClickRejectWaiting" title="Reject waiting call">
-                            <i class="fa fa-phone" style="transform: rotate(135deg)"/>
+                            <i class="fa fa-phone" style="transform: rotate(135deg)"/> Reject
                         </button>
                     </div>
                 </div>
@@ -161,7 +274,7 @@
                 </div>
 
                 <!--Call buttons-->
-                <div t-attf-class="{{ state.isKeypad or state.inCall or state.inIncoming ? '' : 'o_hide' }} o_dial_panel o_dial_panel_position flex-container">
+                <div t-attf-class="{{ state.isKeypad or state.inCall or state.inIncoming ? '' : 'o_hide' }} o_dial_panel o_dial_panel_position flex-container" aria-live="polite">
                     <button aria-label="Call" t-attf-class="{{ state.inCall ? 'o_hide' : '' }} flex-item" title="Call" t-on-click="_onClickMakeCall">
                         <i class="icon-call call"/>
                     </button>

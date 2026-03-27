@@ -364,6 +364,30 @@
       }
     }
 
+    // Hold state - pulsing amber animation on the entire call panel
+    .o_phone_call_details.on-hold {
+      animation: hold-pulse 2s ease-in-out infinite;
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.15));
+    }
+
+    // Hold badge - larger, animated
+    .o_hold_badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      background: #f59e0b;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.75rem;
+      border-radius: 12px;
+      animation: hold-badge-pulse 1.5s ease-in-out infinite;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
     // In-call display
     .o_phone_call_details {
       display: flex;
@@ -578,6 +602,44 @@
   }
 
   // ==========================================================================
+  // Call Waiting Panel
+  // ==========================================================================
+  .o_call_waiting_panel {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.08), rgba(40, 167, 69, 0.15));
+    border: 1px solid rgba(40, 167, 69, 0.3);
+    border-radius: 8px;
+    margin: 4px 8px;
+    animation: call-waiting-pulse 1.5s ease-in-out infinite;
+
+    .call-waiting-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 0.85rem;
+      color: var(--Phone-call-accept);
+    }
+
+    .call-waiting-icon {
+      animation: ring-animation 0.5s ease-in-out infinite;
+    }
+
+    .call-waiting-caller {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--Phone-text);
+      margin-bottom: 2px;
+    }
+
+    .btn {
+      font-size: 0.8rem;
+      padding: 4px 12px;
+    }
+  }
+
+  // ==========================================================================
   // Phone Lines (multi-line support)
   // ==========================================================================
   .o_phone_lines_position {
@@ -617,6 +679,173 @@
   }
 
   // ==========================================================================
+  // Connection Status Banner
+  // ==========================================================================
+  .connect-status-banner {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid;
+    flex-shrink: 0;
+
+    &.connecting {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fde68a;
+    }
+    &.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border-color: #fca5a5;
+      animation: error-pulse 2s ease-in-out infinite;
+    }
+    &.offline {
+      background: #f3f4f6;
+      color: #4b5563;
+      border-color: #d1d5db;
+    }
+
+    .btn-link {
+      padding: 0;
+      font-size: 0.8rem;
+      margin-left: auto;
+    }
+  }
+
+  // ==========================================================================
+  // Inline Operation Error
+  // ==========================================================================
+  .connect-operation-error {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fee2e2;
+    color: #991b1b;
+    border-bottom: 1px solid #fca5a5;
+    flex-shrink: 0;
+
+    span {
+      flex: 1;
+    }
+
+    .btn-close {
+      font-size: 0.6rem;
+      opacity: 0.7;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Call Quality Indicator
+  // ==========================================================================
+  .connect-quality-indicator {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    cursor: pointer;
+    padding: 2px 4px;
+    margin-top: 4px;
+
+    .quality-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 16px;
+
+      .bar {
+        width: 3px;
+        background: #d1d5db;
+        border-radius: 1px;
+        transition: background-color 0.3s, height 0.3s;
+      }
+      .bar-1 { height: 4px; }
+      .bar-2 { height: 7px; }
+      .bar-3 { height: 11px; }
+      .bar-4 { height: 16px; }
+
+      &.quality-excellent .bar { background: #22c55e; }
+      &.quality-good {
+        .bar-1, .bar-2, .bar-3 { background: #22c55e; }
+      }
+      &.quality-fair {
+        .bar-1, .bar-2 { background: #f59e0b; }
+      }
+      &.quality-poor {
+        .bar-1 { background: #ef4444; }
+      }
+    }
+
+    .quality-warning {
+      color: #ef4444;
+      font-size: 0.7rem;
+      animation: quality-warn-pulse 1s ease-in-out infinite;
+    }
+
+    .quality-label-text {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--Phone-muted);
+      margin-left: 2px;
+    }
+  }
+
+  .connect-quality-details {
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    margin-top: 4px;
+    width: 100%;
+    max-width: 200px;
+
+    .quality-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+
+      .quality-label {
+        color: #9ca3af;
+      }
+      .quality-value {
+        font-weight: 600;
+        &.quality-excellent { color: #22c55e; }
+        &.quality-good { color: #22c55e; }
+        &.quality-fair { color: #f59e0b; }
+        &.quality-poor { color: #ef4444; }
+      }
+    }
+
+    .quality-warnings {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  // ==========================================================================
+  // Empty State Placeholder
+  // ==========================================================================
+  .connect-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  // ==========================================================================
   // Focus States
   // ==========================================================================
   button:focus, input:focus {
@@ -651,6 +880,22 @@
 // =============================================================================
 // Animations for collapsed phone icon
 // =============================================================================
+@keyframes hold-pulse {
+  0%, 100% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 5px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    border-color: #d97706;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+  }
+}
+
+@keyframes hold-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 @keyframes pulse-call {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
@@ -669,5 +914,82 @@
   }
   75% {
     transform: rotate(-15deg);
+  }
+}
+
+@keyframes error-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes quality-warn-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes call-waiting-pulse {
+  0%, 100% {
+    border-color: rgba(40, 167, 69, 0.3);
+    box-shadow: 0 0 4px rgba(40, 167, 69, 0.1);
+  }
+  50% {
+    border-color: rgba(40, 167, 69, 0.6);
+    box-shadow: 0 0 12px rgba(40, 167, 69, 0.25);
+  }
+}
+
+// =============================================================================
+// Volume Level Display
+// =============================================================================
+.volume-level {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--Phone-muted);
+  min-width: 32px;
+  text-align: right;
+}
+
+// =============================================================================
+// Audio Settings Panel
+// =============================================================================
+.o_audio_settings {
+  overflow-y: auto;
+
+  .form-range {
+    height: 20px;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      background-color: var(--Phone-accent);
+    }
+
+    &::-moz-range-thumb {
+      background-color: var(--Phone-accent);
+    }
+  }
+
+  .form-check-input:checked {
+    background-color: var(--Phone-accent);
+    border-color: var(--Phone-accent);
+  }
+
+  .o_audio_preview_list > div {
+    border-bottom: 1px solid var(--Phone-border);
+    cursor: pointer;
+    padding-left: 4px;
+    padding-right: 4px;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background-color: var(--Phone-hover-bg);
+      border-radius: 4px;
+
+      .fa-play-circle {
+        color: var(--Phone-accent) !important;
+      }
+    }
   }
 }

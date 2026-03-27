@@ -2,7 +2,6 @@ import asyncio
 import json
 import httpx
 import logging
-import traceback
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -210,13 +209,13 @@ async def handle_media_stream(websocket: WebSocket, agent_uid: str, call_id: str
             requires_auth=False,
             client_tools=client_tools,
             audio_interface=audio_interface,
-            callback_agent_response=lambda text: print(f"Agent: {text}"),
-            callback_agent_response_correction=lambda original, corrected: print(f"Agent: {original} -> {corrected}"),
-            callback_user_transcript=lambda text: print(f"User: {text}"),
+            callback_agent_response=lambda text: logger.info("Agent: %s", text),
+            callback_agent_response_correction=lambda original, corrected: logger.info("Agent: %s -> %s", original, corrected),
+            callback_user_transcript=lambda text: logger.info("User: %s", text),
         )
 
         conversation.start_session()
-        print("Conversation session started")
+        logger.info("Conversation session started")
 
         async for message in websocket.iter_text():
             if not message:
@@ -226,17 +225,16 @@ async def handle_media_stream(websocket: WebSocket, agent_uid: str, call_id: str
                 data = json.loads(message)
                 await audio_interface.handle_twilio_message(data)
             except Exception as e:
-                print(f"Error processing message: {str(e)}")
-                traceback.print_exc()
+                logger.exception("Error processing message: %s", e)
 
     except WebSocketDisconnect:
-        print("WebSocket disconnected")
+        logger.info("WebSocket disconnected")
     finally:
         if conversation:
-            print("Ending conversation session...")
+            logger.info("Ending conversation session...")
             conversation.end_session()
             conversation_id = conversation.wait_for_session_end()
-            print(f"Conversation ID: {conversation_id}")
+            logger.info("Conversation ID: %s", conversation_id)
 
 
 if __name__ == "__main__":

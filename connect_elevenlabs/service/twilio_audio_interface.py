@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from typing import Callable
 import queue
 import threading
 import base64
 from elevenlabs.conversational_ai.conversation import AudioInterface
+
+logger = logging.getLogger(__name__)
 
 
 class TwilioAudioInterface(AudioInterface):
@@ -42,20 +45,20 @@ class TwilioAudioInterface(AudioInterface):
             )
             future.result(timeout=5.0)
         except Exception as e:
-            print(f"Error sending clear message to Twilio: {e}")
+            logger.error("Error sending clear message to Twilio: %s", e)
 
     async def handle_twilio_message(self, data):
         try:
             if data["event"] == "start":
                 self.stream_sid = data["start"]["streamSid"]
-                print(f"Started stream with stream_sid: {self.stream_sid}")
-                print("---data: ", data)
+                logger.info("Started stream with stream_sid: %s", self.stream_sid)
+                logger.debug("Stream start data: %s", data)
             if data["event"] == "media":
                 audio_data = base64.b64decode(data["media"]["payload"])
                 if self.input_callback:
                     self.input_callback(audio_data)
         except Exception as e:
-            print(f"Error in input_callback: {e}")
+            logger.exception("Error in input_callback: %s", e)
 
     def _output_thread(self):
         while not self.should_stop.is_set():
@@ -69,7 +72,7 @@ class TwilioAudioInterface(AudioInterface):
                 )
                 future.result(timeout=5.0)
             except Exception as e:
-                print(f"Error sending audio: {e}")
+                logger.error("Error sending audio: %s", e)
 
     async def _send_audio_to_twilio(self, audio: bytes):
         audio_payload = base64.b64encode(audio).decode("utf-8")

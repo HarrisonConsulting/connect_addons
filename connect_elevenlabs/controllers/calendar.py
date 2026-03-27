@@ -78,7 +78,7 @@ class CalendarController(http.Controller):
             "start": current_start,
             "stop": day_end
         })
-        print(free_intervals)
+        logger.info('Available slots: %s', free_intervals)
         return free_intervals
 
     @http.route('/connect_elevenlabs/create_event', methods=['POST'], type=route_type, auth='public',

@@ -1235,7 +1235,7 @@ class ElevenlabsAgent(models.Model):
             agent = client.conversational_ai.agents.get(
                 agent_id=agent.agent_id
             )
-            print(
+            logger.info(
                 json.dumps(
                     str(agent.conversation_config.agent), indent=2
                 )

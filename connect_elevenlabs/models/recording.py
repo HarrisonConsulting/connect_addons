@@ -69,8 +69,8 @@ class Recording(models.Model):
                     diarize=True,  # Whether to annotate who is speaking
                     tag_audio_events=False,  # Tag audio events like laughter, applause, etc.
                 )
-                logger.info(f'Transcript: {response.text}')
-                print(response)
+                logger.info('Transcript: %s', response.text)
+                logger.debug('Transcription response: %s', response)
                 result['transcript'] = response.text if response.text else ""
                 # Make a summary
                 openai_client = self.env['connect.settings'].get_openai_client()

@@ -75,19 +75,22 @@
                     <separator string="Business Hours"/>
                     <group>
                         <group>
-                            <field name="business_hours_enabled"/>
+                            <field name="schedule_id"
+                                help="If set, overrides the simple business hours fields below."/>
+                            <field name="business_hours_enabled"
+                                invisible="schedule_id"/>
                             <field name="business_hours_start" widget="float_time"
-                                invisible="not business_hours_enabled"/>
+                                invisible="schedule_id or not business_hours_enabled"/>
                             <field name="business_hours_end" widget="float_time"
-                                invisible="not business_hours_enabled"/>
+                                invisible="schedule_id or not business_hours_enabled"/>
                             <field name="business_hours_timezone"
-                                invisible="not business_hours_enabled"/>
+                                invisible="schedule_id or not business_hours_enabled"/>
                         </group>
                         <group>
                             <field name="after_hours_message"
-                                invisible="not business_hours_enabled"/>
+                                invisible="not schedule_id and not business_hours_enabled"/>
                             <field name="after_hours_voicemail"
-                                invisible="not business_hours_enabled"/>
+                                invisible="not schedule_id and not business_hours_enabled"/>
                         </group>
                     </group>
                 </sheet>

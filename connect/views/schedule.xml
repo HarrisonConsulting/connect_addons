@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="schedule_action" model="ir.actions.act_window">
+        <field name="name">Schedules</field>
+        <field name="path">connect-schedules</field>
+        <field name="res_model">connect.schedule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="connect.schedules_menu"
+            sequence="176"
+            parent="connect.connect_voice_menu"
+            name="Schedules"
+            action="connect.schedule_action"/>
+
+    <!-- Schedule List -->
+    <record id="schedule_list" model="ir.ui.view">
+        <field name="name">connect.schedule.list</field>
+        <field name="model">connect.schedule</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="timezone"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Schedule Form -->
+    <record id="schedule_form" model="ir.ui.view">
+        <field name="name">connect.schedule.form</field>
+        <field name="model">connect.schedule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Schedule name..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="timezone"/>
+                        </group>
+                        <group>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Weekly Schedule" name="weekly_schedule">
+                            <field name="line_ids">
+                                <list editable="bottom">
+                                    <field name="day_of_week"/>
+                                    <field name="start_hour" widget="float_time"/>
+                                    <field name="end_hour" widget="float_time"/>
+                                    <field name="is_closed"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Holidays" name="holidays">
+                            <field name="holiday_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="date"/>
+                                    <field name="recurring"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Schedule Search -->
+    <record id="schedule_search" model="ir.ui.view">
+        <field name="name">connect.schedule.search</field>
+        <field name="model">connect.schedule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="timezone"/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+</odoo>

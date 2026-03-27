@@ -7,6 +7,7 @@ WARP.md
 GEMINI.md
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/

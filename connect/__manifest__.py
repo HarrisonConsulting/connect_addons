@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.6.0',
+    'version': '1.8.2',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -31,6 +31,8 @@
         'security/user.xml',
         'security/user_record_rules.xml',
         'security/admin_record_rules.xml',
+        # Data (post-security)
+        'data/schedule_data.xml',
         # Views
         'views/menu.xml',
         'views/settings.xml',
@@ -42,6 +44,7 @@
         'views/call.xml',
         'views/call_analytics.xml',
         'views/park_slot.xml',
+        'views/schedule.xml',
         'views/callflow.xml',
         'views/channel.xml',
         'views/outgoing_callerid.xml',
@@ -69,14 +72,15 @@
     'assets': {
         'web.assets_backend': [
             '/connect/static/src/icomoon/style.css',
+            '/connect/static/src/services/audio_notification.js',
+            '/connect/static/src/services/actions/*',
+            '/connect/static/src/services/active_calls/*',
+            '/connect/static/src/services/mail/*',
             '/connect/static/src/components/phone/*/*',
             '/connect/static/src/js/idb_error_handler.js',
             '/connect/static/src/js/main.js',
             '/connect/static/src/js/utils.js',
             '/connect/static/src/widgets/phone_field/*',
-            '/connect/static/src/services/actions/*',
-            '/connect/static/src/services/active_calls/*',
-            '/connect/static/src/services/mail/*',
         ],
         # Dark mode overrides - loaded when Odoo enables dark mode
         'web.assets_web_dark': [

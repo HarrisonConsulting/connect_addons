@@ -155,6 +155,39 @@
     <field name="perm_unlink" eval="0"/>
   </record>
 
+  <!-- Schedule (read-only for callflow rendering) -->
+  <record id="connect_schedule_webhook" model="ir.model.access">
+    <field name="name">connect_schedule_webhook</field>
+    <field name="model_id" ref="connect.model_connect_schedule"/>
+    <field name="group_id" ref="connect.group_connect_webhook"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Schedule Line -->
+  <record id="connect_schedule_line_webhook" model="ir.model.access">
+    <field name="name">connect_schedule_line_webhook</field>
+    <field name="model_id" ref="connect.model_connect_schedule_line"/>
+    <field name="group_id" ref="connect.group_connect_webhook"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Schedule Holiday -->
+  <record id="connect_schedule_holiday_webhook" model="ir.model.access">
+    <field name="name">connect_schedule_holiday_webhook</field>
+    <field name="model_id" ref="connect.model_connect_schedule_holiday"/>
+    <field name="group_id" ref="connect.group_connect_webhook"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
   <!-- Message -->
   <record id="connect_message_webhook" model="ir.model.access">
     <field name="name">connect_message_webhook</field>

@@ -18,12 +18,17 @@
             <field name="name">connect.park_slot.list</field>
             <field name="model">connect.park_slot</field>
             <field name="arch" type="xml">
-                <list create="false" edit="false" decoration-success="is_occupied">
+                <list create="false" edit="false"
+                      decoration-success="is_occupied"
+                      decoration-danger="is_occupied and park_duration &gt; 240">
                     <field name="is_occupied" column_invisible="1"/>
-                    <field name="name"/>
+                    <field name="park_duration" column_invisible="1"/>
+                    <field name="name" string="Slot"/>
                     <field name="caller_display"/>
                     <field name="parked_by"/>
                     <field name="parked_at"/>
+                    <field name="park_duration" string="Duration (s)" widget="integer"
+                           invisible="not is_occupied"/>
                     <button name="action_unpark" string="Pick Up" type="object"
                             class="btn-primary" icon="fa-phone"
                             invisible="not is_occupied"/>
@@ -44,9 +49,11 @@
                     <sheet>
                         <group>
                             <group>
-                                <field name="name"/>
+                                <field name="name" string="Slot"/>
                                 <field name="is_occupied"/>
                                 <field name="caller_display"/>
+                                <field name="park_duration" string="Duration (s)"
+                                       invisible="not is_occupied"/>
                             </group>
                             <group>
                                 <field name="call"/>
@@ -66,7 +73,7 @@
                 <search>
                     <filter name="occupied" string="Occupied" domain="[('call', '!=', False)]"/>
                     <filter name="empty" string="Empty" domain="[('call', '=', False)]"/>
-                    <field name="name"/>
+                    <field name="name" string="Slot"/>
                     <field name="parked_by"/>
                 </search>
             </field>

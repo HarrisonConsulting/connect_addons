@@ -51,6 +51,9 @@ class CallFlow(models.Model):
     voicemail_prompt = fields.Text()
     voicemail_enabled = fields.Boolean()
     # fallback_extension
+    schedule_id = fields.Many2one(
+        'connect.schedule', string='Schedule',
+        help="Business hours schedule. If set, overrides the simple business hours fields below.")
     business_hours_enabled = fields.Boolean(
         string='Enable Business Hours', default=False,
         help='Route calls differently outside business hours')
@@ -81,8 +84,17 @@ class CallFlow(models.Model):
         return [(tz, tz) for tz in sorted(pytz.all_timezones_set)]
 
     def _is_business_hours(self):
-        """Check if current time is within configured business hours."""
+        """Check if current time is within configured business hours.
+
+        If a schedule is set, delegates to it. Otherwise falls back to the
+        simple start/end hour fields.
+        """
         self.ensure_one()
+
+        # Advanced schedule takes precedence
+        if self.schedule_id:
+            return self.schedule_id.is_open()
+
         if not self.business_hours_enabled:
             return True  # No hours configured = always open
 
@@ -111,7 +123,9 @@ class CallFlow(models.Model):
         if self.after_hours_voicemail:
             self.tts_say(response, 'Please leave a message after the tone.',
                          language=self.language, voice=self.voice)
-            response.record(maxLength=120, finishOnKey='#', playBeep=True)
+            vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
+            vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
+            response.record(maxLength=vm_max_length, finishOnKey=vm_finish_key, playBeep=True)
         else:
             response.hangup()
 
@@ -205,9 +219,11 @@ class CallFlow(models.Model):
             if self.voicemail_enabled and self.voicemail_prompt:
                 response.pause(length=1)
                 self.get_voicemail_prompt_message(response)
+                vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
+                vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
                 response.record(
-                    maxLength=120,
-                    finishOnKey='#',
+                    maxLength=vm_max_length,
+                    finishOnKey=vm_finish_key,
                     playBeep=True,
                     recordingStatusCallback=voicemail_record_status_url)
             else:
@@ -240,9 +256,11 @@ class CallFlow(models.Model):
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
                 response.pause(length=1)
                 callflow.get_voicemail_prompt_message(response)
+                vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
+                vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
                 response.record(
-                    maxLength=120,
-                    finishOnKey='#',
+                    maxLength=vm_max_length,
+                    finishOnKey=vm_finish_key,
                     playBeep=True,
                     recordingStatusCallback=record_status_url)
             else:

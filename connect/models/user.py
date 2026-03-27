@@ -74,7 +74,7 @@ class User(models.Model):
     voicemail_prompt = fields.Text(default="Hello, this is {{user.name}}. I'm unable to take your call right now. Please leave a message after the tone.")
     application = fields.Many2one('connect.twiml')
     sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
-    client_ring_timeout = fields.Integer(required=True, default=10, string='Web client ring timeout')
+    client_ring_timeout = fields.Integer(required=True, default=20, string='Web client ring timeout')
     callerid_number = fields.Many2one('connect.number', ondelete='restrict') # TODO: Remove after 1.0
     outgoing_callerid = fields.Many2one('connect.outgoing_callerid', ondelete='set null',
         domain=['|',('status', '=', 'validated'),('callerid_type', '=', 'number')])
@@ -452,9 +452,11 @@ class User(models.Model):
         edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
         voicemail_record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
         self.get_voicemail_prompt(response)
+        vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
+        vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
         response.record(
-            maxLength=120,
-            finishOnKey='#',
+            maxLength=vm_max_length,
+            finishOnKey=vm_finish_key,
             playBeep=True,
             recordingStatusCallback=voicemail_record_status_url)
 
@@ -642,9 +644,11 @@ class User(models.Model):
                     system_voice = self.env['connect.settings'].get_system_voice()
                     processed_text = self.env['connect.settings'].process_pronunciation(generic_prompt)
                     response.say(processed_text, voice=system_voice)
+                vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
+                vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
                 response.record(
-                    maxLength=120,
-                    finishOnKey='#',
+                    maxLength=vm_max_length,
+                    finishOnKey=vm_finish_key,
                     playBeep=True,
                     recordingStatusCallback=record_status_url)
             else:

@@ -75,6 +75,10 @@
                       <field name="fetch_call_prices"/>
                       <small colspan="2">Fetch call prices from Twilio API after call completion. This may add delay to call processing.</small>
                     </group>
+                    <group string="Voicemail">
+                      <field name="voicemail_max_length"/>
+                      <field name="voicemail_finish_key"/>
+                    </group>
                     <group>
                       <button colspan="2" name="reformat_numbers_button" string="FORMAT NUMBERS" type="object"/>
                     </group>
@@ -94,6 +98,30 @@
                       </small>
                       <field name="register_summary"
                              invisible="transcript_calls == False"/>
+                    </group>
+                  </group>
+                </page>
+                <page name="parking" string="Call Parking"
+                      invisible="is_registered == False">
+                  <group>
+                    <group string="Park Slots">
+                      <field name="park_slot_count"/>
+                      <small colspan="2">Number of available parking slots (1-99). Changes take effect after saving and running sync.</small>
+                      <button class="btn btn-primary" colspan="2" name="action_sync_park_slots" type="object" string="SYNC PARK SLOTS"/>
+                    </group>
+                    <group string="Timeout">
+                      <field name="park_timeout"/>
+                      <small colspan="2">Seconds before a parked call times out and rings back the user who parked it. Set to 0 to disable timeout.</small>
+                    </group>
+                  </group>
+                  <group>
+                    <group string="Hold Music">
+                      <field name="park_hold_music_url" placeholder="Default: classical music"/>
+                      <small colspan="2">Custom hold music URL. Leave empty for default Twilio classical music.</small>
+                    </group>
+                    <group string="Announcements">
+                      <field name="park_announcement_enabled"/>
+                      <small colspan="2">When enabled, callers hear "Your call has been parked at slot N" before hold music.</small>
                     </group>
                   </group>
                 </page>

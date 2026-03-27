@@ -164,10 +164,11 @@ class Channel(models.Model):
             if not channel.parent_channel:
                 # Check if channel has parent_sid without channel
                 if channel.parent_sid:
-                    parent_channel = self.search([('sid', '=', channel.parent_sid)])
-                    data['parent_channel'] = parent_channel.id
+                    parent_channel = self.search([('sid', '=', channel.parent_sid)], limit=1)
+                    if parent_channel:
+                        data['parent_channel'] = parent_channel.id
                 elif params.get('ParentCallSid'):
-                    parent_channel = self.search([('sid', '=', params.get('ParentCallSid'))])
+                    parent_channel = self.search([('sid', '=', params.get('ParentCallSid'))], limit=1)
                     if parent_channel:
                         data['parent_channel'] = parent_channel.id
                         if parent_channel.parent_channel:
@@ -198,11 +199,11 @@ class Channel(models.Model):
             }
             # Check if channel has parent_sid without channel
             if channel.parent_sid:
-                parent_channel = self.search([('sid', '=', channel.parent_sid)])
+                parent_channel = self.search([('sid', '=', channel.parent_sid)], limit=1)
                 if parent_channel:
                     data['parent_channel'] = parent_channel.id
             elif params.get('ParentCallSid'):
-                parent_channel = self.search([('sid', '=', params.get('ParentCallSid'))])
+                parent_channel = self.search([('sid', '=', params.get('ParentCallSid'))], limit=1)
                 if parent_channel:
                     data['parent_channel'] = parent_channel.id
                     if parent_channel.parent_channel:
@@ -401,7 +402,7 @@ class Channel(models.Model):
         client = self.env['connect.settings'].get_client()
         call = client.calls(self.sid).update(
             twiml="<Response><Say>Ahoy there</Say></Response>")
-        print(call.to)
+        logger.info('Transfer call to: %s', call.to)
 
     def connect_notify(self, title='Connect', sticky=False, warning=False):
         """Notify user about incoming call.

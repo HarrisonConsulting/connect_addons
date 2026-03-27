@@ -107,6 +107,12 @@ export class PhoneSysTray extends Component {
         }
     }
 
+    _onClickReconnect() {
+        this.state.exception = null
+        this.notification.add('Reconnecting...', {title: 'Connect', type: 'info'})
+        this.bus.trigger('busPhoneReconnect')
+    }
+
     _onClickHangUp() {
         this.bus.trigger('busPhoneHangUp')
         this.state.isDisplay = false

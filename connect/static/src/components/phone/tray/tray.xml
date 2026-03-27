@@ -9,6 +9,10 @@
         <button t-if="!state.isDisplay and state.inCall" class="hang-up-popup" title="HangUp" t-on-click="_onClickHangUp">
             <i aria-label="HangUp" class="icon-call_end reject-call"/>
         </button>
+
+        <button t-if="state.exception" class="btn btn-sm btn-warning connect-reconnect-btn" t-on-click="_onClickReconnect" title="Reconnect phone">
+            <i class="fa fa-refresh"/> Reconnect
+        </button>
     </div>
 
 </templates>

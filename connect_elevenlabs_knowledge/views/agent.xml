@@ -6,7 +6,7 @@
         <field name="model">connect.elevenlabs_agent</field>
         <field name="inherit_id" ref="connect_elevenlabs.connect_elevenlabs_agent_form"/>
         <field name="arch" type="xml">
-            <page name="llm" position="after">
+            <page name="knowledge_base" position="replace">
                 <page name="knowledge_base" string="Knowledge Base">
                     <field name="knowledge_base" nolabel="1">
                         <list>

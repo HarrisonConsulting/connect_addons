@@ -185,7 +185,6 @@
                                     <field name="name"/>
                                     <field name="tool_type"/>
                                     <field name="description"/>
-                                    <field name="is_enabled"/>
                                 </list>
                             </field>
                             <field name="has_transfer_tool" invisible="1"/>

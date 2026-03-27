@@ -20,6 +20,7 @@
     <!-- Action to open Elevenlabs Knowledge views -->
     <record id="knowledge_action" model="ir.actions.act_window">
         <field name="name">Knowledge</field>
+        <field name="path">elevenlabs-knowledge</field>
         <field name="res_model">connect.elevenlabs_knowledge</field>
         <field name="view_mode">list,form</field>
     </record>

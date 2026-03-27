@@ -3,6 +3,7 @@
 
     <record id="agent_template_action" model="ir.actions.act_window">
         <field name="name">Agent Templates</field>
+        <field name="path">elevenlabs-agent-templates</field>
         <field name="res_model">connect.elevenlabs_agent_template</field>
         <field name="view_mode">list,form</field>
     </record>

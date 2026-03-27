@@ -8,7 +8,7 @@ import uuid
 from elevenlabs import ElevenLabs
 
 from odoo import fields, models
-from odoo.addons.connect.models.settings import PROTECTED_FIELDS
+from odoo.addons.connect.models.settings import PROTECTED_FIELDS, HTTP_API_TIMEOUT
 from odoo.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ class Elevenlabsettings(models.Model):
     def ping_agent(self):
         self.ensure_one()
         try:
-            response = requests.post(urljoin(self.elevenlabs_agent_url, '/agent/ping'))
+            response = requests.post(urljoin(self.elevenlabs_agent_url, '/agent/ping'), timeout=HTTP_API_TIMEOUT)
             if response.text == 'true':
                 self.connect_notify('Pong', title='Elevenlabs Agent', notify_uid=self.env.user.id)
             else:

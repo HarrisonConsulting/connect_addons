@@ -10,6 +10,7 @@ import requests
 from werkzeug.exceptions import Unauthorized
 
 from odoo import http
+from odoo.addons.connect.models.settings import HTTP_API_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class ConnectElevenlabsController(http.Controller):
         elevenlabs_api_key = http.request.env['connect.settings'].sudo().get_param('elevenlabs_api_key')
         headers = {"Content-Type": "application/json", "xi-api-key": elevenlabs_api_key}
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=HTTP_API_TIMEOUT)
         if response.status_code == 200:
             audio_data = base64.b64encode(response.content)
             recording = http.request.env['connect.recording'].with_context(skip_transcription=True)

@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 TWILIO_LOG_LEVEL = logging.WARNING
 
+# HTTP request timeouts: (connect_timeout_secs, read_timeout_secs)
+HTTP_DOWNLOAD_TIMEOUT = (10, 60)   # For media downloads (audio files)
+HTTP_API_TIMEOUT = (10, 30)        # For API calls (JSON responses)
+
 ############### SETTINGS #####################################
 MODULE_NAME = "connect"
 MAX_EXTEN_LEN = 4

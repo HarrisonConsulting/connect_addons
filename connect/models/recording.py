@@ -7,7 +7,7 @@ import requests
 from tempfile import NamedTemporaryFile
 from odoo import fields, models, api, release, SUPERUSER_ID
 from odoo.exceptions import ValidationError
-from .settings import format_connect_response, debug
+from .settings import format_connect_response, debug, HTTP_DOWNLOAD_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,8 @@ class Recording(models.Model):
             return None
         account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
         auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
-        response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token))
+        response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token),
+                                timeout=HTTP_DOWNLOAD_TIMEOUT)
         response.raise_for_status()
         with NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
             for chunk in response.iter_content(chunk_size=8192):
@@ -146,7 +147,7 @@ class Recording(models.Model):
             result.update(self.make_summary(client, summary_prompt, transcript_text))
             result['transcription_error'] = False
         except Exception as e:
-            logger.exception(f'Transcribe error: {e}')
+            logger.exception('Transcribe error for recording id=%s sid=%s: %s', self.id, self.sid, e)
             result['transcription_error'] = str(e)
         finally:
             if temp_file_path and os.path.exists(temp_file_path):
@@ -211,7 +212,7 @@ class Recording(models.Model):
             logger.info('%s', response.usage)
             return {'summary': response.choices[0].message.content.strip('\n\n')}
         except Exception as e:
-            logger.exception(f'Summary error: {e}')
+            logger.exception('Summary error for recording id=%s: %s', self.id, e)
             return {'transcription_error': str(e)}
 
     def get_transcript(self, fail_silently=False):
@@ -366,6 +367,12 @@ class Recording(models.Model):
             data.update(self.prepare_data(recording))
         except Exception as e:
             logger.exception(format_connect_response(e))
+        # Idempotency: skip if this RecordingSid was already processed (Twilio may retry)
+        existing = self.search([('sid', '=', data['sid'])], limit=1)
+        if existing:
+            logger.info('Duplicate recording webhook ignored for RecordingSid=%s', data['sid'])
+            existing.write({'status': data.get('status', existing.status)})
+            return True
         self.create(data)
         return True
 

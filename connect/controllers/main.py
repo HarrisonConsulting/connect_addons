@@ -10,6 +10,7 @@ from werkzeug.exceptions import NotFound
 from odoo import fields, http, release
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
+from odoo.addons.connect.models.settings import HTTP_API_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class ConnectController(http.Controller):
         media_name = '{}.wav'.format(media_url.split('/')[-1])
         account_sid = http.request.env['connect.settings'].sudo().get_param('account_sid')
         auth_token = http.request.env['connect.settings'].sudo().get_param('auth_token')
-        response = requests.get(media_url, auth=(account_sid, auth_token))
+        response = requests.get(media_url, auth=(account_sid, auth_token), timeout=HTTP_API_TIMEOUT)
         if response.status_code == 200:
             # Create the response
             res = http.Response(response.content, content_type='audio/wav')

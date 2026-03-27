@@ -5,6 +5,7 @@ import logging
 import requests
 
 from odoo import api, fields, models, release
+from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class Recording(models.Model):
         if transcript_provider == 'elevenlabs':
             client = self.env['connect.settings'].get_elevenlabs_client()
 
-            response = requests.get(self.media_url)
+            response = requests.get(self.media_url, timeout=HTTP_DOWNLOAD_TIMEOUT)
             response.raise_for_status()
             audio_file = io.BytesIO(response.content)
 

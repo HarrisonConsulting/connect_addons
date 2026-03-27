@@ -65,7 +65,11 @@
     <!-- Calls -->
     <t t-name="connect.calls" owl="1">
         <div t-attf-class="{{ state.call ? 'o_hide' : '' }} o_history_list">
-            <t t-if="state.calls">
+            <div t-if="!state.calls.length" class="connect-empty-state">
+                <i class="fa fa-phone fa-2x mb-2 text-muted"/>
+                <p class="text-muted">No call history yet</p>
+            </div>
+            <t t-if="state.calls.length">
                 <table class="o_history_table">
                     <t t-foreach="state.calls" t-as="call" t-key="call.id">
                         <t t-if="call.called_users[0] === user">
@@ -109,7 +113,7 @@
                                      t-on-click="() => this._onClickContactCall(caller)"
                                      t-attf-title="Call to {{caller}}">
                                     <div>
-                                        <div class="card-identifier">
+                                        <div class="card-identifier" t-att-title="caller_id">
                                             <t t-out="caller_id"/>
                                         </div>
                                     </div>
@@ -137,6 +141,9 @@
                         </tr>
                     </t>
                 </table>
+                <button t-if="state.hasMore" class="btn btn-link w-100" t-on-click="loadMore">
+                    Load more calls...
+                </button>
             </t>
         </div>
         <div t-if="state.call" class="o_history_list">

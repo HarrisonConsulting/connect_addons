@@ -2,7 +2,7 @@
 
 import {useService} from "@web/core/utils/hooks"
 import {setFocus} from "@connect/js/utils"
-import {Component, useState, useRef, onWillStart, onMounted} from "@odoo/owl"
+import {Component, useState, useRef, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 
 const searching = {
     all: 'all',
@@ -38,6 +38,7 @@ export class Contacts extends Component {
         this.action = useService('action')
         this.busService = useService('bus_service')
         this.contactInput = useRef('contact-input')
+        this._searchDebounce = null
         this.state = useState({
             isContactMode: false,
             partners: [],
@@ -52,6 +53,10 @@ export class Contacts extends Component {
         onMounted(() => {
             this._presenceHandler = (payload) => this._onPresenceUpdate(payload)
             this.busService.subscribe('presence_update', this._presenceHandler)
+        })
+
+        onWillUnmount(() => {
+            clearTimeout(this._searchDebounce)
         })
     }
 
@@ -89,9 +94,29 @@ export class Contacts extends Component {
 
     _onSearchContact(ev) {
         if (ev.key === "Enter") {
-            this._contactCall()
-        } else {
+            return
+        }
+        clearTimeout(this._searchDebounce)
+        this._searchDebounce = setTimeout(() => {
             this._contactSearchQuery({searchQuery: ev.target.value})
+        }, 300)
+    }
+
+    _onSearchKeydown(ev) {
+        if (ev.key === "Enter") {
+            ev.preventDefault()
+            const value = (ev.target.value || '').trim()
+            if (value && /^[\d\+\-\(\)\s]+$/.test(value)) {
+                if (this.isTransfer) {
+                    this._onClickMakeTransfer(value)
+                } else if (this.isAddParticipant) {
+                    this._onClickAddParticipant(value)
+                } else {
+                    this._onClickMakeCall(value)
+                }
+            } else {
+                this._contactCall()
+            }
         }
     }
 

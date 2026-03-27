@@ -4,7 +4,11 @@
     <!-- Favorites -->
     <t t-name="connect.favorites" owl="1">
         <div class="o_favorites_list">
-            <t t-if="state.favorites">
+            <div t-if="!state.favorites.length" class="connect-empty-state">
+                <i class="fa fa-star fa-2x mb-2 text-muted"/>
+                <p class="text-muted">No favorites yet. Star contacts to add them here.</p>
+            </div>
+            <t t-if="state.favorites.length">
                 <table class="o_favorites_table">
                     <t t-foreach="state.favorites" t-as="favorite" t-key="favorite.id">
                         <t t-if="favorite.partner">
@@ -30,7 +34,7 @@
                             <td class="o_history_info w-100 d-flex flex-row">
                                 <div class="d-flex flex-column justify-content-center info-card">
                                     <div>
-                                        <div class="card-identifier">
+                                        <div class="card-identifier" t-att-title="caller_id">
                                             <t t-out="caller_id"/>
                                         </div>
                                         <div t-if="!favorite.name">

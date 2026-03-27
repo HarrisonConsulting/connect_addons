@@ -108,6 +108,8 @@ export class Calls extends Component {
         this.state = useState({
             calls: [],
             call: null,
+            callsLimit: 20,
+            hasMore: false,
         })
 
         onWillStart(async () => {
@@ -120,15 +122,20 @@ export class Calls extends Component {
     async _getCalls() {
         this.state.calls = []
         const domain = ["|", ["caller_user", "=", this.user], ["called_users", "=", this.user]]
-        const records = await this.orm.call("connect.call", "get_widget_calls", [domain, 20])
+        const records = await this.orm.call("connect.call", "get_widget_calls", [domain, this.state.callsLimit])
         for (const item of records) {
             const call_number = item.called_users[0] === this.user ? item.caller : item.called
             item.favorite = this.favorites.includes(call_number)
             const local_time = new Date(`${item.create_date}Z`).toLocaleTimeString("en-GB")
             item.create_date = `${item.create_date.split(' ')[0]} ${local_time}`
         }
+        this.state.hasMore = records.length === this.state.callsLimit
         this.state.calls = records
+    }
 
+    loadMore() {
+        this.state.callsLimit = this.state.callsLimit + 20
+        this._getCalls()
     }
 
     async _getFavorites() {

@@ -11,19 +11,36 @@ patch(PhoneField.prototype, {
     setup() {
         super.setup()
         this.action = useService("action")
+        this.notification = useService("notification")
+    },
+
+    _validatePhoneNumber(number) {
+        if (!number || typeof number !== 'string') return false
+        const cleaned = number.replace(/[\s\-\(\)\.]/g, '')
+        return /^\+?[\d]{7,15}$/.test(cleaned)
     },
 
     _onClickCallButton(e) {
         e.preventDefault()
+        const phoneNumber = this.props.record.data[this.props.name]
+        if (!this._validatePhoneNumber(phoneNumber)) {
+            this.notification.add("Invalid phone number format", {type: "warning"})
+            return
+        }
         const {resModel, resId} = this.props.record.model.config
-        const args = [this.props.record.data[this.props.name], resModel, resId]
+        const args = [phoneNumber, resModel, resId]
         this.env.model.orm.call("connect.settings", "originate_call", args, {})
     },
 
     _onClickWhatsappCallButton(e) {
         e.preventDefault()
+        const phoneNumber = this.props.record.data[this.props.name]
+        if (!this._validatePhoneNumber(phoneNumber)) {
+            this.notification.add("Invalid phone number format", {type: "warning"})
+            return
+        }
         const {resModel, resId} = this.props.record.model.config
-        const args = [this.props.record.data[this.props.name], resModel, resId]
+        const args = [phoneNumber, resModel, resId]
         // Pass whatsapp_call flag via kwargs to avoid breaking positional args
         this.env.model.orm.call("connect.settings", "originate_call", args, { whatsapp_call: true })
     },

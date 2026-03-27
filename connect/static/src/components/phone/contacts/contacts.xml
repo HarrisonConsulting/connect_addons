@@ -4,10 +4,14 @@
     <t t-name="connect.contacts" owl="1">
         <div>
             <div t-attf-class="{{ state.isContactMode ? '' : 'o_hide' }} o_phone_number_content">
-                <input class="o_phone_number_input" placeholder="Enter name or number" t-ref="contact-input" t-on-keyup="_onSearchContact" autocomplete="off"/>
+                <input class="o_phone_number_input" placeholder="Enter name or number" t-ref="contact-input" t-on-keyup="_onSearchContact" t-on-keydown="_onSearchKeydown" autocomplete="off"/>
                 <div aria-label="Clear" class="fa fa-times-circle o_phone_number_back" role="img" title="Clear" t-on-click="_onClickClearSearchContact"/>
             </div>
             <div class="o_dial_contact_list">
+                <div t-if="searchQuery and !state.partners.length and !state.users.length" class="connect-empty-state">
+                    <i class="fa fa-search fa-2x mb-2 text-muted"/>
+                    <p class="text-muted">No contacts found</p>
+                </div>
                 <table class="o_contact_table">
                     <!-- Users -->
                     <t t-foreach="state.users" t-as="user" t-key="user.id">

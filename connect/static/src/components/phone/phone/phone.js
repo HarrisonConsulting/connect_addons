@@ -824,35 +824,41 @@ export class Phone extends Component {
             }
         })
 
+        // Debounce error handling to prevent cascading 31009 loops:
+        // a dead transport fires 31009 on every pending operation (register, setToken, etc.)
+        let errorRecoveryPending = false
+
         self.userAgent.on('error', (error) => {
             console.error('Connect: Device error:', error.message || error)
-            self.state.connectionStatus = 'error'
-            self._updatePresence('offline')
-            self.audioNotification.play('error')
+
             if (error.code === 31009 || error.code === 31005) {
-                // Transport/connection error — show banner and try to re-register after 5 seconds
+                // Transport dead — full teardown+rebuild, but only once
+                if (errorRecoveryPending) return
+                errorRecoveryPending = true
+                self.state.connectionStatus = 'connecting'
+                self._updatePresence('offline')
+                setTimeout(() => {
+                    errorRecoveryPending = false
+                    self._reconnect()
+                }, 5000)
+            } else if (error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid') {
+                // Token expired or rejected — full reconnect with fresh token
+                if (errorRecoveryPending) return
+                errorRecoveryPending = true
                 self.state.connectionStatus = 'connecting'
                 setTimeout(() => {
-                    if (self.userAgent && self.userAgent.state === 'unregistered') {
-                        try {
-                            self.userAgent.register()
-                        } catch (e) {
-                            console.error('Connect: Re-registration failed:', e)
-                            self.state.connectionStatus = 'error'
-                        }
-                    } else if (!self.userAgent || self.userAgent.state === 'destroyed') {
-                        self._reconnect()
-                    }
-                }, 5000)
-            } else if (error.name === 'AccessTokenExpired') {
-                self.state.connectionStatus = 'connecting'
-                self.updateToken().then()
-            } else if (error.name === 'AccessTokenInvalid') {
-                self.bus.trigger('busTraySetException', {exception: error.name})
+                    errorRecoveryPending = false
+                    self._reconnect()
+                }, 2000)
             } else if (error.name === 'NotSupportedError') {
                 console.error('Connect: Browser does not support required features:', error.message)
                 self.state.isActive = false
+                self.state.connectionStatus = 'error'
+                self._updatePresence('offline')
                 self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
+            } else {
+                self.state.connectionStatus = 'error'
+                self._updatePresence('offline')
             }
         })
         let lastTime = (new Date()).getTime()

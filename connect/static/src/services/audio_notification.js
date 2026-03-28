@@ -76,8 +76,8 @@ const PATTERNS = {
             gain.gain.value = vol
             gain.gain.setValueAtTime(vol, ctx.currentTime + offset)
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.1)
-            osc.stop(ctx.currentTime + offset + 0.1)
             osc.start(ctx.currentTime + offset)
+            osc.stop(ctx.currentTime + offset + 0.1)
         })
     },
 }

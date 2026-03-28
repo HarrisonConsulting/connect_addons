@@ -22,12 +22,14 @@
         <field name="priority">52</field>
         <field name="arch" type="xml">
             <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
-                <button class="oe_stat_button" icon="fa-phone"                        
-                        name="%(connect_calls_action)d" type="action">
+                <button class="oe_stat_button" icon="fa-phone"
+                        name="%(connect_calls_action)d" type="action"
+                        groups="connect.group_connect_user,connect.group_connect_admin">
                     <field name="connect_calls_count" string="Calls" widget="statinfo"/>
                 </button>
-                <button class="oe_stat_button" icon="fa-envelope"                        
-                        name="%(connect_messages_action)d" type="action">
+                <button class="oe_stat_button" icon="fa-envelope"
+                        name="%(connect_messages_action)d" type="action"
+                        groups="connect.group_connect_user,connect.group_connect_admin">
                     <field name="connect_messages_count" string="Messages" widget="statinfo"/>
                 </button>
             </xpath>

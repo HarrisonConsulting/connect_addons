@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.8.5',
+    'version': '1.8.6',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -12,7 +12,7 @@
     'category': 'Phone',
     'summary': 'Twilio and Odoo integration application',
     'description': '',
-    'depends': ['mail', 'contacts', 'sms'],
+    'depends': ['mail', 'contacts', 'sms', 'sms_twilio'],
     'external_dependencies': {
         'python': ['twilio', 'openai'],
     },

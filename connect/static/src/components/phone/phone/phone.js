@@ -814,6 +814,8 @@ export class Phone extends Component {
                 self.state.connectionStatus = 'connecting'
                 console.debug('Connect: Device unregistered, attempting silent re-registration')
                 setTimeout(() => {
+                    // Skip soft recovery if a transport error already triggered full reconnect
+                    if (errorRecoveryPending) return
                     if (self.userAgent && self.userAgent.state === 'unregistered') {
                         self.updateToken()
                     }

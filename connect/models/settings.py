@@ -623,10 +623,14 @@ class Settings(models.Model):
         changed_fields = {}
         for field_name in PROTECTED_FIELDS:
             if vals.get(field_name):
+                value = vals[field_name]
+                # Never overwrite real credentials with masked asterisk values
+                if value == '*' * len(value):
+                    continue
                 changed_fields.update(
                     {
-                        field_name.replace("display_", ""): vals.get(field_name),
-                        field_name: "*" * len(vals.get(field_name)),
+                        field_name.replace("display_", ""): value,
+                        field_name: "*" * len(value),
                     }
                 )
         if changed_fields:

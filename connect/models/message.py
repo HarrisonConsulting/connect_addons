@@ -54,6 +54,8 @@ class ConnectMessage(models.Model):
     res_model = fields.Char()
     res_id = fields.Integer()
     ref = fields.Reference(selection='_reference_models', string="Reference", compute='_compute_ref', store=True)
+    conversation_id = fields.Many2one(
+        'connect.conversation', string='Conversation', index=True, ondelete='set null')
     parent_message = fields.Many2one('connect.message', string='In Reply To', readonly=True)
     media_url = fields.Char()
     media_content_type = fields.Char()
@@ -160,7 +162,45 @@ class ConnectMessage(models.Model):
         for record in res:
             if not record.message_type:
                 record.message_type = 'mms' if record.num_media > 0 else 'sms'
+            # Auto-link to conversation if not already set
+            if not record.conversation_id and record.from_number and record.to_number:
+                try:
+                    channel = 'whatsapp' if record.message_type == 'WhatsApp' else 'sms'
+                    # Determine which number is "ours" vs external
+                    phone_a, phone_b = self._resolve_phone_roles(
+                        record.from_number, record.to_number, record.sender_user)
+                    partner = record.partner or False
+                    conv = self.env['connect.conversation'].sudo().get_or_create(
+                        channel_type=channel,
+                        phone_a=phone_a,
+                        phone_b=phone_b,
+                        partner=partner,
+                    )
+                    record.conversation_id = conv
+                except Exception as e:
+                    logger.warning('Failed to auto-link conversation for message %s: %s', record.id, e)
         return res
+
+    def _resolve_phone_roles(self, from_number, to_number, sender_user):
+        """Determine which number is ours (phone_a) and which is external (phone_b).
+
+        Returns (phone_a, phone_b).
+        """
+        # If sender_user is set, it's outgoing: from_number is ours
+        if sender_user:
+            return from_number, to_number
+        # Check if from_number is one of our numbers
+        our_numbers = set(
+            self.env['connect.number'].sudo().search([]).mapped('phone_number')
+        ) | set(
+            self.env['connect.whatsapp_sender'].sudo().search([]).mapped('number')
+        )
+        if from_number in our_numbers:
+            return from_number, to_number
+        if to_number in our_numbers:
+            return to_number, from_number
+        # Fallback: use sorted order (consistent with conversation_key)
+        return sorted([from_number, to_number])
 
     @api.depends('from_number', 'create_date', 'message_type')
     def _compute_name(self):

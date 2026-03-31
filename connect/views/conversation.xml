@@ -45,7 +45,8 @@
         <field name="name">connect.conversation.kanban</field>
         <field name="model">connect.conversation</field>
         <field name="arch" type="xml">
-            <kanban class="o_connect_conversation_kanban" default_order="last_message_date desc" sample="1">
+            <kanban class="o_connect_conversation_kanban" create="0"
+                    default_order="last_message_date desc" sample="1">
                 <field name="partner_id"/>
                 <field name="phone_b"/>
                 <field name="channel_type"/>
@@ -54,6 +55,10 @@
                 <field name="last_message_direction"/>
                 <field name="message_count"/>
                 <field name="has_error"/>
+                <header>
+                    <button name="%(connect.action_connect_conversation_wizard)d"
+                            type="action" string="New" class="btn-primary"/>
+                </header>
                 <templates>
                     <t t-name="card" class="flex-row align-items-start gap-2 p-2">
                         <!-- Avatar initial -->
@@ -101,7 +106,7 @@
         <field name="name">connect.conversation.list</field>
         <field name="model">connect.conversation</field>
         <field name="arch" type="xml">
-            <list decoration-danger="has_error" default_order="last_message_date desc">
+            <list create="0" decoration-danger="has_error" default_order="last_message_date desc">
                 <field name="has_error" invisible="1"/>
                 <field name="partner_id" widget="many2one_avatar" string="Contact"/>
                 <field name="phone_b" string="Number" widget="phone"/>
@@ -109,6 +114,10 @@
                 <field name="last_message_body" string="Last Message"/>
                 <field name="last_message_date" string="Date"/>
                 <field name="message_count" string="Messages"/>
+                <header>
+                    <button name="%(connect.action_connect_conversation_wizard)d"
+                            type="action" string="New" class="btn-primary"/>
+                </header>
             </list>
         </field>
     </record>
@@ -118,21 +127,9 @@
         <field name="name">connect.conversation.form</field>
         <field name="model">connect.conversation</field>
         <field name="arch" type="xml">
-            <form>
+            <form create="0">
                 <sheet>
-                    <!-- New conversation: show setup fields -->
-                    <group invisible="id">
-                        <group>
-                            <field name="partner_id"/>
-                            <field name="phone_b" string="Their Number" widget="phone"/>
-                        </group>
-                        <group>
-                            <field name="channel_type"/>
-                            <field name="phone_a" string="Our Number" widget="phone"/>
-                        </group>
-                    </group>
-                    <!-- Existing conversation: compact header -->
-                    <div class="d-flex align-items-center gap-3 mb-3" invisible="not id">
+                    <div class="d-flex align-items-center gap-3 mb-3">
                         <div>
                             <h2 class="mb-0">
                                 <field name="name" readonly="1"/>

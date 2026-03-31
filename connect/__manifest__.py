@@ -53,7 +53,6 @@
         'views/favorite.xml',
         'views/res_partner.xml',
         'views/message.xml',
-        'views/conversation.xml',
         'views/message_configuration.xml',
         'views/message_content_template.xml',
         'views/whatsapp_sender.xml',
@@ -64,6 +63,9 @@
         'wizard/sms_composer_views.xml',
         'wizard/whatsapp_composer_views.xml',
         'wizard/originate_to_wizard_views.xml',
+        'wizard/conversation_wizard_views.xml',
+        # Conversation views (after wizard, references wizard action)
+        'views/conversation.xml',
     ],
     'demo': [],
     'installable': True,

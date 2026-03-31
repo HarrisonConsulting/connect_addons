@@ -302,7 +302,8 @@ export class Phone extends Component {
             // Proactive token refresh every 50 minutes (token TTL is 3600s/60min).
             // Prevents silent expiry on idle tabs that miss error-driven refresh.
             this._tokenRefreshInterval = setInterval(() => {
-                if (this.state.isActive && this.userAgent && this.userAgent.state !== 'destroyed') {
+                if (this.state.isActive && this.userAgent && this.userAgent.state !== 'destroyed'
+                        && this.state.connectionStatus !== 'connecting') {
                     this.updateToken()
                 }
             }, 50 * 60 * 1000)
@@ -434,7 +435,9 @@ export class Phone extends Component {
                     if (index > -1) {
                         self.windows.splice(index, 1)
                         if (self.id === self.windows.at(-1) && self.userAgent && self.userAgent.state === 'unregistered') {
-                            self.userAgent.register()
+                            self.userAgent.register().catch((e) => {
+                                console.warn('Connect: Re-registration on tab close failed:', e?.message || e)
+                            })
                         }
                     }
                 } else if (event === 'tbcDtmf') {
@@ -740,23 +743,38 @@ export class Phone extends Component {
     }
 
     async updateToken() {
+        // Guard: skip if device is unavailable or a reconnect is already in progress
+        if (!this.userAgent || this.userAgent.state === 'destroyed') {
+            return
+        }
+        if (this.state.connectionStatus === 'connecting') {
+            return
+        }
         try {
             const {token} = await this.orm.call('connect.user', 'get_client_token')
-            if (token) {
+            // Re-check device state after async call — reconnect may have destroyed it
+            if (!token || !this.userAgent || this.userAgent.state === 'destroyed') {
+                return
+            }
+            try {
                 this.userAgent.updateToken(token)
-                this.token = token
-                // Re-register only if device is unregistered (e.g. after disconnect)
-                // Calling register() on an already-registered device throws InvalidStateError
-                if (this.userAgent.state === 'unregistered') {
-                    try {
-                        this.userAgent.register()
-                    } catch (regErr) {
-                        console.warn('Connect: Re-registration after token refresh failed:', regErr.message)
-                    }
+            } catch (e) {
+                // Device.updateToken() throws synchronously if transport is dead
+                console.warn('Connect: Device.updateToken() threw:', e?.message || e)
+                return
+            }
+            this.token = token
+            // Re-register only if device is unregistered (e.g. after disconnect)
+            // Calling register() on an already-registered device throws InvalidStateError
+            if (this.userAgent.state === 'unregistered') {
+                try {
+                    await this.userAgent.register()
+                } catch (regErr) {
+                    console.warn('Connect: Re-registration after token refresh failed:', regErr?.message || regErr)
                 }
             }
         } catch (e) {
-            console.warn('Connect: Token refresh failed, will retry when tab is active:', e.message)
+            console.warn('Connect: Token refresh failed, will retry when tab is active:', e?.message || e)
             this._needsTokenRefresh = true
         }
     }
@@ -798,7 +816,7 @@ export class Phone extends Component {
         }
         self.userAgent.on('tokenWillExpire', () => {
             console.debug('Connect: Token expiring, refreshing')
-            self.updateToken().then()
+            self.updateToken()
         })
 
         self.userAgent.on('registered', () => {

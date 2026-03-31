@@ -63,13 +63,13 @@ const ConnectButtonWidget = publicWidget.Widget.extend({
 
         const self = this
         this.userAgent.on('error', async (error) => {
-            if (error.name === 'AccessTokenExpired') {
+            if (error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid') {
                 await self.updateToken()
             }
         })
 
         this.userAgent.on('tokenWillExpire', () => {
-            self.updateToken().then()
+            self.updateToken()
         })
 
         // HANDLE RTCSession
@@ -103,12 +103,20 @@ const ConnectButtonWidget = publicWidget.Widget.extend({
                 self.endCall()
             })
         })
-        this.userAgent.register()
+        this.userAgent.register().catch((e) => {
+            console.warn('Connect Website: Initial registration failed:', e?.message || e)
+        })
     },
 
     updateToken: async function () {
-        const token = await this.getToken()
-        this.userAgent.updateToken(token)
+        if (!this.userAgent || this.userAgent.state === 'destroyed') return
+        try {
+            const token = await this.getToken()
+            if (!this.userAgent || this.userAgent.state === 'destroyed') return
+            this.userAgent.updateToken(token)
+        } catch (e) {
+            console.warn('Connect Website: Token refresh failed:', e?.message || e)
+        }
     },
 
     makeCall: async function () {

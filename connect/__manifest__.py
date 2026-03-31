@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.8.6',
+    'version': '1.9.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -12,7 +12,7 @@
     'category': 'Phone',
     'summary': 'Twilio and Odoo integration application',
     'description': '',
-    'depends': ['mail', 'contacts', 'sms', 'sms_twilio'],
+    'depends': ['mail', 'contacts', 'sms'],
     'external_dependencies': {
         'python': ['twilio', 'openai'],
     },
@@ -53,6 +53,7 @@
         'views/favorite.xml',
         'views/res_partner.xml',
         'views/message.xml',
+        'views/conversation.xml',
         'views/message_configuration.xml',
         'views/message_content_template.xml',
         'views/whatsapp_sender.xml',
@@ -80,6 +81,7 @@
             '/connect/static/src/js/idb_error_handler.js',
             '/connect/static/src/js/main.js',
             '/connect/static/src/js/utils.js',
+            '/connect/static/src/components/chat/*',
             '/connect/static/src/widgets/phone_field/*',
         ],
         # Dark mode overrides - loaded when Odoo enables dark mode

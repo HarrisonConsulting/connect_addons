@@ -60,6 +60,37 @@
     }
 }
 
+// Kanban conversation list
+.o_connect_conversation_kanban .o_kanban_renderer {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+
+    .o_kanban_record {
+        width: 100%;
+        margin: 0;
+        border-radius: 0;
+        border-bottom: 1px solid $border-color;
+        box-shadow: none;
+
+        &:hover {
+            background-color: $gray-100;
+        }
+    }
+
+    .o_kanban_ghost {
+        display: none;
+    }
+}
+
+.o_connect_conv_avatar {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    object-fit: cover;
+    font-size: 1.1rem;
+}
+
 .connect_chat_composer {
     background-color: $o-view-background-color;
 

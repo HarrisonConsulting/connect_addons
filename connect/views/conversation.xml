@@ -5,7 +5,7 @@
         <field name="name">Conversations</field>
         <field name="path">connect-conversations</field>
         <field name="res_model">connect.conversation</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
     </record>
 
     <menuitem id="connect_conversation_menu"
@@ -40,6 +40,68 @@
         </field>
     </record>
 
+    <!-- Kanban View -->
+    <record id="view_connect_conversation_kanban" model="ir.ui.view">
+        <field name="name">connect.conversation.kanban</field>
+        <field name="model">connect.conversation</field>
+        <field name="arch" type="xml">
+            <kanban class="o_connect_conversation_kanban" default_order="last_message_date desc" sample="1">
+                <field name="partner_id"/>
+                <field name="partner_image"/>
+                <field name="phone_b"/>
+                <field name="channel_type"/>
+                <field name="last_message_body"/>
+                <field name="last_message_date"/>
+                <field name="last_message_direction"/>
+                <field name="message_count"/>
+                <field name="has_error"/>
+                <templates>
+                    <t t-name="card" class="flex-row align-items-start gap-2 p-2">
+                        <!-- Avatar -->
+                        <img t-if="record.partner_image.raw_value"
+                             t-att-src="kanban_image('connect.conversation', 'partner_image', record.id.raw_value)"
+                             class="rounded-circle o_connect_conv_avatar"
+                             alt="Avatar"/>
+                        <span t-else=""
+                              class="rounded-circle o_connect_conv_avatar d-flex align-items-center justify-content-center bg-secondary text-white fw-bold">
+                            <t t-esc="(record.partner_id.value || record.phone_b.value || '?')[0].toUpperCase()"/>
+                        </span>
+                        <!-- Content -->
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <strong class="text-truncate">
+                                    <field name="partner_id" invisible="not partner_id"/>
+                                    <span t-if="!record.partner_id.raw_value">
+                                        <field name="phone_b"/>
+                                    </span>
+                                </strong>
+                                <small class="text-muted ms-2 text-nowrap">
+                                    <field name="last_message_date" widget="date"/>
+                                </small>
+                            </div>
+                            <div class="d-flex align-items-center gap-1 text-muted small text-truncate">
+                                <i t-if="record.channel_type.raw_value === 'whatsapp'"
+                                   class="fa fa-whatsapp text-success" title="WhatsApp"/>
+                                <i t-else="" class="fa fa-comment-o" title="SMS"/>
+                                <span t-if="record.last_message_direction.raw_value === 'outgoing'"
+                                      class="text-muted">You: </span>
+                                <span class="text-truncate"><field name="last_message_body"/></span>
+                            </div>
+                            <div t-if="record.has_error.raw_value" class="mt-1">
+                                <span class="badge text-bg-danger">Error</span>
+                            </div>
+                        </div>
+                        <!-- Message count badge -->
+                        <span t-if="record.message_count.raw_value > 0"
+                              class="badge rounded-pill text-bg-primary align-self-center">
+                            <field name="message_count"/>
+                        </span>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <!-- List View -->
     <record id="view_connect_conversation_list" model="ir.ui.view">
         <field name="name">connect.conversation.list</field>
@@ -64,23 +126,37 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
-                    <div class="oe_title">
-                        <h1>
-                            <field name="name" readonly="1"/>
-                        </h1>
-                    </div>
-                    <group>
+                    <!-- New conversation: show setup fields -->
+                    <group invisible="id">
                         <group>
                             <field name="partner_id"/>
                             <field name="phone_b" string="Their Number" widget="phone"/>
-                            <field name="channel_type"/>
                         </group>
                         <group>
+                            <field name="channel_type"/>
                             <field name="phone_a" string="Our Number" widget="phone"/>
-                            <field name="message_count" readonly="1"/>
-                            <field name="last_message_date" readonly="1"/>
                         </group>
                     </group>
+                    <!-- Existing conversation: compact header -->
+                    <div class="d-flex align-items-center gap-3 mb-3" invisible="not id">
+                        <field name="partner_image" widget="image" class="rounded-circle"
+                               options="{'size': [48, 48]}" readonly="1"
+                               invisible="not partner_id"/>
+                        <div>
+                            <h2 class="mb-0">
+                                <field name="name" readonly="1"/>
+                            </h2>
+                            <small class="text-muted">
+                                <field name="phone_b" widget="phone" readonly="1"/>
+                                <span class="mx-1">·</span>
+                                <field name="channel_type" readonly="1"/>
+                                <span class="mx-1">·</span>
+                                <field name="message_count" readonly="1"/> messages
+                            </small>
+                        </div>
+                        <field name="partner_id" invisible="1"/>
+                        <field name="phone_a" invisible="1"/>
+                    </div>
                     <field name="message_ids" widget="connect_chat_thread"/>
                 </sheet>
             </form>

@@ -47,7 +47,6 @@
         <field name="arch" type="xml">
             <kanban class="o_connect_conversation_kanban" default_order="last_message_date desc" sample="1">
                 <field name="partner_id"/>
-                <field name="partner_image"/>
                 <field name="phone_b"/>
                 <field name="channel_type"/>
                 <field name="last_message_body"/>
@@ -57,13 +56,8 @@
                 <field name="has_error"/>
                 <templates>
                     <t t-name="card" class="flex-row align-items-start gap-2 p-2">
-                        <!-- Avatar -->
-                        <img t-if="record.partner_image.raw_value"
-                             t-att-src="kanban_image('connect.conversation', 'partner_image', record.id.raw_value)"
-                             class="rounded-circle o_connect_conv_avatar"
-                             alt="Avatar"/>
-                        <span t-else=""
-                              class="rounded-circle o_connect_conv_avatar d-flex align-items-center justify-content-center bg-secondary text-white fw-bold">
+                        <!-- Avatar initial -->
+                        <span class="rounded-circle o_connect_conv_avatar d-flex align-items-center justify-content-center bg-secondary text-white fw-bold">
                             <t t-esc="(record.partner_id.value || record.phone_b.value || '?')[0].toUpperCase()"/>
                         </span>
                         <!-- Content -->
@@ -139,9 +133,6 @@
                     </group>
                     <!-- Existing conversation: compact header -->
                     <div class="d-flex align-items-center gap-3 mb-3" invisible="not id">
-                        <field name="partner_image" widget="image" class="rounded-circle"
-                               options="{'size': [48, 48]}" readonly="1"
-                               invisible="not partner_id"/>
                         <div>
                             <h2 class="mb-0">
                                 <field name="name" readonly="1"/>

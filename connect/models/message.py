@@ -168,7 +168,8 @@ class ConnectMessage(models.Model):
                     channel = 'whatsapp' if record.message_type == 'WhatsApp' else 'sms'
                     # Determine which number is "ours" vs external
                     phone_a, phone_b = self._resolve_phone_roles(
-                        record.from_number, record.to_number, record.sender_user)
+                        record.from_number, record.to_number,
+                        record.sender_user, record.status)
                     partner = record.partner or False
                     conv = self.env['connect.conversation'].sudo().get_or_create(
                         channel_type=channel,
@@ -181,7 +182,7 @@ class ConnectMessage(models.Model):
                     logger.warning('Failed to auto-link conversation for message %s: %s', record.id, e)
         return res
 
-    def _resolve_phone_roles(self, from_number, to_number, sender_user):
+    def _resolve_phone_roles(self, from_number, to_number, sender_user, status=None):
         """Determine which number is ours (phone_a) and which is external (phone_b).
 
         Returns (phone_a, phone_b).
@@ -189,7 +190,10 @@ class ConnectMessage(models.Model):
         # If sender_user is set, it's outgoing: from_number is ours
         if sender_user:
             return from_number, to_number
-        # Check if from_number is one of our numbers
+        # If status is 'received', the message came TO our number
+        if status == 'received':
+            return to_number, from_number
+        # Check against known organization numbers
         our_numbers = set(
             self.env['connect.number'].sudo().search([]).mapped('phone_number')
         ) | set(
@@ -199,8 +203,8 @@ class ConnectMessage(models.Model):
             return from_number, to_number
         if to_number in our_numbers:
             return to_number, from_number
-        # Fallback: use sorted order (consistent with conversation_key)
-        return sorted([from_number, to_number])
+        # Fallback: to_number is more likely ours (most messages are inbound)
+        return to_number, from_number
 
     @api.depends('from_number', 'create_date', 'message_type')
     def _compute_name(self):

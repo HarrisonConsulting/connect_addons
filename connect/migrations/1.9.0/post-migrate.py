@@ -6,36 +6,67 @@ _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version):
-    # 1. Create the conversation records by grouping messages by phone pair + channel
     _logger.info('Backfilling connect.conversation records from existing messages...')
 
-    # Determine channel from message_type: 'WhatsApp' -> 'whatsapp', else 'sms'
+    # Collect all "our" numbers from connect_number and connect_whatsapp_sender
     cr.execute("""
-        INSERT INTO connect_conversation (
-            channel_type, phone_a, phone_b, conversation_key,
-            active, create_uid, write_uid, create_date, write_date
-        )
+        SELECT phone_number FROM connect_number WHERE phone_number IS NOT NULL
+        UNION
+        SELECT number FROM connect_whatsapp_sender WHERE number IS NOT NULL
+    """)
+    our_numbers = {row[0] for row in cr.fetchall()}
+    _logger.info('Found %d organization numbers for role resolution', len(our_numbers))
+
+    # 1. Get distinct phone pairs with channel
+    cr.execute("""
         SELECT
-            CASE WHEN message_type = 'WhatsApp' THEN 'whatsapp' ELSE 'sms' END AS channel_type,
-            LEAST(from_number, to_number) AS phone_a,
-            GREATEST(from_number, to_number) AS phone_b,
-            CASE WHEN message_type = 'WhatsApp' THEN 'whatsapp' ELSE 'sms' END
-                || ':' || LEAST(from_number, to_number) || '|' || GREATEST(from_number, to_number)
-                AS conversation_key,
-            true,
-            1, 1, NOW(), NOW()
+            CASE WHEN message_type = 'WhatsApp' THEN 'whatsapp' ELSE 'sms' END AS channel,
+            from_number, to_number
         FROM connect_message
         WHERE from_number IS NOT NULL AND to_number IS NOT NULL
-        GROUP BY
-            CASE WHEN message_type = 'WhatsApp' THEN 'whatsapp' ELSE 'sms' END,
-            LEAST(from_number, to_number),
-            GREATEST(from_number, to_number)
-        ON CONFLICT DO NOTHING
+        GROUP BY channel, from_number, to_number
     """)
-    created = cr.rowcount
-    _logger.info('Created %d conversation records', created)
+    pairs = cr.fetchall()
 
-    # 2. Link messages to their conversations
+    # Deduplicate: group by sorted key, resolve phone_a (ours) vs phone_b (theirs)
+    seen_keys = {}
+    for channel, from_num, to_num in pairs:
+        phones_sorted = sorted([from_num, to_num])
+        key = f"{channel}:{phones_sorted[0]}|{phones_sorted[1]}"
+        if key in seen_keys:
+            continue
+
+        # Determine which is "ours"
+        if from_num in our_numbers:
+            phone_a, phone_b = from_num, to_num
+        elif to_num in our_numbers:
+            phone_a, phone_b = to_num, from_num
+        else:
+            # Fallback: use sorted order
+            phone_a, phone_b = phones_sorted
+
+        seen_keys[key] = (channel, phone_a, phone_b, key)
+
+    # 2. Bulk insert conversations
+    if seen_keys:
+        values = list(seen_keys.values())
+        args = []
+        placeholders = []
+        for channel, phone_a, phone_b, key in values:
+            placeholders.append("(%s, %s, %s, %s, true, 1, 1, NOW(), NOW())")
+            args.extend([channel, phone_a, phone_b, key])
+
+        cr.execute("""
+            INSERT INTO connect_conversation (
+                channel_type, phone_a, phone_b, conversation_key,
+                active, create_uid, write_uid, create_date, write_date
+            ) VALUES """ + ", ".join(placeholders) + """
+            ON CONFLICT DO NOTHING
+        """, args)
+        created = cr.rowcount
+        _logger.info('Created %d conversation records', created)
+
+    # 3. Link messages to their conversations
     cr.execute("""
         UPDATE connect_message m
         SET conversation_id = c.id
@@ -51,7 +82,7 @@ def migrate(cr, version):
     linked = cr.rowcount
     _logger.info('Linked %d messages to conversations', linked)
 
-    # 3. Set partner_id on conversations from the most frequent partner in messages
+    # 4. Set partner_id from most frequent partner in messages
     cr.execute("""
         UPDATE connect_conversation c
         SET partner_id = sub.partner
@@ -68,7 +99,7 @@ def migrate(cr, version):
     partners = cr.rowcount
     _logger.info('Set partner on %d conversations', partners)
 
-    # 4. Recompute last_message fields using SQL for performance
+    # 5. Recompute last_message fields
     cr.execute("""
         UPDATE connect_conversation c
         SET
@@ -90,7 +121,7 @@ def migrate(cr, version):
     updated = cr.rowcount
     _logger.info('Updated last_message fields on %d conversations', updated)
 
-    # 5. Compute the name field
+    # 6. Compute the name field
     cr.execute("""
         UPDATE connect_conversation c
         SET name = COALESCE(p.name, c.phone_b, 'Conversation')

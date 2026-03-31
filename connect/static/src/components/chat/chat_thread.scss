@@ -1,0 +1,65 @@
+.connect_chat_thread {
+    border: 1px solid var(--o-border-color, #dee2e6);
+    border-radius: 0.375rem;
+    overflow: hidden;
+}
+
+.connect_chat_messages {
+    scroll-behavior: smooth;
+}
+
+.connect_chat_incoming {
+    background-color: var(--o-webclient-color-scheme, #e9ecef);
+    color: var(--o-main-text-color, #212529);
+}
+
+.connect_chat_outgoing {
+    background-color: var(--o-brand-primary, #714b67);
+    color: #fff;
+}
+
+.connect_chat_outgoing .connect_chat_meta {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.connect_chat_date {
+    position: relative;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: var(--o-border-color, #dee2e6);
+    }
+
+    small {
+        position: relative;
+        z-index: 1;
+    }
+}
+
+.connect_chat_body {
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+.connect_chat_media {
+    img {
+        max-width: 100%;
+        border-radius: 0.25rem;
+    }
+
+    audio, video {
+        max-width: 100%;
+    }
+}
+
+.connect_chat_composer {
+    textarea {
+        max-height: 120px;
+        overflow-y: auto;
+    }
+}

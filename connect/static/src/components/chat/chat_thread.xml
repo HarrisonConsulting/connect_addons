@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="connect.ChatThread">
+        <div class="connect_chat_thread d-flex flex-column" style="min-height: 400px;">
+
+            <!-- Message list -->
+            <div t-ref="scrollContainer"
+                 class="connect_chat_messages flex-grow-1 overflow-auto p-3"
+                 style="max-height: 500px; background: var(--o-view-background-color, #f8f9fa);">
+
+                <t t-if="state.loading">
+                    <div class="text-center text-muted p-4">
+                        <i class="fa fa-spinner fa-spin fa-2x"/>
+                    </div>
+                </t>
+
+                <t t-elif="!state.messages.length">
+                    <div class="text-center text-muted p-4">
+                        <i class="fa fa-comments-o fa-3x mb-2 d-block"/>
+                        <span>No messages yet. Start the conversation below.</span>
+                    </div>
+                </t>
+
+                <t t-else="">
+                    <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
+                        <!-- Date separator -->
+                        <t t-if="shouldShowDate(msg_index)">
+                            <div class="connect_chat_date text-center my-3">
+                                <small class="text-muted bg-white px-3 py-1 rounded-pill"
+                                       style="font-size: 0.75em;">
+                                    <t t-esc="formatDate(msg.create_date)"/>
+                                </small>
+                            </div>
+                        </t>
+
+                        <!-- Message bubble -->
+                        <div t-attf-class="connect_chat_bubble d-flex mb-2 {{ msg.direction === 'outgoing' ? 'justify-content-end' : 'justify-content-start' }}">
+                            <div t-attf-class="rounded-3 p-2 px-3 {{ msg.direction === 'outgoing' ? 'connect_chat_outgoing' : 'connect_chat_incoming' }}"
+                                 style="max-width: 75%; word-wrap: break-word;">
+                                <!-- Body -->
+                                <div t-if="msg.body" class="connect_chat_body mb-1">
+                                    <t t-esc="msg.body"/>
+                                </div>
+                                <!-- Media -->
+                                <div t-if="msg.media_widget"
+                                     class="connect_chat_media mb-1"
+                                     t-out="msg.media_widget"/>
+                                <!-- Footer: time + status -->
+                                <div class="connect_chat_meta d-flex align-items-center gap-1"
+                                     style="font-size: 0.7em; opacity: 0.7;">
+                                    <small><t t-esc="formatTime(msg.create_date)"/></small>
+                                    <t t-if="msg.direction === 'outgoing' and getStatusIcon(msg.status)">
+                                        <i t-attf-class="fa {{ getStatusIcon(msg.status) }}" style="font-size: 0.9em;"/>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </t>
+            </div>
+
+            <!-- Composer -->
+            <div class="connect_chat_composer border-top p-2 d-flex align-items-end gap-2"
+                 style="background: var(--o-view-background-color, #fff);">
+                <textarea
+                    class="form-control flex-grow-1"
+                    rows="1"
+                    placeholder="Type a message..."
+                    t-att-value="state.composerBody"
+                    t-on-input="updateComposer"
+                    t-on-keydown="onComposerKeydown"
+                    t-att-disabled="state.sending"
+                    style="resize: none; min-height: 38px;"/>
+                <button
+                    class="btn btn-primary"
+                    t-on-click="sendMessage"
+                    t-att-disabled="state.sending or !state.composerBody.trim()">
+                    <i t-if="state.sending" class="fa fa-spinner fa-spin"/>
+                    <i t-else="" class="fa fa-paper-plane"/>
+                </button>
+            </div>
+
+        </div>
+    </t>
+
+</templates>

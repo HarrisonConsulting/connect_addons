@@ -7,7 +7,7 @@
             <!-- Message list -->
             <div t-ref="scrollContainer"
                  class="connect_chat_messages flex-grow-1 overflow-auto p-3"
-                 style="max-height: 500px; background: var(--o-view-background-color, #f8f9fa);">
+                 style="max-height: 500px;">
 
                 <t t-if="state.loading">
                     <div class="text-center text-muted p-4">
@@ -27,7 +27,7 @@
                         <!-- Date separator -->
                         <t t-if="shouldShowDate(msg_index)">
                             <div class="connect_chat_date text-center my-3">
-                                <small class="text-muted bg-white px-3 py-1 rounded-pill"
+                                <small class="text-muted px-3 py-1 rounded-pill"
                                        style="font-size: 0.75em;">
                                     <t t-esc="formatDate(msg.create_date)"/>
                                 </small>
@@ -61,8 +61,7 @@
             </div>
 
             <!-- Composer -->
-            <div class="connect_chat_composer border-top p-2 d-flex align-items-end gap-2"
-                 style="background: var(--o-view-background-color, #fff);">
+            <div class="connect_chat_composer border-top p-2 d-flex align-items-end gap-2">
                 <textarea
                     class="form-control flex-grow-1"
                     rows="1"

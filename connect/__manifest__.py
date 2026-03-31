@@ -87,6 +87,7 @@
         # Dark mode overrides - loaded when Odoo enables dark mode
         'web.assets_web_dark': [
             '/connect/static/src/scss/phone.dark.scss',
+            '/connect/static/src/components/chat/chat_thread.dark.scss',
         ],
     },
 }

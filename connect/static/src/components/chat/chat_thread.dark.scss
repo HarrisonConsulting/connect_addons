@@ -1,0 +1,7 @@
+// Dark mode overrides for chat thread
+// Loaded via web.assets_web_dark bundle
+
+.connect_chat_incoming {
+    background-color: $gray-700;
+    color: $gray-100;
+}

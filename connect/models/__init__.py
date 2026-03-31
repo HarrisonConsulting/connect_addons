@@ -8,6 +8,7 @@ from . import exten
 from . import favorite
 from . import mail
 from . import message
+from . import conversation
 from . import message_configuration
 from . import number
 from . import outgoing_callerid

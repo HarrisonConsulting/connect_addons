@@ -8,7 +8,7 @@ class ConversationWizard(models.TransientModel):
     _description = 'New Conversation'
 
     partner_id = fields.Many2one('res.partner', string='Contact')
-    phone = fields.Char(string='Phone Number', required=True)
+    phone = fields.Char(string='Phone Number')
     channel_type = fields.Selection([
         ('sms', 'SMS'),
         ('whatsapp', 'WhatsApp'),

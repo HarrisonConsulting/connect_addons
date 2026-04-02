@@ -97,6 +97,18 @@
         <field name="perm_unlink" eval="0"/>
     </record>
 
+    <!-- Partner: connect users can read all partners (cross-company) for conversations -->
+    <record id="connect_partner_read_rule" model="ir.rule">
+        <field name="name">connect_partner_read</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="groups" eval="[(6, 0, [ref('group_connect_user')])]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
     <!-- Conversation: all connect users can see all conversations -->
     <record id="connect_conversation_user_rule" model="ir.rule">
         <field name="name">connect_conversation_user</field>

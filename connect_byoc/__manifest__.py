@@ -24,11 +24,6 @@
         "views/outgoing_callerid.xml",
     ],
     "demo": [],
-    "assets": {
-        "web.assets_backend": [
-            "connect_byoc/static/src/xml/*.xml",
-        ],
-    },
     "installable": True,
     "application": False,
     "auto_install": False,

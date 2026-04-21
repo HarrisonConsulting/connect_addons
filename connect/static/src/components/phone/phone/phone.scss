@@ -535,6 +535,66 @@
     border-radius: 0 0 8px 8px;
   }
 
+  // ==========================================================================
+  // Recording Toolbar
+  // ==========================================================================
+  .o_recording_panel {
+    justify-content: center;
+    padding: 0 8px;
+
+    .o_record_toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--Phone-muted);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 0 8px;
+      border-radius: 6px;
+      transition: color 0.15s ease, background-color 0.15s ease;
+      cursor: pointer;
+
+      .record-icon-idle {
+        font-size: 10px;
+        color: var(--Phone-muted);
+        transition: color 0.15s ease;
+      }
+
+      .record-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #dc3545;
+        flex-shrink: 0;
+        animation: record-pulse 1.2s ease-in-out infinite;
+      }
+
+      &:hover:not(:disabled) {
+        color: var(--Phone-text);
+        background-color: var(--Phone-hover-bg);
+
+        .record-icon-idle {
+          color: #dc3545;
+        }
+      }
+
+      &.is-recording {
+        color: #dc3545;
+        font-weight: 600;
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+  }
+
   .o_optional_dial_panel_position {
     border-top: none;
     border-bottom: 1px solid var(--Phone-border);
@@ -925,6 +985,11 @@
 @keyframes quality-warn-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+@keyframes record-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
 }
 
 @keyframes call-waiting-pulse {

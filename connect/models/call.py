@@ -1942,6 +1942,59 @@ class Call(models.Model):
             return {'success': False, 'error': str(e)}
 
     @api.model
+    def toggle_recording(self, call_sid, recording_sid=None):
+        """Start or stop a recording on an active call.
+
+        Pass recording_sid=None to start; pass the SID to stop.
+        Works for both direct calls and conference calls.
+        Completed recordings still land in connect.recording via the status callback.
+        """
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+
+        client = self.env['connect.settings'].get_client()
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        status_callback = '{}/twilio/webhook/recordingstatus#e={}'.format(
+            api_url.rstrip('/'), edge)
+
+        try:
+            if not recording_sid:
+                # Start recording
+                if call.conference_name:
+                    conf_sid = call._ensure_conference_sid(client)
+                    if not conf_sid:
+                        return {'success': False, 'error': 'Conference SID not available'}
+                    recording = client.conferences(conf_sid).recordings.create(
+                        recording_status_callback=status_callback,
+                        recording_status_callback_event=['completed'],
+                    )
+                else:
+                    recording = client.calls(call_sid).recordings.create(
+                        recording_status_callback=status_callback,
+                        recording_status_callback_event=['completed'],
+                    )
+                logger.info('toggle_recording: Started %s on call %s', recording.sid, call.id)
+                return {'success': True, 'recording_sid': recording.sid, 'is_recording': True}
+            else:
+                # Stop recording
+                if call.conference_name:
+                    conf_sid = call._ensure_conference_sid(client)
+                    if conf_sid:
+                        client.conferences(conf_sid).recordings(recording_sid).update(status='stopped')
+                    else:
+                        client.calls(call_sid).recordings(recording_sid).update(status='stopped')
+                else:
+                    client.calls(call_sid).recordings(recording_sid).update(status='stopped')
+                logger.info('toggle_recording: Stopped %s on call %s', recording_sid, call.id)
+                return {'success': True, 'recording_sid': None, 'is_recording': False}
+
+        except Exception as e:
+            logger.exception('toggle_recording: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
     def add_conference_participant(self, call_sid, target):
         """Add a new participant to the call's conference.
 

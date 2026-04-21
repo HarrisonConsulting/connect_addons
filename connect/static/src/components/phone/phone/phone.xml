@@ -248,6 +248,19 @@
                         </button>
                     </div>
                 </div>
+                <!--Recording toolbar - visible only during an active accepted call-->
+                <div t-if="state.phone_status === status.accepted" class="o_dial_panel o_recording_panel">
+                    <button
+                        t-attf-class="o_record_toggle {{ state.isRecording ? 'is-recording' : '' }}"
+                        t-att-disabled="state.recordingLoading"
+                        t-attf-title="{{ state.isRecording ? 'Stop recording' : 'Start recording' }}"
+                        t-on-click="_onClickToggleRecording">
+                        <span t-if="state.isRecording" class="record-dot"/>
+                        <i t-else="" class="fa fa-circle record-icon-idle"/>
+                        <span t-out="state.isRecording ? 'Recording' : 'Record call'"/>
+                        <i t-if="state.recordingLoading" class="fa fa-spinner fa-spin"/>
+                    </button>
+                </div>
                 <!--Optional call buttons-->
                 <div t-attf-class="{{ state.isKeypad or state.inCall or state.inIncoming ? '' : 'o_hide' }} o_dial_panel o_optional_dial_panel_position flex-container">
                     <button t-if="state.phone_status === status.accepted" aria-label="Call" t-attf-class="flex-item {{ state.isDialingPanel ? 'active' : '' }}" title="Call" t-on-click="_onClickDialingPanel">

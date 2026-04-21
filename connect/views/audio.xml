@@ -193,10 +193,10 @@
                                               'live': 'success', 'archived': 'muted'}}"/>
               </div>
               <div class="o_kanban_record_body">
-                <div><i class="fa fa-link"/> <field name="reference_summary"/></div>
+                <div><i class="fa fa-link" title="Where Used"/> <field name="reference_summary"/></div>
                 <div t-if="record.state.raw_value == 'live' and !record.is_reachable.raw_value and !record.system_key.raw_value"
                      class="text-warning mt-1">
-                  <i class="fa fa-exclamation-triangle"/>
+                  <i class="fa fa-exclamation-triangle" title="Warning"/>
                   <small>Live but not reachable from any entry point</small>
                 </div>
                 <div t-if="record.state.raw_value == 'archived'" class="mt-1">
@@ -207,7 +207,7 @@
                 </div>
                 <div class="mt-1">
                   <small class="text-muted">
-                    <i class="fa fa-microphone"/> <field name="source"/>
+                    <i class="fa fa-microphone" title="Source"/> <field name="source"/>
                     <t t-if="record.voice_id.raw_value">
                       · <field name="voice_id"/>
                     </t>
@@ -225,7 +225,7 @@
                   </small>
                   <small t-if="!record.last_played_on.raw_value and record.utterance_count.raw_value"
                          class="text-muted">
-                    <i class="fa fa-volume-up"/>
+                    <i class="fa fa-volume-up" title="Utterances"/>
                     <field name="utterance_count"/> utterances
                   </small>
                 </div>

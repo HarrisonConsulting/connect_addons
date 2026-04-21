@@ -76,8 +76,11 @@ def _build_ulaw_table():
 _ULAW_TABLE = _build_ulaw_table()
 
 
+import warnings
 try:
-    import audioop as _audioop  # noqa: F401 — removed in Python 3.13
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import audioop as _audioop  # removed in Python 3.13; suppress deprecation noise
     _HAS_AUDIOOP = True
 except ImportError:
     _HAS_AUDIOOP = False

@@ -77,6 +77,6 @@ class TestAudioStateMachine(ConnectTestCase):
     def test_leaving_archived_clears_archived_on(self):
         self.audio.state = 'archived'
         self.assertTrue(self.audio.archived_on)
-        self.audio.action_unarchive()
+        self.audio.write({'active': True})
         self.assertFalse(self.audio.archived_on)
         self.assertEqual(self.audio.state, 'draft')

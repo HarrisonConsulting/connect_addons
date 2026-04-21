@@ -15,7 +15,6 @@ from . import test_user
 from . import test_audio_state_machine
 from . import test_audio_utterance_cache
 from . import test_audio_reachability
-from . import test_audio_archive_wizard
 from . import test_audio_ulaw_transcode
 from . import test_audio_controller
 from . import live_common

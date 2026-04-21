@@ -8,14 +8,6 @@
         <header>
           <button name="action_mark_reviewed" type="object" string="Mark Reviewed"
                   class="btn-primary" invisible="state in ('reviewed', 'live', 'archived')"/>
-          <button name="action_archive_audio" type="object" string="Archive"
-                  invisible="state == 'archived'"/>
-          <button name="action_unarchive" type="object" string="Unarchive"
-                  invisible="state != 'archived'"
-                  confirm="Unarchive this audio? It will return to reviewed or live depending on active references. Any future routing wired to it will take effect immediately."/>
-          <button name="action_refresh_references" type="object"
-                  string="Refresh References" class="btn-link"
-                  help="Recompute the Where Used map for this audio."/>
           <field name="state" widget="statusbar"
                  statusbar_visible="draft,reviewed,live"/>
         </header>
@@ -25,12 +17,13 @@
                     name="action_open_references" icon="fa-link">
               <field name="reference_count" widget="statinfo" string="Where Used"/>
             </button>
-            <button class="oe_stat_button" type="object"
-                    name="action_refresh_reachability" icon="fa-sitemap">
-              <field name="is_reachable" widget="boolean_toggle" readonly="1"
-                     nolabel="1"/>
-              <span class="o_stat_text">Reachable</span>
-            </button>
+            <div class="oe_stat_button" title="Reachability status (use Action → Check Reachability to refresh)">
+              <i class="fa fa-sitemap o_button_icon"/>
+              <div class="o_field_widget">
+                <field name="is_reachable" widget="boolean_toggle" readonly="1" nolabel="1"/>
+                <span class="o_stat_text">Reachable</span>
+              </div>
+            </div>
           </div>
           <div class="oe_title">
             <label for="name"/>
@@ -41,7 +34,7 @@
               <field name="source"/>
               <field name="voice_id" options="{'no_create': True}"
                      invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
-              <field name="system_key" placeholder="e.g. system.transfer"/>
+              <field name="system_key" readonly="1" invisible="not system_key"/>
               <field name="description"/>
             </group>
             <group>
@@ -87,24 +80,6 @@
                 <field name="recording_filename" invisible="1"/>
                 <field name="recording_mimetype" readonly="1"/>
               </group>
-            </page>
-            <page string="Where Used" name="references">
-              <field name="reference_ids" readonly="1">
-                <list create="0" delete="0" edit="0"
-                      decoration-success="is_active and is_reachable"
-                      decoration-warning="is_active and not is_reachable"
-                      decoration-muted="not is_active">
-                  <field name="referrer_model_label" string="Where"/>
-                  <field name="referrer_name" string="Record"/>
-                  <field name="field_name" string="Field"/>
-                  <field name="is_active" string="Active"/>
-                  <field name="is_reachable" string="Reachable"/>
-                  <field name="inactive_reason" string="Inactive Reason"
-                         optional="show"/>
-                  <button name="open_referrer" type="object"
-                          icon="fa-external-link" string="Open"/>
-                </list>
-              </field>
             </page>
             <page string="Utterances" name="utterances">
               <field name="utterance_ids" readonly="1">
@@ -174,26 +149,31 @@
         <field name="last_generated_on"/>
         <field name="last_played_on"/>
         <field name="is_reachable"/>
+        <field name="is_referenced"/>
         <field name="archived_on"/>
         <field name="days_archived"/>
         <field name="is_dynamic"/>
         <templates>
           <t t-name="card">
             <div t-attf-class="#{record.state.raw_value == 'live' ? 'border-success' : ''}
-                 #{record.state.raw_value == 'archived' ? 'o_kanban_color_muted' : ''}">
+                 #{record.state.raw_value == 'archived' ? 'o_kanban_color_muted' : ''}
+                 #{record.system_key.raw_value ? 'border-primary' : ''}">
               <div class="o_kanban_record_top">
                 <div class="o_kanban_record_headings">
                   <strong><field name="name"/></strong>
-                  <small t-if="record.system_key.raw_value" class="text-muted">
-                    · <field name="system_key"/>
-                  </small>
+                  <span t-if="record.system_key.raw_value"
+                        class="badge text-bg-primary ms-1">
+                    <i class="fa fa-key me-1"/><field name="system_key"/>
+                  </span>
                 </div>
                 <field name="state" widget="label_selection"
                        options="{'classes': {'draft': 'warning', 'reviewed': 'info',
                                               'live': 'success', 'archived': 'muted'}}"/>
               </div>
               <div class="o_kanban_record_body">
-                <div><i class="fa fa-link" title="Where Used"/> <field name="reference_summary"/></div>
+                <div t-if="record.system_key.raw_value or record.is_referenced.raw_value">
+                  <i class="fa fa-link" title="Where Used"/> <field name="reference_summary"/>
+                </div>
                 <div t-if="record.state.raw_value == 'live' and !record.is_reachable.raw_value and !record.system_key.raw_value"
                      class="text-warning mt-1">
                   <i class="fa fa-exclamation-triangle" title="Warning"/>
@@ -255,7 +235,9 @@
         <filter name="state_draft" string="Draft" domain="[('state', '=', 'draft')]"/>
         <filter name="state_reviewed" string="Reviewed" domain="[('state', '=', 'reviewed')]"/>
         <filter name="state_live" string="Live" domain="[('state', '=', 'live')]"/>
-        <filter name="state_archived" string="Archived" domain="[('state', '=', 'archived')]"/>
+        <filter name="state_archived" string="Archived"
+                domain="[('active', '=', False)]"
+                context="{'active_test': False}"/>
         <separator/>
         <filter name="has_active_refs" string="Routed to Live Calls"
                 domain="[('active_reference_count', '>', 0)]"/>
@@ -371,12 +353,6 @@
             decoration-muted="not is_active"
             decoration-success="is_active and is_reachable"
             decoration-warning="is_active and not is_reachable">
-        <header>
-          <button name="action_verify_reachability" type="object"
-                  string="Verify Reachability" class="btn-primary"
-                  display="always"
-                  help="Recompute is_reachable across every audio + reference. Run this after a bulk import, a SQL migration, or any time the 'Reachability Last Refreshed' stamp looks stale."/>
-        </header>
         <field name="audio_id"/>
         <field name="referrer_model_label" string="Where"/>
         <field name="referrer_name" string="Record"/>
@@ -433,6 +409,25 @@
       referrer is currently in a state that would route a live call through
       the audio. Use it like a BoM Overview to verify what's really in use.</p>
     </field>
+  </record>
+
+  <!-- Server actions — available from Action menu on form and list views -->
+  <record id="connect_audio_server_action_refresh_references" model="ir.actions.server">
+    <field name="name">Refresh References</field>
+    <field name="model_id" ref="connect.model_connect_audio"/>
+    <field name="binding_model_id" ref="connect.model_connect_audio"/>
+    <field name="binding_view_types">list,form</field>
+    <field name="state">code</field>
+    <field name="code">records._refresh_references()</field>
+  </record>
+
+  <record id="connect_audio_server_action_check_reachability" model="ir.actions.server">
+    <field name="name">Check Reachability</field>
+    <field name="model_id" ref="connect.model_connect_audio"/>
+    <field name="binding_model_id" ref="connect.model_connect_audio"/>
+    <field name="binding_view_types">list,form</field>
+    <field name="state">code</field>
+    <field name="code">action = records.action_refresh_reachability()</field>
   </record>
 
   <menuitem id="connect_audio_menu" name="Audio"

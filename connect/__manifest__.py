@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.11.0',
+    'version': '1.12.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -66,7 +66,6 @@
         'wizard/whatsapp_composer_views.xml',
         'wizard/originate_to_wizard_views.xml',
         'wizard/conversation_wizard_views.xml',
-        'wizard/audio_archive_wizard_views.xml',
         # Conversation views (after wizard, references wizard action)
         'views/conversation.xml',
     ],

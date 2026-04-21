@@ -144,6 +144,9 @@ class Audio(models.Model):
              'running callouts) can touch this audio. Recomputed asynchronously '
              'whenever a routing edge changes; system_key audios are always '
              'treated as reachable because code dispatches them at runtime.')
+    active = fields.Boolean(default=True, tracking=True,
+        help='Archived audio has active=False and is hidden from default views. '
+             'Use Action → Archive / Unarchive. System audio cannot be archived.')
     archived_on = fields.Datetime(readonly=True,
         help='When this audio was last moved to the archived state. Cleared '
              'when the audio leaves archived — so the value always reflects '
@@ -619,48 +622,6 @@ class Audio(models.Model):
                     f'Audio {rec.name!r} is archived; unarchive first.')
             rec.state = 'live' if rec.has_active_reference else 'reviewed'
 
-    def action_archive_audio(self):
-        """Archive — straight through when nothing's live, otherwise via a
-        wizard that forces the operator to resolve each active reference.
-
-        The wizard either clears the referrer's m2o or swaps it to a
-        replacement audio; only after every active ref is resolved does the
-        state actually move to 'archived'. Protects against the "I archived
-        it and my IVR went silent at 2am" incident class.
-        """
-        self.ensure_one()
-        if not self.active_reference_count:
-            self.state = 'archived'
-            return True
-        Wizard = self.env['connect.audio.archive.wizard']
-        Line = self.env['connect.audio.archive.wizard.line']
-        wizard = Wizard.create({'audio_id': self.id})
-        active_refs = self.reference_ids.filtered('is_active')
-        for ref in active_refs:
-            # Pre-select Clear on dead references (active but unreachable):
-            # no call path could actually land there, so the field is almost
-            # certainly leftover wiring. User can still choose Swap or Leave.
-            default_action = 'clear' if not ref.is_reachable else 'leave'
-            Line.create({
-                'wizard_id': wizard.id,
-                'reference_id': ref.id,
-                'action': default_action,
-            })
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'connect.audio.archive.wizard',
-            'res_id': wizard.id,
-            'view_mode': 'form',
-            'target': 'new',
-            'name': f'Archive {self.name!r}',
-        }
-
-    def action_unarchive(self):
-        for rec in self:
-            if rec.state != 'archived':
-                continue
-            rec.state = 'live' if rec.has_active_reference else 'draft'
-
     # ------------------------------------------------------------------
     # Create / write hooks — validate recorded audio masters. PSTN-format
     # (μ-law) bytes are derived lazily into connect.audio.utterance on
@@ -769,7 +730,35 @@ class Audio(models.Model):
         records._refresh_references()
         return records
 
+    def unlink(self):
+        sys_key = self.filtered('system_key')
+        if sys_key:
+            keys = ', '.join(sys_key.mapped('system_key'))
+            raise ValidationError(f'System audio cannot be deleted: {keys}')
+        return super().unlink()
+
     def write(self, vals):
+        # --- Native archival gate (Action → Archive sets active=False) ---
+        if vals.get('active') is False:
+            sys_key = self.filtered('system_key')
+            if sys_key:
+                keys = ', '.join(sys_key.mapped('system_key'))
+                raise ValidationError(
+                    f'System audio cannot be archived: {keys}')
+            with_active_refs = self.filtered(
+                lambda r: r.active_reference_count > 0)
+            if with_active_refs:
+                names = ', '.join(with_active_refs.mapped('name'))
+                raise ValidationError(
+                    f'Remove all active references before archiving: {names}')
+            vals = dict(vals)
+            vals['state'] = 'archived'
+            vals['archived_on'] = fields.Datetime.now()
+
+        elif 'active' in vals and vals['active']:
+            vals = dict(vals)
+            vals['archived_on'] = False
+
         master_changing = False
         if vals.get('recording_file'):
             # Validate if this write either flips source to 'record' or the
@@ -784,32 +773,45 @@ class Audio(models.Model):
                     vals['recording_file'])
                 vals.setdefault('recording_mimetype', 'audio/wav')
                 master_changing = True
-        # Stamp / clear archived_on so the UI can show "days archived" and
-        # the overview can surface stale archives. Done in write() rather
-        # than a compute because state already carries the lifecycle signal
-        # and we want the timestamp to track transitions, not every save.
+
+        # Stamp / clear archived_on and keep active in sync with state
+        # transitions that go through the state field directly (e.g. tests or
+        # internal state-machine calls rather than the Action-menu path).
         if 'state' in vals:
             if vals['state'] == 'archived':
                 vals = dict(vals)
                 vals.setdefault('archived_on', fields.Datetime.now())
+                vals.setdefault('active', False)
             elif any(r.state == 'archived' for r in self):
-                # Leaving archived — forget the old timestamp so a future
-                # re-archival carries its own age.
+                # Leaving archived — clear timestamp and restore active.
                 vals = dict(vals)
                 vals.setdefault('archived_on', False)
+                vals.setdefault('active', True)
+
         result = super().write(vals)
-        # Master changed → invalidate any cached μ-law derivatives so the next
-        # render() regenerates from the new master. Utterances for other
-        # sources (TTS, external) are unaffected.
+
+        # Master changed → invalidate cached μ-law derivatives.
         if master_changing:
             stale = self.utterance_ids.filtered(
                 lambda u: u.source_used == 'record')
             if stale:
                 stale.unlink()
-        # Refresh references when changes on the audio itself could flip
-        # visibility or active-status reasoning (system_key, source).
+
         if {'system_key', 'source', 'active'} & vals.keys():
             self._refresh_references_async()
+
+        # Post-unarchive: restore state out of 'archived' now that active=True
+        # is written and has_active_reference is current.
+        if 'active' in vals and vals.get('active'):
+            was_archived = self.filtered(lambda r: r.state == 'archived')
+            if was_archived:
+                to_live = was_archived.filtered('has_active_reference')
+                to_draft = was_archived - to_live
+                if to_live:
+                    to_live.write({'state': 'live'})
+                if to_draft:
+                    to_draft.write({'state': 'draft'})
+
         return result
 
     def action_refresh_references(self):

@@ -7,12 +7,16 @@
         <field name="arch" type="xml">
             <field name="greeting_message" position="after">
                 <field name="elevenlabs_enabled" invisible="1"/>
+                <field name="greeting_audio_id" options="{'no_create': True}"
+                       invisible="not greeting_message"/>
                 <field name="greeting_message_widget" nolabel="1" colspan="2"
-                       invisible="not elevenlabs_enabled or not greeting_message"/>
+                       invisible="not greeting_audio_id"/>
             </field>
             <field name="voicemail_prompt" position="after">
+                <field name="voicemail_audio_id" options="{'no_create': True}"
+                       invisible="not voicemail_enabled"/>
                 <field name="voicemail_prompt_widget" nolabel="1" colspan="2"
-                       invisible="not elevenlabs_enabled or not voicemail_enabled"/>
+                       invisible="not voicemail_audio_id"/>
             </field>
         </field>
     </record>

@@ -23,8 +23,22 @@ class Elevenlabsettings(models.Model):
     elevenlabs_agent_token = fields.Char(required=True, groups="base.group_erp_manager",
                                         default=lambda x: str(uuid.uuid4()))
     display_elevenlabs_api_key = fields.Char()
-    elevenlabs_voice = fields.Many2one('connect.elevenlabs_voice', ondelete='set null', string='Selected Voice')
+    elevenlabs_voice = fields.Many2one('connect.voice', ondelete='set null', string='Selected Voice',
+        domain=[('provider', '=', 'elevenlabs')])
     elevenlabs_enabled = fields.Boolean()
+    elevenlabs_model_id = fields.Char(string='Model', default='eleven_flash_v2_5',
+        help='ElevenLabs TTS model. flash_v2_5 = fastest / IVR-appropriate, '
+             'turbo_v2_5 = balanced, multilingual_v2 = highest quality but slower. '
+             'Changing this invalidates cached utterances.')
+    elevenlabs_stability = fields.Float(string='Stability', default=0.5,
+        help='0.0 = maximum expression, 1.0 = maximum consistency. '
+             '~0.5 is a typical IVR balance.')
+    elevenlabs_similarity_boost = fields.Float(string='Similarity Boost', default=0.75,
+        help='Adherence to the reference voice. Higher = closer but may amplify artifacts.')
+    elevenlabs_style = fields.Float(string='Style', default=0.0,
+        help='Style exaggeration. 0.0 is recommended for IVR; higher increases latency.')
+    elevenlabs_speaker_boost = fields.Boolean(string='Speaker Boost', default=True,
+        help='Boost similarity to the original speaker at a small compute cost.')
     elevenlabs_agent_url = fields.Char(string='Agent URL', required=True, default='https://elevenlabs-agent.ngrok.io')
     elevenlabs_agent_parameters = fields.Text(string='Agent Parameters')
     elevenlabs_post_call_webhook_url = fields.Char(compute='_get_post_call_webhook_url')
@@ -54,6 +68,16 @@ class Elevenlabsettings(models.Model):
         api_url = self.env['connect.settings'].sudo().get_param('api_url')
         self.elevenlabs_post_call_webhook_url = urljoin(api_url, 'connect_elevenlabs/post_call')
 
+    def get_default_audio_source(self):
+        """Prefer ElevenLabs when enabled AND a voice is configured. Otherwise
+        fall back to base (twilio_tts) so the audio is still playable.
+        """
+        if self.sudo().get_param('elevenlabs_enabled'):
+            voice = self.sudo().get_param('elevenlabs_voice')
+            if voice and voice._name == 'connect.voice':
+                return 'elevenlabs_tts', voice
+        return super().get_default_audio_source()
+
     def get_elevenlabs_client(self):
         # Take this using super access because nobody must be able to access it.
         key = self.sudo().get_param('elevenlabs_api_key')
@@ -63,15 +87,23 @@ class Elevenlabsettings(models.Model):
 
 
     def elevenlabs_get_voices(self):
-        self.env['connect.elevenlabs_voice'].get_voices()
+        self.env['connect.voice'].get_voices()
 
 
     def elevenlabs_regenerate_prompts(self):
-        self.env['connect.callflow'].elevenlabs_regenerate_prompts()
+        # Drop all utterances; next playback regenerates them on demand.
+        self.env['connect.audio.utterance'].sudo().search([
+            ('source_used', '=', 'elevenlabs_tts'),
+        ]).unlink()
+        self.connect_notify('Prompt utterances cleared; will regenerate on next playback',
+            title='ElevenLabs', notify_uid=self.env.user.id)
 
     def elevenlabs_regenerate_system_messages(self):
-        self.env['connect.elevenlabs_system_message'].regenerate_all_system_messages()
-        self.connect_notify('System messages regenerated', title='ElevenLabs', notify_uid=self.env.user.id)
+        # Drop utterances for system audios; next render regenerates.
+        sysmsgs = self.env['connect.audio'].sudo().search([('system_key', '!=', False)])
+        sysmsgs.utterance_ids.unlink()
+        self.connect_notify('System messages cleared; will regenerate on next playback',
+            title='ElevenLabs', notify_uid=self.env.user.id)
 
 
     def elevenlabs_sync_ai_agents(self):

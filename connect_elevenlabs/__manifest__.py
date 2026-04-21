@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect ElevenLabs',
-    'version': '1.4.2',
+    'version': '1.6.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -22,7 +22,7 @@ Features:
 - Telephony integration with Twilio
 - Full conversation tracking and history
     """,
-    'depends': ['connect', 'calendar', 'mail'],
+    'depends': ['connect', 'calendar', 'mail', 'queue_job'],
     'external_dependencies': {
         'python': ['elevenlabs'],
     },

@@ -2,117 +2,150 @@
 
 import logging
 
-from odoo import models, fields, release, api
+from odoo import models, fields, api
 
 logger = logging.getLogger(__name__)
 
+# (text field, audio m2o, root_var). root_var is None because callflow text
+# fields don't use Jinja today; setting model_id still allows operators to add
+# {field} tokens manually.
+CALLFLOW_AUDIO_FIELDS = (
+    ('prompt_message', 'prompt_audio_id', None),
+    ('invalid_input_message', 'invalid_input_audio_id', None),
+    ('voicemail_prompt', 'voicemail_audio_id', None),
+)
+
 
 class ElevenLabsCallflow(models.Model):
-    _inherit = 'connect.callflow'
+    _name = 'connect.callflow'
+    _inherit = ['connect.callflow', 'connect.audio.referrer.mixin']
+
+    _audio_reference_fields = (
+        'prompt_audio_id', 'invalid_input_audio_id', 'voicemail_audio_id',
+    )
+    _audio_reference_trigger_fields = ('active',)
+    # Superset of the base callflow's reachability fields plus our audio m2os.
+    # Duplicated explicitly because Python's class-attribute inheritance would
+    # otherwise have ElevenLabs shadow rather than extend the base tuple.
+    _audio_reachability_fields = (
+        'active', 'ring_users', 'voicemail_enabled', 'schedule_id', 'choices',
+        'prompt_audio_id', 'invalid_input_audio_id', 'voicemail_audio_id',
+    )
 
     elevenlabs_enabled = fields.Boolean(compute='_get_elevenlabs_enabled')
-    prompt_message_file = fields.Many2one('connect.elevenlabs_file', ondelete='set null')
-    invalid_input_message_file = fields.Many2one('connect.elevenlabs_file', ondelete='set null')
-    voicemail_prompt_file = fields.Many2one('connect.elevenlabs_file', ondelete='set null')
-    if release.version_info[0] >= 17.0:
-        prompt_message_widget = fields.Html(related='prompt_message_file.preview_audio', string='prompt_message_widget')
-        invalid_input_message_widget = fields.Html(
-            related='invalid_input_message_file.preview_audio', string='invalid_input_message_widget')
-        voicemail_prompt_widget = fields.Html(
-            related='voicemail_prompt_file.preview_audio', string='voicemail_prompt_widget')
-    else:
-        prompt_message_widget = fields.Char(related='prompt_message_file.preview_audio', string='prompt_message_widget')
-        invalid_input_message_widget = fields.Char(
-            related='invalid_input_message_file.preview_audio', string='invalid_input_message_widget')
-        voicemail_prompt_widget = fields.Char(
-            related='voicemail_prompt_file.preview_audio', string='voicemail_prompt_widget')
+    prompt_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='Prompt Audio')
+    invalid_input_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='Invalid Input Audio')
+    voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='Voicemail Prompt Audio')
+    prompt_message_widget = fields.Html(
+        related='prompt_audio_id.latest_utterance_id.preview_audio',
+        string='Prompt Preview')
+    invalid_input_message_widget = fields.Html(
+        related='invalid_input_audio_id.latest_utterance_id.preview_audio',
+        string='Invalid Input Preview')
+    voicemail_prompt_widget = fields.Html(
+        related='voicemail_audio_id.latest_utterance_id.preview_audio',
+        string='Voicemail Preview')
 
     def _get_elevenlabs_enabled(self):
         elevenlabs_enabled = self.env['connect.settings'].sudo().get_param('elevenlabs_enabled')
         for rec in self:
             rec.elevenlabs_enabled = elevenlabs_enabled
 
-    @api.constrains('prompt_message')
-    def _generate_elevenlabs_prompt_message(self):
-        if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
-            return
-        for rec in self:
-            rec._generate_elevenlabs_file('prompt_message', 'prompt_message_file')
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for rec in records:
+            rec._sync_audio_fields()
+        return records
 
-    @api.constrains('invalid_input_message')
-    def _generate_elevenlabs_invalid_input_message(self):
-        if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
-            return
-        for rec in self:
-            rec._generate_elevenlabs_file('invalid_input_message', 'invalid_input_message_file')
+    def write(self, vals):
+        watched = {f for f, _, _ in CALLFLOW_AUDIO_FIELDS} | {'voicemail_enabled'}
+        result = super().write(vals)
+        if watched & vals.keys():
+            self._sync_audio_fields()
+        return result
 
-    @api.constrains('voicemail_prompt')
-    def _generate_elevenlabs_voicemail_prompt(self):
-        if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
-            return
+    def _sync_audio_fields(self):
         for rec in self:
-            rec._generate_elevenlabs_file('voicemail_prompt', 'voicemail_prompt_file')
+            for text_field, audio_field, root_var in CALLFLOW_AUDIO_FIELDS:
+                rec._sync_one_audio(text_field, audio_field, root_var)
 
-    def _generate_elevenlabs_file(self, prompt_field, file_field):
-        self = self.sudo()
+    def _sync_one_audio(self, text_field, audio_field, root_var):
         self.ensure_one()
-        if getattr(self, prompt_field):
-            if getattr(self, file_field):
-                # Update
-                getattr(self, file_field).text = getattr(self, prompt_field)
-            else:
-                setattr(self, file_field, self.env['connect.elevenlabs_file'].create({
-                    'text': getattr(self, prompt_field),
-                }))
+        Audio = self.env['connect.audio'].sudo()
+        text = self[text_field]
+        audio = self[audio_field]
+
+        if text_field == 'voicemail_prompt' and not self.voicemail_enabled:
+            text = False
+
+        if not text:
+            if audio:
+                audio.unlink()
+            return
+
+        source, voice = self._resolve_audio_source_voice()
+        is_dynamic, static_text, model_id = self._template_args(text, root_var)
+        vals = {
+            'name': f'{self.name} {text_field}',
+            'source': source,
+            'voice_id': voice.id if voice else False,
+            'static_text': static_text,
+            'is_dynamic': is_dynamic,
+            'model_id': model_id,
+        }
+        if audio:
+            audio.write(vals)
         else:
-            if getattr(self, file_field):
-                getattr(self, file_field).unlink()
+            audio = Audio.create(vals)
+            self[audio_field] = audio
+        try:
+            audio.with_delay()._precache(record=self)
+        except Exception as e:
+            logger.debug('queue_job pre-cache skipped: %s', e)
+
+    def _resolve_audio_source_voice(self):
+        return self.env['connect.settings'].sudo().get_default_audio_source()
+
+    def _template_args(self, text, root_var):
+        Audio = self.env['connect.audio'].sudo()
+        if not root_var:
+            return False, text, False
+        converted, ok = Audio.jinja_to_token(text, root_var=root_var)
+        if ok and converted != text:
+            model = self.env['ir.model'].sudo().search([('model', '=', self._name)], limit=1)
+            return True, converted, model.id
+        return False, text, False
 
     def get_prompt_message(self, gather):
-        try:
-            self = self.sudo()
-            if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
-                return super().get_prompt_message(gather)
-            if not self.prompt_message_file or not self.prompt_message_file.file:
-                self._generate_elevenlabs_prompt_message()
-            if self.prompt_message_file and self.prompt_message_file.file:
-                gather.play(self.prompt_message_file.get_file_url())
+        self = self.sudo()
+        if self.prompt_audio_id:
+            try:
+                self.prompt_audio_id.play_on(gather, record=self)
                 return
-        except Exception as e:
-            logger.error('Elevenlabs error: %s', e)
+            except Exception as e:
+                logger.error('Audio render failed for callflow %s prompt: %s', self.id, e)
         return super().get_prompt_message(gather)
 
     def get_gather_invalid_input_message(self, response):
-        try:
-            self = self.sudo()
-            if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
-                return super().get_gather_invalid_input_message(response)
-            if not self.invalid_input_message_file or not self.invalid_input_message_file.file:
-                self._generate_elevenlabs_invalid_input_message()
-            if self.invalid_input_message_file and self.invalid_input_message_file.file:
-                response.play(self.invalid_input_message_file.get_file_url())
+        self = self.sudo()
+        if self.invalid_input_audio_id:
+            try:
+                self.invalid_input_audio_id.play_on(response, record=self)
                 return
-        except Exception as e:
-            logger.error('Elevenlabs error: %s', e)
+            except Exception as e:
+                logger.error('Audio render failed for callflow %s invalid input: %s', self.id, e)
         return super().get_gather_invalid_input_message(response)
 
     def get_voicemail_prompt_message(self, response):
-        try:
-            self = self.sudo()
-            if not self.env['connect.settings'].sudo().get_param('elevenlabs_enabled'):
-                return super().get_voicemail_prompt_message(response)
-            if not self.voicemail_prompt_file or not self.voicemail_prompt_file.file:
-                self._generate_elevenlabs_voicemail_prompt()
-            if self.voicemail_prompt_file and self.voicemail_prompt_file.file:
-                response.play(self.voicemail_prompt_file.get_file_url())
+        self = self.sudo()
+        if self.voicemail_audio_id:
+            try:
+                self.voicemail_audio_id.play_on(response, record=self)
                 return
-        except Exception as e:
-            logger.error('Elevenlabs error: %s', e)
+            except Exception as e:
+                logger.error('Audio render failed for callflow %s voicemail: %s', self.id, e)
         return super().get_voicemail_prompt_message(response)
-
-    def elevenlabs_regenerate_prompts(self):
-        callflows = self.env['connect.callflow'].sudo().search([])
-        for callflow in callflows:
-            callflow._generate_elevenlabs_prompt_message()
-            callflow._generate_elevenlabs_invalid_input_message()
-            callflow._generate_elevenlabs_voicemail_prompt()

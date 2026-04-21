@@ -70,14 +70,11 @@ class ElevenLabsTestCase(ConnectTestCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Check if ElevenLabs voice model exists and create test voice
-        if 'connect.elevenlabs_voice' in cls.env:
-            cls.test_voice = cls.env['connect.elevenlabs_voice'].create({
-                'name': 'Test Voice',
-                'voice_id': 'voice_' + 'x' * 24,
-            })
-        else:
-            cls.test_voice = None
+        cls.test_voice = cls.env['connect.voice'].create({
+            'name': 'Test Voice',
+            'provider': 'elevenlabs',
+            'external_id': 'voice_' + 'x' * 24,
+        })
 
     @contextmanager
     def mockElevenLabsClient(self):

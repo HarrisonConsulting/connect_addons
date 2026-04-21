@@ -187,9 +187,10 @@ class ElevenlabsAgent(models.Model):
 
     # === Voice & Language ===
     voice = fields.Many2one(
-        "connect.elevenlabs_voice",
+        "connect.voice",
         required=True,
         tracking=True,
+        domain=[('provider', '=', 'elevenlabs')],
         help="ElevenLabs voice for text-to-speech",
     )
     language = fields.Selection(
@@ -640,8 +641,8 @@ class ElevenlabsAgent(models.Model):
             if tts_config:
                 voice_id = getattr(tts_config, "voice_id", None)
                 if voice_id:
-                    voice = self.env["connect.elevenlabs_voice"].search(
-                        [("voice_id", "=", voice_id)], limit=1
+                    voice = self.env["connect.voice"].search(
+                        [("provider", "=", "elevenlabs"), ("external_id", "=", voice_id)], limit=1
                     )
                     if voice:
                         vals["voice"] = voice.id
@@ -1014,7 +1015,7 @@ class ElevenlabsAgent(models.Model):
             "similarity_boost": self.similarity_boost,
             "speed": self.speed,
             "stability": self.stability,
-            "voice_id": self.voice.voice_id,
+            "voice_id": self.voice.external_id,
             "model_id": self.model,
             "optimize_streaming_latency": self.optimize_streaming_latency,
         }

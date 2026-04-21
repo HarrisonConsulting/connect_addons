@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="connect_s3_settings_view" model="ir.ui.view">
+    <field name="name">connect.settings.form.s3</field>
+    <field name="model">connect.settings</field>
+    <field name="inherit_id" ref="connect.connect_settings_form"/>
+    <field name="arch" type="xml">
+
+      <xpath expr="//group[@string='Recording Storage']" position="inside">
+        <field name="s3_endpoint"
+               invisible="recording_storage != 's3'"
+               placeholder="https://s3.amazonaws.com (default AWS) or https://minio.example.com"/>
+        <field name="s3_bucket" invisible="recording_storage != 's3'"/>
+        <field name="s3_access_key" invisible="recording_storage != 's3'" password="1"/>
+        <field name="s3_secret_key" invisible="recording_storage != 's3'" password="1"/>
+        <field name="s3_region" invisible="recording_storage != 's3'" placeholder="us-east-1"/>
+        <button colspan="2" name="action_test_s3_connection" type="object"
+                string="TEST S3 CONNECTION" class="btn btn-info btn-sm"
+                invisible="recording_storage != 's3'"/>
+      </xpath>
+
+    </field>
+  </record>
+
+</odoo>

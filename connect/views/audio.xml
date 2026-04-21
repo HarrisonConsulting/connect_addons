@@ -136,7 +136,7 @@
     <field name="name">connect.audio.kanban</field>
     <field name="model">connect.audio</field>
     <field name="arch" type="xml">
-      <kanban default_group_by="state" class="o_kanban_small_column">
+      <kanban class="o_kanban_small_column">
         <field name="id"/>
         <field name="name"/>
         <field name="state"/>

@@ -74,6 +74,7 @@ class Audio(models.Model):
     extend by inheriting and adding entries in setup() or via _inherit.
     """
     _name = 'connect.audio'
+    _inherit = ['mail.thread']
     _description = 'Audio'
     _order = 'name'
 
@@ -109,7 +110,8 @@ class Audio(models.Model):
              'TWILIO_PLAYABLE_MIMETYPES after the transcoder has run.')
     model_id = fields.Many2one('ir.model',
         help='Model whose fields can be referenced in {token} substitutions when is_dynamic.')
-    model_name = fields.Char(related='model_id.model', store=True, readonly=True,
+    model_name = fields.Char(related='model_id.model', string='Model Name',
+        store=True, readonly=True,
         help='Stored mirror of model_id.model for efficient domain filtering.')
     utterance_ids = fields.One2many('connect.audio.utterance', 'audio_id',
         help='All cached utterances rendered from this audio — one per '
@@ -126,9 +128,11 @@ class Audio(models.Model):
         store=True,
         help='One-line digest of where this audio is used — e.g. '
              '"2 callflows (1 live) · 1 user".')
-    last_generated_on = fields.Datetime(
-        related='latest_utterance_id.generated_on', store=True,
-        string='Last Generated')
+    last_generated_on = fields.Datetime(compute='_compute_last_generated_on',
+        store=True, string='Last Generated',
+        help='Most recent utterance generation timestamp. Computed directly '
+             'from utterance_ids rather than related through latest_utterance_id '
+             'so Odoo can invert the dependency when an utterance is (re)created.')
     last_played_on = fields.Datetime(compute='_compute_last_played_on',
         store=True, string='Last Played',
         help='Most recent time any utterance of this audio was served to '
@@ -246,6 +250,16 @@ class Audio(models.Model):
                 rec.last_played_on = max(served) if served else False
             else:
                 rec.last_played_on = False
+
+    @api.depends('utterance_ids.generated_on')
+    def _compute_last_generated_on(self):
+        for rec in self:
+            if rec.utterance_ids:
+                dates = [u.generated_on for u in rec.utterance_ids
+                         if u.generated_on]
+                rec.last_generated_on = max(dates) if dates else False
+            else:
+                rec.last_generated_on = False
 
     @api.depends('utterance_ids.generated_on')
     def _compute_latest_utterance(self):

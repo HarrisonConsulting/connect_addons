@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import json
 import logging
 import re
+import requests
 import time
 from urllib.parse import urljoin
 from markupsafe import Markup
@@ -12,7 +14,7 @@ from psycopg2 import OperationalError
 from odoo import fields, models, api, SUPERUSER_ID, tools
 from odoo.exceptions import ValidationError
 from twilio.twiml.voice_response import VoiceResponse, Say, Dial, Conference, Client, Number, Sip
-from .settings import debug
+from .settings import debug, HTTP_DOWNLOAD_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,8 @@ class Call(models.Model):
     voicemail_duration = fields.Integer(readonly=True)
     voicemail_icon = fields.Html(compute='_get_voicemail_icon', string='V', store=True)
     voicemail_widget = fields.Html(compute='_get_voicemail_widget', string='VoiceMail', sanitize=False)
+    voicemail_attachment_id = fields.Many2one('ir.attachment', string='Voicemail File', ondelete='set null', readonly=True, copy=False)
+    voicemail_sid = fields.Char(string='Voicemail SID', readonly=True, copy=False)
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')
     has_error = fields.Boolean(index=True)
@@ -203,17 +207,17 @@ class Call(models.Model):
     def _get_voicemail_widget(self):
         proxy_recordings = self.env['connect.settings'].sudo().get_param('proxy_recordings')
         for rec in self:
-            if rec.voicemail_url:
-                if proxy_recordings:
-                    media_url = '/connect/voicemail/{}'.format(rec.id)
-                else:
-                    media_url = rec.voicemail_url
-                rec.voicemail_widget = '<audio id="sound_file" preload="auto" ' \
-                    'controls="controls"> ' \
-                    '<source src="{}"/>' \
-                    '</audio>'.format(media_url)
+            if rec.voicemail_attachment_id:
+                src = '/web/content/{}?download=false'.format(rec.voicemail_attachment_id.id)
+            elif rec.voicemail_url:
+                src = '/connect/voicemail/{}'.format(rec.id) if proxy_recordings else rec.voicemail_url
             else:
                 rec.voicemail_widget = ''
+                continue
+            rec.voicemail_widget = (
+                '<audio id="sound_file" preload="auto" controls="controls">'
+                '<source src="{}"/></audio>'.format(src)
+            )
 
     @api.depends('voicemail_url')
     def _get_voicemail_icon(self):
@@ -1067,19 +1071,65 @@ class Call(models.Model):
         if channel and channel.call:
             updates = {
                 'voicemail_url': params.get('RecordingUrl'),
-                'voicemail_duration': int(params.get('RecordingDuration'))
+                'voicemail_duration': int(params.get('RecordingDuration')),
+                'voicemail_sid': params.get('RecordingSid'),
             }
             # Voicemail was left - update status to 'voicemail'
             # Only if not already 'answered' (answered takes priority over voicemail)
             if channel.call.status != 'answered':
                 updates['status'] = 'voicemail'
             channel.call.write(updates)
+            # Transfer voicemail to configured storage
+            recording_storage = self.env['connect.settings'].sudo().get_param('recording_storage', 'twilio')
+            if recording_storage and recording_storage != 'twilio':
+                try:
+                    channel.call._store_voicemail_as_attachment()
+                except Exception as e:
+                    logger.exception('Voicemail storage error: %s', e)
             # Send voicemail notification email
             try:
                 channel.call._send_voicemail_email()
             except Exception as e:
                 logger.exception('Voicemail email error: %s', e)
         return True
+
+    def _store_voicemail_as_attachment(self):
+        """Download voicemail from Twilio and store as ir.attachment."""
+        self.ensure_one()
+        if not self.voicemail_url:
+            return
+        settings = self.env['connect.settings'].sudo()
+        account_sid = settings.get_param('account_sid')
+        auth_token = settings.get_param('auth_token')
+        response = requests.get(
+            self.voicemail_url, auth=(account_sid, auth_token),
+            timeout=HTTP_DOWNLOAD_TIMEOUT
+        )
+        response.raise_for_status()
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'voicemail_{}.mp3'.format(self.voicemail_sid or self.id),
+            'datas': base64.b64encode(response.content).decode(),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'audio/mpeg',
+        })
+        self.write({'voicemail_attachment_id': attachment.id})
+        if settings.get_param('delete_twilio_recording') and self.voicemail_sid:
+            try:
+                client = self.env['connect.settings'].get_client()
+                if client:
+                    client.recordings(self.voicemail_sid).delete()
+                    logger.info('Deleted voicemail %s from Twilio', self.voicemail_sid)
+            except Exception as e:
+                logger.error('Failed to delete voicemail %s from Twilio: %s', self.voicemail_sid, e)
+        return attachment
+
+    def _get_voicemail_listen_url(self):
+        """Return URL to include in voicemail notification emails. Override for custom storage."""
+        self.ensure_one()
+        if self.voicemail_attachment_id:
+            return '/web/content/{}?download=false'.format(self.voicemail_attachment_id.id)
+        return self.voicemail_url
 
     def _send_voicemail_email(self):
         """Send voicemail notification email to the intended recipient."""
@@ -1128,9 +1178,9 @@ class Call(models.Model):
                 body_html += '<p><strong>Transcription:</strong></p><p>{}</p>'.format(
                     transcript_text)
 
-            if self.voicemail_url:
-                body_html += '<p><a href="{}">Listen to voicemail</a></p>'.format(
-                    self.voicemail_url)
+            listen_url = self._get_voicemail_listen_url()
+            if listen_url:
+                body_html += '<p><a href="{}">Listen to voicemail</a></p>'.format(listen_url)
 
             mail_values = {
                 'subject': subject,

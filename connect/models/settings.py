@@ -182,6 +182,15 @@ class Settings(models.Model):
         string="Fetch Call Prices",
         help="Enable fetching call prices from Twilio API after call completion. May add delay to call processing."
     )
+    recording_storage = fields.Selection([
+        ('twilio', 'Twilio (default)'),
+        ('odoo_filestore', 'Odoo Filestore'),
+    ], default='twilio', required=True, string='Recording Storage',
+       help='Where to store call recordings and voicemails. Odoo Filestore downloads and stores audio locally.')
+    delete_twilio_recording = fields.Boolean(
+        default=False, string='Delete from Twilio After Transfer',
+        help='Delete recordings from Twilio after successfully storing locally. Reduces Twilio storage costs.'
+    )
     ############################################################
     instance_uid = fields.Char("Instance UID", compute="_get_instance_data")
     api_url = fields.Char("API URL", compute="_get_instance_data")

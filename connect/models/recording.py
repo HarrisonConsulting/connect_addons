@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import json
 import logging
 import os
@@ -37,6 +38,7 @@ class Recording(models.Model):
     duration_human = fields.Char(compute='_get_duration_human')
     start_time = fields.Datetime()
     status = fields.Char()
+    attachment_id = fields.Many2one('ir.attachment', string='Recording File', ondelete='set null', readonly=True, copy=False)
     if release.version_info[0] >= 17.0:
         recording_widget = fields.Html(compute='_get_recording_widget', string='Recording', sanitize=False)
     else:
@@ -114,6 +116,11 @@ class Recording(models.Model):
 
     def _download_recording_audio(self):
         """Download recording audio to a temporary file. Returns path or None."""
+        if self.attachment_id:
+            data = base64.b64decode(self.attachment_id.sudo().datas)
+            with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                f.write(data)
+                return f.name
         if not self.media_url:
             return None
         account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
@@ -262,18 +269,55 @@ class Recording(models.Model):
     def _get_recording_widget(self):
         proxy_recordings = self.env['connect.settings'].sudo().get_param('proxy_recordings')
         for rec in self:
-            if not rec.media_url:
-                # Fix for Agent recordings.
+            if rec.attachment_id:
+                src = '/web/content/{}?download=false'.format(rec.attachment_id.id)
+            elif rec.media_url:
+                src = '/connect/recording/{}'.format(rec.id) if proxy_recordings else rec.media_url
+            else:
                 rec.recording_widget = ''
                 continue
-            if proxy_recordings:
-                media_url = '/connect/recording/{}'.format(rec.id)
-            else:
-                media_url = rec.media_url
-            rec.recording_widget = '<audio id="sound_file" preload="auto" ' \
-                'controls="controls"> ' \
-                '<source src="{}"/>' \
-                '</audio>'.format(media_url)
+            rec.recording_widget = (
+                '<audio id="sound_file" preload="auto" controls="controls">'
+                '<source src="{}"/></audio>'.format(src)
+            )
+
+    def _store_as_attachment(self):
+        """Download recording from Twilio and store as ir.attachment."""
+        self.ensure_one()
+        if not self.media_url:
+            return
+        settings = self.env['connect.settings'].sudo()
+        account_sid = settings.get_param('account_sid')
+        auth_token = settings.get_param('auth_token')
+        response = requests.get(
+            self.media_url, auth=(account_sid, auth_token),
+            timeout=HTTP_DOWNLOAD_TIMEOUT
+        )
+        response.raise_for_status()
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'recording_{}.mp3'.format(self.sid),
+            'datas': base64.b64encode(response.content).decode(),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'audio/mpeg',
+        })
+        self.write({'attachment_id': attachment.id})
+        if settings.get_param('delete_twilio_recording'):
+            self._delete_from_twilio()
+        return attachment
+
+    def _delete_from_twilio(self):
+        """Delete this recording from Twilio to reduce storage costs."""
+        self.ensure_one()
+        if not self.sid:
+            return
+        try:
+            client = self.env['connect.settings'].get_client()
+            if client:
+                client.recordings(self.sid).delete()
+                logger.info('Deleted recording %s from Twilio', self.sid)
+        except Exception as e:
+            logger.error('Failed to delete recording %s from Twilio: %s', self.sid, e)
 
     def _get_list_view_summary(self):
         for rec in self:
@@ -373,7 +417,13 @@ class Recording(models.Model):
             logger.info('Duplicate recording webhook ignored for RecordingSid=%s', data['sid'])
             existing.write({'status': data.get('status', existing.status)})
             return True
-        self.create(data)
+        recording = self.create(data)
+        recording_storage = self.env['connect.settings'].sudo().get_param('recording_storage', 'twilio')
+        if recording_storage and recording_storage != 'twilio':
+            try:
+                recording._store_as_attachment()
+            except Exception as e:
+                logger.exception('Failed to store recording %s: %s', data.get('sid'), e)
         return True
 
     @api.depends('duration')
@@ -393,3 +443,10 @@ class Recording(models.Model):
         # When recording transcription summary is set we update related object summary.
         if self.call:
             self.with_user(SUPERUSER_ID).call.summary = self.summary
+
+    def unlink(self):
+        attachments = self.mapped('attachment_id').filtered(lambda a: a.id)
+        result = super().unlink()
+        if attachments:
+            attachments.sudo().unlink()
+        return result

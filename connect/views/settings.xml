@@ -69,11 +69,17 @@
                 <page name="calls" string="Calls"
                       invisible="is_registered == False">
                   <group>
-                    <group >
+                    <group>
                       <field name="proxy_recordings"/>
                       <small colspan="2">If you disable it remove the HTTP AUTH in Twilio. Read <a target="new" href="https://help.twilio.com/articles/15827821586843">more</a>.</small>
                       <field name="fetch_call_prices"/>
                       <small colspan="2">Fetch call prices from Twilio API after call completion. This may add delay to call processing.</small>
+                    </group>
+                    <group string="Recording Storage">
+                      <field name="recording_storage"/>
+                      <small colspan="2" invisible="recording_storage == 'twilio'">Recordings are downloaded from Twilio and stored locally on each new call.</small>
+                      <field name="delete_twilio_recording" invisible="recording_storage == 'twilio'"/>
+                      <small colspan="2" invisible="recording_storage == 'twilio' or not delete_twilio_recording">Recordings are permanently deleted from Twilio after local transfer. Ensure your storage is reliable before enabling.</small>
                     </group>
                     <group string="Voicemail">
                       <field name="voicemail_max_length"/>

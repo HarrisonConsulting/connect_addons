@@ -2,6 +2,13 @@ phonenumbers
 twilio
 elevenlabs>=2.0.0
 openai
+# Used by connect/models/audio_ulaw.py for quality μ-law resampling.
+# samplerate is the preferred resampler (libsamplerate bindings, BSD-2,
+# manylinux wheel, numpy-only dep). Fallback chain in audio_ulaw degrades
+# to scipy.signal.resample_poly, then stdlib audioop.ratecv (with a WARN
+# log) — install samplerate for production quality.
+numpy>=1.23
+samplerate>=0.1.0
 
 # For Odoo 18.0 official docker image:
 # pip3 install --user  --force-reinstall --break-system-package typing_extensions openai

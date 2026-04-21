@@ -56,48 +56,6 @@ def migrate(cr, version):
 
     env = api.Environment(cr, SUPERUSER_ID, {})
 
-    # ── Bootstrap connect_elevenlabs audio M2Os on existing rows ──────────
-    # connect_elevenlabs adds prompt_audio_id / invalid_input_audio_id /
-    # voicemail_audio_id to callflow and greeting_audio_id / voicemail_audio_id
-    # to user.  Its _sync_audio_fields() fires on create/write but was never
-    # called retroactively — rows that existed before the extension was
-    # installed have all audio M2Os NULL.  Populate them now so the reference
-    # map and reachability BFS below include the bootstrapped records.
-    cr.execute("""
-        SELECT 1 FROM information_schema.columns
-         WHERE table_name = 'connect_callflow'
-           AND column_name = 'prompt_audio_id'
-    """)
-    if cr.fetchone():
-        callflows = env['connect.callflow'].sudo().search([
-            '|', '|',
-            '&', ('prompt_message', '!=', False), ('prompt_audio_id', '=', False),
-            '&', ('invalid_input_message', '!=', False), ('invalid_input_audio_id', '=', False),
-            '&', ('voicemail_enabled', '=', True),
-                 '&', ('voicemail_prompt', '!=', False), ('voicemail_audio_id', '=', False),
-        ])
-        if callflows:
-            callflows._sync_audio_fields()
-            logger.info(
-                'Bootstrapped connect.audio records for %d callflow(s).', len(callflows))
-
-    cr.execute("""
-        SELECT 1 FROM information_schema.columns
-         WHERE table_name = 'connect_user'
-           AND column_name = 'greeting_audio_id'
-    """)
-    if cr.fetchone():
-        users = env['connect.user'].sudo().search([
-            '|',
-            '&', ('greeting_message', '!=', False), ('greeting_audio_id', '=', False),
-            '&', ('voicemail_enabled', '=', True),
-                 '&', ('voicemail_prompt', '!=', False), ('voicemail_audio_id', '=', False),
-        ])
-        if users:
-            users._sync_audio_fields()
-            logger.info(
-                'Bootstrapped connect.audio records for %d user(s).', len(users))
-
     # Rebuild the reference map so Where Used and state reconciliation are
     # accurate before the reachability BFS reads them.
     audios = env['connect.audio'].sudo().search([])

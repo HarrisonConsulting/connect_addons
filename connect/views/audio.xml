@@ -1,0 +1,444 @@
+<odoo>
+
+  <record id="connect_audio_form" model="ir.ui.view">
+    <field name="name">connect.audio.form</field>
+    <field name="model">connect.audio</field>
+    <field name="arch" type="xml">
+      <form string="Audio">
+        <header>
+          <button name="action_mark_reviewed" type="object" string="Mark Reviewed"
+                  class="btn-primary" invisible="state in ('reviewed', 'live', 'archived')"/>
+          <button name="action_archive_audio" type="object" string="Archive"
+                  invisible="state == 'archived'"/>
+          <button name="action_unarchive" type="object" string="Unarchive"
+                  invisible="state != 'archived'"
+                  confirm="Unarchive this audio? It will return to reviewed or live depending on active references. Any future routing wired to it will take effect immediately."/>
+          <button name="action_refresh_references" type="object"
+                  string="Refresh References" class="btn-link"
+                  help="Recompute the Where Used map for this audio."/>
+          <field name="state" widget="statusbar"
+                 statusbar_visible="draft,reviewed,live"/>
+        </header>
+        <sheet>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Welcome Greeting"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="source"/>
+              <field name="voice_id" options="{'no_create': True}"
+                     invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
+              <field name="system_key" placeholder="e.g. system.transfer"/>
+              <field name="description"/>
+            </group>
+            <group>
+              <field name="is_dynamic" invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
+              <field name="model_id" options="{'no_create': True}"
+                     invisible="not is_dynamic"
+                     required="is_dynamic"/>
+              <field name="utterance_count"/>
+              <field name="reference_count"/>
+              <field name="active_reference_count"/>
+              <field name="is_reachable" readonly="1"
+                     help="Reachable by may-reach BFS from DIDs or running callouts."/>
+              <field name="last_reachability_refresh_on" readonly="1"
+                     help="When the reachability BFS last completed. Stale here usually means a routing change happened in a path the mixin doesn't catch (raw SQL, manual DB edit) — run Verify Reachability from the Audio Overview."/>
+              <field name="last_played_on" readonly="1"/>
+              <field name="archived_on" invisible="state != 'archived'" readonly="1"/>
+              <field name="days_archived" invisible="state != 'archived'" readonly="1"/>
+            </group>
+          </group>
+          <div class="alert alert-warning" role="alert"
+               invisible="is_reachable or state != 'live' or system_key">
+            <strong>Heads up:</strong> this audio is marked <em>live</em> but
+            the reachability walk can't find a path to it from any DID or
+            running callout. Either a referrer is unreachable itself, or a
+            routing edge was removed. Use <em>Refresh Reachability</em> on the
+            Audio Overview if you've just changed routing.
+          </div>
+          <notebook>
+            <page string="Content" name="content">
+              <group invisible="source not in ('twilio_tts', 'elevenlabs_tts')">
+                <field name="static_text" placeholder="Hello {partner_id.name}, your order {name} is ready."
+                       widget="text"/>
+              </group>
+              <group invisible="source != 'external_url'">
+                <field name="static_url" widget="url"/>
+              </group>
+              <group invisible="source != 'attachment'">
+                <field name="attachment_id"/>
+              </group>
+              <group invisible="source != 'record'">
+                <field name="recording_file" widget="connect_audio_recorder"
+                       filename="recording_filename" nolabel="1" colspan="2"/>
+                <field name="recording_filename" invisible="1"/>
+                <field name="recording_mimetype" readonly="1"/>
+              </group>
+            </page>
+            <page string="Where Used" name="references">
+              <field name="reference_ids" readonly="1">
+                <list create="0" delete="0" edit="0"
+                      decoration-success="is_active and is_reachable"
+                      decoration-warning="is_active and not is_reachable"
+                      decoration-muted="not is_active">
+                  <field name="referrer_model_label" string="Where"/>
+                  <field name="referrer_name" string="Record"/>
+                  <field name="field_name" string="Field"/>
+                  <field name="is_active" string="Active"/>
+                  <field name="is_reachable" string="Reachable"/>
+                  <field name="inactive_reason" string="Inactive Reason"
+                         optional="show"/>
+                  <button name="open_referrer" type="object"
+                          icon="fa-external-link" string="Open"/>
+                </list>
+              </field>
+            </page>
+            <page string="Utterances" name="utterances">
+              <field name="utterance_ids" readonly="1">
+                <list>
+                  <field name="generated_on"/>
+                  <field name="voice_id"/>
+                  <field name="rendered_text"/>
+                  <field name="source_used"/>
+                  <field name="mimetype"/>
+                  <field name="preview_audio" widget="html"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="connect_audio_list" model="ir.ui.view">
+    <field name="name">connect.audio.list</field>
+    <field name="model">connect.audio</field>
+    <field name="arch" type="xml">
+      <list string="Audio"
+            decoration-muted="state == 'archived'"
+            decoration-success="state == 'live'"
+            decoration-info="state == 'reviewed'"
+            decoration-warning="state == 'draft'">
+        <field name="name"/>
+        <field name="state" widget="badge"
+               decoration-success="state == 'live'"
+               decoration-info="state == 'reviewed'"
+               decoration-warning="state == 'draft'"
+               decoration-muted="state == 'archived'"/>
+        <field name="reference_summary" string="Where Used"/>
+        <field name="is_reachable" string="Reachable"
+               decoration-success="is_reachable"
+               decoration-muted="not is_reachable"
+               optional="show"/>
+        <field name="source"/>
+        <field name="voice_id" optional="show"/>
+        <field name="is_dynamic" optional="hide"/>
+        <field name="system_key" optional="hide"/>
+        <field name="active_reference_count" string="Active" optional="show"/>
+        <field name="utterance_count" string="Utterances" optional="hide"/>
+        <field name="last_generated_on" string="Last Generated" optional="hide"/>
+        <field name="last_played_on" string="Last Played" optional="show"/>
+        <field name="archived_on" string="Archived" optional="hide"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="connect_audio_kanban" model="ir.ui.view">
+    <field name="name">connect.audio.kanban</field>
+    <field name="model">connect.audio</field>
+    <field name="arch" type="xml">
+      <kanban default_group_by="state" class="o_kanban_small_column">
+        <field name="id"/>
+        <field name="name"/>
+        <field name="state"/>
+        <field name="source"/>
+        <field name="voice_id"/>
+        <field name="system_key"/>
+        <field name="reference_summary"/>
+        <field name="active_reference_count"/>
+        <field name="utterance_count"/>
+        <field name="last_generated_on"/>
+        <field name="last_played_on"/>
+        <field name="is_reachable"/>
+        <field name="archived_on"/>
+        <field name="days_archived"/>
+        <field name="is_dynamic"/>
+        <templates>
+          <t t-name="kanban-box">
+            <div t-attf-class="oe_kanban_card oe_kanban_global_click
+                 #{record.state.raw_value == 'live' ? 'border-success' : ''}
+                 #{record.state.raw_value == 'archived' ? 'o_kanban_color_muted' : ''}">
+              <div class="o_kanban_record_top">
+                <div class="o_kanban_record_headings">
+                  <strong><field name="name"/></strong>
+                  <small t-if="record.system_key.raw_value" class="text-muted">
+                    · <field name="system_key"/>
+                  </small>
+                </div>
+                <field name="state" widget="label_selection"
+                       options="{'classes': {'draft': 'warning', 'reviewed': 'info',
+                                              'live': 'success', 'archived': 'muted'}}"/>
+              </div>
+              <div class="o_kanban_record_body">
+                <div><i class="fa fa-link"/> <field name="reference_summary"/></div>
+                <div t-if="record.state.raw_value == 'live' and !record.is_reachable.raw_value and !record.system_key.raw_value"
+                     class="text-warning mt-1">
+                  <i class="fa fa-exclamation-triangle"/>
+                  <small>Live but not reachable from any entry point</small>
+                </div>
+                <div t-if="record.state.raw_value == 'archived'" class="mt-1">
+                  <small class="text-muted">
+                    <i class="fa fa-archive"/>
+                    Archived <field name="days_archived"/> day(s) ago
+                  </small>
+                </div>
+                <div class="mt-1">
+                  <small class="text-muted">
+                    <i class="fa fa-microphone"/> <field name="source"/>
+                    <t t-if="record.voice_id.raw_value">
+                      · <field name="voice_id"/>
+                    </t>
+                    <t t-if="record.is_dynamic.raw_value">
+                      · <span class="badge text-bg-secondary">dynamic</span>
+                    </t>
+                  </small>
+                </div>
+              </div>
+              <div class="o_kanban_record_bottom">
+                <div class="oe_kanban_bottom_left">
+                  <small t-if="record.last_played_on.raw_value">
+                    <i class="fa fa-play-circle"/>
+                    played <field name="last_played_on" widget="date"/>
+                  </small>
+                  <small t-if="!record.last_played_on.raw_value and record.utterance_count.raw_value"
+                         class="text-muted">
+                    <i class="fa fa-volume-up"/>
+                    <field name="utterance_count"/> utterances
+                  </small>
+                </div>
+                <div class="oe_kanban_bottom_right">
+                  <span t-if="record.is_reachable.raw_value"
+                        class="badge text-bg-success">reachable</span>
+                  <span t-if="!record.is_reachable.raw_value and !record.system_key.raw_value"
+                        class="badge text-bg-light text-muted">unreachable</span>
+                </div>
+              </div>
+            </div>
+          </t>
+        </templates>
+      </kanban>
+    </field>
+  </record>
+
+  <record id="connect_audio_search" model="ir.ui.view">
+    <field name="name">connect.audio.search</field>
+    <field name="model">connect.audio</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="reference_summary" string="Where Used"/>
+        <field name="system_key"/>
+        <field name="static_text"/>
+        <filter name="state_draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+        <filter name="state_reviewed" string="Reviewed" domain="[('state', '=', 'reviewed')]"/>
+        <filter name="state_live" string="Live" domain="[('state', '=', 'live')]"/>
+        <filter name="state_archived" string="Archived" domain="[('state', '=', 'archived')]"/>
+        <separator/>
+        <filter name="has_active_refs" string="Routed to Live Calls"
+                domain="[('active_reference_count', '>', 0)]"/>
+        <filter name="referenced_but_inactive"
+                string="Referenced but Inactive"
+                domain="[('reference_count', '>', 0), ('active_reference_count', '=', 0), ('system_key', '=', False)]"/>
+        <filter name="orphaned" string="Unreferenced"
+                domain="[('is_referenced', '=', False), ('system_key', '=', False)]"/>
+        <separator/>
+        <filter name="reachable" string="Reachable"
+                domain="[('is_reachable', '=', True)]"/>
+        <filter name="unreachable" string="Unreachable"
+                domain="[('is_reachable', '=', False), ('system_key', '=', False)]"/>
+        <filter name="dead_prompts" string="Dead Prompts (live state, unreachable)"
+                domain="[('state', '=', 'live'), ('is_reachable', '=', False), ('system_key', '=', False)]"
+                help="Audios the state machine flagged as live, but the routing graph can't reach from any DID or running campaign. Probable candidates for archival once the owning records are resolved."/>
+        <filter name="never_played" string="Never Played"
+                domain="[('last_played_on', '=', False)]"/>
+        <separator/>
+        <filter name="dynamic" string="Dynamic" domain="[('is_dynamic', '=', True)]"/>
+        <filter name="static" string="Static" domain="[('is_dynamic', '=', False)]"/>
+        <filter name="system_audio" string="System Messages"
+                domain="[('system_key', '!=', False)]"/>
+        <group>
+          <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+          <filter name="group_source" string="Source" context="{'group_by': 'source'}"/>
+          <filter name="group_voice" string="Voice" context="{'group_by': 'voice_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="connect_audio_action" model="ir.actions.act_window">
+    <field name="name">Audio</field>
+    <field name="res_model">connect.audio</field>
+    <field name="view_mode">kanban,list,form</field>
+  </record>
+
+  <record id="connect_audio_utterance_list" model="ir.ui.view">
+    <field name="name">connect.audio.utterance.list</field>
+    <field name="model">connect.audio.utterance</field>
+    <field name="arch" type="xml">
+      <list string="Utterances" create="0">
+        <field name="audio_id"/>
+        <field name="voice_id"/>
+        <field name="rendered_text"/>
+        <field name="source_used"/>
+        <field name="generated_on"/>
+        <field name="preview_audio" widget="html"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="connect_audio_utterance_action" model="ir.actions.act_window">
+    <field name="name">Utterances</field>
+    <field name="res_model">connect.audio.utterance</field>
+    <field name="view_mode">list</field>
+  </record>
+
+  <record id="connect_voice_list" model="ir.ui.view">
+    <field name="name">connect.voice.list</field>
+    <field name="model">connect.voice</field>
+    <field name="arch" type="xml">
+      <list string="Voices">
+        <field name="name"/>
+        <field name="provider"/>
+        <field name="external_id"/>
+        <field name="language"/>
+        <field name="gender"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="connect_voice_form" model="ir.ui.view">
+    <field name="name">connect.voice.form</field>
+    <field name="model">connect.voice</field>
+    <field name="arch" type="xml">
+      <form string="Voice">
+        <sheet>
+          <div class="oe_title"><h1><field name="name"/></h1></div>
+          <group>
+            <group>
+              <field name="provider"/>
+              <field name="external_id"/>
+              <field name="language"/>
+              <field name="description"/>
+            </group>
+            <group>
+              <field name="accent"/>
+              <field name="age"/>
+              <field name="gender"/>
+              <field name="preview_url" widget="url"/>
+            </group>
+          </group>
+          <field name="preview_audio" widget="html"/>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="connect_voice_action" model="ir.actions.act_window">
+    <field name="name">Voices</field>
+    <field name="res_model">connect.voice</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <!-- Audio Reference (Where Used) overview — BoM-style, cross-audio view -->
+  <record id="connect_audio_reference_list" model="ir.ui.view">
+    <field name="name">connect.audio.reference.list</field>
+    <field name="model">connect.audio.reference</field>
+    <field name="arch" type="xml">
+      <list string="Audio Usage" create="0" delete="0" edit="0"
+            decoration-muted="not is_active"
+            decoration-success="is_active and is_reachable"
+            decoration-warning="is_active and not is_reachable">
+        <header>
+          <button name="action_verify_reachability" type="object"
+                  string="Verify Reachability" class="btn-primary"
+                  display="always"
+                  help="Recompute is_reachable across every audio + reference. Run this after a bulk import, a SQL migration, or any time the 'Reachability Last Refreshed' stamp looks stale."/>
+        </header>
+        <field name="audio_id"/>
+        <field name="referrer_model_label" string="Where"/>
+        <field name="referrer_name" string="Record"/>
+        <field name="field_name" string="Field"/>
+        <field name="is_active" string="Active"/>
+        <field name="is_reachable" string="Reachable"/>
+        <field name="inactive_reason" string="Inactive Reason" optional="show"/>
+        <button name="open_referrer" type="object"
+                icon="fa-external-link" string="Open"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="connect_audio_reference_search" model="ir.ui.view">
+    <field name="name">connect.audio.reference.search</field>
+    <field name="model">connect.audio.reference</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="audio_id"/>
+        <field name="referrer_name"/>
+        <field name="referrer_model" string="Referrer Model"/>
+        <filter name="active_only" string="Active Only"
+                domain="[('is_active', '=', True)]"/>
+        <filter name="inactive_only" string="Inactive Only"
+                domain="[('is_active', '=', False)]"/>
+        <separator/>
+        <filter name="reachable_refs" string="Reachable"
+                domain="[('is_reachable', '=', True)]"/>
+        <filter name="dead_refs" string="Dead References (active, unreachable)"
+                domain="[('is_active', '=', True), ('is_reachable', '=', False)]"
+                help="Active references whose referring record isn't on any path from a DID or running campaign — safe candidates for cleanup."/>
+        <group>
+          <filter name="group_audio" string="Audio" context="{'group_by': 'audio_id'}"/>
+          <filter name="group_model" string="Referrer Model"
+                  context="{'group_by': 'referrer_model_label'}"/>
+          <filter name="group_active" string="Active"
+                  context="{'group_by': 'is_active'}"/>
+          <filter name="group_reachable" string="Reachable"
+                  context="{'group_by': 'is_reachable'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="connect_audio_reference_action" model="ir.actions.act_window">
+    <field name="name">Audio Usage Overview</field>
+    <field name="res_model">connect.audio.reference</field>
+    <field name="view_mode">list</field>
+    <field name="context">{'search_default_group_audio': 1}</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">No audio references yet.</p>
+      <p>This view shows every place a <code>connect.audio</code> is used —
+      which callout, callflow, user, or agent points to it, and whether that
+      referrer is currently in a state that would route a live call through
+      the audio. Use it like a BoM Overview to verify what's really in use.</p>
+    </field>
+  </record>
+
+  <menuitem id="connect_audio_menu" name="Audio"
+      parent="connect_settings_menu" sequence="50"
+      action="connect_audio_action"/>
+
+  <menuitem id="connect_audio_overview_menu" name="Audio Overview"
+      parent="connect_settings_menu" sequence="50"
+      action="connect_audio_reference_action"/>
+
+  <menuitem id="connect_audio_utterance_menu" name="Utterances"
+      parent="connect_settings_menu" sequence="51"
+      action="connect_audio_utterance_action"
+      groups="base.group_no_one"/>
+
+  <menuitem id="connect_voice_menu_item" name="Voices"
+      parent="connect_settings_menu" sequence="52"
+      action="connect_voice_action"/>
+
+</odoo>

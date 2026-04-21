@@ -110,6 +110,21 @@ class Settings(models.Model):
 
     name = fields.Char(compute="_get_name")
     debug_mode = fields.Boolean()
+    # Stamped by connect.audio._refresh_reachability() on each full BFS pass.
+    # Drives the "reachability last refreshed N ago" badge in the Audio
+    # Overview — operators can tell at a glance whether is_reachable flags are
+    # fresh or something's stopped triggering recomputes.
+    last_reachability_refresh_on = fields.Datetime(readonly=True,
+        string='Reachability Last Refreshed')
+
+    def get_default_audio_source(self):
+        """Return (source, voice) tuple for newly-created connect.audio rows.
+
+        Override in provider extensions (e.g. connect_elevenlabs) to switch the
+        default to that provider when enabled. Base default is twilio_tts with
+        no explicit voice (caller falls back to play_on()'s default).
+        """
+        return 'twilio_tts', self.env['connect.voice']
     twilio_auto_sync = fields.Boolean(default=True)
     twilio_region = fields.Selection([
         ('us1', 'US East (Virginia)'),

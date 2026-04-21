@@ -1,0 +1,110 @@
+<odoo noupdate="1">
+
+  <!-- Twilio voices. Polly.* are recommended over the legacy alice/man/woman
+       set, which Twilio treats as deprecated and may not be available on new
+       sub-accounts. Both are seeded so existing data referencing 'alice'
+       still resolves; new audios should default to Polly. -->
+  <record id="voice_twilio_polly_joanna" model="connect.voice">
+    <field name="name">Joanna (Polly Standard)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Joanna</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_matthew" model="connect.voice">
+    <field name="name">Matthew (Polly Standard)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Matthew</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+  </record>
+  <record id="voice_twilio_alice" model="connect.voice">
+    <field name="name">Alice (Twilio legacy)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">alice</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+    <field name="description">Legacy Twilio voice. Prefer Polly.* on new sub-accounts.</field>
+  </record>
+  <record id="voice_twilio_man" model="connect.voice">
+    <field name="name">Man (Twilio legacy)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">man</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+    <field name="description">Legacy Twilio voice. Prefer Polly.* on new sub-accounts.</field>
+  </record>
+  <record id="voice_twilio_woman" model="connect.voice">
+    <field name="name">Woman (Twilio legacy)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">woman</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+    <field name="description">Legacy Twilio voice. Prefer Polly.* on new sub-accounts.</field>
+  </record>
+
+  <!-- System message audios. Source defaults to twilio_tts so <Say> is used
+       until ElevenLabs (or another provider) is wired up. Voice defaults to
+       Polly.Joanna Standard — free on all Twilio sub-accounts. Neural Polly
+       voices are billed per-character and not enabled everywhere by default;
+       switch to Polly.*-Neural only when the billing implications are
+       understood. -->
+
+  <record id="audio_system_transfer" model="connect.audio">
+    <field name="name">System: Transfer</field>
+    <field name="system_key">system.transfer</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">Transfer</field>
+  </record>
+  <record id="audio_system_connecting" model="connect.audio">
+    <field name="name">System: Connecting</field>
+    <field name="system_key">system.connecting</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">Connecting...</field>
+  </record>
+  <record id="audio_system_dnd" model="connect.audio">
+    <field name="name">System: Do Not Disturb</field>
+    <field name="system_key">system.dnd</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">Do not disturb is enabled. Please leave a message.</field>
+  </record>
+  <record id="audio_error_no_callerid" model="connect.audio">
+    <field name="name">Error: No CallerID</field>
+    <field name="system_key">error.no_callerid</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">You must configure a default number for caller ID!</field>
+  </record>
+  <record id="audio_error_callflow_empty" model="connect.audio">
+    <field name="name">Error: Callflow Empty</field>
+    <field name="system_key">error.callflow_empty</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">This callflow has no actions! Goodbye!</field>
+  </record>
+  <record id="audio_error_call_failed" model="connect.audio">
+    <field name="name">Error: Call Failed</field>
+    <field name="system_key">error.call_failed</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">Sorry, I could not connect your call. Goodbye!</field>
+  </record>
+  <record id="audio_error_no_extension" model="connect.audio">
+    <field name="name">Error: No Extension</field>
+    <field name="system_key">error.no_extension</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">Extension not configured!</field>
+  </record>
+  <record id="audio_error_choice_error" model="connect.audio">
+    <field name="name">Error: Choice Error</field>
+    <field name="system_key">error.choice_error</field>
+    <field name="source">twilio_tts</field>
+    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
+    <field name="static_text">Choice application error, please contact technical support!</field>
+  </record>
+
+</odoo>

@@ -142,3 +142,27 @@ class ConnectTestCase(TransactionCase):
             })
 
         return call
+
+
+class AudioTestMixin:
+    """Mixin: shared fixture helpers for connect.audio tests.
+
+    Use alongside ConnectTestCase (or any TransactionCase subclass). Keeps
+    the per-test create() boilerplate out of the test body so assertions
+    stay the focus.
+    """
+
+    def _make_audio(self, **kw):
+        vals = {
+            'name': 'Test Audio',
+            'source': 'twilio_tts',
+            'static_text': 'hello',
+        }
+        vals.update(kw)
+        return self.env['connect.audio'].create(vals)
+
+    def _make_callflow_with_prompt(self, audio):
+        return self.env['connect.callflow'].create({
+            'name': 'Test CF',
+            'prompt_audio_id': audio.id,
+        })

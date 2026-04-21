@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.9.2',
+    'version': '1.11.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -14,7 +14,7 @@
     'description': '',
     'depends': ['mail', 'contacts', 'sms'],
     'external_dependencies': {
-        'python': ['twilio', 'openai'],
+        'python': ['twilio', 'openai', 'numpy', 'samplerate'],
     },
     'data': [
         'data/res_users.xml',
@@ -33,6 +33,7 @@
         'security/admin_record_rules.xml',
         # Data (post-security)
         'data/schedule_data.xml',
+        'data/audio.xml',
         # Views
         'views/menu.xml',
         'views/settings.xml',
@@ -49,6 +50,7 @@
         'views/channel.xml',
         'views/outgoing_callerid.xml',
         'views/recording.xml',
+        'views/audio.xml',
         'views/number.xml',
         'views/favorite.xml',
         'views/res_partner.xml',
@@ -64,6 +66,7 @@
         'wizard/whatsapp_composer_views.xml',
         'wizard/originate_to_wizard_views.xml',
         'wizard/conversation_wizard_views.xml',
+        'wizard/audio_archive_wizard_views.xml',
         # Conversation views (after wizard, references wizard action)
         'views/conversation.xml',
     ],
@@ -71,6 +74,7 @@
     'installable': True,
     'application': True,
     'auto_install': False,
+    'post_init_hook': 'post_init_hook',
     'images': ['static/description/logo.png'],
     'assets': {
         'web.assets_backend': [
@@ -85,6 +89,7 @@
             '/connect/static/src/js/utils.js',
             '/connect/static/src/components/chat/*',
             '/connect/static/src/widgets/phone_field/*',
+            '/connect/static/src/widgets/audio_recorder/*',
         ],
         # Dark mode overrides - loaded when Odoo enables dark mode
         'web.assets_web_dark': [

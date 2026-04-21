@@ -293,4 +293,45 @@
     <field name="perm_create" eval="1"/>
     <field name="perm_unlink" eval="1"/>
   </record>
+
+  <!-- Audio (read-only for users) -->
+  <record id="connect_audio_user" model="ir.model.access">
+    <field name="name">connect_audio_user</field>
+    <field name="model_id" ref="connect.model_connect_audio"/>
+    <field name="group_id" ref="connect.group_connect_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <record id="connect_audio_utterance_user" model="ir.model.access">
+    <field name="name">connect_audio_utterance_user</field>
+    <field name="model_id" ref="connect.model_connect_audio_utterance"/>
+    <field name="group_id" ref="connect.group_connect_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <record id="connect_audio_reference_user" model="ir.model.access">
+    <field name="name">connect_audio_reference_user</field>
+    <field name="model_id" ref="connect.model_connect_audio_reference"/>
+    <field name="group_id" ref="connect.group_connect_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <record id="connect_voice_user" model="ir.model.access">
+    <field name="name">connect_voice_user</field>
+    <field name="model_id" ref="connect.model_connect_voice"/>
+    <field name="group_id" ref="connect.group_connect_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
 </odoo>

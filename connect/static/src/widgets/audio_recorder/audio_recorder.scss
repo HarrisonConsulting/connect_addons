@@ -1,0 +1,15 @@
+.o_connect_audio_recorder {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .o_connect_audio_recorder_controls {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    audio {
+        max-width: 360px;
+    }
+}

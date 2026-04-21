@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 
 class CallflowChoice(models.Model):
     _name = 'connect.callflow_choice'
+    _inherit = ['connect.audio.referrer.mixin']
     _description = 'Callflow Choice'
+
+    _audio_reachability_fields = ('exten', 'callflow')
 
     callflow = fields.Many2one('connect.callflow', required=True, ondelete='cascade')
     choice_digits = fields.Char(required=True)
@@ -21,9 +24,16 @@ class CallflowChoice(models.Model):
 
 class CallFlow(models.Model):
     _name = 'connect.callflow'
-    _inherit = ['connect.tts.mixin']
+    _inherit = ['connect.tts.mixin', 'connect.audio.referrer.mixin']
     _description = 'Call Flow'
     _order = 'name asc'
+
+    # Base routing fields. ElevenLabs extension adds audio m2os and merges
+    # with its own list — declaring here so the mixin still triggers
+    # reachability refreshes on installations that don't have ElevenLabs.
+    _audio_reachability_fields = (
+        'active', 'ring_users', 'voicemail_enabled', 'schedule_id', 'choices',
+    )
 
     name = fields.Char(required=True)
     exten = fields.Many2one('connect.exten', ondelete='set null', readonly=True)

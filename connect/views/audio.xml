@@ -20,6 +20,18 @@
                  statusbar_visible="draft,reviewed,live"/>
         </header>
         <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button class="oe_stat_button" type="object"
+                    name="action_open_references" icon="fa-link">
+              <field name="reference_count" widget="statinfo" string="Where Used"/>
+            </button>
+            <button class="oe_stat_button" type="object"
+                    name="action_refresh_reachability" icon="fa-sitemap">
+              <field name="is_reachable" widget="boolean_toggle" readonly="1"
+                     nolabel="1"/>
+              <span class="o_stat_text">Reachable</span>
+            </button>
+          </div>
           <div class="oe_title">
             <label for="name"/>
             <h1><field name="name" placeholder="e.g. Welcome Greeting"/></h1>
@@ -166,9 +178,8 @@
         <field name="days_archived"/>
         <field name="is_dynamic"/>
         <templates>
-          <t t-name="kanban-box">
-            <div t-attf-class="oe_kanban_card oe_kanban_global_click
-                 #{record.state.raw_value == 'live' ? 'border-success' : ''}
+          <t t-name="card">
+            <div t-attf-class="#{record.state.raw_value == 'live' ? 'border-success' : ''}
                  #{record.state.raw_value == 'archived' ? 'o_kanban_color_muted' : ''}">
               <div class="o_kanban_record_top">
                 <div class="o_kanban_record_headings">
@@ -428,9 +439,10 @@
       parent="connect_settings_menu" sequence="50"
       action="connect_audio_action"/>
 
-  <menuitem id="connect_audio_overview_menu" name="Audio Overview"
-      parent="connect_settings_menu" sequence="50"
-      action="connect_audio_reference_action"/>
+  <!-- Audio Usage Overview is reached via the Where Used smart button on the
+       audio form (connect.audio.action_open_references). The global
+       connect_audio_reference_action definition is retained for programmatic
+       access but no longer exposed as a menu. -->
 
   <menuitem id="connect_audio_utterance_menu" name="Utterances"
       parent="connect_settings_menu" sequence="51"

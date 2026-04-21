@@ -817,6 +817,26 @@ class Audio(models.Model):
         self._refresh_references()
         return True
 
+    def action_open_references(self):
+        """Smart-button action: open the Where-Used list filtered to this audio.
+
+        Replaces the old global 'Audio Usage Overview' menu with a per-record
+        entry point — operators look at where a single audio is used far more
+        often than they browse the cross-audio BoM view.
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Where {self.name or self.display_name!r} is used',
+            'res_model': 'connect.audio.reference',
+            'view_mode': 'list',
+            'domain': [('audio_id', '=', self.id)],
+            'context': {
+                'default_audio_id': self.id,
+                'search_default_group_audio': 0,
+            },
+        }
+
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------

@@ -63,10 +63,13 @@ class AudioReference(models.Model):
             'target': 'current',
         }
 
-    @api.model
-    def action_verify_reachability(self):
+    def action_verify_reachability(self, *args, **kwargs):
         """Overview toolbar entry point: delegate to the global refresh on
         connect.audio and surface its notification toast. Bound to the list
-        view's <header> button so operators can trigger a fresh BFS without
-        selecting any row."""
+        view's <header> button.
+
+        `*args, **kwargs` absorbs the record-ids positional that Odoo 19
+        passes on list-header button invocations — this is a global
+        operation that doesn't care about the current selection.
+        """
         return self.env['connect.audio'].action_refresh_reachability()

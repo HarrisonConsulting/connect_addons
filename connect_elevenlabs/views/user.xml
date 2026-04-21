@@ -7,8 +7,7 @@
         <field name="arch" type="xml">
             <field name="greeting_message" position="after">
                 <field name="elevenlabs_enabled" invisible="1"/>
-                <field name="greeting_audio_id" options="{'no_create': True}"
-                       invisible="not greeting_message"/>
+                <field name="greeting_audio_id" options="{'no_create': True}"/>
                 <field name="greeting_message_widget" nolabel="1" colspan="2"
                        invisible="not greeting_audio_id"/>
             </field>

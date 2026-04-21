@@ -71,21 +71,19 @@ class ElevenLabsUser(models.Model):
                 rec._sync_one_audio(text_field, audio_field, root_var)
 
     def _sync_one_audio(self, text_field, audio_field, root_var):
-        """Reconcile one (text, audio) pair on this record.
-
-        - text empty → unlink audio
-        - text set → ensure audio exists with the right source/voice/template,
-          then schedule a queue_job to pre-render the utterance so the next
-          webhook hits cache.
-        """
         self.ensure_one()
         Audio = self.env['connect.audio'].sudo()
         text = self[text_field]
         audio = self[audio_field]
 
-        # Voicemail is gated by voicemail_enabled.
         if text_field == 'voicemail_prompt' and not self.voicemail_enabled:
             text = False
+
+        auto_name = f'{self.username} {text_field}'
+
+        # Operator manually selected a library audio — do not overwrite it.
+        if audio and audio.name != auto_name:
+            return
 
         if not text:
             if audio:
@@ -95,7 +93,7 @@ class ElevenLabsUser(models.Model):
         source, voice = self._resolve_audio_source_voice()
         is_dynamic, static_text, model_id = self._template_args(text, root_var)
         vals = {
-            'name': f'{self.username} {text_field}',
+            'name': auto_name,
             'source': source,
             'voice_id': voice.id if voice else False,
             'static_text': static_text,
@@ -107,7 +105,6 @@ class ElevenLabsUser(models.Model):
         else:
             audio = Audio.create(vals)
             self[audio_field] = audio
-        # Pre-warm so the first call doesn't pay the renderer cost.
         try:
             audio.with_delay()._precache(record=self)
         except Exception as e:
@@ -146,21 +143,15 @@ class ElevenLabsUser(models.Model):
     # ------------------------------------------------------------------
 
     def get_greeting_message(self, response):
-        self = self.sudo()
-        if self.greeting_audio_id:
+        if self.sudo().greeting_audio_id:
             try:
-                self.greeting_audio_id.play_on(response, record=self)
-                return
+                self.sudo().greeting_audio_id.play_on(response, record=self)
             except Exception as e:
                 logger.error('Audio render failed for user %s greeting: %s', self.id, e)
-        return super().get_greeting_message(response)
 
     def get_voicemail_prompt(self, response):
-        self = self.sudo()
-        if self.voicemail_audio_id:
+        if self.sudo().voicemail_audio_id:
             try:
-                self.voicemail_audio_id.play_on(response, record=self)
-                return
+                self.sudo().voicemail_audio_id.play_on(response, record=self)
             except Exception as e:
                 logger.error('Audio render failed for user %s voicemail: %s', self.id, e)
-        return super().get_voicemail_prompt(response)

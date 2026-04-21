@@ -7,14 +7,13 @@
         <field name="arch" type="xml">
             <field name="prompt_message" position="after">
                 <field name="elevenlabs_enabled" invisible="1"/>
-                <field name="prompt_audio_id" options="{'no_create': True}"
-                       invisible="not prompt_message"/>
+                <field name="prompt_audio_id" options="{'no_create': True}"/>
                 <field name="prompt_message_widget" nolabel="1" colspan="2"
                        invisible="not prompt_audio_id"/>
             </field>
             <field name="invalid_input_message" position="after">
                 <field name="invalid_input_audio_id" options="{'no_create': True}"
-                       invisible="not gather_input or not invalid_input_message"/>
+                       invisible="not gather_input"/>
                 <field name="invalid_input_message_widget" nolabel="1" colspan="2"
                        invisible="not invalid_input_audio_id"/>
             </field>

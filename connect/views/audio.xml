@@ -163,7 +163,7 @@
                   <strong><field name="name"/></strong>
                   <span t-if="record.system_key.raw_value"
                         class="badge text-bg-primary ms-1">
-                    <i class="fa fa-key me-1"/><field name="system_key"/>
+                    <i class="fa fa-key me-1" title="System Key"/><field name="system_key"/>
                   </span>
                 </div>
                 <field name="state" widget="label_selection"

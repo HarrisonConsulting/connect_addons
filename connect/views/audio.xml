@@ -17,13 +17,6 @@
                     name="action_open_references" icon="fa-link">
               <field name="reference_count" widget="statinfo" string="Where Used"/>
             </button>
-            <div class="oe_stat_button" title="Reachability status (use Action → Check Reachability to refresh)">
-              <i class="fa fa-sitemap o_button_icon"/>
-              <div class="o_field_widget">
-                <field name="is_reachable" widget="boolean_toggle" readonly="1" nolabel="1"/>
-                <span class="o_stat_text">Reachable</span>
-              </div>
-            </div>
           </div>
           <div class="oe_title">
             <label for="name"/>
@@ -34,24 +27,14 @@
               <field name="source"/>
               <field name="voice_id" options="{'no_create': True}"
                      invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
-              <field name="system_key" readonly="1" invisible="not system_key"/>
               <field name="description"/>
             </group>
             <group>
+              <field name="system_key" readonly="1" invisible="not system_key"/>
               <field name="is_dynamic" invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
               <field name="model_id" options="{'no_create': True}"
                      invisible="not is_dynamic"
                      required="is_dynamic"/>
-              <field name="utterance_count"/>
-              <field name="reference_count"/>
-              <field name="active_reference_count"/>
-              <field name="is_reachable" readonly="1"
-                     help="Reachable by may-reach BFS from DIDs or running callouts."/>
-              <field name="last_reachability_refresh_on" readonly="1"
-                     help="When the reachability BFS last completed. Stale here usually means a routing change happened in a path the mixin doesn't catch (raw SQL, manual DB edit) — run Verify Reachability from the Audio Overview."/>
-              <field name="last_played_on" readonly="1"/>
-              <field name="archived_on" invisible="state != 'archived'" readonly="1"/>
-              <field name="days_archived" invisible="state != 'archived'" readonly="1"/>
             </group>
           </group>
           <div class="alert alert-warning" role="alert"
@@ -81,7 +64,28 @@
                 <field name="recording_mimetype" readonly="1"/>
               </group>
             </page>
-            <page string="Utterances" name="utterances">
+            <page string="System Info" name="system_info">
+              <group>
+                <group>
+                  <field name="utterance_count"/>
+                  <field name="reference_count"/>
+                  <field name="active_reference_count"/>
+                  <field name="is_reachable" readonly="1"
+                        help="Reachable by may-reach BFS from DIDs or running callouts."/>
+                  <field name="last_reachability_refresh_on" readonly="1"
+                        help="When the reachability BFS last completed. Stale here usually means a routing change happened in a path the mixin doesn't catch (raw SQL, manual DB edit) — run Verify Reachability from the Audio Overview."/>
+                  <field name="last_played_on" readonly="1"/>
+                  <field name="archived_on" invisible="state != 'archived'" readonly="1"/>
+                  <field name="days_archived" invisible="state != 'archived'" readonly="1"/>
+                </group>
+                <group>
+                  <field name="id" readonly="1"/>
+                  <field name="create_date" readonly="1"/>
+                  <field name="write_date" readonly="1"/>
+                </group>
+              </group>
+            </page>
+            <page string="Utterances" name="utterances" invisible="utterance_count == 0">
               <field name="utterance_ids" readonly="1">
                 <list>
                   <field name="generated_on"/>

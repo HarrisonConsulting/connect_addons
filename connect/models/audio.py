@@ -190,9 +190,11 @@ class Audio(models.Model):
     )
 
     latest_utterance_id = fields.Many2one('connect.audio.utterance',
-        compute='_compute_latest_utterance', string='Latest Utterance',
+        compute='_compute_latest_utterance', store=True,
+        string='Latest Utterance',
         help='Most recent utterance by generated_on — drives the preview '
-             'widget in form views.')
+             'widget in form views. Stored so related fields can reverse-walk '
+             'dependencies when utterance.preview_audio recomputes.')
     latest_preview_audio = fields.Html(
         related='latest_utterance_id.preview_audio', string='Preview',
         sanitize=False,

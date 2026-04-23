@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="module_category_connect_chunked" model="ir.module.category">
+        <field name="name">Connect Chunked Transcription</field>
+        <field name="sequence">75</field>
+    </record>
+
+    <record id="group_connect_chunked_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="category_id" ref="module_category_connect_chunked"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">Can view transcription jobs and chunks. Cannot retry or manage.</field>
+    </record>
+
+    <record id="group_connect_chunked_manager" model="res.groups">
+        <field name="name">Manager</field>
+        <field name="category_id" ref="module_category_connect_chunked"/>
+        <field name="implied_ids" eval="[(4, ref('group_connect_chunked_user'))]"/>
+        <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
+        <field name="comment">Can retry failed chunks, cancel jobs, adjust configuration.</field>
+    </record>
+</odoo>

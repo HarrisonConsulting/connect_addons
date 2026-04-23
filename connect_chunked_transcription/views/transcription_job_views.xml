@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_transcription_job_list" model="ir.ui.view">
+        <field name="name">connect.transcription.job.list</field>
+        <field name="model">connect.transcription.job</field>
+        <field name="arch" type="xml">
+            <list string="Transcription Jobs" default_order="create_date desc">
+                <field name="create_date"/>
+                <field name="recording_id"/>
+                <field name="state"
+                       decoration-success="state == 'done'"
+                       decoration-danger="state == 'failed'"
+                       decoration-warning="state == 'cancelled'"
+                       decoration-info="state in ('pending','chunking','transcribing','stitching')"
+                       widget="badge"/>
+                <field name="total_chunks"/>
+                <field name="completed_chunks"/>
+                <field name="failed_chunks"/>
+                <field name="progress_percent" widget="progressbar"/>
+                <field name="audio_duration_seconds"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_transcription_job_form" model="ir.ui.view">
+        <field name="name">connect.transcription.job.form</field>
+        <field name="model">connect.transcription.job</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_retry_failed" type="object"
+                            string="Retry Failed Chunks" class="btn-primary"
+                            invisible="failed_chunks == 0"
+                            groups="connect_chunked_transcription.group_connect_chunked_manager"/>
+                    <button name="action_cancel" type="object"
+                            string="Cancel" class="btn-secondary"
+                            invisible="state in ('done','cancelled','failed')"
+                            groups="connect_chunked_transcription.group_connect_chunked_manager"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,chunking,transcribing,stitching,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_chunks" type="object"
+                                class="oe_stat_button" icon="fa-list">
+                            <field name="total_chunks" widget="statinfo" string="Chunks"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="recording_id"/>
+                            <field name="audio_duration_seconds"/>
+                            <field name="progress_percent" widget="progressbar"/>
+                        </group>
+                        <group>
+                            <field name="completed_chunks"/>
+                            <field name="failed_chunks"/>
+                            <field name="target_chunk_seconds"/>
+                            <field name="min_silence_ms"/>
+                            <field name="silence_rms_db"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Stitched Transcript" name="transcript">
+                            <field name="stitched_transcript" readonly="1"/>
+                        </page>
+                        <page string="Error" name="error" invisible="not error_message">
+                            <field name="error_message" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_transcription_job" model="ir.actions.act_window">
+        <field name="name">Transcription Jobs</field>
+        <field name="res_model">connect.transcription.job</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

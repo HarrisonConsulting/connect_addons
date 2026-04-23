@@ -220,8 +220,8 @@ class ConnectTranscriptionChunk(models.Model):
     def _cron_watchdog_stuck_chunks(self, threshold_minutes: int = 20):
         """Reset chunks stuck in 'in_progress' past the threshold so queue_job
         picks them back up. Triggered when a worker crashes mid-transcribe."""
-        from datetime import datetime, timedelta
-        cutoff = datetime.utcnow() - timedelta(minutes=threshold_minutes)
+        from datetime import timedelta
+        cutoff = fields.Datetime.now() - timedelta(minutes=threshold_minutes)
         stuck = self.sudo().search([
             ('state', '=', 'in_progress'),
             ('write_date', '<', cutoff),

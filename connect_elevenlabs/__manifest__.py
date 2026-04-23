@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect ElevenLabs',
-    'version': '1.6.1',
+    'version': '1.7.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -38,8 +38,6 @@ Features:
         'views/call.xml',
         'views/settings.xml',
         'views/voice.xml',
-        'views/callflow.xml',
-        'views/user.xml',
         'views/agent.xml',
         'views/agent_prompt.xml',
         'views/agent_transfer.xml',

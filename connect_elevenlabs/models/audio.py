@@ -22,41 +22,6 @@ class Audio(models.Model):
         renderers['elevenlabs_tts'] = '_render_elevenlabs_tts'
         return renderers
 
-    def _audio_referrers(self):
-        refs = super()._audio_referrers()
-        refs.extend([
-            ('connect.user', 'greeting_audio_id',
-             lambda rec: True if rec.active else 'user archived'),
-            ('connect.user', 'voicemail_audio_id',
-             lambda rec: True if rec.active else 'user archived'),
-            ('connect.callflow', 'prompt_audio_id',
-             lambda rec: True if rec.active else 'callflow archived'),
-            ('connect.callflow', 'invalid_input_audio_id',
-             lambda rec: True if rec.active else 'callflow archived'),
-            ('connect.callflow', 'voicemail_audio_id',
-             lambda rec: True if rec.active else 'callflow archived'),
-        ])
-        return refs
-
-    def _reachability_successors(self, record):
-        """Add audio-leaf edges for records whose audio m2os are declared
-        here: connect.user greeting/voicemail, connect.callflow prompts."""
-        succ = list(super()._reachability_successors(record))
-        model = record._name
-        if model == 'connect.user':
-            if record.greeting_audio_id:
-                succ.append(('connect.audio', record.greeting_audio_id.id))
-            if record.voicemail_audio_id:
-                succ.append(('connect.audio', record.voicemail_audio_id.id))
-        elif model == 'connect.callflow':
-            if record.prompt_audio_id:
-                succ.append(('connect.audio', record.prompt_audio_id.id))
-            if record.invalid_input_audio_id:
-                succ.append(('connect.audio', record.invalid_input_audio_id.id))
-            if record.voicemail_audio_id:
-                succ.append(('connect.audio', record.voicemail_audio_id.id))
-        return succ
-
     def _default_voice_for_source(self, source):
         if source == 'elevenlabs_tts':
             voice = self.env['connect.settings'].sudo().get_param('elevenlabs_voice')

@@ -152,26 +152,20 @@ def migrate(cr, version):
         if _column_exists(cr, 'connect_callflow', src):
             cr.execute(f'ALTER TABLE connect_callflow DROP COLUMN IF EXISTS "{src}" CASCADE')
 
-    # ------------------------------------------------------------------
-    # 4. One-time re-sync so existing voicemail prompts get migrated to the
-    #    new {token} dynamic syntax (lossless: {{user.name}} → {name}). Skips
-    #    silently when the env isn't reachable (e.g. SQL-only test runs).
-    # ------------------------------------------------------------------
+    # _bulk_remap above touched audio m2o columns via raw SQL, which
+    # bypasses the referrer mixin. Refresh reachability so Where-Used /
+    # is_reachable reflect the post-remap graph.
+    #
+    # Note: the 1.5.0-era `_sync_audio_fields` re-sync was removed in
+    # connect 1.14.0 when the text↔audio sync was retired — connect's
+    # 1.14.0 pre-migrate is the authoritative text→audio converter and
+    # handles every previously-unsynced row.
     try:
         from odoo import api, SUPERUSER_ID
         env = api.Environment(cr, SUPERUSER_ID, {})
-        users = env['connect.user'].search([])
-        users._sync_audio_fields()
-        callflows = env['connect.callflow'].search([])
-        callflows._sync_audio_fields()
-        logger.info('Re-synced %d users and %d callflows for new dynamic audio.',
-                    len(users), len(callflows))
-        # _bulk_remap earlier in this migration updates audio m2o columns
-        # via raw SQL — that bypasses the referrer mixin, so the
-        # reachability map is stale until we kick it explicitly.
         env['connect.audio']._refresh_reachability()
     except Exception as e:
-        logger.warning('Post-migrate re-sync skipped: %s', e)
+        logger.warning('Post-migrate reachability refresh skipped: %s', e)
 
     cr.execute("""
         DELETE FROM ir_config_parameter

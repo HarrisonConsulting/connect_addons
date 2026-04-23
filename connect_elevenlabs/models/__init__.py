@@ -5,12 +5,10 @@ from . import agent_tool
 from . import agent_template
 from . import agent_transfer
 from . import call
-from . import callflow
 from . import exten
 from . import phone_registration
 from . import number
 from . import settings
-from . import user
 from . import recording
 
 # Inject documentation page.

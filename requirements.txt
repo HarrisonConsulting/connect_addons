@@ -10,5 +10,9 @@ openai
 numpy>=1.23
 samplerate>=0.1.0
 
+# connect_chunked_transcription: pure-Python audio decode + silence detection.
+# miniaudio ships manylinux wheels (no ffmpeg required).
+miniaudio>=1.61
+
 # For Odoo 18.0 official docker image:
 # pip3 install --user  --force-reinstall --break-system-package typing_extensions openai

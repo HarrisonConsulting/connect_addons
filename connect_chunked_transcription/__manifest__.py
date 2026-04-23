@@ -34,6 +34,7 @@ to the base `connect` module.
         'security/ir.model.access.csv',
         'data/ir_config_parameter.xml',
         'data/queue_job_channel.xml',
+        'data/ir_cron.xml',
         'views/transcription_job_views.xml',
         'views/transcription_chunk_views.xml',
         'views/recording_views.xml',

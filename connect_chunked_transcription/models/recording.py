@@ -4,7 +4,7 @@ import os
 
 from odoo import _, api, fields, models
 
-from ..utils.audio_chunker import chunk_audio_at_silences, probe_duration_seconds
+from ..utils.audio_chunker import chunk_audio_at_silences
 
 _logger = logging.getLogger(__name__)
 
@@ -123,7 +123,10 @@ class ConnectRecording(models.Model):
             self.write({'transcription_error': 'Audio file produced zero chunks (empty?)'})
             return
 
-        probe_secs = probe_duration_seconds(audio_bytes, filename)
+        # Sum chunk durations — avoids a second full decode pass and matches
+        # exactly what the chunker emitted (so the job's reported duration is
+        # consistent with the billable audio).
+        total_duration = sum(c['duration_seconds'] for c in chunks_data)
 
         job = self.env['connect.transcription.job'].create({
             'recording_id': self.id,
@@ -132,9 +135,7 @@ class ConnectRecording(models.Model):
             'target_chunk_seconds': int(params['target_chunk_seconds']),
             'min_silence_ms': int(params['min_silence_duration_ms']),
             'silence_rms_db': params['silence_rms_db'],
-            'audio_duration_seconds': probe_secs or sum(
-                c['duration_seconds'] for c in chunks_data
-            ),
+            'audio_duration_seconds': total_duration,
         })
 
         chunks = self.env['connect.transcription.chunk']

@@ -64,21 +64,43 @@ class ConnectTranscriptionJob(models.Model):
             job.progress_percent = (100.0 * done / total) if total else 0.0
 
     def _notify_chunk_done(self):
-        """Called by a chunk on successful completion. If all done, stitch."""
+        """Called by a chunk on terminal state. Uses a row-level lock to
+        prevent concurrent stitches when multiple chunks finish at the same
+        time (N queue_job workers racing to the finish line).
+        """
         self.ensure_one()
-        if self.state not in ('transcribing', 'stitching'):
+        # SELECT ... FOR UPDATE serialises _notify_chunk_done callers.
+        # Without this, N workers concurrently observe all(done) and call
+        # _stitch_and_finalize N times — double summary billing + duplicate
+        # writes to the recording.
+        self.env.cr.execute(
+            'SELECT state FROM connect_transcription_job WHERE id = %s FOR UPDATE',
+            (self.id,),
+        )
+        row = self.env.cr.fetchone()
+        if not row:
             return
+        current_state = row[0]
+        if current_state not in ('transcribing',):
+            # Already stitching / done / failed / cancelled — another worker
+            # owns the terminal transition.
+            return
+
         chunks = self.chunk_ids
         if not chunks:
             return
-        if all(c.state == 'done' for c in chunks):
-            self._stitch_and_finalize()
-        elif any(c.state == 'failed' for c in chunks) and all(
-            c.state in ('done', 'failed') for c in chunks
-        ):
-            # All terminal, but some failed — escalate to failed state.
+        terminal = chunks.filtered(lambda c: c.state in ('done', 'failed', 'cancelled'))
+        if len(terminal) < len(chunks):
+            return  # still chunks in flight
+        # Transition out of 'transcribing' inside the lock; a concurrent call
+        # from another worker will see the new state and return above.
+        if any(c.state == 'failed' for c in chunks):
             self._mark_failed(_('One or more chunks failed after retries; '
                                 'see chunk records for details.'))
+            return
+        self.state = 'stitching'
+        self.env.cr.commit()  # release the row lock before slow summary call
+        self._stitch_and_finalize()
 
     def _stitch_and_finalize(self):
         """Concatenate chunks in sequence order into the recording's transcript
@@ -112,10 +134,11 @@ class ConnectTranscriptionJob(models.Model):
                     lines.append(f'{ts} {text}')
         combined = '\n'.join(lines).strip()
         self.stitched_transcript = combined
-        chunks.write({'audio_data': False})
 
         # Generate summary using the recording's existing helper, same as the
-        # base synchronous path.
+        # base synchronous path. make_summary returns {'summary': ...} on
+        # success or {'transcription_error': ...} on failure — never
+        # transcription_price. Don't read a key it doesn't produce.
         summary_result = {}
         recording = self.recording_id
         try:
@@ -127,17 +150,21 @@ class ConnectTranscriptionJob(models.Model):
             _logger.exception('transcription_job %s: summary failed', self.id)
             summary_result = {'transcription_error': f'Summary failed: {e}'}
 
+        update_vals = {
+            'transcript': combined,
+            'summary': summary_result.get('summary'),
+            'transcription_error': summary_result.get('transcription_error', False),
+        }
         try:
-            recording.update_transcript({
-                'transcript': combined,
-                'summary': summary_result.get('summary'),
-                'transcription_error': summary_result.get('transcription_error', False),
-                'transcription_price': summary_result.get('transcription_price'),
-            })
+            recording.update_transcript(update_vals)
         except Exception as e:
             _logger.exception('transcription_job %s: failed to update recording', self.id)
             self._mark_failed(str(e))
             return
+
+        # Free chunk PCM only after the recording update committed — keeps
+        # chunks re-stitchable if we ever need a manual recovery.
+        chunks.write({'audio_data': False})
 
         self.state = 'done'
         self.message_post(
@@ -185,7 +212,6 @@ class ConnectTranscriptionJob(models.Model):
             {'state': 'cancelled'}
         )
         self.recording_id.update_transcript({
-            'transcription_in_progress': False,
             'transcription_error': _('Transcription cancelled'),
         })
 

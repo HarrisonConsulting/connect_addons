@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import logging
+from markupsafe import escape
 from odoo import fields, models, api
 from odoo.exceptions import ValidationError
 from odoo.models import Constraint
@@ -101,7 +102,14 @@ class AudioUtterance(models.Model):
         return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
     def get_path(self):
-        """Internal preview path (authenticated, used by backend widgets)."""
+        """Internal preview path (authenticated, used by backend widgets).
+
+        The filename segment is user-controllable (set by operators on
+        upload), so callers that embed this path in HTML must escape the
+        result — see _compute_preview_audio. For direct web-controller
+        use the path round-trips through Odoo's routing where the
+        filename is just informational.
+        """
         self.ensure_one()
         return f'/web/content/{self._name}/{self.id}/file/{self.filename or ""}'
 
@@ -141,10 +149,15 @@ class AudioUtterance(models.Model):
 
     @api.depends('file', 'filename')
     def _compute_preview_audio(self):
+        # Escape the path: `filename` ends up in an HTML attribute and is
+        # operator-controllable (arbitrary upload filename), so unescaped
+        # interpolation is a stored-XSS foot-gun even though the field is
+        # rendered with sanitize=False for the <audio> element itself.
         for rec in self:
             if rec.file:
+                src = escape(rec.get_path())
                 rec.preview_audio = (
-                    f'<audio controls preload="auto"><source src="{rec.get_path()}"/></audio>'
+                    f'<audio controls preload="auto"><source src="{src}"/></audio>'
                 )
             else:
                 rec.preview_audio = ''

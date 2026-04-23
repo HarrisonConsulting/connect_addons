@@ -220,15 +220,16 @@ class Settings(models.Model):
     web_base_url = fields.Char(compute="_get_instance_data", string="Odoo URL")
     call_duration_limit = fields.Integer(compute="_get_instance_data", string="Call Duration Limit (seconds)")
     latest_versions = fields.Html(readonly=True)
-    # Voice settings
-    system_voice = fields.Selection([
-        ('Polly.Danielle-Generative', 'Danielle Generative (en-US)'),
-        ('Polly.Joanna-Generative', 'Joanna Generative (en-US)'),
-        ('Polly.Matthew-Generative', 'Matthew Generative (en-US)'),
-        ('Polly.Ruth-Generative', 'Ruth Generative (en-US)'),
-        ('Polly.Stephen-Generative', 'Stephen Generative (en-US)')
-    ], string='System Voice', default='Polly.Ruth-Generative', required=True,
-       help='Voice used for all system prompts (callflow messages, voicemail, transfers, etc.)')
+    # Voice settings. default_twilio_voice is the DB-wide default for any
+    # connect.audio with source=twilio_tts and use_default_voice=True. Kept as
+    # a Many2one on connect.voice so the set of valid voices is data-driven
+    # (see connect/data/audio.xml) rather than hardcoded in a Selection.
+    default_twilio_voice = fields.Many2one(
+        'connect.voice', string='Default Twilio Voice',
+        domain=[('provider', '=', 'twilio'), ('active', '=', True)],
+        help='Default voice for Twilio <Say> output. Used by connect.audio '
+             'rows with use_default_voice=True and by tts_mixin fallback '
+             'system messages.')
     pronunciation_rules = fields.Text(
         string='Pronunciation Rules',
         help='JSON map of text to pronunciation substitutions (e.g., {"3CHI": "3-chee", "CEO": "C-E-O"})'
@@ -665,9 +666,16 @@ class Settings(models.Model):
 
     @api.model
     def get_system_voice(self):
-        """Get the system-wide voice setting for all TwiML say() calls"""
-        voice = self.sudo().get_param('system_voice', 'Polly.Ruth-Generative')
-        return voice
+        """Return the Twilio voice external_id for <Say> fallbacks.
+
+        Resolves settings.default_twilio_voice → external_id. Falls back to
+        DEFAULT_TWILIO_VOICE (Polly.Joanna Standard) when unset so <Say>
+        always has a concrete voice to render even on a fresh install before
+        the operator picks one.
+        """
+        from .tts_mixin import DEFAULT_TWILIO_VOICE
+        voice = self.sudo().search([], limit=1).default_twilio_voice
+        return voice.external_id if voice else DEFAULT_TWILIO_VOICE
 
     @api.model
     def process_pronunciation(self, text):
@@ -687,8 +695,16 @@ class Settings(models.Model):
             for original, pronunciation in rules.items():
                 pattern = re.compile(re.escape(original), re.IGNORECASE)
                 if pattern.search(processed_text):
-                    def replace_func(match):
-                        return f'<sub alias="{pronunciation}">{match.group(0)}</sub>'
+                    # SSML-escape the pronunciation value — a quote or angle
+                    # bracket in the operator-edited rules JSON would break
+                    # the <sub> tag and cause Twilio to speak the raw text.
+                    safe = (pronunciation
+                            .replace('&', '&amp;')
+                            .replace('"', '&quot;')
+                            .replace('<', '&lt;')
+                            .replace('>', '&gt;'))
+                    def replace_func(match, alias=safe):
+                        return f'<sub alias="{alias}">{match.group(0)}</sub>'
 
                     processed_text = pattern.sub(replace_func, processed_text)
                     has_substitutions = True

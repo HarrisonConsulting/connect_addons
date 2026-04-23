@@ -11,6 +11,7 @@ from odoo.exceptions import ValidationError
 from odoo.models import Constraint
 
 from . import audio_ulaw
+from .tts_mixin import DEFAULT_TWILIO_VOICE
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +90,20 @@ class Audio(models.Model):
     is_dynamic = fields.Boolean(default=False,
         help='When set, static_text is treated as a template with {field.path} tokens '
              'resolved at render() time against a passed record. Only valid for TTS sources.')
+    use_default_voice = fields.Boolean(default=True,
+        help='When True, this audio speaks in the per-source database default '
+             '(settings.default_twilio_voice for Twilio, settings.elevenlabs_voice '
+             'for ElevenLabs) and any value in voice_id is ignored. Uncheck to '
+             'pin a specific voice on this audio.')
     voice_id = fields.Many2one('connect.voice', ondelete='set null',
-        help='Voice for TTS sources. Ignored for record/external_url/attachment. '
-             'When unset, the per-source default applies (see _default_voice_for_source).')
+        help='Voice for TTS sources when use_default_voice is False. Ignored '
+             'for record/external_url/attachment and whenever use_default_voice '
+             'is True.')
+    resolved_voice_id = fields.Many2one('connect.voice',
+        compute='_compute_resolved_voice', string='Resolved Voice',
+        help='Voice that will actually be used to render this audio — '
+             'voice_id when use_default_voice is False, else the per-source '
+             'database default. Read-only view helper.')
     static_text = fields.Text(
         help='Text to speak (TTS sources) or template body (when is_dynamic).')
     static_url = fields.Char(help='External audio URL (source=external_url).')
@@ -181,6 +193,12 @@ class Audio(models.Model):
         compute='_compute_latest_utterance', string='Latest Utterance',
         help='Most recent utterance by generated_on — drives the preview '
              'widget in form views.')
+    latest_preview_audio = fields.Html(
+        related='latest_utterance_id.preview_audio', string='Preview',
+        sanitize=False,
+        help='Inline HTML5 <audio> widget for the most recent utterance. '
+             'Empty for source=twilio_tts since <Say> is rendered by '
+             'Twilio during the call, not by us.')
 
     @api.depends('utterance_ids')
     def _compute_utterance_count(self):
@@ -289,8 +307,25 @@ class Audio(models.Model):
         Returning True means "yes, inbound or outbound calls hit this".
         Returning a string instead of False gives an explanation shown in
         the overview's inactive_reason column.
+
+        Base registers connect.user and connect.callflow audio m2os — these
+        fields live on base models now (were moved out of connect_elevenlabs
+        in 1.14.0 as part of the text→audio migration).
         """
-        return []
+        return [
+            ('connect.user', 'greeting_audio_id',
+             lambda rec: True if rec.active else 'user archived'),
+            ('connect.user', 'voicemail_audio_id',
+             lambda rec: True if rec.active else 'user archived'),
+            ('connect.callflow', 'prompt_audio_id',
+             lambda rec: True if rec.active else 'callflow archived'),
+            ('connect.callflow', 'invalid_input_audio_id',
+             lambda rec: True if rec.active else 'callflow archived'),
+            ('connect.callflow', 'voicemail_audio_id',
+             lambda rec: True if rec.active else 'callflow archived'),
+            ('connect.callflow', 'after_hours_audio_id',
+             lambda rec: True if rec.active else 'callflow archived'),
+        ]
 
     def _collect_references(self):
         """Walk _audio_referrers and return a list of ref-dicts for self.
@@ -309,7 +344,12 @@ class Audio(models.Model):
                 continue
             if field_name not in Model._fields:
                 continue
-            referrers = Model.sudo().search([(field_name, '=', self.id)])
+            # active_test=False so archived referrers appear in Where-Used
+            # with inactive_reason='user archived' / 'callflow archived' —
+            # the lambdas below expect to see them, and the default
+            # active filter would silently drop archived rows.
+            referrers = Model.sudo().with_context(active_test=False).search(
+                [(field_name, '=', self.id)])
             if not referrers:
                 continue
             model_label = self.env['ir.model']._get(model_name).name or model_name
@@ -449,8 +489,24 @@ class Audio(models.Model):
                 return [('connect.callflow', record.callflow.id)]
             # twiml leaves don't play audio through our pipeline — terminal.
             return []
+        if model == 'connect.user':
+            succ = []
+            if record.greeting_audio_id:
+                succ.append(('connect.audio', record.greeting_audio_id.id))
+            if record.voicemail_audio_id:
+                succ.append(('connect.audio', record.voicemail_audio_id.id))
+            return succ
         if model == 'connect.callflow':
             succ = []
+            # Audio leaves — prompts and voicemail played by this callflow.
+            if record.prompt_audio_id:
+                succ.append(('connect.audio', record.prompt_audio_id.id))
+            if record.invalid_input_audio_id:
+                succ.append(('connect.audio', record.invalid_input_audio_id.id))
+            if record.voicemail_audio_id:
+                succ.append(('connect.audio', record.voicemail_audio_id.id))
+            if record.after_hours_audio_id:
+                succ.append(('connect.audio', record.after_hours_audio_id.id))
             # Simultaneous ring to users.
             for user in record.ring_users:
                 succ.append(('connect.user', user.id))
@@ -1004,18 +1060,39 @@ class Audio(models.Model):
         return TOKEN_RE.sub(repl, text)
 
     def _resolve_voice(self):
-        """Return the voice for this audio: explicit voice_id, else a per-source
-        default supplied by `_default_voice_for_source()`, else empty.
+        """Return the voice for this audio.
+
+        When use_default_voice is True, voice_id is ignored and the per-source
+        database default wins (`_default_voice_for_source`). When False, the
+        explicit voice_id is used, falling back to the per-source default only
+        when voice_id is empty — so a row can be pinned to a specific voice
+        that persists across settings changes.
         """
         self.ensure_one()
+        if self.use_default_voice:
+            return self._default_voice_for_source(self.source)
         if self.voice_id:
             return self.voice_id
         return self._default_voice_for_source(self.source)
 
     def _default_voice_for_source(self, source):
-        """Hook: return a fallback connect.voice for the given source. Empty by
-        default; provider extensions override for their source key."""
+        """Return the DB-wide default connect.voice for the given source.
+
+        Twilio reads settings.default_twilio_voice. Other providers extend
+        via _inherit (e.g. connect_elevenlabs returns settings.elevenlabs_voice).
+        Returns an empty recordset when no default is configured — callers
+        fall back to DEFAULT_TWILIO_VOICE in tts_mixin.
+        """
+        if source == 'twilio_tts':
+            settings = self.env['connect.settings'].sudo().search([], limit=1)
+            if settings and settings.default_twilio_voice:
+                return settings.default_twilio_voice
         return self.env['connect.voice']
+
+    @api.depends('source', 'use_default_voice', 'voice_id')
+    def _compute_resolved_voice(self):
+        for rec in self:
+            rec.resolved_voice_id = rec._resolve_voice()
 
     def _renderers(self):
         """Return dict of source_key -> renderer method name. Override to add sources."""
@@ -1326,12 +1403,15 @@ class Audio(models.Model):
         rows the URL is in utterance.filename and we play it directly; otherwise
         we emit a <Say> with the voice's external_id (Twilio voice name) and
         fall back to the configured default.
+
+        The <Say> fallback runs the rendered text through
+        connect.settings.process_pronunciation so operator-configured SSML
+        <sub alias="..."> substitutions (e.g. "3CHI" → "3-chee") still apply
+        when no pre-synthesised audio file exists — matching what the legacy
+        tts_say path did before the audio-library refactor.
         """
-        from .tts_mixin import DEFAULT_TWILIO_VOICE
         self.ensure_one()
         utterance = self.render(record=record)
-        # Branch on what the utterance actually has, not on self.source — the
-        # audio's source may have been edited after the utterance was cached.
         if utterance.file:
             response.play(utterance.get_url())
         elif utterance.source_used == 'external_url' and utterance.filename:
@@ -1340,5 +1420,7 @@ class Audio(models.Model):
             voice_name = (utterance.voice_id.external_id
                           if utterance.voice_id and utterance.voice_id.provider == 'twilio'
                           else DEFAULT_TWILIO_VOICE)
-            response.say(utterance.rendered_text or '', voice=voice_name)
+            text = utterance.rendered_text or ''
+            processed = self.env['connect.settings'].sudo().process_pronunciation(text)
+            response.say(processed, voice=voice_name)
         return utterance

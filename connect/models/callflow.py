@@ -28,11 +28,15 @@ class CallFlow(models.Model):
     _description = 'Call Flow'
     _order = 'name asc'
 
-    # Base routing fields. ElevenLabs extension adds audio m2os and merges
-    # with its own list — declaring here so the mixin still triggers
-    # reachability refreshes on installations that don't have ElevenLabs.
+    _audio_reference_fields = (
+        'prompt_audio_id', 'invalid_input_audio_id', 'voicemail_audio_id',
+        'after_hours_audio_id',
+    )
+    _audio_reference_trigger_fields = ('active',)
     _audio_reachability_fields = (
         'active', 'ring_users', 'voicemail_enabled', 'schedule_id', 'choices',
+        'prompt_audio_id', 'invalid_input_audio_id', 'voicemail_audio_id',
+        'after_hours_audio_id', 'business_hours_enabled',
     )
 
     name = fields.Char(required=True)
@@ -49,16 +53,30 @@ class CallFlow(models.Model):
         ], required=True, default='dtmf speech')
     gather_timeout = fields.Integer(string='Timeout', default=5)
     gather_hints = fields.Char('Hints', default='This is a phrase I expect to hear, department name or extension number')
-    prompt_message = fields.Text('Prompt Message',
-        default='Welcome to our company! Please enter the extension number of person '
-                'you wish to dial or wait 5 seconds till I start connecting your call')
-    invalid_input_message = fields.Text(default='We received wrong input. Please try again!')
+    prompt_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='Prompt Audio',
+        help='Audio played when the callflow opens.')
+    prompt_preview = fields.Html(
+        related='prompt_audio_id.latest_utterance_id.preview_audio',
+        string='Prompt Preview', sanitize=False)
+    invalid_input_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='Invalid Input Audio',
+        help='Audio played when the caller\'s DTMF/speech input does not match '
+             'any configured choice.')
+    invalid_input_preview = fields.Html(
+        related='invalid_input_audio_id.latest_utterance_id.preview_audio',
+        string='Invalid Input Preview', sanitize=False)
     gather_digits = fields.Integer(required=True, default=1)
     choices = fields.One2many('connect.callflow_choice', 'callflow')
     gather_action_url = fields.Char(compute='_get_gather_action_url')
     ring_users = fields.Many2many('connect.user')
     record_calls = fields.Boolean()
-    voicemail_prompt = fields.Text()
+    voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='Voicemail Prompt Audio',
+        help='Audio played before voicemail recording on this callflow.')
+    voicemail_preview = fields.Html(
+        related='voicemail_audio_id.latest_utterance_id.preview_audio',
+        string='Voicemail Preview', sanitize=False)
     voicemail_enabled = fields.Boolean()
     # fallback_extension
     schedule_id = fields.Many2one(
@@ -76,13 +94,18 @@ class CallFlow(models.Model):
     business_hours_timezone = fields.Selection(
         '_tz_get', string='Timezone', default='US/Eastern',
         help='Timezone for business hours calculation')
-    after_hours_message = fields.Text(
-        string='After Hours Message',
-        default='Thank you for calling. Our office is currently closed.',
-        help='Message played outside business hours')
+    after_hours_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        string='After Hours Audio',
+        help='Audio played to callers outside of configured business hours.')
+    after_hours_preview = fields.Html(
+        related='after_hours_audio_id.latest_utterance_id.preview_audio',
+        string='After Hours Preview', sanitize=False)
     after_hours_voicemail = fields.Boolean(
         string='After Hours Voicemail', default=True,
         help='Allow voicemail after hours message')
+    active = fields.Boolean(default=True,
+        help='Archived callflows are excluded from routing and appear with '
+             'inactive_reason="callflow archived" in the audio Where-Used tab.')
 
     def create_extension(self):
         self.ensure_one()
@@ -126,13 +149,16 @@ class CallFlow(models.Model):
         self.ensure_one()
         response = VoiceResponse()
 
-        if self.after_hours_message:
-            self.tts_say(response, self.after_hours_message,
-                         language=self.language, voice=self.voice)
+        if self.after_hours_audio_id:
+            try:
+                self.sudo().after_hours_audio_id.play_on(response, record=self)
+            except Exception as e:
+                logger.error('After-hours audio render failed for callflow %s: %s', self.id, e)
+                self._say_fallback(response,
+                    'Thank you for calling. Our office is currently closed.')
 
         if self.after_hours_voicemail:
-            self.tts_say(response, 'Please leave a message after the tone.',
-                         language=self.language, voice=self.voice)
+            self._say_fallback(response, 'Please leave a message after the tone.')
             vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
             vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
             response.record(maxLength=vm_max_length, finishOnKey=vm_finish_key, playBeep=True)
@@ -178,7 +204,13 @@ class CallFlow(models.Model):
         response = VoiceResponse()
         if invalid_input:
             self.get_gather_invalid_input_message(response)
-        if self.prompt_message and self.gather_input:
+        # gather_input=True always gets a prompt: get_prompt_message emits a
+        # generic <Say> fallback when prompt_audio_id is unset so the Gather
+        # window never opens on silence.
+        # gather_input=False only plays a prompt when one is explicitly set —
+        # a plain ringall callflow should ring users without a confusing
+        # "Please make a selection." intro.
+        if self.gather_input:
             gather = Gather(
                 action=self.gather_action_url,
                 method='POST',
@@ -189,7 +221,7 @@ class CallFlow(models.Model):
             )
             self.get_prompt_message(gather)
             response.append(gather)
-        elif self.prompt_message:
+        elif self.prompt_audio_id:
             self.get_prompt_message(response)
         # Add ringall users
         if self.ring_users:
@@ -226,8 +258,11 @@ class CallFlow(models.Model):
             response.append(dial)
         else:
             # No ring users set, just send to voicemail if enabled.
-            if self.voicemail_enabled and self.voicemail_prompt:
+            if self.voicemail_enabled:
                 response.pause(length=1)
+                # get_voicemail_prompt_message falls back to a generic <Say>
+                # when voicemail_audio_id is unset so the caller is never
+                # dropped into a silent <Record>.
                 self.get_voicemail_prompt_message(response)
                 vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
                 vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
@@ -244,23 +279,61 @@ class CallFlow(models.Model):
         debug(self, pretty_xml(str(response)))
         return response
 
+    def _say_fallback(self, response, text):
+        """Emit a <Say> with the DB default Twilio voice and pronunciation
+        rules applied. Used when an audio m2o is missing or play_on raises
+        so the caller always hears something sensible instead of silence."""
+        Settings = self.env['connect.settings'].sudo()
+        voice = Settings.get_system_voice()
+        processed = Settings.process_pronunciation(text)
+        response.say(processed, voice=voice, language=self.language)
+
     def get_prompt_message(self, response):
+        """Play prompt_audio_id. Silent no-op only when both audio AND a
+        reasonable fallback text are absent — by default we never leave the
+        caller inside a silent <Gather>."""
         debug(self, 'Saying prompt message for Call Flow {}'.format(self.name))
-        self.tts_say(response, self.prompt_message, language=self.language, voice=self.voice)
+        if self.prompt_audio_id:
+            try:
+                self.sudo().prompt_audio_id.play_on(response, record=self)
+                return
+            except Exception as e:
+                logger.error('Prompt audio render failed for callflow %s: %s', self.id, e)
+        # Either the m2o is unset or playback failed. A generic <Say> prevents
+        # a silent DTMF/speech gather window.
+        self._say_fallback(response, 'Please make a selection.')
 
     def get_gather_invalid_input_message(self, response):
-        self.tts_say(response, self.invalid_input_message, language=self.language, voice=self.voice)
+        """Play invalid_input_audio_id or fall back to a generic retry prompt."""
+        if self.invalid_input_audio_id:
+            try:
+                self.sudo().invalid_input_audio_id.play_on(response, record=self)
+                return
+            except Exception as e:
+                logger.error('Invalid input audio render failed for callflow %s: %s', self.id, e)
+        self._say_fallback(response, 'We received wrong input. Please try again.')
 
     def get_voicemail_prompt_message(self, response):
-        self.tts_say(response, self.voicemail_prompt, language=self.language, voice=self.voice)
+        """Play voicemail_audio_id or fall back to a generic voicemail prompt
+        so <Record> is never preceded by silence."""
+        if self.voicemail_audio_id:
+            try:
+                self.sudo().voicemail_audio_id.play_on(response, record=self)
+                return
+            except Exception as e:
+                logger.error('Voicemail audio render failed for callflow %s: %s', self.id, e)
+        self._say_fallback(response, 'Please leave a message after the tone.')
 
     @api.model
     def on_call_action(self, flow_id, request):
         response = VoiceResponse()
         if request.get('DialCallStatus') != 'completed':
             callflow = self.browse(flow_id)
-            # The call was not connected, point to the voicemail
-            if callflow.voicemail_prompt:
+            # The call was not connected, point to voicemail when enabled.
+            # Guard on voicemail_enabled (operator intent) rather than the
+            # m2o — get_voicemail_prompt_message handles the missing-audio
+            # case with a generic <Say> fallback.
+            if callflow.voicemail_enabled:
                 api_url = self.env['connect.settings'].sudo().get_param('api_url')
                 edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))

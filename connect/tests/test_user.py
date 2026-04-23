@@ -360,11 +360,16 @@ class TestUserRender(ConnectTestCase):
 
     def test_dnd_routes_to_voicemail(self):
         """User with DND enabled routes calls to voicemail."""
+        voicemail_audio = self.env['connect.audio'].create({
+            'name': 'DND voicemail',
+            'source': 'twilio_tts',
+            'static_text': 'Leave a message for DND user.',
+        })
         user = self._create_user(
             username='dnduser',
             dnd_enabled=True,
             voicemail_enabled=True,
-            voicemail_prompt='Leave a message for DND user.',
+            voicemail_audio_id=voicemail_audio.id,
         )
         with patch.object(
             self.env['connect.settings'].__class__, 'get_param',

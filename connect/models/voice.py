@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+from markupsafe import escape
 from odoo import fields, models, api
 from odoo.models import Constraint
 
@@ -53,10 +54,15 @@ class Voice(models.Model):
 
     @api.depends('preview_url')
     def _compute_preview_audio(self):
+        # Escape the src: preview_url is synced from the provider API
+        # (ElevenLabs /voices endpoint), which is not controlled by us.
+        # An attacker-controlled or malformed URL could break out of the
+        # HTML attribute since the Html field renders with sanitize=False.
         for rec in self:
             if rec.preview_url:
+                src = escape(rec.preview_url)
                 rec.preview_audio = (
-                    f'<audio controls><source src="{rec.preview_url}" '
+                    f'<audio controls><source src="{src}" '
                     'type="audio/mpeg"/></audio>'
                 )
             else:

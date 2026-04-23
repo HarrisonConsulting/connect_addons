@@ -18,6 +18,45 @@
     <field name="language">en-US</field>
     <field name="gender">male</field>
   </record>
+  <!-- Polly Generative voices — higher quality than Standard, billed per
+       character. These are the five offered as system_voice options prior to
+       1.14.0 and must exist as connect.voice records so the new
+       settings.default_twilio_voice M2o can point at them. -->
+  <record id="voice_twilio_polly_danielle_generative" model="connect.voice">
+    <field name="name">Danielle (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Danielle-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_joanna_generative" model="connect.voice">
+    <field name="name">Joanna (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Joanna-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_matthew_generative" model="connect.voice">
+    <field name="name">Matthew (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Matthew-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+  </record>
+  <record id="voice_twilio_polly_ruth_generative" model="connect.voice">
+    <field name="name">Ruth (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Ruth-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_stephen_generative" model="connect.voice">
+    <field name="name">Stephen (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Stephen-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+  </record>
   <record id="voice_twilio_alice" model="connect.voice">
     <field name="name">Alice (Twilio legacy)</field>
     <field name="provider">twilio</field>
@@ -44,66 +83,59 @@
   </record>
 
   <!-- System message audios. Source defaults to twilio_tts so <Say> is used
-       until ElevenLabs (or another provider) is wired up. Voice defaults to
-       Polly.Joanna Standard — free on all Twilio sub-accounts. Neural Polly
-       voices are billed per-character and not enabled everywhere by default;
-       switch to Polly.*-Neural only when the billing implications are
-       understood. -->
+       until ElevenLabs (or another provider) is wired up. No voice_id is
+       pinned: use_default_voice defaults True so these follow
+       settings.default_twilio_voice. Operators who change the default in
+       settings see ALL system messages switch in one place. When the
+       default is unset, tts_mixin falls back to DEFAULT_TWILIO_VOICE
+       (Polly.Joanna Standard, free on every sub-account). -->
 
   <record id="audio_system_transfer" model="connect.audio">
     <field name="name">System: Transfer</field>
     <field name="system_key">system.transfer</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">Transfer</field>
   </record>
   <record id="audio_system_connecting" model="connect.audio">
     <field name="name">System: Connecting</field>
     <field name="system_key">system.connecting</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">Connecting...</field>
   </record>
   <record id="audio_system_dnd" model="connect.audio">
     <field name="name">System: Do Not Disturb</field>
     <field name="system_key">system.dnd</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">Do not disturb is enabled. Please leave a message.</field>
   </record>
   <record id="audio_error_no_callerid" model="connect.audio">
     <field name="name">Error: No CallerID</field>
     <field name="system_key">error.no_callerid</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">You must configure a default number for caller ID!</field>
   </record>
   <record id="audio_error_callflow_empty" model="connect.audio">
     <field name="name">Error: Callflow Empty</field>
     <field name="system_key">error.callflow_empty</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">This callflow has no actions! Goodbye!</field>
   </record>
   <record id="audio_error_call_failed" model="connect.audio">
     <field name="name">Error: Call Failed</field>
     <field name="system_key">error.call_failed</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">Sorry, I could not connect your call. Goodbye!</field>
   </record>
   <record id="audio_error_no_extension" model="connect.audio">
     <field name="name">Error: No Extension</field>
     <field name="system_key">error.no_extension</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">Extension not configured!</field>
   </record>
   <record id="audio_error_choice_error" model="connect.audio">
     <field name="name">Error: Choice Error</field>
     <field name="system_key">error.choice_error</field>
     <field name="source">twilio_tts</field>
-    <field name="voice_id" ref="voice_twilio_polly_joanna"/>
     <field name="static_text">Choice application error, please contact technical support!</field>
   </record>
 

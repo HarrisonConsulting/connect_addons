@@ -17,6 +17,8 @@ from . import test_audio_utterance_cache
 from . import test_audio_reachability
 from . import test_audio_ulaw_transcode
 from . import test_audio_controller
+from . import test_audio_voice_resolution
+from . import test_audio_jinja
 from . import live_common
 from . import test_live_twilio
 from . import test_live_messaging

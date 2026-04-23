@@ -81,6 +81,10 @@
                       <field name="delete_twilio_recording" invisible="recording_storage == 'twilio'"/>
                       <small colspan="2" invisible="recording_storage == 'twilio' or not delete_twilio_recording">Recordings are permanently deleted from Twilio after local transfer. Ensure your storage is reliable before enabling.</small>
                     </group>
+                    <group string="Voice">
+                      <field name="default_twilio_voice"
+                             options="{'no_create': True}"/>
+                    </group>
                     <group string="Voicemail">
                       <field name="voicemail_max_length"/>
                       <field name="voicemail_finish_key"/>

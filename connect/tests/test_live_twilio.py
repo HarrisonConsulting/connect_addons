@@ -204,14 +204,25 @@ class TestConnectCallFlowTwiML(TwilioLiveTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        Audio = cls.env['connect.audio']
+        cls.prompt_audio = Audio.create({
+            'name': 'Live twilio prompt',
+            'source': 'twilio_tts',
+            'static_text': 'Press 1 for sales, press 2 for support.',
+        })
+        cls.invalid_audio = Audio.create({
+            'name': 'Live twilio invalid',
+            'source': 'twilio_tts',
+            'static_text': 'Invalid selection.',
+        })
         cls.callflow = cls.env['connect.callflow'].create({
             'name': 'Test IVR',
             'gather_input': True,
             'gather_input_type': 'dtmf',
             'gather_digits': 1,
             'gather_timeout': 5,
-            'prompt_message': 'Press 1 for sales, press 2 for support.',
-            'invalid_input_message': 'Invalid selection.',
+            'prompt_audio_id': cls.prompt_audio.id,
+            'invalid_input_audio_id': cls.invalid_audio.id,
         })
 
     def test_callflow_twiml_accepted_by_twilio(self):
@@ -235,7 +246,11 @@ class TestConnectCallFlowTwiML(TwilioLiveTestCase):
         """After-hours TwiML is syntactically valid for Twilio."""
         self._configure_test_credentials()
         self.callflow.business_hours_enabled = True
-        self.callflow.after_hours_message = 'We are currently closed.'
+        self.callflow.after_hours_audio_id = self.env['connect.audio'].create({
+            'name': 'Live twilio after-hours',
+            'source': 'twilio_tts',
+            'static_text': 'We are currently closed.',
+        })
 
         twiml_response = self.callflow._render_after_hours()
         twiml = str(twiml_response)

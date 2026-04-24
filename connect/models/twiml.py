@@ -426,11 +426,6 @@ class TwiML(models.Model):
         self.ensure_one()
         Audio = self.env['connect.audio'].sudo()
 
-        # Import lazily — the twilio lib is an external dep and we don't
-        # want this module import to fail in environments where the TwiML
-        # bodies never get rendered (test harnesses, static analysis).
-        from twilio.twiml.voice_response import VoiceResponse
-
         # Surface an ambient record from request/params so Jinja authors
         # don't have to plumb it through every helper call. Explicit kwarg
         # on the helper still wins.

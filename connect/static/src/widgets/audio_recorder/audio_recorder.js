@@ -6,6 +6,7 @@ import { registry } from "@web/core/registry"
 import { useService } from "@web/core/utils/hooks"
 import { _t } from "@web/core/l10n/translation"
 import { standardFieldProps } from "@web/views/fields/standard_field_props"
+import { isBinarySize } from "@web/core/utils/binary"
 
 // Hard ceiling on the encoded WAV before we base64-encode it. 16kHz mono PCM
 // WAV = 32 KB/sec, so 5 MB ~= 2.5 minutes of speech — comfortable headroom
@@ -46,6 +47,7 @@ export class AudioRecorderField extends Component {
         this.stream = null
         this.startTs = null
         this.tickHandle = null
+        this.audioCtx = null
 
         onWillUnmount(() => this._cleanup())
         this._refreshPreview()
@@ -87,10 +89,28 @@ export class AudioRecorderField extends Component {
         }, 100)
     }
 
-    onStop() {
-        if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
-            this.mediaRecorder.stop()
+    async onStop() {
+        if (!this.mediaRecorder || this.mediaRecorder.state === "inactive") {
+            return
         }
+        // Create the AudioContext *here* — this click handler is a live user
+        // gesture, which Chrome's autoplay policy requires for context start.
+        // If we defer creation to _onStop (fired from the MediaRecorder 'stop'
+        // event), the gesture has already expired and AudioContext refuses to
+        // start, leaving recording_file empty and failing the server's
+        // source=record constraint on save.
+        try {
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+            if (this.audioCtx.state === "suspended") {
+                await this.audioCtx.resume()
+            }
+        } catch (err) {
+            console.error("AudioContext init failed", err)
+            this.state.error = _t("Could not start audio decoder: %s", err.message || err)
+            this.state.status = "error"
+            return
+        }
+        this.mediaRecorder.stop()
     }
 
     onClear() {
@@ -111,10 +131,11 @@ export class AudioRecorderField extends Component {
             const captureBlob = new Blob(this.chunks,
                 { type: this.mediaRecorder.mimeType || "audio/webm" })
             const arrayBuffer = await captureBlob.arrayBuffer()
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+            // audioCtx was created in onStop() under the user-gesture context.
+            const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer)
             const wavBlob = encodeWav(audioBuffer, 16000) // 16kHz mono PCM
-            audioCtx.close()
+            this.audioCtx.close()
+            this.audioCtx = null
             if (wavBlob.size > MAX_WAV_BYTES) {
                 const mb = (wavBlob.size / 1024 / 1024).toFixed(1)
                 const maxMb = (MAX_WAV_BYTES / 1024 / 1024).toFixed(0)
@@ -137,6 +158,10 @@ export class AudioRecorderField extends Component {
             console.error("Audio encode failed", err)
             this.state.error = _t("Failed to encode recording: %s", err.message || err)
             this.state.status = "error"
+            if (this.audioCtx && this.audioCtx.state !== "closed") {
+                try { this.audioCtx.close() } catch (e) { /* noop */ }
+                this.audioCtx = null
+            }
         }
     }
 
@@ -146,8 +171,22 @@ export class AudioRecorderField extends Component {
             this.state.previewUrl = null
             return
         }
-        // value is base64; build a data URL for the <audio> element.
-        this.state.previewUrl = `data:audio/wav;base64,${value}`
+        // Binary fields with attachment=True come back from the server as a
+        // compact size hint ("5.12 Kb"), not as base64. We detect that and
+        // stream via /web/content; only fresh in-memory captures hold actual
+        // base64 ready for a data URL. Without this the <audio> element gets
+        // a bogus "data:audio/wav;base64,5.12 Kb" URL and plays silence.
+        if (isBinarySize(value)) {
+            const { resModel, resId } = this.props.record
+            const stamp = this.props.record.data.write_date || Date.now()
+            this.state.previewUrl =
+                `/web/content?model=${encodeURIComponent(resModel)}` +
+                `&id=${encodeURIComponent(resId)}` +
+                `&field=${encodeURIComponent(this.props.name)}` +
+                `&unique=${encodeURIComponent(stamp)}`
+        } else {
+            this.state.previewUrl = `data:audio/wav;base64,${value}`
+        }
     }
 
     _stopTick() {
@@ -169,6 +208,10 @@ export class AudioRecorderField extends Component {
         this._stopStream()
         if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
             try { this.mediaRecorder.stop() } catch (e) { /* noop */ }
+        }
+        if (this.audioCtx && this.audioCtx.state !== "closed") {
+            try { this.audioCtx.close() } catch (e) { /* noop */ }
+            this.audioCtx = null
         }
     }
 

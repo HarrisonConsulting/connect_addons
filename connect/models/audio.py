@@ -378,6 +378,12 @@ class Audio(models.Model):
             # audio is currently serving as park hold music.
             ('connect.settings', 'park_hold_music_audio_id',
              lambda rec: True),
+            # TwiML bodies reference audios via audio('<uuid>'), scanned
+            # into the referenced_audio_ids M2m on save. A twiml without an
+            # exten is orphaned (not wired to any extension); treat that
+            # as inactive so the Where-Used row flags dead-prompt candidates.
+            ('connect.twiml', 'referenced_audio_ids',
+             lambda rec: True if rec.exten else 'twiml not wired to extension'),
         ]
 
     def _collect_references(self):
@@ -540,8 +546,15 @@ class Audio(models.Model):
                 return [('connect.user', record.user.id)]
             if record.destination == 'callflow' and record.callflow:
                 return [('connect.callflow', record.callflow.id)]
-            # twiml leaves don't play audio through our pipeline — terminal.
+            if record.destination == 'twiml' and record.twiml:
+                return [('connect.twiml', record.twiml.id)]
             return []
+        if model == 'connect.twiml':
+            # TwiML bodies may cite any number of audios via the audio()
+            # helper. referenced_audio_ids is a stored compute populated by
+            # scanning the body on save — we just follow it here.
+            return [('connect.audio', aid)
+                    for aid in record.referenced_audio_ids.ids]
         if model == 'connect.user':
             succ = []
             if record.greeting_audio_id:

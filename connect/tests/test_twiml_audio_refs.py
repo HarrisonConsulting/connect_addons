@@ -163,3 +163,134 @@ class TestTwimlAudioHelper(ConnectTestCase):
         out = self._render_twiml(body, code_type='twipy')
         self.assertIn('<Say', out)
         self.assertIn('Hello from audio helper', out)
+
+
+@tagged('post_install', '-at_install')
+class TestTwimlReferencedAudio(ConnectTestCase):
+    """referenced_audio_ids scanning + Where-Used + reachability wiring."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Audio = cls.env['connect.audio']
+        cls.Twiml = cls.env['connect.twiml']
+        cls.Reference = cls.env['connect.audio.reference']
+        cls.audio_a = cls.Audio.create({
+            'name': 'Audio A',
+            'source': 'twilio_tts',
+            'static_text': 'A',
+            'state': 'live',
+        })
+        cls.audio_b = cls.Audio.create({
+            'name': 'Audio B',
+            'source': 'twilio_tts',
+            'static_text': 'B',
+            'state': 'live',
+        })
+        cls.audio_c = cls.Audio.create({
+            'name': 'Audio C',
+            'source': 'twilio_tts',
+            'static_text': 'C',
+            'state': 'live',
+        })
+
+    def _make_twiml(self, body, code_type='twiml', **extra):
+        vals = {
+            'name': f'T-{uuid_lib.uuid4().hex[:8]}',
+            'code_type': code_type,
+        }
+        if code_type == 'twiml':
+            vals['twiml'] = body
+        else:
+            vals['twiml'] = '<Response/>'
+            vals['twipy'] = body
+        vals.update(extra)
+        return self.Twiml.with_context(install_mode=True).create(vals)
+
+    def test_referenced_audio_ids_scanned_on_create(self):
+        body = (
+            '<Response>'
+            f'{{{{ audio(\'{self.audio_a.uuid}\') }}}}'
+            f'{{{{ audio(\'{self.audio_b.uuid}\') }}}}'
+            '</Response>'
+        )
+        tw = self._make_twiml(body)
+        self.assertIn(self.audio_a, tw.referenced_audio_ids)
+        self.assertIn(self.audio_b, tw.referenced_audio_ids)
+        self.assertNotIn(self.audio_c, tw.referenced_audio_ids)
+
+    def test_referenced_audio_ids_updates_on_edit(self):
+        body_a = f'<Response>{{{{ audio(\'{self.audio_a.uuid}\') }}}}</Response>'
+        tw = self._make_twiml(body_a)
+        self.assertEqual(tw.referenced_audio_ids, self.audio_a)
+
+        body_bc = (
+            '<Response>'
+            f'{{{{ audio(\'{self.audio_b.uuid}\') }}}}'
+            f'{{{{ audio(\'{self.audio_c.uuid}\') }}}}'
+            '</Response>'
+        )
+        # Bypass the twilio_auto_sync path; this test doesn't talk to Twilio.
+        tw.env['connect.settings'].set_param('twilio_auto_sync', False)
+        tw.write({'twiml': body_bc})
+        tw.invalidate_recordset(['referenced_audio_ids'])
+        self.assertNotIn(self.audio_a, tw.referenced_audio_ids)
+        self.assertIn(self.audio_b, tw.referenced_audio_ids)
+        self.assertIn(self.audio_c, tw.referenced_audio_ids)
+
+    def test_referenced_audio_ids_scans_twipy(self):
+        body = (
+            "from twilio.twiml.voice_response import VoiceResponse\n"
+            "response = VoiceResponse()\n"
+            f"response.say(audio('{self.audio_a.uuid}'))\n"
+            "self.twiml = response\n"
+        )
+        tw = self._make_twiml(body, code_type='twipy')
+        self.assertEqual(tw.referenced_audio_ids, self.audio_a)
+
+    def test_audio_reference_rows_created_for_twiml(self):
+        body = f'<Response>{{{{ audio(\'{self.audio_a.uuid}\') }}}}</Response>'
+        tw = self._make_twiml(body)
+        # Reference refresh is normally async; force sync for the assertion.
+        self.audio_a._refresh_references()
+        refs = self.Reference.search([
+            ('audio_id', '=', self.audio_a.id),
+            ('referrer_model', '=', 'connect.twiml'),
+            ('referrer_res_id', '=', tw.id),
+        ])
+        self.assertTrue(
+            refs,
+            'Expected a connect.audio.reference row pointing at twiml')
+
+    def test_model_method_ungoverned(self):
+        """code_type='model_method' never populates referenced_audio_ids."""
+        tw = self._make_twiml(
+            '<Response/>',
+            code_type='model_method',
+            model='connect.audio',
+            method='render',
+        )
+        # Even if someone sneaks an audio() call into the stored twiml text,
+        # we don't scan it for model_method.
+        tw.env['connect.settings'].set_param('twilio_auto_sync', False)
+        tw.write({
+            'twiml': f'<Response>audio(\'{self.audio_a.uuid}\')</Response>',
+        })
+        tw.invalidate_recordset(['referenced_audio_ids'])
+        self.assertFalse(tw.referenced_audio_ids)
+
+    def test_reachability_via_twiml_audio(self):
+        """BFS: number(destination=twiml) -> twiml -> referenced audio."""
+        body = f'<Response>{{{{ audio(\'{self.audio_a.uuid}\') }}}}</Response>'
+        tw = self._make_twiml(body)
+        # Create an exten + inbound number that routes to this twiml.
+        self.env['connect.number'].create({
+            'phone_number': f'+1500556{self.env.cr.now().microsecond % 10000:04d}',
+            'destination': 'twiml',
+            'twiml': tw.id,
+        })
+        self.Audio._refresh_reachability()
+        self.audio_a.invalidate_recordset(['is_reachable'])
+        self.assertTrue(
+            self.audio_a.is_reachable,
+            'audio_a should be reachable via number->twiml->audio')

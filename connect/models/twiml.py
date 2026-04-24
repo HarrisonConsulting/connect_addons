@@ -618,12 +618,12 @@ class TwiML(models.Model):
                     subtype_xmlid='mail.mt_note')
                 archived_audio.sudo().write(
                     {'last_fallback_logged_on': now})
-        except Exception as e:
+        except Exception:
             # Chatter bookkeeping is never critical enough to break a
-            # render. Log and move on.
-            logger.warning(
+            # render. Log with traceback (swallow-but-trace) and move on.
+            logger.exception(
                 'connect.twiml#%s fallback chatter post failed '
-                '(reason=%s): %s', self.id, reason, e)
+                '(reason=%s)', self.id, reason)
 
     def create_extension(self):
         self.ensure_one()

@@ -863,9 +863,14 @@ class Audio(models.Model):
         # --- UUID is the stable reference key for TwiML/TwiPy audio() calls.
         # Changing it would silently break every reference in every body. The
         # migration path sets allow_uuid_write=True; nothing else may cross.
+        # The guard fires whenever the incoming uuid differs from the record's
+        # current value — including the NULL-to-set path (a row with no uuid
+        # yet must not be assigned a specific one outside the migration bypass,
+        # since that would let callers mint reference keys that collide with
+        # baked system UUIDs).
         if 'uuid' in vals and not self.env.context.get('allow_uuid_write'):
             for rec in self:
-                if rec.uuid and vals['uuid'] != rec.uuid:
+                if vals['uuid'] != rec.uuid:
                     raise ValidationError(
                         'connect.audio.uuid is immutable once set. Create a '
                         'new audio record if you need a different reference '

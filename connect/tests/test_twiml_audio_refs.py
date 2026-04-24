@@ -92,6 +92,23 @@ class TestAudioUuid(ConnectTestCase):
         audio.invalidate_recordset(['uuid'])
         self.assertEqual(audio.uuid, new_uuid)
 
+    def test_uuid_immutable_null_to_set_blocked(self):
+        """NULL→set path is guarded too — only allow_uuid_write may mint
+        a uuid, otherwise a caller could pick a value that collides with a
+        baked system UUID (or any other existing reference key)."""
+        audio = self.Audio.create({
+            'name': 'Null to set',
+            'source': 'twilio_tts',
+            'static_text': 'x',
+        })
+        # Simulate a pre-backfill row with no uuid.
+        self.env.cr.execute(
+            'UPDATE connect_audio SET uuid = NULL WHERE id = %s',
+            (audio.id,))
+        audio.invalidate_recordset(['uuid'])
+        with self.assertRaises(ValidationError):
+            audio.write({'uuid': str(uuid_lib.uuid4())})
+
 
 @tagged('post_install', '-at_install')
 class TestTwimlAudioHelper(ConnectTestCase):

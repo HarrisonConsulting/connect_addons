@@ -208,9 +208,20 @@ def _pin_callflow_voices(env):
 
     Only touches audios where use_default_voice=True — skipping audios the
     operator has already explicitly customised. Idempotent.
+
+    No-op when `voice` has been removed from the callflow model (1.16.1+).
+    A user leapfrogging from <1.14.0 straight to 1.16.1 runs this script
+    against the 1.16.1 model definition, where `voice` is gone; trying to
+    search by it would raise. Their per-flow voice choice is lost in that
+    path — fallback to settings.default_twilio_voice applies — but the
+    upgrade itself must not crash.
     """
     Callflow = env['connect.callflow'].sudo()
     Voice = env['connect.voice'].sudo()
+    if 'voice' not in Callflow._fields:
+        logger.info('Skipping _pin_callflow_voices: connect.callflow.voice '
+                    'no longer exists on the model (retired in 1.16.1).')
+        return
     callflows = Callflow.search([('voice', '!=', False)])
     pinned = 0
     for cf in callflows:

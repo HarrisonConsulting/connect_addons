@@ -20,7 +20,6 @@ class TestCallflowCRUD(ConnectTestCase):
         self.assertTrue(callflow.id)
         self.assertEqual(callflow.name, 'Main IVR')
         self.assertEqual(callflow.language, 'en-US')
-        self.assertEqual(callflow.voice, 'man')
         self.assertFalse(callflow.gather_input)
         self.assertFalse(callflow.voicemail_enabled)
         self.assertFalse(callflow.business_hours_enabled)
@@ -126,12 +125,10 @@ class TestCallflowCRUD(ConnectTestCase):
         callflow.write({
             'name': 'Updated Name',
             'language': 'es-MX',
-            'voice': 'woman',
             'gather_input': True,
         })
         self.assertEqual(callflow.name, 'Updated Name')
         self.assertEqual(callflow.language, 'es-MX')
-        self.assertEqual(callflow.voice, 'woman')
         self.assertTrue(callflow.gather_input)
 
     def test_callflow_unlink(self):

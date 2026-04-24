@@ -356,6 +356,11 @@ class Audio(models.Model):
              lambda rec: True if rec.active else 'callflow archived'),
             ('connect.callflow', 'after_hours_audio_id',
              lambda rec: True if rec.active else 'callflow archived'),
+            # Singleton settings row — always "active"; no archive state to
+            # branch on. Surfaces in Where-Used so operators can see which
+            # audio is currently serving as park hold music.
+            ('connect.settings', 'park_hold_music_audio_id',
+             lambda rec: True),
         ]
 
     def _collect_references(self):
@@ -1466,3 +1471,23 @@ class Audio(models.Model):
             processed = self.env['connect.settings'].sudo().process_pronunciation(text)
             response.say(processed, voice=voice_name)
         return utterance
+
+    def get_play_url(self, record=None):
+        """Return an absolute URL Twilio can fetch to play this audio.
+
+        Use this for contexts that need a media URL (not TwiML) — e.g.
+        <Conference waitUrl="...">, which Twilio loops automatically when
+        the response is audio/*.
+
+        Returns None for source=twilio_tts: live <Say> has no pre-rendered
+        media URL, and wrapping TTS in a TwiML endpoint for waitUrl is out
+        of scope. Callers fall back to a provider-hosted hold loop in that
+        case.
+        """
+        self.ensure_one()
+        if self.source == 'external_url':
+            return self.static_url or None
+        if self.source in ('record', 'attachment'):
+            utterance = self.render(record=record)
+            return utterance.get_url()
+        return None

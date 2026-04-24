@@ -106,7 +106,10 @@ class Settings(models.Model):
     """
 
     _name = "connect.settings"
+    _inherit = ['connect.audio.referrer.mixin']
     _description = "Settings"
+
+    _audio_reference_fields = ('park_hold_music_audio_id',)
 
     name = fields.Char(compute="_get_name")
     debug_mode = fields.Boolean()
@@ -259,10 +262,19 @@ class Settings(models.Model):
         default=300,
         help="Seconds before a parked call times out and rings back the parker (0 = no timeout)"
     )
-    park_hold_music_url = fields.Char(
-        string='Park Hold Music URL',
-        help="Custom hold music URL for parked calls. Leave empty for default classical music"
+    park_hold_music_audio_id = fields.Many2one(
+        'connect.audio', ondelete='set null',
+        string='Park Hold Music',
+        help="Audio played to parked callers. Leave empty for default classical "
+             "music. Twilio's waitUrl only accepts a media URL, so TTS sources "
+             "can't be used here — pick a Browser Recording, Internal "
+             "Attachment, or External URL."
     )
+    # Related surfacing of the picked audio's source so the settings form can
+    # show a warning banner when an operator picks a TTS audio (which can't
+    # play via waitUrl and will silently fall back to the default loop).
+    park_hold_music_audio_id_source = fields.Selection(
+        related='park_hold_music_audio_id.source', readonly=True)
     park_announcement_enabled = fields.Boolean(
         string='Park Announcement',
         default=False,

@@ -137,7 +137,12 @@ class ParkSlot(models.Model):
 
         # Get settings for hold music and announcements
         settings = self.env['connect.settings'].sudo()
-        hold_music_url = settings.get_param('park_hold_music_url') or DEFAULT_HOLD_MUSIC
+        hold_audio = settings.park_hold_music_audio_id
+        # get_play_url() returns None for twilio_tts (no media URL exists —
+        # live <Say> can't be used as a conference waitUrl). Fall back to
+        # the default Twimlet in that case so parked callers never land on
+        # silent hold.
+        hold_music_url = (hold_audio and hold_audio.get_play_url()) or DEFAULT_HOLD_MUSIC
         announcement_enabled = settings.get_param('park_announcement_enabled')
 
         try:

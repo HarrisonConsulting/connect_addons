@@ -17,6 +17,18 @@ DEFAULT_STYLE = 0.0
 class Audio(models.Model):
     _inherit = 'connect.audio'
 
+    # Register the selection value here so `elevenlabs_tts` only appears in the
+    # source dropdown when this module is installed. Uninstalling flips
+    # existing rows to the default (twilio_tts) rather than deleting audios.
+    source = fields.Selection(
+        selection_add=[('elevenlabs_tts', 'ElevenLabs TTS')],
+        ondelete={'elevenlabs_tts': 'set default'},
+    )
+
+    @api.model
+    def _dynamic_sources(self):
+        return super()._dynamic_sources() | {'elevenlabs_tts'}
+
     def _renderers(self):
         renderers = super()._renderers()
         renderers['elevenlabs_tts'] = '_render_elevenlabs_tts'
@@ -126,6 +138,17 @@ class Audio(models.Model):
 
 class Voice(models.Model):
     _inherit = 'connect.voice'
+
+    # Register the provider value here so ElevenLabs only shows up in the
+    # voice provider dropdown when this module is installed. Uninstall uses
+    # 'set default' (→ twilio) rather than 'cascade' because utterances pin
+    # voice_id with ondelete='restrict' — a cascade delete would refuse.
+    # The resulting orphan voice rows are harmless and preserve history;
+    # they can be cleaned up manually if the module stays uninstalled.
+    provider = fields.Selection(
+        selection_add=[('elevenlabs', 'ElevenLabs')],
+        ondelete={'elevenlabs': 'set default'},
+    )
 
     @api.model
     def get_voices(self):

@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 PROVIDERS = [
     ('twilio', 'Twilio'),
-    ('elevenlabs', 'ElevenLabs'),
 ]
 
 
@@ -28,8 +27,8 @@ class Voice(models.Model):
     provider = fields.Selection(PROVIDERS, required=True, default='twilio',
         help='Backend that owns this voice. New providers extend this selection.')
     external_id = fields.Char(required=True,
-        help="Provider's voice identifier. For Twilio: alice/man/woman/Polly.* . "
-             'For ElevenLabs: the voice_id from the API.')
+        help="Provider's voice identifier. For Twilio: alice/man/woman/Polly.*. "
+             'Provider extensions add their own keys (e.g. an ElevenLabs voice_id).')
     language = fields.Char(help='BCP-47 language tag, e.g. en-US.')
     description = fields.Char(
         help='Free-text description of the voice (timbre, style, use-case '
@@ -54,10 +53,10 @@ class Voice(models.Model):
 
     @api.depends('preview_url')
     def _compute_preview_audio(self):
-        # Escape the src: preview_url is synced from the provider API
-        # (ElevenLabs /voices endpoint), which is not controlled by us.
-        # An attacker-controlled or malformed URL could break out of the
-        # HTML attribute since the Html field renders with sanitize=False.
+        # Escape the src: preview_url is synced from provider APIs (e.g.
+        # ElevenLabs /voices) which are not controlled by us. An
+        # attacker-controlled or malformed URL could break out of the HTML
+        # attribute since the Html field renders with sanitize=False.
         for rec in self:
             if rec.preview_url:
                 src = escape(rec.preview_url)

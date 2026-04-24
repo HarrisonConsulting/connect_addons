@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 SOURCES = [
     ('record', 'Browser Recording'),
     ('twilio_tts', 'Twilio TTS'),
-    ('elevenlabs_tts', 'ElevenLabs TTS'),
     ('external_url', 'External URL'),
     ('attachment', 'Internal Attachment'),
 ]
@@ -31,8 +30,6 @@ STATES = [
     ('live', 'Live'),
     ('archived', 'Archived'),
 ]
-
-DYNAMIC_SOURCES = {'twilio_tts', 'elevenlabs_tts'}
 
 # Mimetypes Twilio's <Play> verb accepts. WebM/Opus is NOT in the list.
 # audio/x-wav and audio/wave remain accepted aliases on INPUT (some producers
@@ -92,9 +89,9 @@ class Audio(models.Model):
              'resolved at render() time against a passed record. Only valid for TTS sources.')
     use_default_voice = fields.Boolean(default=True,
         help='When True, this audio speaks in the per-source database default '
-             '(settings.default_twilio_voice for Twilio, settings.elevenlabs_voice '
-             'for ElevenLabs) and any value in voice_id is ignored. Uncheck to '
-             'pin a specific voice on this audio.')
+             '(settings.default_twilio_voice for Twilio; provider extensions '
+             'register their own defaults) and any value in voice_id is ignored. '
+             'Uncheck to pin a specific voice on this audio.')
     voice_id = fields.Many2one('connect.voice', ondelete='set null',
         help='Voice for TTS sources when use_default_voice is False. Ignored '
              'for record/external_url/attachment and whenever use_default_voice '
@@ -901,13 +898,24 @@ class Audio(models.Model):
     # Validation
     # ------------------------------------------------------------------
 
+    @api.model
+    def _dynamic_sources(self):
+        """Sources that support {token} substitution and dynamic text.
+
+        These are the TTS sources — synthesised at render time, so per-record
+        templating is meaningful. Provider extensions override to union-in
+        their own source keys (e.g. connect_elevenlabs adds 'elevenlabs_tts').
+        """
+        return {'twilio_tts'}
+
     @api.constrains('is_dynamic', 'source')
     def _check_dynamic_source(self):
+        dynamic = self._dynamic_sources()
         for rec in self:
-            if rec.is_dynamic and rec.source not in DYNAMIC_SOURCES:
+            if rec.is_dynamic and rec.source not in dynamic:
                 raise ValidationError(
                     f'Dynamic audio is only supported for TTS sources '
-                    f'({", ".join(sorted(DYNAMIC_SOURCES))}). Got source={rec.source}.'
+                    f'({", ".join(sorted(dynamic))}). Got source={rec.source}.'
                 )
 
     @api.constrains('is_dynamic', 'model_id', 'static_text')
@@ -955,7 +963,7 @@ class Audio(models.Model):
                         f'recording_mimetype={rec.recording_mimetype!r} is not playable '
                         f'by Twilio. Allowed: {sorted(TWILIO_PLAYABLE_MIMETYPES)}.'
                     )
-            if rec.source in DYNAMIC_SOURCES and not rec.static_text:
+            if rec.source in rec._dynamic_sources() and not rec.static_text:
                 raise ValidationError(f'source={rec.source} requires static_text.')
 
     @staticmethod

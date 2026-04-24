@@ -26,16 +26,16 @@
             <group>
               <field name="source"/>
               <field name="use_default_voice"
-                     invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
+                     invisible="source != 'twilio_tts'"/>
               <field name="resolved_voice_id" readonly="1"
-                     invisible="source not in ('twilio_tts', 'elevenlabs_tts') or not use_default_voice"/>
+                     invisible="source != 'twilio_tts' or not use_default_voice"/>
               <field name="voice_id" options="{'no_create': True}"
-                     invisible="source not in ('twilio_tts', 'elevenlabs_tts') or use_default_voice"/>
+                     invisible="source != 'twilio_tts' or use_default_voice"/>
               <field name="description"/>
             </group>
             <group>
               <field name="system_key" readonly="1" invisible="not system_key"/>
-              <field name="is_dynamic" invisible="source not in ('twilio_tts', 'elevenlabs_tts')"/>
+              <field name="is_dynamic" invisible="source != 'twilio_tts'"/>
               <field name="model_id" options="{'no_create': True}"
                      invisible="not is_dynamic"
                      required="is_dynamic"/>
@@ -47,9 +47,9 @@
           <div class="alert alert-info" role="alert"
                invisible="source != 'twilio_tts'">
             Twilio TTS audio is rendered by Twilio at call time, so no inline
-            preview is available here. Other sources (recording, ElevenLabs TTS,
-            external URL, attachment) show a player once their first utterance
-            has been generated.
+            preview is available here. Other sources (recording, external URL,
+            attachment) show a player once their first utterance has been
+            generated.
           </div>
           <div class="alert alert-warning" role="alert"
                invisible="is_reachable or state != 'live' or system_key">
@@ -61,7 +61,7 @@
           </div>
           <notebook>
             <page string="Content" name="content">
-              <group invisible="source not in ('twilio_tts', 'elevenlabs_tts')">
+              <group invisible="source != 'twilio_tts'">
                 <field name="static_text" placeholder="Hello {partner_id.name}, your order {name} is ready."
                        widget="text"/>
               </group>

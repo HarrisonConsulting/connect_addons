@@ -166,8 +166,12 @@ class TestTwimlAudioHelper(ConnectTestCase):
                       f'Expected <Say> in rendered output; got: {out!r}')
         self.assertIn('Hello from audio helper', out)
 
-    def test_jinja_helper_unknown_uuid_silent(self):
-        """Unknown UUID renders empty + logs a warning (Phase 1 behavior)."""
+    def test_jinja_helper_unknown_uuid_renders_fallback(self):
+        """Unknown UUID routes to fallback.unresolved + logs WARNING.
+
+        Phase 2 replaced the Phase 1 silent miss. Full end-to-end coverage
+        (chatter posts, rate-limit) lives in test_twiml_audio_fallback.
+        """
         fake = str(uuid_lib.uuid4())
         body = (
             '<?xml version="1.0" encoding="UTF-8"?>'
@@ -176,12 +180,12 @@ class TestTwimlAudioHelper(ConnectTestCase):
         with self.assertLogs('odoo.addons.connect.models.twiml',
                              level='WARNING') as cm:
             out = self._render_twiml(body)
-        # Empty substitution — <Response></Response> with no verbs inside.
-        self.assertNotIn('<Say', out)
-        self.assertNotIn('<Play', out)
+        # Fallback renders the unresolved-system-audio text.
+        self.assertIn('<Say', out, f'Expected fallback <Say>; got {out!r}')
+        self.assertIn('configuration error', out)
         self.assertTrue(
-            any('unknown audio uuid' in m for m in cm.output),
-            f'Expected unknown-uuid warning; got: {cm.output}')
+            any('reason=unresolved' in m for m in cm.output),
+            f'Expected reason=unresolved warning; got: {cm.output}')
 
     def test_jinja_helper_preserves_attributes(self):
         """ET round-trip must preserve verb attributes — e.g. <Say voice="...">

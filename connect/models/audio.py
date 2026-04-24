@@ -174,6 +174,12 @@ class Audio(models.Model):
         help='When this audio was last moved to the archived state. Cleared '
              'when the audio leaves archived — so the value always reflects '
              'the most recent archival, not historical ones.')
+    last_fallback_logged_on = fields.Datetime(
+        readonly=True,
+        help='When the TwiML audio() helper most recently posted a '
+             'fallback.archived chatter notice on this audio. Used to '
+             'suppress repeat posts within the fallback chatter window so '
+             'high-traffic flows don\'t flood the log.')
     days_archived = fields.Integer(compute='_compute_days_archived',
         help='Full days since archive. Shown next to the Unarchive button so '
              'operators see the cooling-off window at a glance.')

@@ -6,6 +6,7 @@ import logging
 import random
 import re
 import time
+from datetime import timedelta
 from urllib.parse import urljoin
 from xml.dom.minidom import parseString
 from xml.etree import ElementTree as ET
@@ -23,6 +24,14 @@ from .settings import debug
 _AUDIO_CALL_RE = re.compile(
     r'audio\(\s*[\'"]([0-9a-fA-F-]{36})[\'"]\s*\)')
 
+# Rate-limit window for fallback chatter posts. Rendering a TwiML body
+# happens once per inbound call; an archived-audio reference could otherwise
+# flood the audio / twiml chatter with a post per call. 15 min is loose
+# enough to keep the signal visible but cheap in busy flows. Per-(audio,
+# twiml) pair state lives in `connect.audio.last_fallback_logged_on` and
+# `connect.twiml.last_unresolved_logged_on` respectively.
+_FALLBACK_CHATTER_WINDOW = timedelta(minutes=15)
+
 logger = logging.getLogger(__name__)
 
 # Make XML pretty.
@@ -39,7 +48,10 @@ def pretty_xml(content):
 
 class TwiML(models.Model):
     _name = 'connect.twiml'
-    _inherit = ['connect.audio.referrer.mixin']
+    # mail.thread added alongside the referrer mixin so the audio() helper
+    # can post fallback events to this record's chatter (unresolved UUID
+    # path). No tracking= on fields — we only use the chatter message stream.
+    _inherit = ['connect.audio.referrer.mixin', 'mail.thread']
     _description = 'TwiML app'
     _order = 'name'
 
@@ -88,6 +100,13 @@ class TwiML(models.Model):
              'routing graph and Where-Used reflecting reality. For '
              'code_type=model_method the set is always empty — model.method '
              'dispatch is ungoverned by the audio library.',
+    )
+    last_unresolved_logged_on = fields.Datetime(
+        readonly=True,
+        help='When the audio() helper most recently posted an unresolved-'
+             'uuid notice to this twiml\'s chatter. Used to suppress '
+             'repeat posts within the fallback chatter window so high-'
+             'traffic flows don\'t flood the log.',
     )
 
     @api.depends('twiml', 'twipy', 'code_type')
@@ -395,11 +414,14 @@ class TwiML(models.Model):
         dicts get it for free. A dynamic audio with no record resolves
         to empty Markup + warning (same as an unknown UUID).
 
-        Unknown UUIDs render as empty Markup and log a warning — Phase 1
-        behavior. TODO(phase-2): swap the silent miss for a configurable
-        fallback audio (per-referrer override + module default) so a typo
-        or a deleted audio never produces a silent leg; Phase 2 will also
-        add the observability counter (missed/fallback/served).
+        Fallback routing (Phase 2):
+          - unresolved UUID → plays `fallback.unresolved`, logs WARNING
+            and posts to THIS twiml's chatter (rate-limited per twiml).
+          - live-found-but-archived audio → plays `fallback.archived`,
+            logs WARNING and posts to the archived AUDIO's chatter so
+            operators see the notice on the audio record (rate-limited
+            per audio).
+          - live/draft/reviewed audio → normal play_on, no log, no post.
         """
         self.ensure_one()
         Audio = self.env['connect.audio'].sudo()
@@ -419,44 +441,171 @@ class TwiML(models.Model):
             ambient_record = params.get('record')
 
         def _audio(uuid_str, record=None):
-            # Match the scanner: store is lowercase, accept mixed-case input.
-            audio = Audio.search(
-                [('uuid', '=', (uuid_str or '').lower())], limit=1)
+            normalized = (uuid_str or '').lower()
+            # active_test=False — archived rows have active=False and would
+            # otherwise be invisible to the default search; we must see
+            # them to route to the archived-fallback path rather than
+            # falling through to the unresolved path.
+            audio = Audio.with_context(active_test=False).search(
+                [('uuid', '=', normalized)], limit=1)
             if not audio:
-                # TODO(phase-2): fall back to a configured placeholder audio
-                # and count the miss. For now: silent + warning so an
-                # operator sees dropped audio references in logs.
-                logger.warning(
-                    'connect.twiml#%s referenced unknown audio uuid %r',
-                    self.id, uuid_str)
-                return Markup('')
-            response = VoiceResponse()
-            try:
-                audio.play_on(response, record=record or ambient_record)
-            except (ValidationError, ValueError) as e:
-                # Narrow swallow: missing-record and bad-template errors
-                # shouldn't break the whole render, but real bugs should
-                # surface to render_twiml/render_python's outer handlers.
-                logger.exception(
-                    'connect.twiml#%s audio(%r) play_on failed: %s',
-                    self.id, uuid_str, e)
-                return Markup('')
-            # VoiceResponse.__str__ emits a full XML document with the
-            # <Response> wrapper. We want only the inner verbs so the
-            # caller can splice them into an existing <Response>.
-            try:
-                root = ET.fromstring(str(response))
-                inner = ''.join(
-                    ET.tostring(child, encoding='unicode')
-                    for child in root)
-            except ET.ParseError as e:
-                logger.exception(
-                    'connect.twiml#%s audio(%r) XML parse failed: %s',
-                    self.id, uuid_str, e)
-                return Markup('')
-            return Markup(inner)
+                return self._render_fallback(
+                    reason='unresolved',
+                    source_uuid=uuid_str,
+                    ambient_record=ambient_record)
+            # Archived audio (state OR active=False — Odoo's built-in
+            # archive also short-circuits the original audio's render
+            # path) routes to the archived-fallback. Keep draft/reviewed
+            # on the normal path: they're pre-release states, not retired.
+            if audio.state == 'archived' or not audio.active:
+                return self._render_fallback(
+                    reason='archived',
+                    source_uuid=uuid_str,
+                    archived_audio=audio,
+                    ambient_record=ambient_record)
+            return self._render_audio_inner(
+                audio, record=record or ambient_record, uuid_str=uuid_str)
 
         return _audio
+
+    def _render_audio_inner(self, audio, record=None, uuid_str=None):
+        """Run play_on() against a scratch VoiceResponse, return inner verbs.
+
+        Shared by the live and fallback paths so both go through identical
+        XML serialization. Narrow ValidationError/ValueError swallow (bad
+        template, missing record) → empty Markup with logger.exception.
+        """
+        self.ensure_one()
+        from twilio.twiml.voice_response import VoiceResponse
+        response = VoiceResponse()
+        try:
+            audio.play_on(response, record=record)
+        except (ValidationError, ValueError) as e:
+            logger.exception(
+                'connect.twiml#%s audio(%r) play_on failed: %s',
+                self.id, uuid_str, e)
+            return Markup('')
+        # VoiceResponse.__str__ emits a full XML document with the
+        # <Response> wrapper. We want only the inner verbs so the
+        # caller can splice them into an existing <Response>.
+        try:
+            root = ET.fromstring(str(response))
+            inner = ''.join(
+                ET.tostring(child, encoding='unicode')
+                for child in root)
+        except ET.ParseError as e:
+            logger.exception(
+                'connect.twiml#%s audio(%r) XML parse failed: %s',
+                self.id, uuid_str, e)
+            return Markup('')
+        return Markup(inner)
+
+    def _render_fallback(self, reason, source_uuid=None,
+                         archived_audio=None, ambient_record=None):
+        """Render the configured fallback audio for `reason` + log.
+
+        reason ∈ {'unresolved', 'archived'} picks the system_key to look
+        up (fallback.unresolved / fallback.archived) and which record gets
+        a chatter post. If the fallback audio itself is missing (a
+        misconfigured install), returns a comment-style empty Markup and
+        logs ERROR rather than crashing the render. Chatter posts are
+        rate-limited per (audio, twiml) pair via datetime fields so
+        high-traffic flows don't flood the stream.
+        """
+        self.ensure_one()
+        Audio = self.env['connect.audio'].sudo()
+        system_key = (
+            'fallback.archived' if reason == 'archived'
+            else 'fallback.unresolved')
+        # Grep anchor: 'connect.twiml audio_fallback' — scan ops logs
+        # for this to audit dropped references / archived-ref leakage.
+        logger.warning(
+            'connect.twiml audio_fallback reason=%s twiml=%s uuid=%s',
+            reason, self.id or 'unsaved', source_uuid)
+        fallback_audio = Audio.search(
+            [('system_key', '=', system_key)], limit=1)
+        if not fallback_audio:
+            # Corrupted data — the fallback itself is missing. We cannot
+            # synthesise a <Say> here (no voice resolution, no SSML
+            # processing), so return an inert comment marker and log
+            # ERROR. A valid install ships both fallbacks via data/audio.xml.
+            logger.error(
+                'connect.twiml#%s fallback audio %r missing; no inner '
+                'verbs will be emitted for reason=%s uuid=%s',
+                self.id, system_key, reason, source_uuid)
+            return Markup('<!-- connect: fallback audio missing -->')
+        # Post to chatter on the right target. Unresolved posts on the
+        # twiml (operators look there for "why is this body broken"),
+        # archived posts on the audio (operators look there for "who's
+        # still calling me").
+        self._post_fallback_chatter(
+            reason=reason, source_uuid=source_uuid,
+            archived_audio=archived_audio)
+        return self._render_audio_inner(
+            fallback_audio, record=ambient_record, uuid_str=source_uuid)
+
+    def _post_fallback_chatter(self, reason, source_uuid=None,
+                               archived_audio=None):
+        """Rate-limited chatter post on the twiml (unresolved) or the
+        archived audio (archived). Silently no-ops when inside the
+        cooldown window; any error is logged, never raised.
+        """
+        self.ensure_one()
+        now = fields.Datetime.now()
+        cutoff = now - _FALLBACK_CHATTER_WINDOW
+        try:
+            if reason == 'unresolved':
+                # Skip if we posted within the window. A save on the same
+                # transaction path could hit a pre-save record (self.id
+                # falsy) — no chatter for unsaved drafts; those only exist
+                # in tests that render before committing.
+                if not self.id:
+                    return
+                if (self.last_unresolved_logged_on
+                        and self.last_unresolved_logged_on > cutoff):
+                    return
+                body = Markup(
+                    '<p>TwiML audio() helper rendered the '
+                    '<code>fallback.unresolved</code> audio because '
+                    'UUID <code>%s</code> does not match any '
+                    'connect.audio record.</p>'
+                ) % (source_uuid or '')
+                self.sudo().message_post(
+                    body=body,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_note')
+                # Write after post so a failure in message_post doesn't
+                # silently suppress the next attempt's chatter entry.
+                self.sudo().write(
+                    {'last_unresolved_logged_on': now})
+            elif reason == 'archived' and archived_audio:
+                if (archived_audio.last_fallback_logged_on
+                        and archived_audio.last_fallback_logged_on > cutoff):
+                    return
+                # Link the twiml record in the message so operators can
+                # jump straight to the referrer.
+                twiml_link = Markup(
+                    '<a href="#" data-oe-model="connect.twiml" '
+                    'data-oe-id="%d">%s</a>'
+                ) % (self.id or 0,
+                     (self.display_name or f'connect.twiml#{self.id}'))
+                body = Markup(
+                    '<p>TwiML audio() helper rendered the '
+                    '<code>fallback.archived</code> audio in place of '
+                    'this archived audio. Referenced from: %s.</p>'
+                ) % twiml_link
+                archived_audio.sudo().message_post(
+                    body=body,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_note')
+                archived_audio.sudo().write(
+                    {'last_fallback_logged_on': now})
+        except Exception as e:
+            # Chatter bookkeeping is never critical enough to break a
+            # render. Log and move on.
+            logger.warning(
+                'connect.twiml#%s fallback chatter post failed '
+                '(reason=%s): %s', self.id, reason, e)
 
     def create_extension(self):
         self.ensure_one()

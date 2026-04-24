@@ -151,6 +151,17 @@ class TestTwimlAudioHelper(ConnectTestCase):
             any('unknown audio uuid' in m for m in cm.output),
             f'Expected unknown-uuid warning; got: {cm.output}')
 
+    def test_jinja_helper_uppercase_uuid_resolves(self):
+        """Bodies may paste uppercase hex — scanner and lookup normalize."""
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f'<Response>{{{{ audio(\'{self.tts_audio.uuid.upper()}\') }}}}</Response>'
+        )
+        out = self._render_twiml(body)
+        self.assertIn('<Say', out,
+                      f'Expected <Say> in rendered output; got: {out!r}')
+        self.assertIn('Hello from audio helper', out)
+
     def test_twipy_helper_resolves(self):
         body = (
             "from twilio.twiml.voice_response import VoiceResponse\n"

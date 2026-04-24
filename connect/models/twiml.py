@@ -105,7 +105,10 @@ class TwiML(models.Model):
                 # bodies.
                 rec.referenced_audio_ids = [(5, 0, 0)]
                 continue
-            uuids = set(_AUDIO_CALL_RE.findall(body))
+            # Lowercase at the scanner boundary — connect.audio.uuid is
+            # stored lowercase (uuid4 default + DB unique index is case-
+            # sensitive). Bodies may use uppercase hex from copy-paste.
+            uuids = {u.lower() for u in _AUDIO_CALL_RE.findall(body)}
             if not uuids:
                 rec.referenced_audio_ids = [(5, 0, 0)]
                 continue
@@ -413,7 +416,9 @@ class TwiML(models.Model):
             ambient_record = params.get('record')
 
         def _audio(uuid_str, record=None):
-            audio = Audio.search([('uuid', '=', uuid_str)], limit=1)
+            # Match the scanner: store is lowercase, accept mixed-case input.
+            audio = Audio.search(
+                [('uuid', '=', (uuid_str or '').lower())], limit=1)
             if not audio:
                 # TODO(phase-2): fall back to a configured placeholder audio
                 # and count the miss. For now: silent + warning so an

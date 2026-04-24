@@ -131,7 +131,12 @@ class TwiML(models.Model):
             if not uuids:
                 rec.referenced_audio_ids = [(5, 0, 0)]
                 continue
-            audios = Audio.search([('uuid', 'in', list(uuids))])
+            # active_test=False — archived audios (active=False) must be
+            # included so the 'References Archived Audio' search filter
+            # (domain on referenced_audio_ids.state) can surface twimls
+            # citing retired audios. Mirrors the render-time helper.
+            audios = Audio.with_context(active_test=False).search(
+                [('uuid', 'in', list(uuids))])
             # Warn on misses so operators see dropped references in logs —
             # the helper will also log at render time, but catching them at
             # save time gives a faster feedback loop.

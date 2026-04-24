@@ -80,8 +80,35 @@
                 <field name="twiml"/>
                 <field name="twipy"/>
                 <field name="code_type"/>
+                <!-- Finds TwiMLs whose bodies cite an audio that has since
+                     been archived. Render-time fallback routing will play
+                     fallback.archived in place of the original; this filter
+                     surfaces the cleanup backlog for operators. -->
+                <filter name="references_archived_audio"
+                        string="References Archived Audio"
+                        domain="[('referenced_audio_ids.state', '=', 'archived')]"/>
                 <filter name="by_type" context="{'group_by': 'code_type'}"/>
             </search>
+        </field>
+    </record>
+
+    <!-- Dedicated menu entry that lands on the pre-filtered list — easier
+         to discover than asking operators to toggle the search filter. -->
+    <record id="action_twimls_referencing_archived_audio" model="ir.actions.act_window">
+        <field name="name">TwiMLs Referencing Archived Audio</field>
+        <field name="res_model">connect.twiml</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('referenced_audio_ids.state', '=', 'archived')]</field>
+        <field name="context">{'search_default_references_archived_audio': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No TwiMLs reference archived audio.
+            </p>
+            <p>
+                The TwiML audio() helper swaps in fallback.archived for any
+                reference to an archived connect.audio at render time. This
+                list surfaces those citations so you can clean them up.
+            </p>
         </field>
     </record>
 

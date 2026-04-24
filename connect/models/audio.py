@@ -5,6 +5,7 @@ import logging
 import re
 import uuid
 from urllib.parse import urlsplit, quote
+from markupsafe import escape
 from psycopg2 import IntegrityError
 from odoo import fields, models, api
 from odoo.exceptions import ValidationError
@@ -198,6 +199,14 @@ class Audio(models.Model):
         help='Inline HTML5 <audio> widget for the most recent utterance. '
              'Empty for source=twilio_tts since <Say> is rendered by '
              'Twilio during the call, not by us.')
+    source_preview_audio = fields.Html(compute='_compute_source_preview_audio',
+        string='Source Preview', sanitize=False,
+        help='Inline <audio> player sourced directly from the raw payload '
+             '(external URL or internal attachment) — independent of '
+             'utterance caching, so it works before the audio is ever '
+             'rendered for a call. Empty for TTS sources (see '
+             'latest_preview_audio once a render exists) and for browser '
+             'recordings (the recorder widget carries its own player).')
 
     @api.depends('utterance_ids')
     def _compute_utterance_count(self):
@@ -288,6 +297,29 @@ class Audio(models.Model):
                 rec.latest_utterance_id = rec.utterance_ids.sorted('generated_on', reverse=True)[0]
             else:
                 rec.latest_utterance_id = False
+
+    @api.depends('source', 'static_url',
+                 'attachment_id', 'attachment_id.write_date')
+    def _compute_source_preview_audio(self):
+        for rec in self:
+            src = None
+            if rec.source == 'external_url' and rec.static_url:
+                # User-supplied URL — escape so a quote in the path can't
+                # break out of the src attribute (this Html field is
+                # sanitize=False).
+                src = escape(rec.static_url)
+            elif rec.source == 'attachment' and rec.attachment_id:
+                stamp = rec.attachment_id.write_date or ''
+                src = (f'/web/content?model=ir.attachment'
+                       f'&id={rec.attachment_id.id}'
+                       f'&field=datas&download=false'
+                       f'&unique={escape(str(stamp))}')
+            if src:
+                rec.source_preview_audio = (
+                    f'<audio controls preload="auto" class="w-100" src="{src}"/>'
+                )
+            else:
+                rec.source_preview_audio = False
 
     # ------------------------------------------------------------------
     # References — where is this audio actually used?

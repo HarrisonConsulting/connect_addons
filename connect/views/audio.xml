@@ -67,9 +67,13 @@
               </group>
               <group invisible="source != 'external_url'">
                 <field name="static_url" widget="url"/>
+                <field name="source_preview_audio" widget="html" nolabel="1" colspan="2"
+                       invisible="not source_preview_audio"/>
               </group>
               <group invisible="source != 'attachment'">
                 <field name="attachment_id"/>
+                <field name="source_preview_audio" widget="html" nolabel="1" colspan="2"
+                       invisible="not source_preview_audio"/>
               </group>
               <group invisible="source != 'record'">
                 <field name="recording_file" widget="connect_audio_recorder"

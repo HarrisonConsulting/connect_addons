@@ -92,6 +92,21 @@ class TestAudioUuid(ConnectTestCase):
         audio.invalidate_recordset(['uuid'])
         self.assertEqual(audio.uuid, new_uuid)
 
+    def test_uuid_regenerated_on_copy(self):
+        """copy=False on the field → copy() mints a fresh uuid instead of
+        duplicating the original, preserving the unique constraint."""
+        original = self.Audio.create({
+            'name': 'Original',
+            'source': 'twilio_tts',
+            'static_text': 'x',
+        })
+        dup = original.copy()
+        self.assertTrue(dup.uuid, 'Copy should have a non-empty uuid')
+        self.assertNotEqual(dup.uuid, original.uuid,
+                            'Copy must not share uuid with the original')
+        # And it's still a valid v4.
+        self.assertEqual(uuid_lib.UUID(dup.uuid).version, 4)
+
     def test_uuid_immutable_null_to_set_blocked(self):
         """NULL→set path is guarded too — only allow_uuid_write may mint
         a uuid, otherwise a caller could pick a value that collides with a
@@ -167,6 +182,21 @@ class TestTwimlAudioHelper(ConnectTestCase):
         self.assertTrue(
             any('unknown audio uuid' in m for m in cm.output),
             f'Expected unknown-uuid warning; got: {cm.output}')
+
+    def test_jinja_helper_preserves_attributes(self):
+        """ET round-trip must preserve verb attributes — e.g. <Say voice="...">
+        from play_on's voice resolution. If the helper's inner-verb
+        extraction dropped attributes, rendered TwiML would regress to the
+        default voice without the operator noticing."""
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f'<Response>{{{{ audio(\'{self.tts_audio.uuid}\') }}}}</Response>'
+        )
+        out = self._render_twiml(body)
+        # voice="..." attribute should have survived ET serialization.
+        self.assertRegex(
+            out, r'<Say[^>]*\svoice="[^"]+"',
+            f'Expected <Say> to carry a voice="..." attribute; got: {out!r}')
 
     def test_jinja_helper_uppercase_uuid_resolves(self):
         """Bodies may paste uppercase hex — scanner and lookup normalize."""
@@ -267,28 +297,61 @@ class TestTwimlReferencedAudio(ConnectTestCase):
         self.assertIn(self.audio_c, tw.referenced_audio_ids)
 
     def test_referenced_audio_ids_scans_twipy(self):
+        # str-concat form — audio() returns inner verbs as a Markup string,
+        # not a TwiML element. Feeding it directly to response.say() would
+        # nest <Say><Say ...>; authors build the outer <Response> themselves.
         body = (
             "from twilio.twiml.voice_response import VoiceResponse\n"
             "response = VoiceResponse()\n"
-            f"response.say(audio('{self.audio_a.uuid}'))\n"
-            "self.twiml = response\n"
+            f"inner = audio('{self.audio_a.uuid}')\n"
+            "self.twiml = '<Response>' + str(inner) + '</Response>'\n"
         )
         tw = self._make_twiml(body, code_type='twipy')
         self.assertEqual(tw.referenced_audio_ids, self.audio_a)
 
     def test_audio_reference_rows_created_for_twiml(self):
+        """End-to-end: mixin write-hook fires the ref refresh without help.
+
+        _refresh_references_async falls back to inline when queue_job isn't
+        installed — in a TransactionCase without queue_job wiring the row
+        should appear at create() time. Also assert that rewriting the body
+        to a different audio flips the reference rows correctly (old gone,
+        new present) with no manual refresh."""
         body = f'<Response>{{{{ audio(\'{self.audio_a.uuid}\') }}}}</Response>'
         tw = self._make_twiml(body)
-        # Reference refresh is normally async; force sync for the assertion.
-        self.audio_a._refresh_references()
-        refs = self.Reference.search([
+        refs_a = self.Reference.search([
             ('audio_id', '=', self.audio_a.id),
             ('referrer_model', '=', 'connect.twiml'),
             ('referrer_res_id', '=', tw.id),
         ])
         self.assertTrue(
-            refs,
-            'Expected a connect.audio.reference row pointing at twiml')
+            refs_a,
+            'Expected a connect.audio.reference row pointing at twiml '
+            'without a manual _refresh_references() call')
+
+        # Rewrite the body to reference audio_b instead — old row must go,
+        # new row must appear, all driven by the mixin's write-hook.
+        tw.env['connect.settings'].set_param('twilio_auto_sync', False)
+        tw.write({
+            'twiml': f'<Response>{{{{ audio(\'{self.audio_b.uuid}\') }}}}</Response>',
+        })
+        refs_a_after = self.Reference.search([
+            ('audio_id', '=', self.audio_a.id),
+            ('referrer_model', '=', 'connect.twiml'),
+            ('referrer_res_id', '=', tw.id),
+        ])
+        refs_b_after = self.Reference.search([
+            ('audio_id', '=', self.audio_b.id),
+            ('referrer_model', '=', 'connect.twiml'),
+            ('referrer_res_id', '=', tw.id),
+        ])
+        self.assertFalse(
+            refs_a_after,
+            'Old audio_a reference row should be removed when body rewrites '
+            'away from it')
+        self.assertTrue(
+            refs_b_after,
+            'New audio_b reference row should appear after body rewrite')
 
     def test_model_method_ungoverned(self):
         """code_type='model_method' never populates referenced_audio_ids."""
@@ -313,7 +376,7 @@ class TestTwimlReferencedAudio(ConnectTestCase):
         tw = self._make_twiml(body)
         # Create an exten + inbound number that routes to this twiml.
         self.env['connect.number'].create({
-            'phone_number': f'+1500556{self.env.cr.now().microsecond % 10000:04d}',
+            'phone_number': f'+1500556{uuid_lib.uuid4().int % 10000:04d}',
             'destination': 'twiml',
             'twiml': tw.id,
         })

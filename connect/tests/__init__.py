@@ -19,6 +19,7 @@ from . import test_audio_ulaw_transcode
 from . import test_audio_controller
 from . import test_audio_voice_resolution
 from . import test_audio_jinja
+from . import test_twiml_audio_refs
 from . import live_common
 from . import test_live_twilio
 from . import test_live_messaging

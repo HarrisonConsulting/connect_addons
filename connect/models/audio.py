@@ -3,7 +3,7 @@
 import base64
 import logging
 import re
-import uuid
+import uuid as uuid_lib
 from urllib.parse import urlsplit, quote
 from markupsafe import escape
 from psycopg2 import IntegrityError
@@ -79,6 +79,19 @@ class Audio(models.Model):
 
     name = fields.Char(required=True,
         help='Display name for this audio asset.')
+    uuid = fields.Char(
+        string='UUID',
+        default=lambda self: str(uuid_lib.uuid4()),
+        copy=False,
+        index=True,
+        required=True,
+        readonly=True,
+        help='Stable opaque identifier referenced from TwiML/TwiPy bodies via '
+             'audio("<uuid>") to keep the audio library and the routing graph '
+             'synchronized. Settable in XML data files for seeded audios so '
+             'references survive fresh installs. Immutable after creation — '
+             'changing it would silently break every reference.',
+    )
     description = fields.Char(
         help='Optional free-text description of what this audio says or where '
              'it should be used. Not surfaced to callers.')
@@ -185,6 +198,10 @@ class Audio(models.Model):
     _unique_system_key = Constraint(
         'UNIQUE(system_key)',
         'system_key must be unique across all audios.',
+    )
+    _unique_uuid = Constraint(
+        'UNIQUE(uuid)',
+        'uuid must be unique across all audios.',
     )
 
     latest_utterance_id = fields.Many2one('connect.audio.utterance',
@@ -830,6 +847,16 @@ class Audio(models.Model):
         return super().unlink()
 
     def write(self, vals):
+        # --- UUID is the stable reference key for TwiML/TwiPy audio() calls.
+        # Changing it would silently break every reference in every body. The
+        # migration path sets allow_uuid_write=True; nothing else may cross.
+        if 'uuid' in vals and not self.env.context.get('allow_uuid_write'):
+            for rec in self:
+                if rec.uuid and vals['uuid'] != rec.uuid:
+                    raise ValidationError(
+                        'connect.audio.uuid is immutable once set. Create a '
+                        'new audio record if you need a different reference '
+                        'key.')
         # --- Native archival gate (Action → Archive sets active=False) ---
         if vals.get('active') is False:
             sys_key = self.filtered('system_key')
@@ -1219,7 +1246,7 @@ class Audio(models.Model):
         if codec == 'mulaw' and rate == 8000 and container == 'wav':
             derived_b64 = self._transcode_recording_for_pstn(self.recording_file)
             mimetype = 'audio/wav'
-            filename = f'{uuid.uuid4().hex}.wav'
+            filename = f'{uuid_lib.uuid4().hex}.wav'
         else:
             raise ValidationError(
                 f'Unsupported target_params for record derivation: '
@@ -1352,7 +1379,7 @@ class Audio(models.Model):
         # with missing metadata.
         return {
             'file': self.recording_file,
-            'filename': self.recording_filename or f'{uuid.uuid4().hex}.wav',
+            'filename': self.recording_filename or f'{uuid_lib.uuid4().hex}.wav',
             'mimetype': self.recording_mimetype or 'audio/wav',
         }
 

@@ -34,6 +34,8 @@
               <field name="description"/>
             </group>
             <group>
+              <field name="uuid" widget="CopyClipboardChar"
+                     help="Copy this UUID to reference the audio from a TwiML/TwiPy body via audio('&lt;uuid&gt;')."/>
               <field name="system_key" readonly="1" invisible="not system_key"/>
               <field name="is_dynamic" invisible="source != 'twilio_tts'"/>
               <field name="model_id" options="{'no_create': True}"

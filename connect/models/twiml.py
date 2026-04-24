@@ -300,7 +300,10 @@ class TwiML(models.Model):
 
     @api.constrains('twipy')
     def _check_syntax(self):
-        if self.code_type == 'python' and self.twipy:
+        # Selection is twiml/twipy/model_method — the legacy 'python' value
+        # never existed in this schema, so this guard was dead code that
+        # silently let broken TwiPy bodies save. Match the actual value.
+        if self.code_type == 'twipy' and self.twipy:
             self.render()
 
     def render(self, request={}, params={}):

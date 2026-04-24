@@ -380,6 +380,15 @@ class TwiML(models.Model):
              the inner verbs so Jinja doesn't HTML-escape angle brackets
              when substituting into the body.
 
+        Dynamic audios (is_dynamic=True) substitute `{field.path}` tokens
+        from a record. The helper accepts a `record` kwarg for this. Jinja
+        callers pass it explicitly: `{{ audio('<uuid>', record=some_rec) }}`.
+        TwiPy authors likewise: `audio('<uuid>', record=rec)`. When omitted,
+        we fall back to `request.get('record')` then `params.get('record')`
+        so webhook handlers that already thread a record through these
+        dicts get it for free. A dynamic audio with no record resolves
+        to empty Markup + warning (same as an unknown UUID).
+
         Unknown UUIDs render as empty Markup and log a warning — Phase 1
         behavior. TODO(phase-2): swap the silent miss for a configurable
         fallback audio (per-referrer override + module default) so a typo
@@ -394,7 +403,16 @@ class TwiML(models.Model):
         # bodies never get rendered (test harnesses, static analysis).
         from twilio.twiml.voice_response import VoiceResponse
 
-        def _audio(uuid_str):
+        # Surface an ambient record from request/params so Jinja authors
+        # don't have to plumb it through every helper call. Explicit kwarg
+        # on the helper still wins.
+        ambient_record = None
+        if request and isinstance(request, dict):
+            ambient_record = request.get('record')
+        if ambient_record is None and params and isinstance(params, dict):
+            ambient_record = params.get('record')
+
+        def _audio(uuid_str, record=None):
             audio = Audio.search([('uuid', '=', uuid_str)], limit=1)
             if not audio:
                 # TODO(phase-2): fall back to a configured placeholder audio
@@ -406,8 +424,11 @@ class TwiML(models.Model):
                 return Markup('')
             response = VoiceResponse()
             try:
-                audio.play_on(response)
-            except Exception as e:
+                audio.play_on(response, record=record or ambient_record)
+            except (ValidationError, ValueError) as e:
+                # Narrow swallow: missing-record and bad-template errors
+                # shouldn't break the whole render, but real bugs should
+                # surface to render_twiml/render_python's outer handlers.
                 logger.exception(
                     'connect.twiml#%s audio(%r) play_on failed: %s',
                     self.id, uuid_str, e)
@@ -446,10 +467,13 @@ class TwiML(models.Model):
 # time: Python time library.
 # twilio: twilio - Twilio python library.
 # self: curreny TwiPy recordset.
-# audio: audio('<uuid>') - renders a connect.audio by UUID and returns the
-#        inner TwiML verbs as a string. Embed in template text or splice
-#        into a response with response.append() / str concat. The UUID is
-#        visible on the audio form via the Copy UUID button.
+# audio: audio('<uuid>', record=None) - renders a connect.audio by UUID
+#        and returns the inner TwiML verbs as a string. Embed in template
+#        text or splice into a response with response.append() / str
+#        concat. Pass `record=` for is_dynamic=True audios so {field.path}
+#        substitutions resolve; when omitted, request['record'] or
+#        params['record'] is used if present. The UUID is visible on the
+#        audio form via the Copy UUID button.
 
 response = VoiceResponse()
 user_name = self.env.user.name

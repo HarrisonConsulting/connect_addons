@@ -1,5 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_connect_transcription_job_user,connect.transcription.job.user,model_connect_transcription_job,group_connect_chunked_user,1,0,0,0
-access_connect_transcription_job_manager,connect.transcription.job.manager,model_connect_transcription_job,group_connect_chunked_manager,1,1,1,1
-access_connect_transcription_chunk_user,connect.transcription.chunk.user,model_connect_transcription_chunk,group_connect_chunked_user,1,0,0,0
-access_connect_transcription_chunk_manager,connect.transcription.chunk.manager,model_connect_transcription_chunk,group_connect_chunked_manager,1,1,1,1

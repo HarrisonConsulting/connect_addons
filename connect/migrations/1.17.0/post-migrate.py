@@ -86,7 +86,17 @@ def _backfill_system_audio_uuids(env):
 
 
 def _backfill_missing_uuids(env):
-    """Generate uuid4 for any connect.audio row whose uuid is NULL."""
+    """Generate uuid4 for any connect.audio row whose uuid is NULL.
+
+    Defense-in-depth: when the upgrade runs cleanly, ORM's init_models pass
+    populates every row using the field default (str(uuid4())) before this
+    hook fires, so we expect zero NULL rows on a typical upgrade. This
+    guard only catches the pathological case — a prior init_models pass
+    that failed to populate the default for some rows (e.g. an aborted
+    upgrade mid-transaction) — and mints a uuid so the subsequent NOT NULL
+    + UNIQUE constraints can take effect. Keep the safety net; the cost is
+    a single empty SELECT on the happy path.
+    """
     cr = env.cr
     cr.execute('SELECT id FROM connect_audio WHERE uuid IS NULL')
     rows = cr.fetchall()

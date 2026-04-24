@@ -27,9 +27,18 @@ _AUDIO_CALL_RE = re.compile(
 # Rate-limit window for fallback chatter posts. Rendering a TwiML body
 # happens once per inbound call; an archived-audio reference could otherwise
 # flood the audio / twiml chatter with a post per call. 15 min is loose
-# enough to keep the signal visible but cheap in busy flows. Per-(audio,
-# twiml) pair state lives in `connect.audio.last_fallback_logged_on` and
-# `connect.twiml.last_unresolved_logged_on` respectively.
+# enough to keep the signal visible but cheap in busy flows.
+#
+# Rate-limit state is tracked PER-TARGET, not per (audio, twiml) pair:
+#   - `connect.audio.last_fallback_logged_on` is per-archived-audio.
+#     If twiml A posts at t=0, twiml B referencing the SAME archived
+#     audio at t=5min has its chatter SUPPRESSED. Twiml-level visibility
+#     of archived references is via the search filter "References
+#     Archived Audio"; the audio-side chatter is operator awareness that
+#     the archived audio is still being cited somewhere.
+#   - `connect.twiml.last_unresolved_logged_on` is per-twiml. Unresolved
+#     UUIDs aren't tied to any audio record, so per-twiml is the natural
+#     granularity: one rate-limited notice per broken body.
 _FALLBACK_CHATTER_WINDOW = timedelta(minutes=15)
 
 logger = logging.getLogger(__name__)
@@ -104,9 +113,11 @@ class TwiML(models.Model):
     last_unresolved_logged_on = fields.Datetime(
         readonly=True,
         help='When the audio() helper most recently posted an unresolved-'
-             'uuid notice to this twiml\'s chatter. Used to suppress '
-             'repeat posts within the fallback chatter window so high-'
-             'traffic flows don\'t flood the log.',
+             'uuid notice to this twiml\'s chatter. Rate-limited per-twiml '
+             '(the unresolved UUID isn\'t tied to any audio record, so the '
+             'twiml is the natural granularity). Suppresses repeat posts '
+             'within the fallback chatter window so high-traffic flows '
+             'don\'t flood the log.',
     )
 
     @api.depends('twiml', 'twipy', 'code_type')
@@ -509,8 +520,10 @@ class TwiML(models.Model):
         a chatter post. If the fallback audio itself is missing (a
         misconfigured install), returns a comment-style empty Markup and
         logs ERROR rather than crashing the render. Chatter posts are
-        rate-limited per (audio, twiml) pair via datetime fields so
-        high-traffic flows don't flood the stream.
+        rate-limited per-target (per-archived-audio for the archived
+        path, per-twiml for the unresolved path — see
+        _FALLBACK_CHATTER_WINDOW) so high-traffic flows don't flood the
+        stream.
         """
         self.ensure_one()
         Audio = self.env['connect.audio'].sudo()

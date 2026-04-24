@@ -177,9 +177,14 @@ class Audio(models.Model):
     last_fallback_logged_on = fields.Datetime(
         readonly=True,
         help='When the TwiML audio() helper most recently posted a '
-             'fallback.archived chatter notice on this audio. Used to '
-             'suppress repeat posts within the fallback chatter window so '
-             'high-traffic flows don\'t flood the log.')
+             'fallback.archived chatter notice on this audio. Rate-limit '
+             'is per-archived-audio, NOT per (audio, twiml) pair — if '
+             'twiml A posts, twiml B citing the same archived audio '
+             'within the window has its chatter suppressed. Twiml-level '
+             'visibility of archived references is via the "References '
+             'Archived Audio" search filter on connect.twiml; this field '
+             'drives audio-side operator awareness that the archived '
+             'audio is still being cited somewhere.')
     days_archived = fields.Integer(compute='_compute_days_archived',
         help='Full days since archive. Shown next to the Unarchive button so '
              'operators see the cooling-off window at a glance.')

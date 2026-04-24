@@ -80,3 +80,119 @@ class TestAudioStateMachine(ConnectTestCase):
         self.audio.write({'active': True})
         self.assertFalse(self.audio.archived_on)
         self.assertEqual(self.audio.state, 'draft')
+
+
+@tagged('post_install', '-at_install')
+class TestAudioReferrerSelectionInvariant(ConnectTestCase):
+    """Server-side guard: draft/archived audios cannot be wired as referrers.
+
+    Enforced by connect.audio.referrer.mixin._check_audio_selectable inside
+    create/write. Mirrors the view-level domain filter on every picker.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Audio = cls.env['connect.audio']
+        cls.reviewed_audio = Audio.create({
+            'name': 'Reviewed picker target',
+            'source': 'twilio_tts',
+            'static_text': 'ready for use',
+            'state': 'reviewed',
+        })
+        cls.draft_audio = Audio.create({
+            'name': 'Draft picker target',
+            'source': 'twilio_tts',
+            'static_text': 'workshop',
+        })
+        cls.archived_audio = Audio.create({
+            'name': 'Archived picker target',
+            'source': 'twilio_tts',
+            'static_text': 'retired',
+        })
+        # Archived must be reached via the state column; writing state='archived'
+        # triggers the archive-on stamp logic but keeps the row usable for this
+        # referrer-side test.
+        cls.archived_audio.state = 'archived'
+
+    def test_create_rejects_draft_audio_in_referrer_m2o(self):
+        with self.assertRaisesRegex(ValidationError, r'draft or archived'):
+            self.env['connect.user'].create({
+                'username': 'invariant_draft_create',
+                'greeting_audio_id': self.draft_audio.id,
+            })
+
+    def test_create_rejects_archived_audio_in_referrer_m2o(self):
+        with self.assertRaisesRegex(ValidationError, r'draft or archived'):
+            self.env['connect.user'].create({
+                'username': 'invariant_archived_create',
+                'greeting_audio_id': self.archived_audio.id,
+            })
+
+    def test_create_accepts_reviewed_audio(self):
+        user = self.env['connect.user'].create({
+            'username': 'invariant_reviewed_create',
+            'greeting_audio_id': self.reviewed_audio.id,
+        })
+        self.assertEqual(user.greeting_audio_id, self.reviewed_audio)
+
+    def test_write_rejects_swapping_to_draft(self):
+        user = self.env['connect.user'].create({
+            'username': 'invariant_swap_draft',
+            'greeting_audio_id': self.reviewed_audio.id,
+        })
+        with self.assertRaisesRegex(ValidationError, r'draft or archived'):
+            user.write({'greeting_audio_id': self.draft_audio.id})
+        # Post-rollback: original audio still wired.
+        self.assertEqual(user.greeting_audio_id, self.reviewed_audio)
+
+
+@tagged('post_install', '-at_install')
+class TestAudioResetToDraft(ConnectTestCase):
+    """action_reset_to_draft invariants."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Audio = cls.env['connect.audio']
+
+    def _make(self, state='reviewed', **kw):
+        vals = {
+            'name': f'reset-{state}',
+            'source': 'twilio_tts',
+            'static_text': 'x',
+            'state': state,
+        }
+        vals.update(kw)
+        return self.Audio.create(vals)
+
+    def test_reset_succeeds_when_untethered(self):
+        audio = self._make('reviewed')
+        audio.action_reset_to_draft()
+        self.assertEqual(audio.state, 'draft')
+
+    def test_reset_noop_when_already_draft(self):
+        audio = self._make('draft')
+        audio.action_reset_to_draft()
+        self.assertEqual(audio.state, 'draft')
+
+    def test_reset_refuses_archived(self):
+        audio = self._make('reviewed')
+        audio.state = 'archived'
+        with self.assertRaisesRegex(ValidationError, r'archived'):
+            audio.action_reset_to_draft()
+
+    def test_reset_refuses_system_key(self):
+        audio = self._make('reviewed', system_key='test.reset.system')
+        with self.assertRaisesRegex(ValidationError, r'system audio'):
+            audio.action_reset_to_draft()
+
+    def test_reset_refuses_with_referrer(self):
+        audio = self._make('reviewed')
+        self.env['connect.user'].create({
+            'username': 'reset_with_ref',
+            'greeting_audio_id': audio.id,
+        })
+        audio.invalidate_recordset(['reference_count'])
+        with self.assertRaisesRegex(ValidationError, r'still referenced'):
+            audio.action_reset_to_draft()

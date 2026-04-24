@@ -93,7 +93,8 @@
                         <page name="callflow" string="CallFlow">
                             <group>
                                 <group>
-                                    <field name="greeting_audio_id"/>
+                                    <field name="greeting_audio_id"
+                                           domain="[('state', 'in', ('reviewed', 'live'))]"/>
                                     <field name="greeting_preview" widget="html"
                                            nolabel="1" colspan="2"
                                            invisible="not greeting_preview"/>
@@ -108,6 +109,7 @@
                                     <field name="voicemail_email_enabled"
                                            invisible="not voicemail_enabled"/>
                                     <field name="voicemail_audio_id"
+                                           domain="[('state', 'in', ('reviewed', 'live'))]"
                                            invisible="not voicemail_enabled"
                                            required="voicemail_enabled"/>
                                     <field name="voicemail_preview" widget="html"

@@ -127,6 +127,7 @@
                   <group>
                     <group string="Hold Music">
                       <field name="park_hold_music_audio_id"
+                             domain="[('state', 'in', ('reviewed', 'live'))]"
                              options="{'no_create': True}"/>
                       <small colspan="2">Audio played to parked callers. Leave empty for default Twilio classical music.</small>
                       <div class="alert alert-warning" colspan="2" role="alert"

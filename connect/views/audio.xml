@@ -8,6 +8,9 @@
         <header>
           <button name="action_mark_reviewed" type="object" string="Mark Reviewed"
                   class="btn-primary" invisible="state in ('reviewed', 'live', 'archived')"/>
+          <button name="action_reset_to_draft" type="object" string="Reset to Draft"
+                  confirm="This audio will return to the workshop and no longer be selectable anywhere until you mark it reviewed again. Continue?"
+                  invisible="state not in ('reviewed', 'live') or reference_count != 0 or is_reachable or system_key"/>
           <field name="state" widget="statusbar"
                  statusbar_visible="draft,reviewed,live"/>
         </header>
@@ -124,6 +127,7 @@
             </page>
           </notebook>
         </sheet>
+        <chatter reload_on_post="True"/>
       </form>
     </field>
   </record>
@@ -165,87 +169,82 @@
     <field name="name">connect.audio.kanban</field>
     <field name="model">connect.audio</field>
     <field name="arch" type="xml">
-      <kanban class="o_kanban_small_column">
-        <field name="id"/>
+      <kanban>
+        <progressbar field="activity_state"
+                     colors='{"planned": "success", "today": "warning", "overdue": "danger"}'/>
         <field name="name"/>
         <field name="state"/>
         <field name="source"/>
         <field name="voice_id"/>
         <field name="system_key"/>
         <field name="reference_summary"/>
-        <field name="active_reference_count"/>
         <field name="utterance_count"/>
-        <field name="last_generated_on"/>
         <field name="last_played_on"/>
         <field name="is_reachable"/>
-        <field name="is_referenced"/>
-        <field name="archived_on"/>
-        <field name="days_archived"/>
         <field name="is_dynamic"/>
+        <field name="activity_ids"/>
         <templates>
-          <t t-name="card">
-            <div t-attf-class="#{record.state.raw_value == 'live' ? 'border-success' : ''}
-                 #{record.state.raw_value == 'archived' ? 'o_kanban_color_muted' : ''}
-                 #{record.system_key.raw_value ? 'border-primary' : ''}">
-              <div class="o_kanban_record_top">
-                <div class="o_kanban_record_headings">
-                  <strong><field name="name"/></strong>
-                  <span t-if="record.system_key.raw_value"
-                        class="badge text-bg-primary ms-1">
-                    <i class="fa fa-key me-1" title="System Key"/><field name="system_key"/>
-                  </span>
+          <t t-name="card" class="flex-row">
+            <widget name="web_ribbon" title="Archived" bg_color="text-bg-dark"
+                    invisible="state != 'archived'"/>
+            <aside class="pe-2 flex-shrink-0" style="width: 64px;">
+              <div t-attf-class="d-flex align-items-center justify-content-center rounded-3 w-100
+                      #{record.source.raw_value == 'record' ? 'bg-danger-subtle text-danger' : ''}
+                      #{record.source.raw_value == 'twilio_tts' ? 'bg-info-subtle text-info' : ''}
+                      #{record.source.raw_value == 'external_url' ? 'bg-warning-subtle text-warning' : ''}
+                      #{record.source.raw_value == 'attachment' ? 'bg-success-subtle text-success' : ''}"
+                   style="aspect-ratio: 1;" t-att-title="record.source.value">
+                <i t-attf-class="fa fa-2x
+                      #{record.source.raw_value == 'record' ? 'fa-microphone' : ''}
+                      #{record.source.raw_value == 'twilio_tts' ? 'fa-comment-o' : ''}
+                      #{record.source.raw_value == 'external_url' ? 'fa-external-link' : ''}
+                      #{record.source.raw_value == 'attachment' ? 'fa-file-audio-o' : ''}"/>
+              </div>
+            </aside>
+            <main class="d-flex flex-column">
+              <div class="d-flex align-items-baseline">
+                <field name="name" class="fw-bold fs-5 text-truncate"/>
+                <span t-if="record.system_key.raw_value"
+                      class="badge text-bg-primary ms-2 flex-shrink-0"
+                      t-att-title="'System key: ' + record.system_key.raw_value">
+                  <i class="fa fa-key me-1"/><field name="system_key"/>
+                </span>
+              </div>
+              <div t-if="record.voice_id.raw_value or record.is_dynamic.raw_value"
+                   class="text-muted small text-truncate">
+                <field t-if="record.voice_id.raw_value" name="voice_id"/>
+                <span t-if="record.is_dynamic.raw_value"
+                      class="badge text-bg-secondary ms-1">dynamic</span>
+              </div>
+              <div t-if="record.reference_summary.raw_value" class="small text-truncate mt-1">
+                <i class="fa fa-link text-muted me-1" title="Where used"/>
+                <field name="reference_summary"/>
+              </div>
+              <div t-if="record.state.raw_value == 'live' and !record.is_reachable.raw_value and !record.system_key.raw_value"
+                   class="small text-warning mt-1">
+                <i class="fa fa-exclamation-triangle me-1"/>Live but unreachable
+              </div>
+              <div t-if="record.state.raw_value == 'draft' and record.is_reachable.raw_value"
+                   class="small text-danger mt-1">
+                <i class="fa fa-exclamation-triangle me-1"/>Draft but wired live — promote or detach referrers
+              </div>
+              <footer class="pt-2 mt-auto">
+                <div class="d-flex align-items-center">
+                  <field name="activity_ids" widget="kanban_activity"/>
+                  <small t-if="record.last_played_on.raw_value"
+                         class="text-muted ms-2" title="Last played">
+                    <i class="fa fa-play-circle me-1"/><field name="last_played_on"/>
+                  </small>
+                  <small t-elif="record.utterance_count.raw_value"
+                         class="text-muted ms-2" title="Cached utterances">
+                    <i class="fa fa-volume-up me-1"/><field name="utterance_count"/>
+                  </small>
                 </div>
-                <field name="state" widget="label_selection"
+                <field name="state" widget="label_selection" class="ms-auto"
                        options="{'classes': {'draft': 'warning', 'reviewed': 'info',
-                                              'live': 'success', 'archived': 'muted'}}"/>
-              </div>
-              <div class="o_kanban_record_body">
-                <div t-if="record.system_key.raw_value or record.is_referenced.raw_value">
-                  <i class="fa fa-link" title="Where Used"/> <field name="reference_summary"/>
-                </div>
-                <div t-if="record.state.raw_value == 'live' and !record.is_reachable.raw_value and !record.system_key.raw_value"
-                     class="text-warning mt-1">
-                  <i class="fa fa-exclamation-triangle" title="Warning"/>
-                  <small>Live but not reachable from any entry point</small>
-                </div>
-                <div t-if="record.state.raw_value == 'archived'" class="mt-1">
-                  <small class="text-muted">
-                    <i class="fa fa-archive"/>
-                    Archived <field name="days_archived"/> day(s) ago
-                  </small>
-                </div>
-                <div class="mt-1">
-                  <small class="text-muted">
-                    <i class="fa fa-microphone" title="Source"/> <field name="source"/>
-                    <t t-if="record.voice_id.raw_value">
-                      · <field name="voice_id"/>
-                    </t>
-                    <t t-if="record.is_dynamic.raw_value">
-                      · <span class="badge text-bg-secondary">dynamic</span>
-                    </t>
-                  </small>
-                </div>
-              </div>
-              <div class="o_kanban_record_bottom">
-                <div class="oe_kanban_bottom_left">
-                  <small t-if="record.last_played_on.raw_value">
-                    <i class="fa fa-play-circle"/>
-                    played <field name="last_played_on" widget="date"/>
-                  </small>
-                  <small t-if="!record.last_played_on.raw_value and record.utterance_count.raw_value"
-                         class="text-muted">
-                    <i class="fa fa-volume-up" title="Utterances"/>
-                    <field name="utterance_count"/> utterances
-                  </small>
-                </div>
-                <div class="oe_kanban_bottom_right">
-                  <span t-if="record.is_reachable.raw_value"
-                        class="badge text-bg-success">reachable</span>
-                  <span t-if="!record.is_reachable.raw_value and !record.system_key.raw_value"
-                        class="badge text-bg-light text-muted">unreachable</span>
-                </div>
-              </div>
-            </div>
+                                             'live': 'success', 'archived': 'muted'}}"/>
+              </footer>
+            </main>
           </t>
         </templates>
       </kanban>

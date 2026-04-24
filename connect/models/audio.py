@@ -73,7 +73,7 @@ class Audio(models.Model):
     extend by inheriting and adding entries in setup() or via _inherit.
     """
     _name = 'connect.audio'
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Audio'
     _order = 'name'
 
@@ -754,6 +754,46 @@ class Audio(models.Model):
                 raise ValidationError(
                     f'Audio {rec.name!r} is archived; unarchive first.')
             rec.state = 'live' if rec.has_active_reference else 'reviewed'
+
+    def action_reset_to_draft(self):
+        """Return a reviewed/live audio to draft. Only valid when the audio
+        is untethered from every referrer: reference_count == 0, not
+        currently reachable from any routing entry point, and not pinned
+        live by a system_key. This is the escape hatch for operators who
+        want to pull an audio back into the workshop without destroying
+        its utterance cache.
+
+        Archived audios must be unarchived first; the archive path is a
+        separate verb with its own invariants.
+        """
+        for rec in self:
+            if rec.state == 'draft':
+                continue
+            if rec.state == 'archived':
+                raise ValidationError(
+                    f'Audio {rec.name!r} is archived; unarchive first.')
+            if rec.system_key:
+                raise ValidationError(
+                    f'Audio {rec.name!r} is a system audio '
+                    f'(system_key={rec.system_key!r}) — it is pinned live '
+                    f'by code dispatch and cannot be reset to draft.')
+            if rec.reference_count:
+                raise ValidationError(
+                    f'Audio {rec.name!r} is still referenced '
+                    f'({rec.reference_count} referrer(s)). Remove every '
+                    f'referrer before resetting to draft, or pick a '
+                    f'different audio on those records first.')
+            if rec.is_reachable:
+                # Defensive: without referrers, BFS should have no path.
+                # A true positive here means the reachability graph is
+                # stale — ask the operator to refresh rather than silently
+                # flipping state under an inconsistent flag.
+                raise ValidationError(
+                    f'Audio {rec.name!r} is marked reachable despite '
+                    f'having no referrers — the reachability graph looks '
+                    f'stale. Run Refresh Reachability on the Audio '
+                    f'Overview, then try again.')
+            rec.state = 'draft'
 
     # ------------------------------------------------------------------
     # Create / write hooks — validate recorded audio masters. PSTN-format

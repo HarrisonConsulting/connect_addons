@@ -4,12 +4,24 @@ import datetime
 import jinja2
 import logging
 import random
+import re
 import time
 from urllib.parse import urljoin
 from xml.dom.minidom import parseString
+from xml.etree import ElementTree as ET
+
+from markupsafe import Markup
+
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
 from .settings import debug
+
+
+# UUID4 reference pattern: audio('<uuid>') / audio("<uuid>") with optional
+# whitespace. Scanned on save to populate referenced_audio_ids so the audio
+# library stays in sync with TwiML/TwiPy bodies.
+_AUDIO_CALL_RE = re.compile(
+    r'audio\(\s*[\'"]([0-9a-fA-F-]{36})[\'"]\s*\)')
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +255,8 @@ class TwiML(models.Model):
 
     def render_twiml(self, request={}, params={}):
         environment = jinja2.Environment()
+        environment.globals['audio'] = self._make_audio_helper(
+            request=request, params=params)
         template = environment.from_string(self.twiml)
         # Join request and params value and render the final TwiML.
         request.update(params)
@@ -267,12 +281,81 @@ class TwiML(models.Model):
                 'random': random,
                 'datetime': datetime,
                 'time': time,
+                # audio('<uuid>') returns a Markup string of the inner TwiML
+                # verbs produced by connect.audio.play_on(). Authors splice it
+                # into a response.append() call or embed it in template text.
+                'audio': self._make_audio_helper(
+                    request=request, params=params),
             })
             # We expect that twipy final line is to assign the result to twiml field.
             return self.twiml
         except Exception as e:
             logger.exception('TwiML render error:')
             raise ValidationError(str(e))
+
+    def _make_audio_helper(self, request=None, params=None):
+        """Return a closure that resolves `audio('<uuid>')` → inner TwiML.
+
+        Used as a Jinja global in render_twiml and injected into the TwiPy
+        exec globals in render_python. The closure:
+
+          1. Looks up the connect.audio by its UUID (sudo — TwiML authors
+             don't need audio ACLs to produce a <Say>/<Play>).
+          2. Runs play_on() against a scratch VoiceResponse so all existing
+             audio rendering logic (utterance cache, pronunciation, voice
+             resolution) applies uniformly.
+          3. Strips the outer <Response> wrapper and returns a Markup of
+             the inner verbs so Jinja doesn't HTML-escape angle brackets
+             when substituting into the body.
+
+        Unknown UUIDs render as empty Markup and log a warning — Phase 1
+        behavior. TODO(phase-2): swap the silent miss for a configurable
+        fallback audio (per-referrer override + module default) so a typo
+        or a deleted audio never produces a silent leg; Phase 2 will also
+        add the observability counter (missed/fallback/served).
+        """
+        self.ensure_one()
+        Audio = self.env['connect.audio'].sudo()
+
+        # Import lazily — the twilio lib is an external dep and we don't
+        # want this module import to fail in environments where the TwiML
+        # bodies never get rendered (test harnesses, static analysis).
+        from twilio.twiml.voice_response import VoiceResponse
+
+        def _audio(uuid_str):
+            audio = Audio.search([('uuid', '=', uuid_str)], limit=1)
+            if not audio:
+                # TODO(phase-2): fall back to a configured placeholder audio
+                # and count the miss. For now: silent + warning so an
+                # operator sees dropped audio references in logs.
+                logger.warning(
+                    'connect.twiml#%s referenced unknown audio uuid %r',
+                    self.id, uuid_str)
+                return Markup('')
+            response = VoiceResponse()
+            try:
+                audio.play_on(response)
+            except Exception as e:
+                logger.exception(
+                    'connect.twiml#%s audio(%r) play_on failed: %s',
+                    self.id, uuid_str, e)
+                return Markup('')
+            # VoiceResponse.__str__ emits a full XML document with the
+            # <Response> wrapper. We want only the inner verbs so the
+            # caller can splice them into an existing <Response>.
+            try:
+                root = ET.fromstring(str(response))
+                inner = ''.join(
+                    ET.tostring(child, encoding='unicode')
+                    for child in root)
+            except ET.ParseError as e:
+                logger.exception(
+                    'connect.twiml#%s audio(%r) XML parse failed: %s',
+                    self.id, uuid_str, e)
+                return Markup('')
+            return Markup(inner)
+
+        return _audio
 
     def create_extension(self):
         self.ensure_one()
@@ -291,6 +374,10 @@ class TwiML(models.Model):
 # time: Python time library.
 # twilio: twilio - Twilio python library.
 # self: curreny TwiPy recordset.
+# audio: audio('<uuid>') - renders a connect.audio by UUID and returns the
+#        inner TwiML verbs as a string. Embed in template text or splice
+#        into a response with response.append() / str concat. The UUID is
+#        visible on the audio form via the Copy UUID button.
 
 response = VoiceResponse()
 user_name = self.env.user.name

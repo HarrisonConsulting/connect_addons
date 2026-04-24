@@ -16,6 +16,10 @@ SYSTEM_MESSAGES = {
     'error.call_failed': 'Sorry, I could not connect your call. Goodbye!',
     'error.no_extension': 'Extension not configured!',
     'error.choice_error': 'Choice application error, please contact technical support!',
+    # TwiML audio() fallback messages — played when a reference can't be
+    # served normally. Keep in sync with connect/data/audio.xml.
+    'fallback.archived': 'This message is temporarily unavailable. Please hold.',
+    'fallback.unresolved': 'A configuration error occurred. Please contact support.',
     # Defined in connect_addons_ee/connect_callout/data/audio.xml.
     'error.no_contact': 'No contact found for this callout. Goodbye!',
 }

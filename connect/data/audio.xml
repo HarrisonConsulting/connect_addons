@@ -147,4 +147,26 @@
     <field name="static_text">Choice application error, please contact technical support!</field>
   </record>
 
+  <!-- Fallback audios played by the TwiML audio('<uuid>') helper when a
+       reference can't be served normally. state=live so they actually play;
+       ops can rebrand the wording by editing static_text on the record.
+       Renaming the system_key would break the helper's lookup — treat the
+       key as code. See connect/models/twiml.py _render_fallback(). -->
+  <record id="audio_fallback_archived" model="connect.audio">
+    <field name="name">Fallback: Archived Audio</field>
+    <field name="system_key">fallback.archived</field>
+    <field name="uuid">32e25059-4874-4ffd-be2a-1ab914e75271</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">This message is temporarily unavailable. Please hold.</field>
+  </record>
+  <record id="audio_fallback_unresolved" model="connect.audio">
+    <field name="name">Fallback: Unresolved Audio Reference</field>
+    <field name="system_key">fallback.unresolved</field>
+    <field name="uuid">9d9be4e7-a64a-4649-afd3-3665f43fb9a9</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">A configuration error occurred. Please contact support.</field>
+  </record>
+
 </odoo>

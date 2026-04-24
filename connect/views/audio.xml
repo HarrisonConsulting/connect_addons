@@ -64,6 +64,11 @@
               <group invisible="source != 'twilio_tts'">
                 <field name="static_text" placeholder="Hello {partner_id.name}, your order {name} is ready."
                        widget="text"/>
+                <div colspan="2">
+                  <small>See available Twilio voices and languages
+                    <a target="_new" href="https://www.twilio.com/docs/voice/twiml/say/text-speech#available-voices-and-languages">here</a>.
+                  </small>
+                </div>
               </group>
               <group invisible="source != 'external_url'">
                 <field name="static_url" widget="url"/>
@@ -356,6 +361,13 @@
               <field name="preview_url" widget="url"/>
             </group>
           </group>
+          <div invisible="provider != 'twilio'">
+            <small>See Twilio's full voice + language matrix
+              <a target="_new" href="https://www.twilio.com/docs/voice/twiml/say/text-speech#available-voices-and-languages">here</a>.
+              The <code>external_id</code> on this record must match a value
+              from that page.
+            </small>
+          </div>
           <field name="preview_audio" widget="html"/>
         </sheet>
       </form>

@@ -579,6 +579,11 @@ class TwiML(models.Model):
                 self.sudo().write(
                     {'last_unresolved_logged_on': now})
             elif reason == 'archived' and archived_audio:
+                # No chatter for unsaved drafts — the link we'd render
+                # would have data-oe-id="0", a dead anchor. Mirrors the
+                # unresolved guard above.
+                if not self.id:
+                    return
                 if (archived_audio.last_fallback_logged_on
                         and archived_audio.last_fallback_logged_on > cutoff):
                     return
@@ -587,7 +592,7 @@ class TwiML(models.Model):
                 twiml_link = Markup(
                     '<a href="#" data-oe-model="connect.twiml" '
                     'data-oe-id="%d">%s</a>'
-                ) % (self.id or 0,
+                ) % (self.id,
                      (self.display_name or f'connect.twiml#{self.id}'))
                 body = Markup(
                     '<p>TwiML audio() helper rendered the '

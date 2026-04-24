@@ -93,48 +93,56 @@
   <record id="audio_system_transfer" model="connect.audio">
     <field name="name">System: Transfer</field>
     <field name="system_key">system.transfer</field>
+    <field name="uuid">a7f3e4b2-8c1d-4e9a-b5f7-2d6a8e4c9b1f</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">Transfer</field>
   </record>
   <record id="audio_system_connecting" model="connect.audio">
     <field name="name">System: Connecting</field>
     <field name="system_key">system.connecting</field>
+    <field name="uuid">c5d2b1e9-3a74-4f68-9c8d-1b7e5f2a9d6c</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">Connecting...</field>
   </record>
   <record id="audio_system_dnd" model="connect.audio">
     <field name="name">System: Do Not Disturb</field>
     <field name="system_key">system.dnd</field>
+    <field name="uuid">e8b4a7c3-6d59-4e21-8f7a-3c9b2d5e1a8f</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">Do not disturb is enabled. Please leave a message.</field>
   </record>
   <record id="audio_error_no_callerid" model="connect.audio">
     <field name="name">Error: No CallerID</field>
     <field name="system_key">error.no_callerid</field>
+    <field name="uuid">4f2a9b67-1c38-4d5e-a6b2-8e7d3f1c9a54</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">You must configure a default number for caller ID!</field>
   </record>
   <record id="audio_error_callflow_empty" model="connect.audio">
     <field name="name">Error: Callflow Empty</field>
     <field name="system_key">error.callflow_empty</field>
+    <field name="uuid">b1e5d8f4-2a97-4c63-9b1d-5e8a2f7c4d63</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">This callflow has no actions! Goodbye!</field>
   </record>
   <record id="audio_error_call_failed" model="connect.audio">
     <field name="name">Error: Call Failed</field>
     <field name="system_key">error.call_failed</field>
+    <field name="uuid">7d3c8e1b-4f96-4a52-b8e7-6c9a1d4f2b83</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">Sorry, I could not connect your call. Goodbye!</field>
   </record>
   <record id="audio_error_no_extension" model="connect.audio">
     <field name="name">Error: No Extension</field>
     <field name="system_key">error.no_extension</field>
+    <field name="uuid">9a5f6c2d-8b47-4e31-a7c9-2d1b8f4e6c95</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">Extension not configured!</field>
   </record>
   <record id="audio_error_choice_error" model="connect.audio">
     <field name="name">Error: Choice Error</field>
     <field name="system_key">error.choice_error</field>
+    <field name="uuid">2e6b4a1c-7f58-4d92-8a3e-5c9d1b6f8a47</field>
     <field name="source">twilio_tts</field>
     <field name="static_text">Choice application error, please contact technical support!</field>
   </record>

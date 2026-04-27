@@ -863,7 +863,19 @@ class Audio(models.Model):
     def _get_recording_master_value(self):
         """Read recording_file as real base64 bytes, never as a bin-size token."""
         self.ensure_one()
-        return self.with_context(bin_size=False).recording_file
+        fresh_env = api.Environment(
+            self.env.cr, self.env.uid, dict(self.env.context, bin_size=False)
+        )
+        fresh_self = fresh_env[self._name].browse(self.id)
+        value = fresh_self.read(['recording_file'])[0].get('recording_file')
+        if value:
+            return value
+        attachment = self.env['ir.attachment'].sudo().search([
+            ('res_model', '=', self._name),
+            ('res_id', '=', self.id),
+            ('res_field', '=', 'recording_file'),
+        ], order='id desc', limit=1)
+        return attachment.with_context(bin_size=False).datas if attachment else False
 
     @api.model
     def _transcode_recording_for_pstn(self, recording_value):
@@ -1117,7 +1129,6 @@ class Audio(models.Model):
                         f'recording_mimetype={rec.recording_mimetype!r} is not playable '
                         f'by Twilio. Allowed: {sorted(TWILIO_PLAYABLE_MIMETYPES)}.'
                     )
-                rec._validate_recording_master(rec._get_recording_master_value())
             if rec.source in rec._dynamic_sources() and not rec.static_text:
                 raise ValidationError(f'source={rec.source} requires static_text.')
 

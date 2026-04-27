@@ -226,12 +226,16 @@ export class AudioRecorderField extends Component {
     }
 
     _audioConstraints() {
-        if (!this.state.selectedDeviceId) {
-            return true
+        const constraints = {
+            channelCount: { ideal: 1 },
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
         }
-        return {
-            deviceId: { exact: this.state.selectedDeviceId },
+        if (this.state.selectedDeviceId) {
+            constraints.deviceId = { exact: this.state.selectedDeviceId }
         }
+        return constraints
     }
 
     async _loadDevices({ ensurePermission = false } = {}) {

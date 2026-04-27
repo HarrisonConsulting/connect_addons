@@ -59,6 +59,16 @@ class Recording(models.Model):
         Available placeholders: {caller_name}, {called_name}, {caller_number},
         {called_number}, {direction}, {number_name}, {number_description}
         """
+        if not self:
+            return {
+                'caller_number': '',
+                'called_number': '',
+                'direction': 'unknown',
+                'caller_name': 'Unknown Caller',
+                'called_name': 'Unknown',
+                'number_name': '',
+                'number_description': '',
+            }
         self.ensure_one()
         ctx = {
             'caller_number': self.caller_number or '',

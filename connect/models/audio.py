@@ -886,16 +886,41 @@ class Audio(models.Model):
             raise ValidationError(f'Recording transcode failed: {e}')
         return base64.b64encode(wav_out).decode('ascii')
 
+    @api.model
+    def _normalize_audio_config(self, vals, record=None):
+        """Normalize source-coupled fields before ORM validation runs."""
+        vals = dict(vals)
+        source = vals.get('source')
+        if source and source not in self._dynamic_sources():
+            vals['is_dynamic'] = False
+            vals['model_id'] = False
+
+        recording_value = vals.get('recording_file')
+        should_validate_recording = False
+        if source == 'record':
+            recording_value = recording_value or (record.recording_file if record else False)
+            should_validate_recording = bool(recording_value)
+        elif recording_value:
+            should_validate_recording = (
+                source == 'record' or (record and record.source == 'record')
+            )
+        if should_validate_recording:
+            validated = self._validate_recording_master(recording_value)
+            if 'recording_file' in vals:
+                vals['recording_file'] = validated
+            vals['recording_mimetype'] = audio_ulaw.TARGET_MIMETYPE
+        return vals
+
+    @api.onchange('source')
+    def _onchange_source(self):
+        for rec in self:
+            if rec.source not in rec._dynamic_sources():
+                rec.is_dynamic = False
+                rec.model_id = False
+
     @api.model_create_multi
     def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get('source') == 'record' and vals.get('recording_file'):
-                # Preserve the master verbatim. We validate parseability and
-                # size here; μ-law derivation happens lazily via the utterance
-                # cache on first render().
-                vals['recording_file'] = self._validate_recording_master(
-                    vals['recording_file'])
-                vals.setdefault('recording_mimetype', 'audio/wav')
+        vals_list = [self._normalize_audio_config(vals) for vals in vals_list]
         records = super().create(vals_list)
         # A fresh audio has no referrers yet — refreshing inline here just
         # initialises reference_ids = [] and reconciles state. Cheap, and
@@ -911,6 +936,8 @@ class Audio(models.Model):
         return super().unlink()
 
     def write(self, vals):
+        if len(self) == 1:
+            vals = self._normalize_audio_config(vals, record=self)
         # --- UUID is the stable reference key for TwiML/TwiPy audio() calls.
         # Changing it would silently break every reference in every body. The
         # migration path sets allow_uuid_write=True; nothing else may cross.
@@ -947,20 +974,7 @@ class Audio(models.Model):
             vals = dict(vals)
             vals['archived_on'] = False
 
-        master_changing = False
-        if vals.get('recording_file'):
-            # Validate if this write either flips source to 'record' or the
-            # existing records are already source='record'. Heterogeneous sets
-            # keep their old behavior (no-op), which is safe because the
-            # source-payload constraint rejects mismatched combinations.
-            should_validate = (vals.get('source') == 'record'
-                               or any(r.source == 'record' for r in self))
-            if should_validate:
-                vals = dict(vals)
-                vals['recording_file'] = self._validate_recording_master(
-                    vals['recording_file'])
-                vals.setdefault('recording_mimetype', 'audio/wav')
-                master_changing = True
+        master_changing = bool(vals.get('recording_file'))
 
         # Stamp / clear archived_on and keep active in sync with state
         # transitions that go through the state field directly (e.g. tests or
@@ -1096,6 +1110,7 @@ class Audio(models.Model):
                         f'recording_mimetype={rec.recording_mimetype!r} is not playable '
                         f'by Twilio. Allowed: {sorted(TWILIO_PLAYABLE_MIMETYPES)}.'
                     )
+                rec._validate_recording_master(rec.recording_file)
             if rec.source in rec._dynamic_sources() and not rec.static_text:
                 raise ValidationError(f'source={rec.source} requires static_text.')
 

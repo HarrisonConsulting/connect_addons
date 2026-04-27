@@ -1,10 +1,27 @@
 # -*- coding: utf-8 -*-
 """Tests for connect.audio state machine and reference reconciliation."""
 
+import base64
+import struct
+
 from odoo.tests import tagged
 from odoo.exceptions import ValidationError
 
 from .common import ConnectTestCase
+
+
+def _build_pcm16_wav_b64():
+    samples = [0, 1000, -1000, 500, -500] * 160
+    pcm = struct.pack('<' + 'h' * len(samples), *samples)
+    data_size = len(pcm)
+    sample_rate = 16000
+    header = struct.pack(
+        '<4sI4s4sIHHIIHH4sI',
+        b'RIFF', 36 + data_size, b'WAVE',
+        b'fmt ', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16,
+        b'data', data_size,
+    )
+    return base64.b64encode(header + pcm).decode('ascii')
 
 
 @tagged('post_install', '-at_install')
@@ -196,3 +213,55 @@ class TestAudioResetToDraft(ConnectTestCase):
         audio.invalidate_recordset(['reference_count'])
         with self.assertRaisesRegex(ValidationError, r'still referenced'):
             audio.action_reset_to_draft()
+
+
+@tagged('post_install', '-at_install')
+class TestAudioSourceSwitching(ConnectTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Audio = cls.env['connect.audio']
+        cls.dynamic_model = cls.env['ir.model'].search(
+            [('model', '=', 'connect.user')], limit=1)
+
+    def test_switch_to_record_clears_dynamic_fields(self):
+        audio = self.Audio.create({
+            'name': 'Switch target',
+            'source': 'twilio_tts',
+            'static_text': 'Hello {username}',
+            'is_dynamic': True,
+            'model_id': self.dynamic_model.id,
+        })
+
+        audio.write({
+            'source': 'record',
+            'recording_file': _build_pcm16_wav_b64(),
+        })
+
+        self.assertFalse(audio.is_dynamic)
+        self.assertFalse(audio.model_id)
+        self.assertEqual(audio.recording_mimetype, 'audio/wav')
+
+    def test_switch_to_record_validates_existing_recording_master(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        audio = self.Audio.create({
+            'name': 'Split write',
+            'source': 'twilio_tts',
+            'recording_file': wav_b64,
+        })
+
+        audio.write({'source': 'record'})
+
+        self.assertEqual(audio.source, 'record')
+        self.assertEqual(audio.recording_mimetype, 'audio/wav')
+
+    def test_switch_to_record_rejects_invalid_existing_recording_master(self):
+        audio = self.Audio.create({
+            'name': 'Invalid split write',
+            'source': 'twilio_tts',
+            'recording_file': base64.b64encode(b'not-a-wave-file').decode('ascii'),
+        })
+
+        with self.assertRaisesRegex(ValidationError, r'not a valid WAV'):
+            audio.write({'source': 'record'})

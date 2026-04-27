@@ -472,3 +472,26 @@ class TestRecordingTranscription(ConnectTestCase):
         call_args = mock_openai.chat.completions.create.call_args
         messages = call_args.kwargs.get('messages', call_args[1].get('messages', []))
         self.assertEqual(len(messages), 2, "Legacy path should send prompt and transcript as separate messages")
+
+    def test_make_summary_empty_recordset_uses_generic_context(self):
+        """Voicemail summaries may call make_summary() without a recording row."""
+        mock_openai = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = 'Generic summary.'
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        mock_response.usage = MagicMock()
+        mock_openai.chat.completions.create.return_value = mock_response
+
+        result = self.Recording.make_summary(
+            mock_openai,
+            'Summarize this {direction} call from {caller_name}: {transcript}',
+            'Please call me back.'
+        )
+
+        self.assertEqual(result['summary'], 'Generic summary.')
+        call_args = mock_openai.chat.completions.create.call_args
+        messages = call_args.kwargs.get('messages', call_args[1].get('messages', []))
+        self.assertEqual(len(messages), 1)
+        self.assertIn('unknown', messages[0]['content'])
+        self.assertIn('Unknown Caller', messages[0]['content'])

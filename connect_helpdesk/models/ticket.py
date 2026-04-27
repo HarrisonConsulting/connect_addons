@@ -69,13 +69,9 @@ class Ticket(models.Model):
             debug(self, 'Ticket by number {}: skip search'.format(number))
             # Return empty set.
             return self.env['helpdesk.ticket']
-        # Search by stripped number prefixed with '+'
-        ticket = self._search_ticket_by_number('+{}'.format(number))
-        if ticket:
-            return ticket
-            # Search by stripped number
-            ticket = self._search_ticket_by_number(number)
-            if ticket:
-                return ticket
-        # Return empty set.
-        return self.env['helpdesk.ticket']
+        # Search by stripped number prefixed with '+', then unprefixed.
+        return (
+            self._search_ticket_by_number('+{}'.format(number))
+            or self._search_ticket_by_number(number)
+            or self.env['helpdesk.ticket']
+        )

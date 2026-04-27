@@ -8,13 +8,14 @@ import { _t } from "@web/core/l10n/translation"
 import { standardFieldProps } from "@web/views/fields/standard_field_props"
 import { isBinarySize } from "@web/core/utils/binary"
 
-// Hard ceiling on the encoded WAV before we base64-encode it. 16kHz mono PCM
-// WAV = 32 KB/sec, so 5 MB ~= 2.5 minutes of speech — comfortable headroom
-// for IVR prompts. Keep this in sync with the server-side cap, which reads
-// ir.config_parameter 'connect.audio.max_recording_bytes' (default 5 MB).
-// The server is the trust boundary; this check is a courtesy that prevents
-// pointless round-trips. If an admin raises the server cap, this constant
-// must be updated too.
+// Hard ceiling on the encoded WAV before we base64-encode it. We now preserve
+// the browser-decoded sample rate instead of downsampling client-side so the
+// saved master keeps its fidelity; that means byte-rate depends on the device
+// capture rate (commonly 44.1/48 kHz mono). Keep this in sync with the
+// server-side cap, which reads ir.config_parameter
+// 'connect.audio.max_recording_bytes' (default 5 MB). The server is the trust
+// boundary; this check is a courtesy that prevents pointless round-trips. If
+// an admin raises the server cap, this constant must be updated too.
 const MAX_WAV_BYTES = 5 * 1024 * 1024
 
 /**
@@ -168,7 +169,7 @@ export class AudioRecorderField extends Component {
             const arrayBuffer = await captureBlob.arrayBuffer()
             // audioCtx was created in onStop() under the user-gesture context.
             const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer)
-            const wavBlob = encodeWav(audioBuffer, 16000) // 16kHz mono PCM
+            const wavBlob = encodeWav(audioBuffer)
             this.audioCtx.close()
             this.audioCtx = null
             if (wavBlob.size > MAX_WAV_BYTES) {
@@ -331,10 +332,11 @@ function blobToBase64(blob) {
 }
 
 /**
- * Encode an AudioBuffer to a 16-bit PCM WAV Blob, downmixed to mono and
- * resampled to `targetSampleRate` (default 16kHz — Twilio-friendly).
+ * Encode an AudioBuffer to a mono 16-bit PCM WAV Blob at the original sample
+ * rate. The server keeps this wideband master and derives the 8 kHz μ-law
+ * PSTN asset later, using its higher-quality transcode path.
  */
-function encodeWav(audioBuffer, targetSampleRate) {
+function encodeWav(audioBuffer) {
     const sourceRate = audioBuffer.sampleRate
     const sourceLen = audioBuffer.length
     const channels = audioBuffer.numberOfChannels
@@ -346,22 +348,10 @@ function encodeWav(audioBuffer, targetSampleRate) {
         for (let i = 0; i < sourceLen; i++) mono[i] += data[i] / channels
     }
 
-    // Linear resample
-    const ratio = targetSampleRate / sourceRate
-    const targetLen = Math.round(sourceLen * ratio)
-    const resampled = new Float32Array(targetLen)
-    for (let i = 0; i < targetLen; i++) {
-        const srcIdx = i / ratio
-        const i0 = Math.floor(srcIdx)
-        const i1 = Math.min(i0 + 1, sourceLen - 1)
-        const frac = srcIdx - i0
-        resampled[i] = mono[i0] * (1 - frac) + mono[i1] * frac
-    }
-
     // 16-bit PCM
-    const pcm = new Int16Array(targetLen)
-    for (let i = 0; i < targetLen; i++) {
-        const s = Math.max(-1, Math.min(1, resampled[i]))
+    const pcm = new Int16Array(sourceLen)
+    for (let i = 0; i < sourceLen; i++) {
+        const s = Math.max(-1, Math.min(1, mono[i]))
         pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
     }
 
@@ -376,8 +366,8 @@ function encodeWav(audioBuffer, targetSampleRate) {
     view.setUint32(16, 16, true)            // fmt chunk size
     view.setUint16(20, 1, true)             // PCM
     view.setUint16(22, 1, true)             // 1 channel
-    view.setUint32(24, targetSampleRate, true)
-    view.setUint32(28, targetSampleRate * 2, true) // byte rate
+    view.setUint32(24, sourceRate, true)
+    view.setUint32(28, sourceRate * 2, true) // byte rate
     view.setUint16(32, 2, true)             // block align
     view.setUint16(34, 16, true)            // bits per sample
     writeStr(view, 36, "data")

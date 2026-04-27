@@ -819,7 +819,7 @@ class Audio(models.Model):
             return recording_value
         if isinstance(recording_value, str):
             try:
-                wav_in = base64.b64decode(recording_value)
+                wav_in = base64.b64decode(recording_value, validate=True)
             except Exception as e:
                 raise ValidationError(f'recording_file is not valid base64: {e}')
         else:
@@ -860,6 +860,11 @@ class Audio(models.Model):
                     param)
         return DEFAULT_MAX_RECORDING_BYTES
 
+    def _get_recording_master_value(self):
+        """Read recording_file as real base64 bytes, never as a bin-size token."""
+        self.ensure_one()
+        return self.with_context(bin_size=False).recording_file
+
     @api.model
     def _transcode_recording_for_pstn(self, recording_value):
         """Derive an 8 kHz mono μ-law WAV from a browser-uploaded master WAV.
@@ -898,7 +903,9 @@ class Audio(models.Model):
         recording_value = vals.get('recording_file')
         should_validate_recording = False
         if source == 'record':
-            recording_value = recording_value or (record.recording_file if record else False)
+            recording_value = recording_value or (
+                record._get_recording_master_value() if record else False
+            )
             should_validate_recording = bool(recording_value)
         elif recording_value:
             should_validate_recording = (
@@ -1110,7 +1117,7 @@ class Audio(models.Model):
                         f'recording_mimetype={rec.recording_mimetype!r} is not playable '
                         f'by Twilio. Allowed: {sorted(TWILIO_PLAYABLE_MIMETYPES)}.'
                     )
-                rec._validate_recording_master(rec.recording_file)
+                rec._validate_recording_master(rec._get_recording_master_value())
             if rec.source in rec._dynamic_sources() and not rec.static_text:
                 raise ValidationError(f'source={rec.source} requires static_text.')
 

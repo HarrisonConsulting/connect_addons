@@ -256,6 +256,19 @@ class TestAudioSourceSwitching(ConnectTestCase):
         self.assertEqual(audio.source, 'record')
         self.assertEqual(audio.recording_mimetype, 'audio/wav')
 
+    def test_switch_to_record_with_bin_size_context_reads_real_attachment_bytes(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        audio = self.Audio.create({
+            'name': 'Split write bin size',
+            'source': 'twilio_tts',
+            'recording_file': wav_b64,
+        })
+
+        audio.with_context(bin_size=True).write({'source': 'record'})
+
+        self.assertEqual(audio.source, 'record')
+        self.assertEqual(audio.recording_mimetype, 'audio/wav')
+
     def test_switch_to_record_rejects_invalid_existing_recording_master(self):
         audio = self.Audio.create({
             'name': 'Invalid split write',

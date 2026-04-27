@@ -14,6 +14,12 @@
   --Phone-hover-bg: #f8f9fa;
   --Phone-active-bg: #e9ecef;
   --Phone-muted: #6c757d;
+  --Phone-activity-bg: #f8f9fa;
+  --Phone-activity-available-bg: #e6f4ea;
+  --Phone-activity-unavailable-bg: #fff3cd;
+  --Phone-activity-busy-bg: #ffe5d0;
+  --Phone-activity-transitory-bg: #e7e3ff;
+  --Phone-activity-offline-bg: #f1f3f5;
 
   // Call state colors (consistent across themes)
   --Phone-call-accept: #28a745;
@@ -31,6 +37,7 @@
   // Golden ratio: width × 1.618 = height (300 × 1.618 = 485.4 ≈ 486)
   --phone-width: 300px;
   --phone-height: 486px;  // Exact golden ratio
+  --phone-activity-height: 68px;
   width: var(--phone-width);
   height: var(--phone-height);
   position: fixed;

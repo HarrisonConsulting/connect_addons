@@ -3,6 +3,30 @@
 
   <t t-name="connect.AudioRecorderField">
     <div class="o_connect_audio_recorder">
+      <div class="o_connect_audio_recorder_input"
+           t-if="state.devicesLoaded">
+        <label class="form-label mb-1" for="connect_audio_recorder_device">
+          Microphone
+        </label>
+        <div class="o_connect_audio_recorder_input_row">
+          <select id="connect_audio_recorder_device"
+                  class="form-select form-select-sm"
+                  t-att-value="selectedDeviceId"
+                  t-on-change="onMicrophoneChange">
+            <option t-foreach="microphoneOptions"
+                    t-as="device"
+                    t-key="device.id"
+                    t-att-value="device.id">
+              <t t-esc="device.label"/>
+            </option>
+          </select>
+          <button type="button"
+                  class="btn btn-outline-secondary btn-sm"
+                  t-on-click="onRefreshDevices">
+            <i class="fa fa-refresh"/>
+          </button>
+        </div>
+      </div>
       <div class="o_connect_audio_recorder_controls">
         <button t-if="state.status === 'idle' and !hasRecording"
                 type="button"

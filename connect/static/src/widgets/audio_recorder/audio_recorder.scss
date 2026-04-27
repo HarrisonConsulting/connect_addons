@@ -3,9 +3,20 @@
     flex-direction: column;
     gap: 4px;
 
+    .o_connect_audio_recorder_input {
+        max-width: 360px;
+    }
+
+    .o_connect_audio_recorder_input_row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .o_connect_audio_recorder_controls {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 6px;
     }
 

@@ -1,7 +1,7 @@
 /** @odoo-module **/
 "use strict"
 
-import { Component, useState, useRef, onWillUnmount } from "@odoo/owl"
+import { Component, useState, onWillStart, onWillUnmount } from "@odoo/owl"
 import { registry } from "@web/core/registry"
 import { useService } from "@web/core/utils/hooks"
 import { _t } from "@web/core/l10n/translation"
@@ -41,6 +41,9 @@ export class AudioRecorderField extends Component {
             error: null,
             durationMs: 0,
             previewUrl: null,
+            devices: [],
+            selectedDeviceId: loadPreferredDeviceId(),
+            devicesLoaded: false,
         })
         this.mediaRecorder = null
         this.chunks = []
@@ -49,12 +52,30 @@ export class AudioRecorderField extends Component {
         this.tickHandle = null
         this.audioCtx = null
 
+        onWillStart(async () => {
+            await this._loadDevices()
+        })
         onWillUnmount(() => this._cleanup())
         this._refreshPreview()
     }
 
     get hasRecording() {
         return !!this.props.record.data[this.props.name]
+    }
+
+    get microphoneOptions() {
+        return this.state.devices.map((device, index) => ({
+            id: device.deviceId,
+            label: device.label || _t("Microphone %s", index + 1),
+        }))
+    }
+
+    get hasMicrophoneSelection() {
+        return this.microphoneOptions.length > 1
+    }
+
+    get selectedDeviceId() {
+        return this.state.selectedDeviceId || ""
     }
 
     async onRecord() {
@@ -64,9 +85,13 @@ export class AudioRecorderField extends Component {
             return
         }
         try {
-            this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                audio: this._audioConstraints(),
+            })
+            this.state.error = null
+            await this._loadDevices()
         } catch (err) {
-            this.state.error = _t("Microphone permission denied.")
+            this.state.error = _t("Microphone access failed: %s", err.message || err.name || err)
             this.state.status = "error"
             return
         }
@@ -121,6 +146,16 @@ export class AudioRecorderField extends Component {
         this.state.previewUrl = null
         this.state.durationMs = 0
         this.state.status = "idle"
+    }
+
+    onMicrophoneChange(ev) {
+        const deviceId = ev.target.value || null
+        this.state.selectedDeviceId = deviceId
+        storePreferredDeviceId(deviceId)
+    }
+
+    async onRefreshDevices() {
+        await this._loadDevices({ ensurePermission: true })
     }
 
     async _onStop() {
@@ -186,6 +221,55 @@ export class AudioRecorderField extends Component {
                 `&unique=${encodeURIComponent(stamp)}`
         } else {
             this.state.previewUrl = `data:audio/wav;base64,${value}`
+        }
+    }
+
+    _audioConstraints() {
+        if (!this.state.selectedDeviceId) {
+            return true
+        }
+        return {
+            deviceId: { exact: this.state.selectedDeviceId },
+        }
+    }
+
+    async _loadDevices({ ensurePermission = false } = {}) {
+        if (!navigator.mediaDevices?.enumerateDevices) {
+            return
+        }
+        let tempStream = null
+        if (ensurePermission) {
+            try {
+                tempStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            } catch (_err) {
+                // enumerateDevices still works on some browsers without a warmup
+            }
+        }
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices()
+            const microphones = devices.filter((device) => device.kind === "audioinput")
+            this.state.devices = microphones
+            this.state.devicesLoaded = true
+            if (!microphones.length) {
+                this.state.selectedDeviceId = null
+                return
+            }
+            const selectedExists = microphones.some(
+                (device) => device.deviceId === this.state.selectedDeviceId
+            )
+            if (!selectedExists) {
+                this.state.selectedDeviceId = microphones[0].deviceId
+                storePreferredDeviceId(this.state.selectedDeviceId)
+            }
+        } catch (err) {
+            this.state.error = _t("Could not read microphone devices: %s", err.message || err)
+            this.state.status = "error"
+        } finally {
+            if (tempStream) {
+                for (const track of tempStream.getTracks()) {
+                    track.stop()
+                }
+            }
         }
     }
 
@@ -304,4 +388,24 @@ function encodeWav(audioBuffer, targetSampleRate) {
 
 function writeStr(view, offset, s) {
     for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i))
+}
+
+function loadPreferredDeviceId() {
+    try {
+        return window.localStorage.getItem("connect.audioRecorder.deviceId")
+    } catch (_err) {
+        return null
+    }
+}
+
+function storePreferredDeviceId(deviceId) {
+    try {
+        if (deviceId) {
+            window.localStorage.setItem("connect.audioRecorder.deviceId", deviceId)
+        } else {
+            window.localStorage.removeItem("connect.audioRecorder.deviceId")
+        }
+    } catch (_err) {
+        // localStorage may be unavailable in hardened browsers
+    }
 }

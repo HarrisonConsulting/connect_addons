@@ -309,6 +309,26 @@ class TestAudioSourceSwitching(ConnectTestCase):
         self.assertEqual(utterance.mimetype, 'audio/wav')
         self.assertTrue(utterance.file)
 
+    def test_attachment_audio_renders_from_raw_bytes(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        attachment = self.env['ir.attachment'].create({
+            'name': 'prompt.wav',
+            'type': 'binary',
+            'datas': wav_b64,
+            'mimetype': 'audio/wav',
+        })
+        audio = self.Audio.create({
+            'name': 'Attachment render',
+            'source': 'attachment',
+            'attachment_id': attachment.id,
+        })
+
+        utterance = audio.render()
+
+        self.assertEqual(utterance.source_used, 'attachment')
+        self.assertEqual(utterance.file, wav_b64)
+        self.assertEqual(utterance.mimetype, 'audio/wav')
+
     def test_switching_back_to_record_ignores_bin_size_placeholder(self):
         wav_b64 = _build_pcm16_wav_b64()
         audio = self.Audio.create({

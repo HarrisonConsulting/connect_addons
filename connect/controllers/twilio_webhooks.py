@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*
 
 import logging
+from psycopg2.errors import SerializationFailure
 
 from odoo.http import request, Controller, route, Response
 from twilio.request_validator import RequestValidator
@@ -63,14 +64,26 @@ class ConnectController(Controller):
             logger.warning('Webhook %s missing required params: %s (got: %s)',
                            'callstatus_webhook', missing, list(kw.keys()))
             return '<Response/>'
-        try:
-            res = request.env['connect.call'].with_user(
-                request.env.ref("connect.user_connect_webhook")
-            ).on_call_status(kw)
-            return f'{res}'
-        except Exception:
-            logger.exception('callstatus_webhook failed for CallSid=%s', kw.get('CallSid'))
-            return '<Response/>'
+        for attempt in range(2):
+            try:
+                res = request.env['connect.call'].with_user(
+                    request.env.ref("connect.user_connect_webhook")
+                ).on_call_status(kw)
+                return f'{res}'
+            except SerializationFailure:
+                request.env.cr.rollback()
+                if attempt == 0:
+                    logger.info(
+                        'Retrying callstatus_webhook after serialization conflict '
+                        'for CallSid=%s', kw.get('CallSid'))
+                    continue
+                logger.warning(
+                    'Ignoring duplicate/contended callstatus_webhook after retry '
+                    'for CallSid=%s', kw.get('CallSid'))
+                return '<Response/>'
+            except Exception:
+                logger.exception('callstatus_webhook failed for CallSid=%s', kw.get('CallSid'))
+                return '<Response/>'
 
     @route('/twilio/webhook/number', methods=['POST'], type='http', auth='public', csrf=False)
     def number_webhook(self, **kw):

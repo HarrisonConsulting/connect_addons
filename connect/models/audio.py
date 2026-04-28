@@ -878,8 +878,10 @@ class Audio(models.Model):
         ], order='id desc', limit=1)
         if not attachment:
             return False
-        datas = attachment.with_context(bin_size=False).datas
-        return datas if datas and not self._is_bin_size_token(datas) else False
+        raw = attachment.raw
+        if not raw:
+            return False
+        return base64.b64encode(raw).decode('ascii')
 
     @api.model
     def _is_bin_size_token(self, value):
@@ -1577,7 +1579,7 @@ class Audio(models.Model):
             raise ValidationError('Cannot render: attachment_id is empty.')
         att = self.attachment_id
         return {
-            'file': att.datas,
+            'file': base64.b64encode(att.raw).decode('ascii') if att.raw else False,
             'filename': att.name,
             'mimetype': att.mimetype,
         }

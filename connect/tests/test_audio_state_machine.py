@@ -2,8 +2,9 @@
 """Tests for connect.audio state machine and reference reconciliation."""
 
 import base64
+import requests
 import struct
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from odoo.tests import tagged
 from odoo.exceptions import ValidationError
@@ -23,6 +24,22 @@ def _build_pcm16_wav_b64():
         b'data', data_size,
     )
     return base64.b64encode(header + pcm).decode('ascii')
+
+
+class _MockHTTPResponse:
+
+    def __init__(self, status_code=200, headers=None, url='', body=b''):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.url = url
+        self._body = body
+
+    def iter_content(self, chunk_size=8192):
+        for offset in range(0, len(self._body), chunk_size):
+            yield self._body[offset:offset + chunk_size]
+
+    def close(self):
+        return None
 
 
 @tagged('post_install', '-at_install')
@@ -396,6 +413,52 @@ class TestAudioSourceSwitching(ConnectTestCase):
         self.assertEqual(
             utterance.filename,
             'https://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+        )
+
+    def test_external_url_with_tls_error_proxies_audio(self):
+        audio = self.Audio.create({
+            'name': 'External URL proxied',
+            'source': 'external_url',
+            'static_url': 'https://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+        })
+        body = b'ID3' + b'\x00' * 64
+        proxied = _MockHTTPResponse(
+            status_code=200,
+            headers={
+                'Content-Type': 'audio/mpeg',
+                'Content-Length': str(len(body)),
+            },
+            url='https://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+            body=body,
+        )
+
+        with patch('requests.head',
+                   side_effect=requests.exceptions.SSLError('bad cert')), \
+                patch('requests.get', return_value=proxied):
+            utterance = audio.render()
+
+        self.assertEqual(utterance.source_used, 'external_url')
+        self.assertTrue(utterance.file)
+        self.assertEqual(base64.b64decode(utterance.file), body)
+        self.assertEqual(utterance.filename, 'BusyStrings.mp3')
+        self.assertEqual(utterance.mimetype, 'audio/mpeg')
+
+    def test_external_url_get_play_url_uses_rendered_proxy_url(self):
+        audio = self.Audio.create({
+            'name': 'External URL play url',
+            'source': 'external_url',
+            'static_url': 'https://example.com/audio.mp3',
+        })
+        utterance = Mock()
+        utterance.file = 'not-empty'
+        utterance.get_url.return_value = 'https://test.example.com/connect/audio/utterance/99?t=abc'
+
+        with patch.object(type(audio), 'render', return_value=utterance):
+            play_url = audio.get_play_url()
+
+        self.assertEqual(
+            play_url,
+            'https://test.example.com/connect/audio/utterance/99?t=abc',
         )
 
     def test_associated_attachments_include_recording_and_linked_attachment(self):

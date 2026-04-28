@@ -2,6 +2,8 @@
 
 import base64
 import logging
+import mimetypes
+import posixpath
 import re
 import uuid as uuid_lib
 from urllib.parse import urlsplit, quote
@@ -52,6 +54,8 @@ TWILIO_PLAYABLE_MIMETYPES = {
 # carries a matching static cap as a client-side courtesy; the server is the
 # trust boundary.
 DEFAULT_MAX_RECORDING_BYTES = 5 * 1024 * 1024
+DEFAULT_MAX_EXTERNAL_AUDIO_BYTES = 15 * 1024 * 1024
+EXTERNAL_AUDIO_TIMEOUT = (5.0, 20.0)
 
 TOKEN_RE = re.compile(r'\{([a-zA-Z_][a-zA-Z0-9_.]*)\}')
 _BIN_SIZE_RE = re.compile(r'^\s*\d+(?:\.\d+)?\s*(?:[KMGTP]?i?B|[KMGTP]?b)\s*$', re.IGNORECASE)
@@ -893,6 +897,20 @@ class Audio(models.Model):
                     param)
         return DEFAULT_MAX_RECORDING_BYTES
 
+    @api.model
+    def _get_max_external_audio_bytes(self):
+        param = self.env['ir.config_parameter'].sudo().get_param(
+            'connect.audio.max_external_audio_bytes')
+        if param:
+            try:
+                return int(param)
+            except (ValueError, TypeError):
+                logger.warning(
+                    'Invalid ir.config_parameter value for '
+                    'connect.audio.max_external_audio_bytes: %r. Using default.',
+                    param)
+        return DEFAULT_MAX_EXTERNAL_AUDIO_BYTES
+
     def _get_recording_master_value(self):
         """Read recording_file as the newest attachment-backed value that parses as WAV."""
         self.ensure_one()
@@ -1480,6 +1498,11 @@ class Audio(models.Model):
         if self.source == 'record':
             return self._get_or_create_record_utterance(
                 self._record_target_params())
+        if self.source == 'external_url':
+            stale_external = self.utterance_ids.filtered(
+                lambda u: u.source_used == 'external_url' and not u.file)
+            if stale_external:
+                stale_external.unlink()
         stale_other_sources = self.utterance_ids.filtered(
             lambda u: u.source_used and u.source_used != self.source)
         if stale_other_sources:
@@ -1578,12 +1601,33 @@ class Audio(models.Model):
         return {}
 
     def _render_external_url(self, rendered_text, voice):
+        import requests
+
         self.ensure_one()
-        if not self.static_url:
+        normalized = self._normalize_external_url(self.static_url)
+        # Probe the remote to validate reachability and cache its Content-Type.
+        # Fail at render time so operators see misconfigurations immediately
+        # instead of at first-call — and so the cached utterance row carries
+        # the real mimetype for downstream decoding.
+        try:
+            mimetype = self._probe_external_url_mimetype(normalized)
+        except requests.exceptions.SSLError as e:
+            logger.warning(
+                'External URL %r failed TLS validation; proxying via Connect: %s',
+                normalized, e)
+            return self._proxy_external_url(normalized)
+        return {
+            'filename': normalized,
+            'mimetype': mimetype,
+        }
+
+    @api.model
+    def _normalize_external_url(self, url):
+        if not url:
             raise ValidationError('Cannot render: static_url is empty.')
         # Percent-encode the path so spaces/unicode don't trip Twilio's fetcher,
         # while preserving the URL structure (scheme, host, query).
-        parts = urlsplit(self.static_url)
+        parts = urlsplit(url)
         if parts.scheme != 'https':
             raise ValidationError(
                 f'static_url must use https (got {parts.scheme!r}).'
@@ -1592,15 +1636,17 @@ class Audio(models.Model):
         normalized = f'{parts.scheme}://{parts.netloc}{safe_path}'
         if parts.query:
             normalized += f'?{parts.query}'
-        # Probe the remote to validate reachability and cache its Content-Type.
-        # Fail at render time so operators see misconfigurations immediately
-        # instead of at first-call — and so the cached utterance row carries
-        # the real mimetype for downstream decoding.
-        mimetype = self._probe_external_url_mimetype(normalized)
-        return {
-            'filename': normalized,
-            'mimetype': mimetype,
+        return normalized
+
+    @api.model
+    def _canonical_twilio_mimetype(self, content_type):
+        content_type = (content_type or '').split(';', 1)[0].strip().lower()
+        aliases = {
+            'audio/mp3': 'audio/mpeg',
+            'audio/x-wav': 'audio/wav',
+            'audio/wave': 'audio/wav',
         }
+        return aliases.get(content_type, content_type)
 
     @api.model
     def _probe_external_url_mimetype(self, url):
@@ -1614,25 +1660,33 @@ class Audio(models.Model):
         URL Twilio will refuse to play.
         """
         import requests
+        resp = None
         try:
-            resp = requests.head(url, allow_redirects=True, timeout=5.0)
+            resp = requests.head(
+                url, allow_redirects=True, timeout=EXTERNAL_AUDIO_TIMEOUT)
             if resp.status_code == 405:
                 # Some servers reject HEAD; a tiny Range-GET is the standard
                 # fallback and costs one byte.
-                resp = requests.get(url, headers={'Range': 'bytes=0-0'},
-                                    allow_redirects=True, timeout=5.0,
-                                    stream=True)
                 resp.close()
+                resp = requests.get(
+                    url, headers={'Range': 'bytes=0-0'},
+                    allow_redirects=True, timeout=EXTERNAL_AUDIO_TIMEOUT,
+                    stream=True)
             if resp.status_code >= 400:
                 raise ValidationError(
                     f'External audio URL returned HTTP {resp.status_code}. '
                     f'Twilio will fail to play this URL.')
+        except requests.exceptions.SSLError:
+            raise
         except requests.exceptions.RequestException as e:
             raise ValidationError(
                 f'External audio URL is not reachable: '
                 f'{type(e).__name__}: {e}')
-        content_type = resp.headers.get('Content-Type', '').split(
-            ';', 1)[0].strip().lower()
+        finally:
+            if resp is not None:
+                resp.close()
+        content_type = self._canonical_twilio_mimetype(
+            resp.headers.get('Content-Type', ''))
         if not content_type:
             logger.warning(
                 'External URL %r returned no Content-Type; allowing through. '
@@ -1644,6 +1698,90 @@ class Audio(models.Model):
                 f'set Twilio will play: '
                 f'{sorted(TWILIO_PLAYABLE_MIMETYPES)}.')
         return content_type
+
+    @api.model
+    def _proxy_external_url(self, url):
+        import requests
+        import warnings
+        from urllib3.exceptions import InsecureRequestWarning
+
+        resp = None
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', InsecureRequestWarning)
+                resp = requests.get(
+                    url,
+                    allow_redirects=True,
+                    timeout=EXTERNAL_AUDIO_TIMEOUT,
+                    stream=True,
+                    verify=False,
+                )
+            if resp.status_code >= 400:
+                raise ValidationError(
+                    f'External audio URL returned HTTP {resp.status_code}.')
+            max_bytes = self._get_max_external_audio_bytes()
+            content_length = resp.headers.get('Content-Length')
+            if content_length:
+                try:
+                    size = int(content_length)
+                except ValueError:
+                    logger.warning(
+                        'Invalid Content-Length %r while proxying external URL %r.',
+                        content_length, url)
+                else:
+                    if size > max_bytes:
+                        raise ValidationError(
+                            f'External audio URL is too large '
+                            f'({size / 1024 / 1024:.1f} MB). Maximum is '
+                            f'{max_bytes / 1024 / 1024:.1f} MB '
+                            f'(ir.config_parameter connect.audio.max_external_audio_bytes).')
+            mimetype = self._canonical_twilio_mimetype(
+                resp.headers.get('Content-Type', ''))
+            if not mimetype:
+                guessed, _ = mimetypes.guess_type(resp.url or url)
+                mimetype = self._canonical_twilio_mimetype(guessed)
+            if not mimetype:
+                raise ValidationError(
+                    'External audio URL returned no Content-Type and the file '
+                    'extension did not identify a Twilio-playable audio type.')
+            if mimetype not in TWILIO_PLAYABLE_MIMETYPES:
+                raise ValidationError(
+                    f'External audio URL Content-Type {mimetype!r} is not in the '
+                    f'set Twilio will play: {sorted(TWILIO_PLAYABLE_MIMETYPES)}.')
+
+            chunks = []
+            size = 0
+            for chunk in resp.iter_content(chunk_size=8192):
+                if not chunk:
+                    continue
+                size += len(chunk)
+                if size > max_bytes:
+                    raise ValidationError(
+                        f'External audio URL is too large '
+                        f'({size / 1024 / 1024:.1f} MB). Maximum is '
+                        f'{max_bytes / 1024 / 1024:.1f} MB '
+                        f'(ir.config_parameter connect.audio.max_external_audio_bytes).')
+                chunks.append(chunk)
+            if not chunks:
+                raise ValidationError('External audio URL returned an empty body.')
+
+            final_url = resp.url or url
+            filename = posixpath.basename(urlsplit(final_url).path)
+            if not filename:
+                ext = mimetypes.guess_extension(mimetype) or ''
+                filename = f'{uuid_lib.uuid4().hex}{ext}'
+            return {
+                'file': base64.b64encode(b''.join(chunks)).decode('ascii'),
+                'filename': filename,
+                'mimetype': mimetype,
+            }
+        except requests.exceptions.RequestException as e:
+            raise ValidationError(
+                f'External audio URL is not reachable even via proxy fetch: '
+                f'{type(e).__name__}: {e}')
+        finally:
+            if resp is not None:
+                resp.close()
 
     def _render_attachment(self, rendered_text, voice):
         self.ensure_one()
@@ -1703,7 +1841,12 @@ class Audio(models.Model):
         """
         self.ensure_one()
         if self.source == 'external_url':
-            return self.static_url or None
+            utterance = self.render(record=record)
+            if utterance.file:
+                return utterance.get_url()
+            if utterance.source_used == 'external_url':
+                return utterance.filename or None
+            return None
         if self.source in ('record', 'attachment'):
             utterance = self.render(record=record)
             return utterance.get_url()

@@ -281,6 +281,25 @@ class TestAudioSourceSwitching(ConnectTestCase):
 
         self.assertEqual(audio._get_recording_master_value(), wav_b64)
 
+    def test_get_recording_master_value_skips_newer_invalid_attachment(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        audio = self.Audio.create({
+            'name': 'Master read newest valid',
+            'source': 'record',
+            'recording_file': wav_b64,
+        })
+        self.env['ir.attachment'].create({
+            'name': 'recording_file',
+            'type': 'binary',
+            'res_model': 'connect.audio',
+            'res_id': audio.id,
+            'res_field': 'recording_file',
+            'datas': base64.b64encode(b'not-a-wave-file').decode('ascii'),
+            'mimetype': 'application/octet-stream',
+        })
+
+        self.assertEqual(audio._get_recording_master_value(), wav_b64)
+
     def test_record_audio_can_save_after_bin_size_read(self):
         wav_b64 = _build_pcm16_wav_b64()
         audio = self.Audio.create({
@@ -328,6 +347,24 @@ class TestAudioSourceSwitching(ConnectTestCase):
         self.assertEqual(utterance.source_used, 'attachment')
         self.assertEqual(utterance.file, wav_b64)
         self.assertEqual(utterance.mimetype, 'audio/wav')
+
+    def test_associated_attachments_include_recording_and_linked_attachment(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        linked_attachment = self.env['ir.attachment'].create({
+            'name': 'linked.wav',
+            'type': 'binary',
+            'datas': wav_b64,
+            'mimetype': 'audio/wav',
+        })
+        audio = self.Audio.create({
+            'name': 'Attachment visibility',
+            'source': 'record',
+            'recording_file': wav_b64,
+            'attachment_id': linked_attachment.id,
+        })
+
+        self.assertIn(linked_attachment, audio.associated_attachment_ids)
+        self.assertGreaterEqual(audio.associated_attachment_count, 2)
 
     def test_switching_back_to_record_ignores_bin_size_placeholder(self):
         wav_b64 = _build_pcm16_wav_b64()

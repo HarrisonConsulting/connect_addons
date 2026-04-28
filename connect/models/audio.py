@@ -122,10 +122,20 @@ class Audio(models.Model):
     attachment_id = fields.Many2one('ir.attachment',
         domain=[('mimetype', 'like', 'audio/%')],
         help='Internal ir.attachment with audio mimetype (source=attachment).')
+    associated_attachment_ids = fields.Many2many(
+        'ir.attachment', compute='_compute_associated_attachments',
+        string='Associated Attachments', compute_sudo=True,
+        help='All ir.attachment rows tied to this audio, including the hidden '
+             'attachment(s) behind recording_file and any explicitly linked '
+             'attachment_id. Use this to inspect or clean up stale binaries.')
+    associated_attachment_count = fields.Integer(
+        compute='_compute_associated_attachments', compute_sudo=True,
+        string='Attachments',
+        help='Count of ir.attachment rows associated with this audio.')
     recording_file = fields.Binary(attachment=True,
         help='Browser-recorded audio bytes (source=record). Transcoded to '
-             '8 kHz mono μ-law WAV on save so Twilio can stream it to the '
-             'PSTN without live resampling.')
+              '8 kHz mono μ-law WAV on save so Twilio can stream it to the '
+              'PSTN without live resampling.')
     recording_filename = fields.Char(
         help='Browser-supplied filename for the recorded audio. Used as the '
              'Content-Disposition filename when serving to Twilio.')
@@ -241,6 +251,28 @@ class Audio(models.Model):
     def _compute_utterance_count(self):
         for rec in self:
             rec.utterance_count = len(rec.utterance_ids)
+
+    @api.depends('attachment_id')
+    def _compute_associated_attachments(self):
+        Attachment = self.env['ir.attachment'].sudo()
+        audio_ids = self.ids
+        grouped = {audio_id: Attachment.browse() for audio_id in audio_ids}
+        if audio_ids:
+            linked = Attachment.search([
+                ('res_model', '=', self._name),
+                ('res_id', 'in', audio_ids),
+            ])
+            for attachment in linked:
+                grouped[attachment.res_id] |= attachment
+        for rec in self:
+            attachments = grouped.get(rec.id, Attachment.browse())
+            if rec.attachment_id:
+                attachments |= rec.attachment_id.sudo()
+            rec.associated_attachment_ids = attachments.sorted(
+                key=lambda att: (att.create_date or fields.Datetime.now(), att.id),
+                reverse=True,
+            )
+            rec.associated_attachment_count = len(rec.associated_attachment_ids)
 
     @api.depends('reference_ids', 'reference_ids.is_active', 'system_key')
     def _compute_reference_counts(self):
@@ -862,7 +894,7 @@ class Audio(models.Model):
         return DEFAULT_MAX_RECORDING_BYTES
 
     def _get_recording_master_value(self):
-        """Read recording_file as real base64 bytes, never as a bin-size token."""
+        """Read recording_file as the newest attachment-backed value that parses as WAV."""
         self.ensure_one()
         fresh_env = api.Environment(
             self.env.cr, self.env.uid, dict(self.env.context, bin_size=False)
@@ -870,22 +902,37 @@ class Audio(models.Model):
         fresh_self = fresh_env[self._name].browse(self.id)
         value = fresh_self.read(['recording_file'])[0].get('recording_file')
         if value and not self._is_bin_size_token(value):
-            return value
-        attachment = self.env['ir.attachment'].sudo().search([
+            valid = self._validated_recording_b64_or_false(value)
+            if valid:
+                return valid
+        attachments = self.env['ir.attachment'].sudo().search([
             ('res_model', '=', self._name),
             ('res_id', '=', self.id),
             ('res_field', '=', 'recording_file'),
-        ], order='id desc', limit=1)
-        if not attachment:
-            return False
-        raw = attachment.raw
-        if not raw:
-            return False
-        return base64.b64encode(raw).decode('ascii')
+        ], order='id desc')
+        for attachment in attachments:
+            raw = attachment.raw
+            if not raw:
+                continue
+            candidate = base64.b64encode(raw).decode('ascii')
+            valid = self._validated_recording_b64_or_false(candidate)
+            if valid:
+                return valid
+        return False
 
     @api.model
     def _is_bin_size_token(self, value):
         return isinstance(value, str) and bool(_BIN_SIZE_RE.match(value))
+
+    @api.model
+    def _validated_recording_b64_or_false(self, recording_value):
+        if not recording_value or self._is_bin_size_token(recording_value):
+            return False
+        try:
+            self._validate_recording_master(recording_value)
+        except ValidationError:
+            return False
+        return recording_value
 
     @api.model
     def _transcode_recording_for_pstn(self, recording_value):
@@ -1071,6 +1118,21 @@ class Audio(models.Model):
             'context': {
                 'default_audio_id': self.id,
                 'search_default_group_audio': 0,
+            },
+        }
+
+    def action_open_associated_attachments(self):
+        """Open ir.attachment rows associated with this audio."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Attachments for {self.name or self.display_name}',
+            'res_model': 'ir.attachment',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', self.associated_attachment_ids.ids)],
+            'context': {
+                'default_res_model': self._name,
+                'default_res_id': self.id,
             },
         }
 

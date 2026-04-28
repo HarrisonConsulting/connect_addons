@@ -20,6 +20,11 @@
                     name="action_open_references" icon="fa-link">
               <field name="reference_count" widget="statinfo" string="Where Used"/>
             </button>
+            <button class="oe_stat_button" type="object"
+                    name="action_open_associated_attachments" icon="fa-paperclip"
+                    invisible="associated_attachment_count == 0">
+              <field name="associated_attachment_count" widget="statinfo" string="Attachments"/>
+            </button>
           </div>
           <div class="oe_title">
             <label for="name"/>
@@ -122,6 +127,21 @@
                   <field name="source_used"/>
                   <field name="mimetype"/>
                   <field name="preview_audio" widget="html"/>
+                </list>
+              </field>
+            </page>
+            <page string="Attachments" name="attachments"
+                  invisible="associated_attachment_count == 0">
+              <button name="action_open_associated_attachments" type="object"
+                      string="Open Attachments" class="btn-secondary"/>
+              <field name="associated_attachment_ids" nolabel="1" readonly="1">
+                <list>
+                  <field name="name"/>
+                  <field name="res_model"/>
+                  <field name="res_id"/>
+                  <field name="res_field"/>
+                  <field name="mimetype"/>
+                  <field name="create_date"/>
                 </list>
               </field>
             </page>

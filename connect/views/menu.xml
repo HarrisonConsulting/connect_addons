@@ -7,10 +7,6 @@
   <menuitem id="connect_voice_menu" name="Voice"
         parent="connect_top_menu" sequence="100"/>
 
-  <menuitem id="connect_voicemails_menu" name="Voicemails"
-        parent="connect_voice_menu" sequence="120"
-        action="connect.voicemail_action"/>
-
   <menuitem id="connect_messaging_menu" name="Messaging"
         parent="connect_top_menu" sequence="150"/>
 
@@ -22,11 +18,6 @@
 
   <menuitem id="connect_settings_menu" name="Settings"
         sequence="400" parent="connect_top_menu"/>
-
-  <menuitem id="connect_voicemail_stages_menu" name="Voicemail Stages"
-        parent="connect_settings_menu" sequence="80"
-        groups="connect.group_connect_admin"
-        action="connect.voicemail_stage_action"/>
 
   <menuitem id="connect_debug_menu" name="Debug"
       groups="base.group_no_one"

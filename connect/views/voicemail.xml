@@ -186,4 +186,15 @@
         <field name="search_view_id" ref="voicemail_search"/>
     </record>
 
+    <!-- ===================== Menus ===================== -->
+
+    <menuitem id="connect_voicemails_menu" name="Voicemails"
+        parent="connect.connect_voice_menu" sequence="120"
+        action="voicemail_action"/>
+
+    <menuitem id="connect_voicemail_stages_menu" name="Voicemail Stages"
+        parent="connect.connect_settings_menu" sequence="80"
+        groups="connect.group_connect_admin"
+        action="voicemail_stage_action"/>
+
 </odoo>

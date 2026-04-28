@@ -348,6 +348,28 @@ class TestAudioSourceSwitching(ConnectTestCase):
         self.assertEqual(utterance.file, wav_b64)
         self.assertEqual(utterance.mimetype, 'audio/wav')
 
+    def test_switch_to_attachment_invalidates_stale_tts_utterance(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        attachment = self.env['ir.attachment'].create({
+            'name': 'prompt.wav',
+            'type': 'binary',
+            'datas': wav_b64,
+            'mimetype': 'audio/wav',
+        })
+        audio = self.Audio.create({
+            'name': 'Attachment after TTS',
+            'source': 'twilio_tts',
+            'static_text': 'hello from old tts',
+        })
+        old_utterance = audio.render()
+
+        audio.write({'source': 'attachment', 'attachment_id': attachment.id})
+        new_utterance = audio.render()
+
+        self.assertNotEqual(new_utterance.id, old_utterance.id)
+        self.assertEqual(new_utterance.source_used, 'attachment')
+        self.assertEqual(new_utterance.file, wav_b64)
+
     def test_associated_attachments_include_recording_and_linked_attachment(self):
         wav_b64 = _build_pcm16_wav_b64()
         linked_attachment = self.env['ir.attachment'].create({

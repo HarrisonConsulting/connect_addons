@@ -1054,7 +1054,11 @@ class Audio(models.Model):
             vals = dict(vals)
             vals['archived_on'] = False
 
-        master_changing = bool(vals.get('recording_file'))
+        render_inputs_changing = bool({
+            'source', 'static_text', 'static_url', 'attachment_id',
+            'recording_file', 'voice_id', 'use_default_voice',
+            'is_dynamic', 'model_id',
+        } & vals.keys())
 
         # Stamp / clear archived_on and keep active in sync with state
         # transitions that go through the state field directly (e.g. tests or
@@ -1072,10 +1076,12 @@ class Audio(models.Model):
 
         result = super().write(vals)
 
-        # Master changed → invalidate cached μ-law derivatives.
-        if master_changing:
-            stale = self.utterance_ids.filtered(
-                lambda u: u.source_used == 'record')
+        # Any render-affecting change invalidates cached utterances. Without
+        # this, source flips (e.g. twilio_tts -> attachment) can reuse an old
+        # file-less TTS utterance because source_used is not part of the cache
+        # key, causing <Say> fallback instead of <Play>.
+        if render_inputs_changing:
+            stale = self.utterance_ids
             if stale:
                 stale.unlink()
 

@@ -294,6 +294,21 @@ class TestAudioSourceSwitching(ConnectTestCase):
 
         self.assertEqual(audio.description, 'updated after attachment-backed read')
 
+    def test_record_audio_renders_after_bin_size_read(self):
+        wav_b64 = _build_pcm16_wav_b64()
+        audio = self.Audio.create({
+            'name': 'Render after read',
+            'source': 'record',
+            'recording_file': wav_b64,
+        })
+
+        audio.with_context(bin_size=True).read(['recording_file'])
+        utterance = audio.with_context(bin_size=True).render()
+
+        self.assertEqual(utterance.source_used, 'record')
+        self.assertEqual(utterance.mimetype, 'audio/wav')
+        self.assertTrue(utterance.file)
+
     def test_switch_to_record_rejects_invalid_existing_recording_master(self):
         audio = self.Audio.create({
             'name': 'Invalid split write',

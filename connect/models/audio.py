@@ -1309,7 +1309,8 @@ class Audio(models.Model):
             raise ValidationError(
                 f'_get_or_create_record_utterance: audio {self.id} is '
                 f'source={self.source!r}, not record.')
-        if not self.recording_file:
+        master_b64 = self._get_recording_master_value()
+        if not master_b64:
             raise ValidationError('recording_file is empty.')
 
         Utterance = self.env['connect.audio.utterance'].sudo()
@@ -1346,7 +1347,7 @@ class Audio(models.Model):
         rate = target_params.get('target_rate')
         container = target_params.get('target_container', 'wav')
         if codec == 'mulaw' and rate == 8000 and container == 'wav':
-            derived_b64 = self._transcode_recording_for_pstn(self.recording_file)
+            derived_b64 = self._transcode_recording_for_pstn(master_b64)
             mimetype = 'audio/wav'
             filename = f'{uuid_lib.uuid4().hex}.wav'
         else:
@@ -1472,7 +1473,8 @@ class Audio(models.Model):
 
     def _render_record(self, rendered_text, voice):
         self.ensure_one()
-        if not self.recording_file:
+        master_b64 = self._get_recording_master_value()
+        if not master_b64:
             raise ValidationError('Cannot render: recording_file is empty.')
         # By the time we reach this renderer the payload has been transcoded
         # to RIFF-wrapped 8 kHz μ-law WAV (see _transcode_recording_for_pstn).
@@ -1480,7 +1482,7 @@ class Audio(models.Model):
         # audio/webm fallback would produce an unplayable utterance on rows
         # with missing metadata.
         return {
-            'file': self.recording_file,
+            'file': master_b64,
             'filename': self.recording_filename or f'{uuid_lib.uuid4().hex}.wav',
             'mimetype': self.recording_mimetype or 'audio/wav',
         }

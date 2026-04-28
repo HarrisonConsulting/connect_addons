@@ -179,6 +179,7 @@
         <field name="domain">[('call_result', '=', 'voicemail')]</field>
         <field name="context">{'default_direction': 'incoming'}</field>
         <field name="view_ids" eval="[
+            Command.clear(),
             Command.create({'view_mode': 'kanban', 'view_id': ref('voicemail_kanban')}),
             Command.create({'view_mode': 'form', 'view_id': ref('voicemail_form')}),
             Command.create({'view_mode': 'list', 'view_id': ref('connect.connect_call_list')}),

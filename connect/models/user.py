@@ -581,10 +581,24 @@ class User(models.Model):
         """Update current user's telephony presence status. Called from JS on Device/call events."""
         user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
         if user:
-            user.with_context(skip_sync=True, no_clear_cache=True).write({
-                'presence_status': status,
-                'presence_updated': fields.Datetime.now(),
-            })
+            for attempt in range(2):
+                try:
+                    user.with_context(skip_sync=True, no_clear_cache=True).write({
+                        'presence_status': status,
+                        'presence_updated': fields.Datetime.now(),
+                    })
+                    break
+                except SerializationFailure:
+                    self.env.cr.rollback()
+                    if attempt == 0:
+                        logger.info(
+                            'Retrying update_presence after serialization conflict '
+                            'for connect.user %s', user.id)
+                        continue
+                    logger.warning(
+                        'Ignoring update_presence after serialization conflict '
+                        'for connect.user %s', user.id)
+                    return True
             self.env['bus.bus']._sendone(
                 'connect_presence',
                 'presence_update',

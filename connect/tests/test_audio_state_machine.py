@@ -3,6 +3,7 @@
 
 import base64
 import struct
+from unittest.mock import patch
 
 from odoo.tests import tagged
 from odoo.exceptions import ValidationError
@@ -369,6 +370,33 @@ class TestAudioSourceSwitching(ConnectTestCase):
         self.assertNotEqual(new_utterance.id, old_utterance.id)
         self.assertEqual(new_utterance.source_used, 'attachment')
         self.assertEqual(new_utterance.file, wav_b64)
+
+    def test_external_url_render_cleans_up_legacy_tts_utterance(self):
+        audio = self.Audio.create({
+            'name': 'External URL with stale TTS cache',
+            'source': 'external_url',
+            'static_url': 'https://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+        })
+        Utterance = self.env['connect.audio.utterance'].sudo()
+        stale = Utterance.create({
+            'audio_id': audio.id,
+            'voice_id': False,
+            'rendered_text': '',
+            'text_hash': Utterance.hash_text(''),
+            'params_hash': '',
+            'source_used': 'twilio_tts',
+        })
+
+        with patch.object(type(audio), '_probe_external_url_mimetype',
+                          return_value='audio/mpeg'):
+            utterance = audio.render()
+
+        self.assertFalse(stale.exists())
+        self.assertEqual(utterance.source_used, 'external_url')
+        self.assertEqual(
+            utterance.filename,
+            'https://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+        )
 
     def test_associated_attachments_include_recording_and_linked_attachment(self):
         wav_b64 = _build_pcm16_wav_b64()

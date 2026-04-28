@@ -1480,6 +1480,10 @@ class Audio(models.Model):
         if self.source == 'record':
             return self._get_or_create_record_utterance(
                 self._record_target_params())
+        stale_other_sources = self.utterance_ids.filtered(
+            lambda u: u.source_used and u.source_used != self.source)
+        if stale_other_sources:
+            stale_other_sources.unlink()
         Utterance = self.env['connect.audio.utterance'].sudo()
         rendered = self._resolve_template(record)
         voice = self._resolve_voice()

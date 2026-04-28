@@ -55,7 +55,7 @@
                 <field name="voicemail_stage_id"/>
                 <field name="create_date"/>
                 <templates>
-                    <t t-name="kanban-card">
+                    <t t-name="card">
                         <div class="oe_kanban_global_click">
                             <div class="o_kanban_record_top mb-1">
                                 <div class="o_kanban_record_headings">

@@ -54,6 +54,7 @@ TWILIO_PLAYABLE_MIMETYPES = {
 DEFAULT_MAX_RECORDING_BYTES = 5 * 1024 * 1024
 
 TOKEN_RE = re.compile(r'\{([a-zA-Z_][a-zA-Z0-9_.]*)\}')
+_BIN_SIZE_RE = re.compile(r'^\s*\d+(?:\.\d+)?\s*(?:[KMGTP]?i?B|[KMGTP]?b)\s*$', re.IGNORECASE)
 
 # Helpers for migrating legacy Jinja templates ({{user.name}}) to the new
 # {token} syntax. Anything outside the {{<root>.<dotted.path>}} pattern
@@ -868,14 +869,21 @@ class Audio(models.Model):
         )
         fresh_self = fresh_env[self._name].browse(self.id)
         value = fresh_self.read(['recording_file'])[0].get('recording_file')
-        if value:
+        if value and not self._is_bin_size_token(value):
             return value
         attachment = self.env['ir.attachment'].sudo().search([
             ('res_model', '=', self._name),
             ('res_id', '=', self.id),
             ('res_field', '=', 'recording_file'),
         ], order='id desc', limit=1)
-        return attachment.with_context(bin_size=False).datas if attachment else False
+        if not attachment:
+            return False
+        datas = attachment.with_context(bin_size=False).datas
+        return datas if datas and not self._is_bin_size_token(datas) else False
+
+    @api.model
+    def _is_bin_size_token(self, value):
+        return isinstance(value, str) and bool(_BIN_SIZE_RE.match(value))
 
     @api.model
     def _transcode_recording_for_pstn(self, recording_value):
@@ -915,11 +923,15 @@ class Audio(models.Model):
         recording_value = vals.get('recording_file')
         should_validate_recording = False
         if source == 'record':
+            if self._is_bin_size_token(recording_value):
+                recording_value = False
             recording_value = recording_value or (
                 record._get_recording_master_value() if record else False
             )
             should_validate_recording = bool(recording_value)
         elif recording_value:
+            if self._is_bin_size_token(recording_value):
+                recording_value = record._get_recording_master_value() if record else False
             should_validate_recording = (
                 source == 'record' or (record and record.source == 'record')
             )

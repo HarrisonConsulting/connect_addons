@@ -74,7 +74,7 @@
                                     </t>
                                 </div>
                                 <div class="o_kanban_record_top_right">
-                                    <i class="fa fa-envelope-o text-muted"/>
+                                    <i class="fa fa-envelope-o text-muted" title="Voicemail"/>
                                 </div>
                             </div>
                             <div class="o_kanban_record_body">

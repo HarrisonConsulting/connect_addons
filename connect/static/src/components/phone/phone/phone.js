@@ -1694,17 +1694,6 @@ export class Phone extends Component {
     }
 
     async _onClickEndCall(ev) {
-        if (this.state.phone_status === this.status.accepted) {
-            const confirmed = await new Promise(resolve => {
-                this.dialog.add(ConfirmationDialog, {
-                    title: _t("End Call"),
-                    body: _t("Are you sure you want to end this call?"),
-                    confirm: () => resolve(true),
-                    cancel: () => resolve(false),
-                })
-            })
-            if (!confirmed) return
-        }
         if (this.session) {
             this.suppressBroadcastChannel = true
             this.session.disconnect()

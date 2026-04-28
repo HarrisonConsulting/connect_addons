@@ -79,7 +79,10 @@ class Call(models.Model):
     voicemail_attachment_id = fields.Many2one('ir.attachment', string='Voicemail File', ondelete='set null', readonly=True, copy=False)
     voicemail_sid = fields.Char(string='Voicemail SID', readonly=True, copy=False)
     # Voicemail management fields
-    voicemail_stage_id = fields.Many2one('connect.voicemail_stage', string='Stage', index=True, tracking=True, help="")
+    voicemail_stage_id = fields.Many2one(
+        'connect.voicemail_stage', string='Stage', index=True, tracking=True,
+        group_expand='_group_expand_voicemail_stage', help="",
+    )
     voicemail_assignee_ids = fields.Many2many(
         'res.users', 'connect_call_voicemail_assignee_rel', 'call_id', 'user_id',
         string='Assignees', help="Users responsible for handling this voicemail"
@@ -1135,6 +1138,10 @@ class Call(models.Model):
                 except Exception as e:
                     logger.exception('Voicemail stage change notification error: %s', e)
         return res
+
+    @api.model
+    def _group_expand_voicemail_stage(self, stages, domain):
+        return stages.search([])
 
     def action_assign_to_me(self):
         self.ensure_one()

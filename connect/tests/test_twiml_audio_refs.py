@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """TwiML audio() helper + connect.audio.uuid reference graph.
 
-Phase 1 tests: uuid field is auto-generated, unique, immutable (with an
-opt-in context bypass for migrations); Jinja/TwiPy audio('<uuid>') helpers
-resolve via connect.audio.render/play_on and emit inner TwiML verbs; the
+uuid field is auto-generated, unique, immutable (with an opt-in context
+bypass for migrations); Jinja/TwiPy audio('<uuid>') helpers resolve via
+connect.audio.render/play_on and emit inner TwiML verbs; the
 `referenced_audio_ids` M2m on connect.twiml is populated by scanning the
 body so Where-Used and reachability work for TwiML like they do for
 callflows.
@@ -169,8 +169,8 @@ class TestTwimlAudioHelper(ConnectTestCase):
     def test_jinja_helper_unknown_uuid_renders_fallback(self):
         """Unknown UUID routes to fallback.unresolved + logs WARNING.
 
-        Phase 2 replaced the Phase 1 silent miss. Full end-to-end coverage
-        (chatter posts, rate-limit) lives in test_twiml_audio_fallback.
+        Full end-to-end coverage (chatter posts, rate-limit) lives in
+        test_twiml_audio_fallback.
         """
         fake = str(uuid_lib.uuid4())
         body = (

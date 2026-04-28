@@ -430,7 +430,7 @@ class TwiML(models.Model):
         dicts get it for free. A dynamic audio with no record resolves
         to empty Markup + warning (same as an unknown UUID).
 
-        Fallback routing (Phase 2):
+        Fallback routing:
           - unresolved UUID → plays `fallback.unresolved`, logs WARNING
             and posts to THIS twiml's chatter (rate-limited per twiml).
           - live-found-but-archived audio → plays `fallback.archived`,

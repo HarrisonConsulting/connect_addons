@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""TwiML audio() helper fallback routing (Phase 2).
+"""TwiML audio() helper fallback routing.
 
 Covers the three render paths:
   - unknown UUID → fallback.unresolved, chatter on twiml
@@ -22,7 +22,7 @@ from .common import ConnectTestCase
 
 @tagged('post_install', '-at_install')
 class TestTwimlAudioFallback(ConnectTestCase):
-    """Phase 2: audio() helper routes through fallback audios + logs."""
+    """audio() helper routes through fallback audios + logs."""
 
     @classmethod
     def setUpClass(cls):

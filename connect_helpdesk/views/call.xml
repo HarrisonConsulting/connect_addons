@@ -36,6 +36,25 @@
         </field>
     </record>
 
+    <record id="view_ticket_voicemail_form" model="ir.ui.view">
+        <field name="name">view_ticket_voicemail_form</field>
+        <field name="model">connect.call</field>
+        <field name="inherit_id" ref="connect.voicemail_form"/>
+        <field name="arch" type="xml">
+            <button name="action_assign_to_me" position="after">
+                <button string="Ticket" name="create_ticket_button" type="object"
+                    class="btn btn-info" icon="fa-ticket"/>
+            </button>
+            <group name="assignment" position="after">
+                <group string="Ticket" name="ticket_details">
+                    <field name="ticket"/>
+                    <button name="unlink_ticket" type="object" string="Unlink Ticket"
+                        invisible="not ticket" class="btn-link p-0"/>
+                </group>
+            </group>
+        </field>
+    </record>
+
     <record id="view_ticket_call_search" model="ir.ui.view">
         <field name="name">view_ticket_call_search</field>
         <field name="model">connect.call</field>

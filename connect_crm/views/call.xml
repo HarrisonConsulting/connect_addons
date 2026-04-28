@@ -41,6 +41,26 @@
         </field>
     </record>
 
+    <record id="view_lead_voicemail_form" model="ir.ui.view">
+        <field name="name">view_lead_voicemail_form</field>
+        <field name="model">connect.call</field>
+        <field name="inherit_id" ref="connect.voicemail_form"/>
+        <field name="arch" type="xml">
+            <button name="action_assign_to_me" position="after">
+                <button string="Lead" name="create_lead_button" type="object"
+                    class="btn btn-info" icon="fa-money"/>
+            </button>
+            <group name="assignment" position="after">
+                <group string="CRM" name="crm_details">
+                    <field name="lead"/>
+                    <field name="source"/>
+                    <button name="unlink_crm_lead" type="object" string="Unlink Lead"
+                        invisible="not lead" class="btn-link p-0"/>
+                </group>
+            </group>
+        </field>
+    </record>
+
     <record id="view_lead_call_search" model="ir.ui.view">
         <field name="name">view_lead_call_search</field>
         <field name="model">connect.call</field>

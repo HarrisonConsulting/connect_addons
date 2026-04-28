@@ -1125,6 +1125,17 @@ class Call(models.Model):
                 payload,
             )
 
+    def write(self, vals):
+        stage_changing = 'voicemail_stage_id' in vals
+        res = super().write(vals)
+        if stage_changing:
+            for rec in self.filtered('voicemail_url'):
+                try:
+                    rec._notify_voicemail_new()
+                except Exception as e:
+                    logger.exception('Voicemail stage change notification error: %s', e)
+        return res
+
     def action_assign_to_me(self):
         self.ensure_one()
         if self.env.user not in self.voicemail_assignee_ids:

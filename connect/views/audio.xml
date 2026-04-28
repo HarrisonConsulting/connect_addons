@@ -51,9 +51,6 @@
                      required="is_dynamic"/>
             </group>
           </group>
-          <group invisible="not latest_preview_audio">
-            <field name="latest_preview_audio" widget="html" nolabel="1" colspan="2"/>
-          </group>
           <div class="alert alert-info" role="alert"
                invisible="source != 'twilio_tts'">
             Twilio TTS audio is rendered by Twilio at call time, so no inline

@@ -11,7 +11,7 @@ from markupsafe import Markup
 import uuid
 from datetime import timedelta
 from psycopg2 import OperationalError
-from odoo import fields, models, api, SUPERUSER_ID, tools
+from odoo import fields, models, api, SUPERUSER_ID, tools, Command
 from odoo.exceptions import ValidationError
 from twilio.twiml.voice_response import VoiceResponse, Say, Dial, Conference, Client, Number, Sip
 from .settings import debug, HTTP_DOWNLOAD_TIMEOUT
@@ -78,6 +78,12 @@ class Call(models.Model):
     voicemail_widget = fields.Html(compute='_get_voicemail_widget', string='VoiceMail', sanitize=False)
     voicemail_attachment_id = fields.Many2one('ir.attachment', string='Voicemail File', ondelete='set null', readonly=True, copy=False)
     voicemail_sid = fields.Char(string='Voicemail SID', readonly=True, copy=False)
+    # Voicemail management fields
+    voicemail_stage_id = fields.Many2one('connect.voicemail_stage', string='Stage', index=True, tracking=True, help="")
+    voicemail_assignee_ids = fields.Many2many(
+        'res.users', 'connect_call_voicemail_assignee_rel', 'call_id', 'user_id',
+        string='Assignees', help="Users responsible for handling this voicemail"
+    )
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')
     has_error = fields.Boolean(index=True)
@@ -1074,11 +1080,21 @@ class Call(models.Model):
                 'voicemail_duration': int(params.get('RecordingDuration')),
                 'voicemail_sid': params.get('RecordingSid'),
             }
-            # Voicemail was left - update status to 'voicemail'
-            # Only if not already 'answered' (answered takes priority over voicemail)
             if channel.call.status != 'answered':
                 updates['status'] = 'voicemail'
+            # Set initial stage and assignees if not already set
+            if not channel.call.voicemail_stage_id:
+                pending = self.env['connect.voicemail_stage'].sudo().search([], order='sequence asc', limit=1)
+                if pending:
+                    updates['voicemail_stage_id'] = pending.id
+            if not channel.call.voicemail_assignee_ids and channel.call.called_users:
+                updates['voicemail_assignee_ids'] = [Command.set(channel.call.called_users.ids)]
             channel.call.write(updates)
+            # Notify assignees via bus for realtime kanban update
+            try:
+                channel.call._notify_voicemail_new()
+            except Exception as e:
+                logger.exception('Voicemail bus notification error: %s', e)
             # Transfer voicemail to configured storage
             recording_storage = self.env['connect.settings'].sudo().get_param('recording_storage', 'twilio')
             if recording_storage and recording_storage != 'twilio':
@@ -1092,6 +1108,27 @@ class Call(models.Model):
             except Exception as e:
                 logger.exception('Voicemail email error: %s', e)
         return True
+
+    def _notify_voicemail_new(self):
+        self.ensure_one()
+        caller_display = self.partner.name if self.partner else (self.caller or 'Unknown')
+        payload = {
+            'call_id': self.id,
+            'caller': caller_display,
+            'duration': self.voicemail_duration or 0,
+        }
+        recipients = self.voicemail_assignee_ids or self.called_users
+        for user in recipients:
+            self.env['bus.bus']._sendone(
+                'connect_actions_{}'.format(user.id),
+                'voicemail_new',
+                payload,
+            )
+
+    def action_assign_to_me(self):
+        self.ensure_one()
+        if self.env.user not in self.voicemail_assignee_ids:
+            self.voicemail_assignee_ids = [(4, self.env.uid)]
 
     def _store_voicemail_as_attachment(self):
         """Download voicemail from Twilio and store as ir.attachment."""

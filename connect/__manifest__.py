@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.19.3',
+    'version': '1.20.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -34,6 +34,7 @@
         # Data (post-security)
         'data/schedule_data.xml',
         'data/audio.xml',
+        'data/voicemail_stage_data.xml',
         # Views
         'views/menu.xml',
         'views/settings.xml',
@@ -43,6 +44,7 @@
         'views/debug.xml',
         'views/exten.xml',
         'views/call.xml',
+        'views/voicemail.xml',
         'views/call_analytics.xml',
         'views/park_slot.xml',
         'views/schedule.xml',

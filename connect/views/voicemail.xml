@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===================== Voicemail Stage Views ===================== -->
+
+    <record id="voicemail_stage_list" model="ir.ui.view">
+        <field name="name">connect.voicemail_stage.list</field>
+        <field name="model">connect.voicemail_stage</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="fold"/>
+                <field name="color" widget="color_picker"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="voicemail_stage_form" model="ir.ui.view">
+        <field name="name">connect.voicemail_stage.form</field>
+        <field name="model">connect.voicemail_stage</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="sequence"/>
+                        <field name="fold"/>
+                        <field name="color" widget="color_picker"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="voicemail_stage_action" model="ir.actions.act_window">
+        <field name="name">Voicemail Stages</field>
+        <field name="res_model">connect.voicemail_stage</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ===================== Voicemail Kanban + Form ===================== -->
+
+    <record id="voicemail_kanban" model="ir.ui.view">
+        <field name="name">connect.call.voicemail.kanban</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="voicemail_stage_id" quick_create="false"
+                    create="false" delete="false" group_create="false">
+                <field name="id"/>
+                <field name="caller"/>
+                <field name="partner"/>
+                <field name="voicemail_duration"/>
+                <field name="voicemail_assignee_ids"/>
+                <field name="voicemail_stage_id"/>
+                <field name="create_date"/>
+                <templates>
+                    <t t-name="kanban-card">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top mb-1">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <t t-if="record.partner.value">
+                                            <t t-esc="record.partner.value"/>
+                                        </t>
+                                        <t t-else="">
+                                            <t t-esc="record.caller.value || 'Unknown Caller'"/>
+                                        </t>
+                                    </strong>
+                                    <t t-if="record.partner.value and record.caller.value">
+                                        <small class="o_kanban_record_subtitle text-muted">
+                                            <t t-esc="record.caller.value"/>
+                                        </small>
+                                    </t>
+                                </div>
+                                <div class="o_kanban_record_top_right">
+                                    <i class="fa fa-envelope-o text-muted"/>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <t t-if="record.voicemail_duration.value">
+                                    <span class="badge text-bg-secondary">
+                                        <i class="fa fa-clock-o me-1"/>
+                                        <t t-esc="record.voicemail_duration.value"/>s
+                                    </span>
+                                </t>
+                            </div>
+                            <div class="o_kanban_record_footer">
+                                <div class="o_kanban_record_bottom">
+                                    <div class="oe_kanban_bottom_left text-muted small">
+                                        <field name="create_date" widget="date"/>
+                                    </div>
+                                    <div class="oe_kanban_bottom_right">
+                                        <field name="voicemail_assignee_ids" widget="many2many_avatar_user"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="voicemail_form" model="ir.ui.view">
+        <field name="name">connect.call.voicemail.form</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <form create="false">
+                <header>
+                    <button name="action_assign_to_me" string="Assign to Me" type="object"
+                            class="btn-secondary" icon="fa-user-plus"/>
+                    <button name="action_transcribe" string="Transcribe" type="object"
+                            icon="fa-microphone" invisible="not voicemail_url"/>
+                    <field name="voicemail_stage_id" widget="statusbar" options="{'clickable': '1'}"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Voicemail">
+                            <field name="voicemail_widget" widget="html" nolabel="1" colspan="2"/>
+                            <field name="voicemail_duration" string="Duration (s)"/>
+                            <field name="create_date" string="Received"/>
+                        </group>
+                        <group string="Caller">
+                            <field name="caller" widget="phone"/>
+                            <field name="partner"/>
+                            <field name="called" string="Called Number"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Assignment">
+                            <field name="voicemail_stage_id"/>
+                            <field name="voicemail_assignee_ids" widget="many2many_tags"/>
+                        </group>
+                        <group string="Notes">
+                            <field name="summary" widget="html" nolabel="1"/>
+                        </group>
+                    </group>
+                    <group invisible="not transcript">
+                        <field name="transcript" string="Voicemail Transcript" nolabel="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="voicemail_search" model="ir.ui.view">
+        <field name="name">connect.call.voicemail.search</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner"/>
+                <field name="caller"/>
+                <field name="voicemail_assignee_ids" string="Assignee"/>
+                <field name="voicemail_stage_id" string="Stage"/>
+                <filter name="my_voicemails" string="My Voicemails"
+                        domain="[('voicemail_assignee_ids', 'in', [uid])]"/>
+                <filter name="unassigned" string="Unassigned"
+                        domain="[('voicemail_assignee_ids', '=', False)]"/>
+                <separator/>
+                <group>
+                    <filter name="by_stage" string="Stage"
+                            context="{'group_by': 'voicemail_stage_id'}"/>
+                    <filter name="by_assignee" string="Assignee"
+                            context="{'group_by': 'voicemail_assignee_ids'}"/>
+                    <filter name="by_created" string="Date"
+                            context="{'group_by': 'create_date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="voicemail_action" model="ir.actions.act_window">
+        <field name="name">Voicemails</field>
+        <field name="path">connect-voicemails</field>
+        <field name="res_model">connect.call</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('call_result', '=', 'voicemail')]</field>
+        <field name="context">{'default_direction': 'incoming'}</field>
+        <field name="view_ids" eval="[
+            Command.create({'view_mode': 'kanban', 'view_id': ref('voicemail_kanban')}),
+            Command.create({'view_mode': 'form', 'view_id': ref('voicemail_form')}),
+            Command.create({'view_mode': 'list', 'view_id': ref('connect.connect_call_list')}),
+        ]"/>
+        <field name="search_view_id" ref="voicemail_search"/>
+    </record>
+
+</odoo>

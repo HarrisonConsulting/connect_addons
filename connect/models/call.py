@@ -1172,7 +1172,8 @@ class Call(models.Model):
             'duration': self.voicemail_duration or 0,
         }
         recipients = self.voicemail_assignee_ids or self.called_users
-        for user in recipients:
+        # Skip the user who triggered this write — their UI is already up to date.
+        for user in recipients.filtered(lambda u: u.id != self.env.uid):
             self.env['bus.bus']._sendone(
                 'connect_actions_{}'.format(user.id),
                 'voicemail_new',

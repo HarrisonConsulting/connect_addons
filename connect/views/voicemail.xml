@@ -123,20 +123,23 @@
                             </div>
                         </button>
                     </div>
+                    <!-- Player: primary action, shown first -->
+                    <group name="player_area">
+                        <field name="voicemail_widget" widget="html" nolabel="1" colspan="2"/>
+                    </group>
+                    <!-- Caller identity and assignment side by side -->
                     <group>
-                        <group string="Voicemail" name="voicemail_details">
-                            <field name="voicemail_widget" widget="html" nolabel="1" colspan="2"/>
+                        <group string="From" name="caller_details">
+                            <field name="caller" widget="phone" string="Phone"/>
+                            <field name="partner" string="Contact"/>
+                            <field name="called" string="Called Number"/>
                             <field name="voicemail_duration" string="Duration (s)"/>
                             <field name="create_date" string="Received"/>
                         </group>
-                        <group string="Caller" name="caller_details">
-                            <field name="caller" widget="phone"/>
-                            <field name="partner"/>
-                            <field name="called" string="Called Number"/>
+                        <group string="Assigned To" name="assignment">
+                            <field name="voicemail_assignee_ids" widget="many2many_tags"
+                                   nolabel="1" colspan="2"/>
                         </group>
-                    </group>
-                    <group string="Assignment" name="assignment">
-                        <field name="voicemail_assignee_ids" widget="many2many_tags" nolabel="1" colspan="2"/>
                     </group>
                     <group string="Notes" name="notes">
                         <field name="summary" widget="html" nolabel="1" colspan="2"/>
@@ -154,7 +157,7 @@
         <field name="name">connect.call.voicemail.list</field>
         <field name="model">connect.call</field>
         <field name="arch" type="xml">
-            <list create="false" delete="false">
+            <list create="false" delete="false" multi_edit="1">
                 <field name="create_date" string="Received" readonly="1"/>
                 <field name="partner" readonly="1"/>
                 <field name="caller" widget="phone" string="From" readonly="1"/>

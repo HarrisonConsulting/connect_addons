@@ -3,9 +3,11 @@
 import base64
 import json
 import logging
+import os
 import re
 import requests
 import time
+from tempfile import NamedTemporaryFile
 from urllib.parse import urljoin
 from markupsafe import Markup
 import uuid
@@ -88,6 +90,7 @@ class Call(models.Model):
         string='Assignees', domain="[('share', '=', False)]",
         help="Internal users responsible for handling this voicemail"
     )
+    voicemail_transcript = fields.Text(string='Voicemail Transcript', help="")
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')
     has_error = fields.Boolean(index=True)
@@ -238,10 +241,57 @@ class Call(models.Model):
                 rec.voicemail_icon = ''
 
     def action_transcribe(self):
-        """Transcribe call recording. Extended by other modules for voicemail."""
         self.ensure_one()
         if self.recording:
             self.recording.get_transcript()
+        elif self.voicemail_url:
+            self._transcribe_voicemail()
+
+    def _transcribe_voicemail(self):
+        client = self.env['connect.settings'].get_openai_client()
+        if not client:
+            return
+        temp_file_path = None
+        try:
+            if self.voicemail_attachment_id:
+                data = base64.b64decode(self.voicemail_attachment_id.sudo().datas)
+                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                    f.write(data)
+                    temp_file_path = f.name
+            else:
+                account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
+                auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+                response = requests.get(
+                    self.voicemail_url, stream=True,
+                    auth=(account_sid, auth_token),
+                    timeout=HTTP_DOWNLOAD_TIMEOUT)
+                response.raise_for_status()
+                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                    temp_file_path = f.name
+            if not temp_file_path:
+                return
+            with open(temp_file_path, 'rb') as audio_file:
+                result = client.audio.transcriptions.create(
+                    model='whisper-1', file=audio_file, response_format='text')
+            self.voicemail_transcript = result if isinstance(result, str) else str(result)
+        except Exception as e:
+            logger.exception('Voicemail transcription error call id=%s: %s', self.id, e)
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+
+    def action_view_partner(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'res.partner',
+            'res_id': self.partner.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     def action_summarize(self):
         """Generate summary from transcript. Transcribes first if needed."""

@@ -115,6 +115,14 @@
                     <field name="voicemail_stage_id" widget="statusbar" options="{'clickable': '1'}"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" name="action_view_partner" type="object"
+                                icon="fa-user" invisible="not partner">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Partner</span>
+                            </div>
+                        </button>
+                    </div>
                     <group>
                         <group string="Voicemail" name="voicemail_details">
                             <field name="voicemail_widget" widget="html" nolabel="1" colspan="2"/>
@@ -127,17 +135,14 @@
                             <field name="called" string="Called Number"/>
                         </group>
                     </group>
-                    <group>
-                        <group string="Assignment" name="assignment">
-                            <field name="voicemail_stage_id"/>
-                            <field name="voicemail_assignee_ids" widget="many2many_tags"/>
-                        </group>
-                        <group string="Notes" name="notes">
-                            <field name="summary" widget="html" nolabel="1"/>
-                        </group>
+                    <group string="Assignment" name="assignment">
+                        <field name="voicemail_assignee_ids" widget="many2many_tags" nolabel="1" colspan="2"/>
                     </group>
-                    <group invisible="not transcript" name="transcript_group">
-                        <field name="transcript" string="Voicemail Transcript" nolabel="1"/>
+                    <group string="Notes" name="notes">
+                        <field name="summary" widget="html" nolabel="1" colspan="2"/>
+                    </group>
+                    <group invisible="not voicemail_transcript" name="transcript_group">
+                        <field name="voicemail_transcript" nolabel="1" colspan="2"/>
                     </group>
                 </sheet>
                 <chatter/>

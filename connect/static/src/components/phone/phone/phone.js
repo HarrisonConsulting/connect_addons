@@ -1598,10 +1598,12 @@ export class Phone extends Component {
         }
     }
 
-    async _fetchRecordingState() {
+    async _fetchRecordingState(delayMs = 1500) {
         const callSid = this.call_sid
         if (!callSid) return
-        try {
+        // Twilio REST API can lag 1-2s before a newly-started dial-level recording
+        // appears in recordings.list(). Retry once after a brief pause if not found.
+        const query = async () => {
             const result = await this.orm.call('connect.call', 'get_recording_state', [callSid])
             if (result.success) {
                 this.state.isRecording = result.is_recording
@@ -1609,6 +1611,18 @@ export class Phone extends Component {
                 this.state.isConference = result.is_conference
                 this.recording_sid = result.recording_sid || null
                 this.recording_call_sid = result.recording_call_sid || null
+            }
+            return result
+        }
+        try {
+            const first = await query()
+            // If nothing found on the first try, retry once after the delay
+            if (first.success && !first.recording_sid && delayMs > 0) {
+                setTimeout(async () => {
+                    if (this.call_sid === callSid) {  // call may have ended
+                        try { await query() } catch (e) { /* silent */ }
+                    }
+                }, delayMs)
             }
         } catch (e) {
             console.warn('Connect: Could not fetch recording state:', e?.message || e)

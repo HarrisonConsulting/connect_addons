@@ -150,7 +150,6 @@ export class Phone extends Component {
             audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
             isRecording: false,
             isPaused: false,
-            isConference: false,
             recordingLoading: false,
         })
         // Phone dimensions for drag constraints (golden ratio)
@@ -1249,7 +1248,6 @@ export class Phone extends Component {
         this.recording_call_sid = null
         this.state.isRecording = false
         this.state.isPaused = false
-        this.state.isConference = false
         this.state.recordingLoading = false
         this._resetCallQuality()
         this.state.isDisplay = this.state.isDisplayLastState
@@ -1608,7 +1606,6 @@ export class Phone extends Component {
             if (result.success) {
                 this.state.isRecording = result.is_recording
                 this.state.isPaused = result.is_paused
-                this.state.isConference = result.is_conference
                 this.recording_sid = result.recording_sid || null
                 this.recording_call_sid = result.recording_call_sid || null
             }
@@ -1670,37 +1667,6 @@ export class Phone extends Component {
             console.error('Recording toggle error:', e)
             this._setOperationError('Recording operation failed')
             this.notify('Recording operation failed', {type: 'warning'})
-        } finally {
-            this.state.recordingLoading = false
-        }
-    }
-
-    async _onClickStopRecording() {
-        if (this.state.recordingLoading || !this.recording_sid) return
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
-        if (!callSid) return
-        this.state.recordingLoading = true
-        try {
-            const result = await this.orm.call('connect.call', 'toggle_recording', [
-                callSid,
-                this.recording_sid,
-                'stop',
-                this.recording_call_sid || false,
-            ])
-            if (result.success) {
-                this.state.isRecording = false
-                this.state.isPaused = false
-                this.recording_sid = null
-                this.recording_call_sid = null
-                this.notify('Recording stopped', {type: 'info', sticky: false})
-            } else {
-                this._setOperationError(result.error || 'Stop recording failed')
-                this.notify(result.error || 'Stop recording failed', {type: 'warning'})
-            }
-        } catch (e) {
-            console.error('Stop recording error:', e)
-            this._setOperationError('Stop recording failed')
-            this.notify('Stop recording failed', {type: 'warning'})
         } finally {
             this.state.recordingLoading = false
         }

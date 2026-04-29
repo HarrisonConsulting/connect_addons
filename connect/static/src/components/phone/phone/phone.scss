@@ -595,6 +595,19 @@
         font-weight: 600;
       }
 
+      &.is-paused {
+        color: #f59e0b;
+        font-weight: 600;
+
+        .fa-pause {
+          color: #f59e0b;
+        }
+
+        &:hover:not(:disabled) {
+          color: #d97706;
+        }
+      }
+
       &:disabled {
         opacity: 0.6;
         cursor: not-allowed;

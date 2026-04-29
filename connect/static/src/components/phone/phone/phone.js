@@ -149,6 +149,8 @@ export class Phone extends Component {
             audioEnabled: localStorage.getItem('connect_audio_enabled') !== 'false',
             audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
             isRecording: false,
+            isPaused: false,
+            isConference: false,
             recordingLoading: false,
         })
         // Phone dimensions for drag constraints (golden ratio)
@@ -174,7 +176,8 @@ export class Phone extends Component {
         this.userAgent = null
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
-        this.recording_sid = null  // SID of a mid-call recording started by the agent
+        this.recording_sid = null        // SID of the active recording
+        this.recording_call_sid = null   // Call/conf SID that owns the recording (may differ from call_sid)
         this.call_popup_is_enabled = false
         this.call_popup_is_sticky = false
         this.phone_ring_volume = 70
@@ -1007,6 +1010,7 @@ export class Phone extends Component {
                 self._updatePresence('on_call')
                 self._attachQualityMonitor(session)
                 await self.setCallStatus("Answered")
+                self._fetchRecordingState()
             })
             session.on("disconnect", async function (data) {
                 // console.log('incoming -> ended: ', data)
@@ -1196,6 +1200,7 @@ export class Phone extends Component {
             await self.setCallStatus("Answered")
             const params = self.getJsonCallData()
             self.bc.postMessage({event: "tbcAnswerCall", params})
+            self._fetchRecordingState()
         })
         self.session.on("disconnect", async function () {
             // console.log('outgoing -> ended: ', data)
@@ -1241,7 +1246,10 @@ export class Phone extends Component {
         this._updatePresence(this.sipRegistered ? 'available' : 'offline')
         this.call_sid = null
         this.recording_sid = null
+        this.recording_call_sid = null
         this.state.isRecording = false
+        this.state.isPaused = false
+        this.state.isConference = false
         this.state.recordingLoading = false
         this._resetCallQuality()
         this.state.isDisplay = this.state.isDisplayLastState
@@ -1590,6 +1598,23 @@ export class Phone extends Component {
         }
     }
 
+    async _fetchRecordingState() {
+        const callSid = this.call_sid
+        if (!callSid) return
+        try {
+            const result = await this.orm.call('connect.call', 'get_recording_state', [callSid])
+            if (result.success) {
+                this.state.isRecording = result.is_recording
+                this.state.isPaused = result.is_paused
+                this.state.isConference = result.is_conference
+                this.recording_sid = result.recording_sid || null
+                this.recording_call_sid = result.recording_call_sid || null
+            }
+        } catch (e) {
+            console.warn('Connect: Could not fetch recording state:', e?.message || e)
+        }
+    }
+
     async _onClickToggleRecording() {
         if (this.state.recordingLoading) return
         const callSid = this.session?.parameters?.CallSid || this.call_sid
@@ -1597,20 +1622,32 @@ export class Phone extends Component {
             this.notify('No active call', {type: 'warning'})
             return
         }
+        // Cycle: idle→start, recording→pause, paused→resume
+        let action
+        if (!this.recording_sid) {
+            action = 'start'
+        } else if (this.state.isPaused) {
+            action = 'resume'
+        } else {
+            action = 'pause'
+        }
         this.state.recordingLoading = true
         try {
             const result = await this.orm.call('connect.call', 'toggle_recording', [
                 callSid,
                 this.recording_sid || false,
+                action,
+                this.recording_call_sid || false,
             ])
             if (result.success) {
                 this.state.isRecording = result.is_recording
+                this.state.isPaused = result.is_paused
                 this.recording_sid = result.recording_sid || null
-                if (result.is_recording) {
-                    this.notify('Recording started', {type: 'info', sticky: false})
-                } else {
-                    this.notify('Recording stopped', {type: 'info', sticky: false})
-                }
+                this.recording_call_sid = result.recording_call_sid || null
+                const msg = action === 'start' ? 'Recording started'
+                    : action === 'pause' ? 'Recording paused'
+                    : 'Recording resumed'
+                this.notify(msg, {type: 'info', sticky: false})
             } else {
                 this._setOperationError(result.error || 'Recording toggle failed')
                 this.notify(result.error || 'Recording toggle failed', {type: 'warning'})
@@ -1619,6 +1656,37 @@ export class Phone extends Component {
             console.error('Recording toggle error:', e)
             this._setOperationError('Recording operation failed')
             this.notify('Recording operation failed', {type: 'warning'})
+        } finally {
+            this.state.recordingLoading = false
+        }
+    }
+
+    async _onClickStopRecording() {
+        if (this.state.recordingLoading || !this.recording_sid) return
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) return
+        this.state.recordingLoading = true
+        try {
+            const result = await this.orm.call('connect.call', 'toggle_recording', [
+                callSid,
+                this.recording_sid,
+                'stop',
+                this.recording_call_sid || false,
+            ])
+            if (result.success) {
+                this.state.isRecording = false
+                this.state.isPaused = false
+                this.recording_sid = null
+                this.recording_call_sid = null
+                this.notify('Recording stopped', {type: 'info', sticky: false})
+            } else {
+                this._setOperationError(result.error || 'Stop recording failed')
+                this.notify(result.error || 'Stop recording failed', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Stop recording error:', e)
+            this._setOperationError('Stop recording failed')
+            this.notify('Stop recording failed', {type: 'warning'})
         } finally {
             this.state.recordingLoading = false
         }

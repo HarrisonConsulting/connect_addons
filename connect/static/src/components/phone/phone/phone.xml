@@ -250,15 +250,25 @@
                 </div>
                 <!--Recording toolbar - visible only during an active accepted call-->
                 <div t-if="state.phone_status === status.accepted" class="o_dial_panel o_recording_panel">
+                    <!-- Main button: idle→start, recording→pause, paused→resume -->
                     <button
-                        t-attf-class="o_record_toggle {{ state.isRecording ? 'is-recording' : '' }}"
+                        t-attf-class="o_record_toggle {{ state.isRecording ? 'is-recording' : state.isPaused ? 'is-paused' : '' }}"
                         t-att-disabled="state.recordingLoading"
-                        t-attf-title="{{ state.isRecording ? 'Stop recording' : 'Start recording' }}"
+                        t-attf-title="{{ state.isRecording ? 'Pause recording' : state.isPaused ? 'Resume recording' : 'Start recording' }}"
                         t-on-click="_onClickToggleRecording">
                         <span t-if="state.isRecording" class="record-dot"/>
-                        <i t-else="" class="fa fa-circle record-icon-idle"/>
-                        <span t-out="state.isRecording ? 'Recording' : 'Record call'"/>
+                        <i t-elif="state.isPaused" class="fa fa-pause" title="Paused"/>
+                        <i t-else="" class="fa fa-circle record-icon-idle" title="Not recording"/>
+                        <span t-out="state.isRecording ? 'Recording' : state.isPaused ? 'Paused' : 'Record call'"/>
                         <i t-if="state.recordingLoading" class="fa fa-spinner fa-spin"/>
+                    </button>
+                    <!-- Stop button: only for direct calls (conference recordings cannot be stopped) -->
+                    <button t-if="(state.isRecording or state.isPaused) and !state.isConference"
+                            class="o_record_stop"
+                            title="Stop recording"
+                            t-att-disabled="state.recordingLoading"
+                            t-on-click="_onClickStopRecording">
+                        <i class="fa fa-stop" title="Stop recording"/>
                     </button>
                 </div>
                 <!--Optional call buttons-->

@@ -2099,16 +2099,86 @@ class Call(models.Model):
             return {'success': False, 'error': str(e)}
 
     @api.model
-    def toggle_recording(self, call_sid, recording_sid=None):
-        """Start or stop a recording on an active call.
+    def get_recording_state(self, call_sid):
+        """Return live recording state for an active call by querying Twilio.
 
-        Pass recording_sid=None to start; pass the SID to stop.
-        Works for both direct calls and conference calls.
-        Completed recordings still land in connect.recording via the status callback.
+        Checks conference, child leg, and parent leg (record_calls dial-level recordings
+        live on the parent call SID, not the browser client SID).
+        """
+        channel = self.env['connect.channel'].search([('sid', '=', call_sid)], limit=1)
+        if not channel or not channel.call:
+            return {'success': False, 'error': 'Call not found'}
+        call = channel.call
+        connect_user = self.env.user.connect_user
+        can_record = bool(connect_user and connect_user.record_calls)
+        is_conference = bool(call.conference_name)
+        not_recording = {
+            'success': True, 'is_recording': False, 'is_paused': False,
+            'recording_sid': None, 'recording_call_sid': None,
+            'is_conference': is_conference, 'can_record': can_record,
+        }
+        try:
+            client = self.env['connect.settings'].get_client()
+
+            def _find_active(recs):
+                return next((r for r in recs if r.status in ('in-progress', 'paused')), None)
+
+            active = None
+            ctrl_sid = None
+
+            if is_conference:
+                conf_sid = call._ensure_conference_sid(client)
+                if conf_sid:
+                    active = _find_active(client.conferences(conf_sid).recordings.list())
+                    ctrl_sid = conf_sid
+
+            if not active:
+                try:
+                    active = _find_active(client.calls(call_sid).recordings.list())
+                    ctrl_sid = call_sid
+                except Exception:
+                    pass
+
+            if not active and channel.parent_sid:
+                # Auto-recordings via record-from-answer-dual live on the parent leg
+                try:
+                    active = _find_active(client.calls(channel.parent_sid).recordings.list())
+                    ctrl_sid = channel.parent_sid
+                except Exception:
+                    pass
+
+            if not active:
+                return not_recording
+            return {
+                'success': True,
+                'is_recording': active.status == 'in-progress',
+                'is_paused': active.status == 'paused',
+                'recording_sid': active.sid,
+                'recording_call_sid': ctrl_sid,
+                'is_conference': is_conference,
+                'can_record': can_record,
+            }
+        except Exception as e:
+            logger.exception('get_recording_state: Failed for call %s', call_sid)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def toggle_recording(self, call_sid, recording_sid=None, action=None, recording_call_sid=None):
+        """Control recording on an active call.
+
+        action: 'start' | 'pause' | 'resume' | 'stop'
+        recording_sid: SID of the recording to control (required for pause/resume/stop)
+        recording_call_sid: Call or conference SID that owns the recording; needed when
+            the recording lives on a different leg (e.g. parent call for record_calls auto-recordings)
+        Completed recordings land in connect.recording via the status callback.
         """
         call, user_channel, other_channel = self._find_call_channels(call_sid)
         if not call:
             return {'success': False, 'error': 'Call not found'}
+
+        # Legacy callers pass no action — infer from recording_sid presence
+        if action is None:
+            action = 'stop' if recording_sid else 'start'
 
         client = self.env['connect.settings'].get_client()
         api_url = self.env['connect.settings'].sudo().get_param('api_url')
@@ -2117,8 +2187,7 @@ class Call(models.Model):
             api_url.rstrip('/'), edge)
 
         try:
-            if not recording_sid:
-                # Start recording
+            if action == 'start':
                 if call.conference_name:
                     conf_sid = call._ensure_conference_sid(client)
                     if not conf_sid:
@@ -2127,25 +2196,50 @@ class Call(models.Model):
                         recording_status_callback=status_callback,
                         recording_status_callback_event=['completed'],
                     )
+                    ctrl_sid = conf_sid
                 else:
                     recording = client.calls(call_sid).recordings.create(
                         recording_status_callback=status_callback,
                         recording_status_callback_event=['completed'],
                     )
+                    ctrl_sid = call_sid
                 logger.info('toggle_recording: Started %s on call %s', recording.sid, call.id)
-                return {'success': True, 'recording_sid': recording.sid, 'is_recording': True}
+                return {
+                    'success': True, 'recording_sid': recording.sid,
+                    'recording_call_sid': ctrl_sid, 'is_recording': True, 'is_paused': False,
+                }
+
+            # pause / resume / stop
+            if not recording_sid:
+                return {'success': False, 'error': 'recording_sid required'}
+
+            if action == 'stop' and call.conference_name:
+                return {'success': False, 'error': 'Conference recordings cannot be stopped; use pause'}
+
+            status_map = {'pause': 'paused', 'resume': 'in-progress', 'stop': 'stopped'}
+            if action not in status_map:
+                return {'success': False, 'error': 'Unknown action: {}'.format(action)}
+            new_status = status_map[action]
+
+            ctrl_sid = recording_call_sid or call_sid
+            if call.conference_name:
+                conf_sid = call._ensure_conference_sid(client)
+                if not conf_sid:
+                    return {'success': False, 'error': 'Conference SID not available'}
+                client.conferences(conf_sid).recordings(recording_sid).update(status=new_status)
             else:
-                # Stop recording
-                if call.conference_name:
-                    conf_sid = call._ensure_conference_sid(client)
-                    if conf_sid:
-                        client.conferences(conf_sid).recordings(recording_sid).update(status='stopped')
-                    else:
-                        client.calls(call_sid).recordings(recording_sid).update(status='stopped')
-                else:
-                    client.calls(call_sid).recordings(recording_sid).update(status='stopped')
-                logger.info('toggle_recording: Stopped %s on call %s', recording_sid, call.id)
-                return {'success': True, 'recording_sid': None, 'is_recording': False}
+                client.calls(ctrl_sid).recordings(recording_sid).update(status=new_status)
+
+            logger.info('toggle_recording: %s %s on call %s', action, recording_sid, call.id)
+            if action == 'stop':
+                return {'success': True, 'recording_sid': None, 'recording_call_sid': None,
+                        'is_recording': False, 'is_paused': False}
+            elif action == 'pause':
+                return {'success': True, 'recording_sid': recording_sid, 'recording_call_sid': ctrl_sid,
+                        'is_recording': False, 'is_paused': True}
+            else:  # resume
+                return {'success': True, 'recording_sid': recording_sid, 'recording_call_sid': ctrl_sid,
+                        'is_recording': True, 'is_paused': False}
 
         except Exception as e:
             logger.exception('toggle_recording: Failed for call %s', call.id)

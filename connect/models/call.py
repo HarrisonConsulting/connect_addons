@@ -85,7 +85,8 @@ class Call(models.Model):
     )
     voicemail_assignee_ids = fields.Many2many(
         'res.users', 'connect_call_voicemail_assignee_rel', 'call_id', 'user_id',
-        string='Assignees', help="Users responsible for handling this voicemail"
+        string='Assignees', domain="[('share', '=', False)]",
+        help="Internal users responsible for handling this voicemail"
     )
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')

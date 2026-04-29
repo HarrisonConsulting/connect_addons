@@ -69,11 +69,21 @@
                 <page name="calls" string="Calls"
                       invisible="is_registered == False">
                   <group>
-                    <group >
+                    <group>
                       <field name="proxy_recordings"/>
                       <small colspan="2">If you disable it remove the HTTP AUTH in Twilio. Read <a target="new" href="https://help.twilio.com/articles/15827821586843">more</a>.</small>
                       <field name="fetch_call_prices"/>
                       <small colspan="2">Fetch call prices from Twilio API after call completion. This may add delay to call processing.</small>
+                    </group>
+                    <group string="Recording Storage">
+                      <field name="recording_storage"/>
+                      <small colspan="2" invisible="recording_storage == 'twilio'">Recordings are downloaded from Twilio and stored locally on each new call.</small>
+                      <field name="delete_twilio_recording" invisible="recording_storage == 'twilio'"/>
+                      <small colspan="2" invisible="recording_storage == 'twilio' or not delete_twilio_recording">Recordings are permanently deleted from Twilio after local transfer. Ensure your storage is reliable before enabling.</small>
+                    </group>
+                    <group string="Voice">
+                      <field name="default_twilio_voice"
+                             options="{'no_create': True}"/>
                     </group>
                     <group string="Voicemail">
                       <field name="voicemail_max_length"/>
@@ -81,6 +91,15 @@
                     </group>
                     <group>
                       <button colspan="2" name="reformat_numbers_button" string="FORMAT NUMBERS" type="object"/>
+                    </group>
+                  </group>
+                </page>
+                <page name="messaging" string="Messaging"
+                      invisible="is_registered == False">
+                  <group>
+                    <group string="WhatsApp">
+                      <field name="enable_whatsapp"/>
+                      <small colspan="2">When disabled, WhatsApp menu items and action buttons are hidden. Requires a page refresh to take effect.</small>
                     </group>
                   </group>
                 </page>
@@ -116,8 +135,20 @@
                   </group>
                   <group>
                     <group string="Hold Music">
-                      <field name="park_hold_music_url" placeholder="Default: classical music"/>
-                      <small colspan="2">Custom hold music URL. Leave empty for default Twilio classical music.</small>
+                      <field name="park_hold_music_audio_id"
+                             domain="[('state', 'in', ('reviewed', 'live')), ('source', 'in', ('external_url', 'attachment', 'record'))]"
+                             options="{'no_create': True}"/>
+                      <small colspan="2">Audio played to parked callers. Leave empty for default Twilio classical music.</small>
+                      <div class="alert alert-warning" colspan="2" role="alert"
+                           invisible="park_hold_music_audio_id_source != 'twilio_tts'">
+                        <strong>TTS can't be used as hold music.</strong>
+                        Twilio's conference waitUrl requires a media URL, not a
+                        live <code>&lt;Say&gt;</code>. Parked callers will hear
+                        the default classical hold loop instead. Switch to a
+                        Browser Recording, Internal Attachment, or External URL
+                        to take effect.
+                      </div>
+                      <field name="park_hold_music_audio_id_source" invisible="1"/>
                     </group>
                     <group string="Announcements">
                       <field name="park_announcement_enabled"/>

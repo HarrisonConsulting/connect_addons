@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="connect_audio_archive_wizard_form" model="ir.ui.view">
+    <field name="name">connect.audio.archive.wizard.form</field>
+    <field name="model">connect.audio.archive.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Archive Audio">
+        <sheet>
+          <div class="alert alert-warning" role="alert">
+            <strong>Heads up:</strong> this audio is still referenced by
+            records that would route live calls through it. Choose an action
+            for each reference below before archiving.
+          </div>
+          <group>
+            <field name="audio_id" readonly="1"/>
+            <field name="remaining_active_count"
+                   decoration-danger="remaining_active_count > 0"
+                   decoration-success="remaining_active_count == 0"/>
+          </group>
+          <field name="line_ids">
+            <list editable="bottom" create="0" delete="0"
+                  decoration-warning="is_active and not is_reachable"
+                  decoration-success="is_active and is_reachable">
+              <field name="referrer_model_label" string="Where" readonly="1"/>
+              <field name="referrer_name" string="Record" readonly="1"/>
+              <field name="field_name" string="Field" readonly="1"/>
+              <field name="is_active" readonly="1"/>
+              <field name="is_reachable" string="Reachable" readonly="1"/>
+              <field name="action" required="1"/>
+              <field name="replacement_audio_id"
+                     column_invisible="0"
+                     invisible="action != 'swap'"
+                     required="action == 'swap'"
+                     options="{'no_create': True}"/>
+            </list>
+          </field>
+          <div class="text-muted mt-2">
+            <small>
+              <i class="fa fa-info-circle"/>
+              Rows highlighted in <span class="text-warning">amber</span> are
+              active but <em>unreachable</em> — active wiring exists, but no
+              DID or running campaign routes through them. These default to
+              <em>Clear field</em>, which is usually safe.
+            </small>
+          </div>
+        </sheet>
+        <footer>
+          <button name="action_apply_and_archive" type="object"
+                  string="Apply &amp; Archive" class="btn-primary"
+                  invisible="remaining_active_count > 0"/>
+          <button string="Cancel" class="btn-secondary"
+                  special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+</odoo>

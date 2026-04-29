@@ -44,12 +44,21 @@
                     <group>
                         <group>
                             <field name="language" placeholder='en-US'/>
-                            <field name="prompt_message"/>
+                            <field name="prompt_audio_id"
+                                domain="[('state', 'in', ('reviewed', 'live'))]"/>
+                            <field name="prompt_preview" widget="html"
+                                nolabel="1" colspan="2"
+                                invisible="not prompt_preview"/>
                             <field name="gather_input"/>
                             <field name="gather_input_type" invisible="gather_input == False"/>
                             <field name="gather_timeout" invisible="gather_input == False"/>
                             <field name="gather_digits" invisible="gather_input == False"/>
-                            <field name="invalid_input_message" invisible="gather_input == False"/>
+                            <field name="invalid_input_audio_id"
+                                domain="[('state', 'in', ('reviewed', 'live'))]"
+                                invisible="gather_input == False"/>
+                            <field name="invalid_input_preview" widget="html"
+                                nolabel="1" colspan="2"
+                                invisible="gather_input == False or not invalid_input_preview"/>
                             <field name="choices" invisible="gather_input == False">
                                 <list editable="bottom">
                                     <field name="choice_digits" string="Digits"/>
@@ -59,16 +68,16 @@
                             </field>
                         </group>
                         <group>
-                            <div id="see_more" colspan="2">
-                                <small>See available voices <a target="_new" href="https://www.twilio.com/docs/voice/twiml/say/text-speech#available-voices-and-languages">here</a></small>
-                            </div>
-                            <field name="voice" placeholder="man"/>
                             <field name="ring_users" widget="many2many_tags"/>
                             <field name="record_calls"/>
                             <field name="voicemail_enabled"/>
-                            <field name="voicemail_prompt"
+                            <field name="voicemail_audio_id"
+                                domain="[('state', 'in', ('reviewed', 'live'))]"
                                 invisible="not voicemail_enabled"
                                 required="voicemail_enabled"/>
+                            <field name="voicemail_preview" widget="html"
+                                nolabel="1" colspan="2"
+                                invisible="not voicemail_enabled or not voicemail_preview"/>
                             <field name="exten_number"/>
                         </group>
                     </group>
@@ -87,8 +96,12 @@
                                 invisible="schedule_id or not business_hours_enabled"/>
                         </group>
                         <group>
-                            <field name="after_hours_message"
+                            <field name="after_hours_audio_id"
+                                domain="[('state', 'in', ('reviewed', 'live'))]"
                                 invisible="not schedule_id and not business_hours_enabled"/>
+                            <field name="after_hours_preview" widget="html"
+                                nolabel="1" colspan="2"
+                                invisible="(not schedule_id and not business_hours_enabled) or not after_hours_preview"/>
                             <field name="after_hours_voicemail"
                                 invisible="not schedule_id and not business_hours_enabled"/>
                         </group>

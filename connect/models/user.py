@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import json
-import jinja2
 import logging
 import random
 import re
@@ -14,6 +13,7 @@ from odoo.models import Constraint
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
+from .audio_referrer_mixin import SELECTABLE_AUDIO_STATES
 from .settings import format_connect_response, debug, strip_number, TWILIO_EDGES
 from .twiml import pretty_xml
 
@@ -44,10 +44,16 @@ class UserCallflow(models.Model):
 
 class User(models.Model):
     _name = 'connect.user'
-    _inherit = ['connect.tts.mixin']
+    _inherit = ['connect.tts.mixin', 'connect.audio.referrer.mixin']
     _rec_name = 'username'
     _description = 'Connect User'
     _order = 'username'
+
+    _audio_reference_fields = ('greeting_audio_id', 'voicemail_audio_id')
+    _audio_reference_trigger_fields = ('active',)
+    _audio_reachability_fields = (
+        'active', 'greeting_audio_id', 'voicemail_audio_id', 'voicemail_enabled',
+    )
 
     sid = fields.Char('SID', readonly=True)
     callflow = fields.One2many('connect.user_callflow', 'user')
@@ -71,7 +77,13 @@ class User(models.Model):
     voicemail_email_enabled = fields.Boolean(
         string='Voicemail to Email', default=True,
         help='Send voicemail recordings and transcriptions via email')
-    voicemail_prompt = fields.Text(default="Hello, this is {{user.name}}. I'm unable to take your call right now. Please leave a message after the tone.")
+    voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
+        string='Voicemail Prompt Audio',
+        help='Audio played when a caller reaches this user\'s voicemail.')
+    voicemail_preview = fields.Html(
+        related='voicemail_audio_id.latest_utterance_id.preview_audio',
+        string='Voicemail Preview', sanitize=False)
     application = fields.Many2one('connect.twiml')
     sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
     client_ring_timeout = fields.Integer(required=True, default=20, string='Web client ring timeout')
@@ -83,7 +95,14 @@ class User(models.Model):
     missed_calls_notify = fields.Boolean(default=False, help='Notify user on missed calls.')
     call_popup_is_enabled = fields.Boolean(default=True, string='Enable Call Notifications', help='Enable notifications for call events')
     call_popup_is_sticky = fields.Boolean(default=False, string='Sticky Call Notifications', help='Require manual dismissal of call notifications?')
-    greeting_message = fields.Char()
+    greeting_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
+        string='Greeting Audio',
+        help='Audio played to callers on first contact, before ringing this '
+             'user\'s devices.')
+    greeting_preview = fields.Html(
+        related='greeting_audio_id.latest_utterance_id.preview_audio',
+        string='Greeting Preview', sanitize=False)
     summary_prompt = fields.Char()
     twilio_edge = fields.Selection(selection=SIP_TWILIO_EDGES, required=True, default='roaming')
     presence_status = fields.Selection([
@@ -93,6 +112,9 @@ class User(models.Model):
         ('on_hold', 'On Hold'),
     ], string='Presence', default='offline', help='Current telephony presence status')
     presence_updated = fields.Datetime(string='Presence Updated', help='Last presence status change timestamp')
+    active = fields.Boolean(default=True,
+        help='Archived users are excluded from routing and appear with '
+             'inactive_reason="user archived" in the audio Where-Used tab.')
 
     _user_uniq = Constraint('UNIQUE("user")', 'This Odoo user account is already defined!')
     _username_uniq = Constraint('UNIQUE(username)', 'This PBX username is already defined!')
@@ -465,7 +487,7 @@ class User(models.Model):
         # DND: send directly to voicemail
         if self.dnd_enabled:
             response = VoiceResponse()
-            if self.voicemail_enabled and self.voicemail_prompt:
+            if self.voicemail_enabled:
                 self.render_voicemail(response, request, params)
             else:
                 self.tts_system_message(response, 'system.dnd')
@@ -490,7 +512,7 @@ class User(models.Model):
         if call:
             done_callflow_ids = self.env['connect.user_callflow_call'].sudo().search(
                 [('call', '=', call.id)]).mapped('callflow').mapped('id')
-            if not done_callflow_ids and self.greeting_message:
+            if not done_callflow_ids and self.greeting_audio_id:
                 # First attempt. Greet the caller if required.
                 self.get_greeting_message(response)
             next_call_flow = self.env['connect.user_callflow'].sudo().search(
@@ -562,10 +584,24 @@ class User(models.Model):
         """Update current user's telephony presence status. Called from JS on Device/call events."""
         user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
         if user:
-            user.with_context(skip_sync=True, no_clear_cache=True).write({
-                'presence_status': status,
-                'presence_updated': fields.Datetime.now(),
-            })
+            for attempt in range(2):
+                try:
+                    user.with_context(skip_sync=True, no_clear_cache=True).write({
+                        'presence_status': status,
+                        'presence_updated': fields.Datetime.now(),
+                    })
+                    break
+                except SerializationFailure:
+                    self.env.cr.rollback()
+                    if attempt == 0:
+                        logger.info(
+                            'Retrying update_presence after serialization conflict '
+                            'for connect.user %s', user.id)
+                        continue
+                    logger.warning(
+                        'Ignoring update_presence after serialization conflict '
+                        'for connect.user %s', user.id)
+                    return True
             self.env['bus.bus']._sendone(
                 'connect_presence',
                 'presence_update',
@@ -634,16 +670,10 @@ class User(models.Model):
                 edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
                 response.pause(length=1)
-                if user.voicemail_prompt:
-                    personalized_prompt = user.render_voicemail_prompt()
-                    system_voice = self.env['connect.settings'].get_system_voice()
-                    processed_text = self.env['connect.settings'].process_pronunciation(personalized_prompt)
-                    response.say(processed_text, voice=system_voice)
-                else:
-                    generic_prompt = f'{user.name} is not available. Please leave a message.'
-                    system_voice = self.env['connect.settings'].get_system_voice()
-                    processed_text = self.env['connect.settings'].process_pronunciation(generic_prompt)
-                    response.say(processed_text, voice=system_voice)
+                # get_voicemail_prompt plays voicemail_audio_id or falls back
+                # to a generic <Say> so the recording is never preceded by
+                # silence, and pronunciation rules still apply on both paths.
+                user.get_voicemail_prompt(response)
                 vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
                 vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
                 response.record(
@@ -662,21 +692,40 @@ class User(models.Model):
         return response
 
     def get_greeting_message(self, response):
-        # Uses TTS mixin - ElevenLabs overrides with play() when enabled
+        """Play greeting_audio_id on this call leg. Silent no-op when unset —
+        greeting is intentionally optional, unlike voicemail."""
         self.ensure_one()
-        self.tts_say(response, self.greeting_message)
+        # sudo the parent record before traversing the m2o so record rules
+        # on connect.audio don't silently drop the reference to an empty
+        # recordset — matches the sudo pattern on callflow playback.
+        user = self.sudo()
+        if user.greeting_audio_id:
+            try:
+                user.greeting_audio_id.play_on(response, record=user)
+            except Exception as e:
+                logger.error('Greeting audio render failed for user %s: %s', self.id, e)
 
     def get_voicemail_prompt(self, response):
-        self.ensure_one()
-        voicemail_prompt = self.render_voicemail_prompt()
-        self.tts_say(response, voicemail_prompt)
+        """Play voicemail_audio_id or fall back to a generic prompt.
 
-    def render_voicemail_prompt(self):
+        The caller is about to be dropped into a <Record> — silence there
+        confuses real humans. A generic line keeps the recording usable
+        when the operator hasn't picked a per-user audio yet.
+        """
         self.ensure_one()
-        # Render user greeting.
-        environment = jinja2.Environment()
-        template = environment.from_string(self.voicemail_prompt)
-        return template.render({'user': self})
+        user = self.sudo()
+        if user.voicemail_audio_id:
+            try:
+                user.voicemail_audio_id.play_on(response, record=user)
+                return
+            except Exception as e:
+                logger.error('Voicemail audio render failed for user %s: %s', self.id, e)
+        Settings = self.env['connect.settings'].sudo()
+        voice = Settings.get_system_voice()
+        generic = Settings.process_pronunciation(
+            f'{self.name} is not available. '
+            f'Please leave a message after the tone.')
+        response.say(generic, voice=voice)
 
     def _detect_transfer_redirect(self, request, params, call):
         call_sid = request.get('CallSid')

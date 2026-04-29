@@ -80,10 +80,16 @@
                 <field name="twiml"/>
                 <field name="twipy"/>
                 <field name="code_type"/>
+                <!-- Finds TwiMLs whose bodies cite an audio that has since
+                     been archived. Render-time fallback routing will play
+                     fallback.archived in place of the original; this filter
+                     surfaces the cleanup backlog for operators. -->
+                <filter name="references_archived_audio"
+                        string="References Archived Audio"
+                        domain="[('referenced_audio_ids.state', '=', 'archived')]"/>
                 <filter name="by_type" context="{'group_by': 'code_type'}"/>
             </search>
         </field>
     </record>
-
 
 </odoo>

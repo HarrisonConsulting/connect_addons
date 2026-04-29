@@ -93,7 +93,11 @@
                         <page name="callflow" string="CallFlow">
                             <group>
                                 <group>
-                                    <field name="greeting_message"/>
+                                    <field name="greeting_audio_id"
+                                           domain="[('state', 'in', ('reviewed', 'live'))]"/>
+                                    <field name="greeting_preview" widget="html"
+                                           nolabel="1" colspan="2"
+                                           invisible="not greeting_preview"/>
                                     <field name="outgoing_callerid" placeholder="Outgoing CallerId number or empty for the default..."/>
                                     <field name="whatsapp_sender_id"/>
                                     <field name="record_calls"/>
@@ -104,9 +108,13 @@
                                     <field name="voicemail_enabled"/>
                                     <field name="voicemail_email_enabled"
                                            invisible="not voicemail_enabled"/>
-                                    <field name="voicemail_prompt"
+                                    <field name="voicemail_audio_id"
+                                           domain="[('state', 'in', ('reviewed', 'live'))]"
                                            invisible="not voicemail_enabled"
                                            required="voicemail_enabled"/>
+                                    <field name="voicemail_preview" widget="html"
+                                           nolabel="1" colspan="2"
+                                           invisible="not voicemail_enabled or not voicemail_preview"/>
                                     <field name="application"/>
                                 </group>
                             </group>

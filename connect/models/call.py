@@ -1,18 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import json
 import logging
+import os
 import re
+import requests
 import time
+from tempfile import NamedTemporaryFile
 from urllib.parse import urljoin
 from markupsafe import Markup
 import uuid
 from datetime import timedelta
 from psycopg2 import OperationalError
-from odoo import fields, models, api, SUPERUSER_ID, tools
+from odoo import fields, models, api, SUPERUSER_ID, tools, Command
 from odoo.exceptions import ValidationError
 from twilio.twiml.voice_response import VoiceResponse, Say, Dial, Conference, Client, Number, Sip
-from .settings import debug
+from .settings import debug, HTTP_DOWNLOAD_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +78,19 @@ class Call(models.Model):
     voicemail_duration = fields.Integer(readonly=True)
     voicemail_icon = fields.Html(compute='_get_voicemail_icon', string='V', store=True)
     voicemail_widget = fields.Html(compute='_get_voicemail_widget', string='VoiceMail', sanitize=False)
+    voicemail_attachment_id = fields.Many2one('ir.attachment', string='Voicemail File', ondelete='set null', readonly=True, copy=False)
+    voicemail_sid = fields.Char(string='Voicemail SID', readonly=True, copy=False)
+    # Voicemail management fields
+    voicemail_stage_id = fields.Many2one(
+        'connect.voicemail_stage', string='Stage', index=True, tracking=True,
+        group_expand='_group_expand_voicemail_stage', help="",
+    )
+    voicemail_assignee_ids = fields.Many2many(
+        'res.users', 'connect_call_voicemail_assignee_rel', 'call_id', 'user_id',
+        string='Assignees', domain="[('share', '=', False)]",
+        help="Internal users responsible for handling this voicemail"
+    )
+    voicemail_transcript = fields.Text(string='Voicemail Transcript', help="")
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')
     has_error = fields.Boolean(index=True)
@@ -203,17 +220,17 @@ class Call(models.Model):
     def _get_voicemail_widget(self):
         proxy_recordings = self.env['connect.settings'].sudo().get_param('proxy_recordings')
         for rec in self:
-            if rec.voicemail_url:
-                if proxy_recordings:
-                    media_url = '/connect/voicemail/{}'.format(rec.id)
-                else:
-                    media_url = rec.voicemail_url
-                rec.voicemail_widget = '<audio id="sound_file" preload="auto" ' \
-                    'controls="controls"> ' \
-                    '<source src="{}"/>' \
-                    '</audio>'.format(media_url)
+            if rec.voicemail_attachment_id:
+                src = '/web/content/{}?download=false'.format(rec.voicemail_attachment_id.id)
+            elif rec.voicemail_url:
+                src = '/connect/voicemail/{}'.format(rec.id) if proxy_recordings else rec.voicemail_url
             else:
                 rec.voicemail_widget = ''
+                continue
+            rec.voicemail_widget = (
+                '<audio id="sound_file" preload="auto" controls="controls">'
+                '<source src="{}"/></audio>'.format(src)
+            )
 
     @api.depends('voicemail_url')
     def _get_voicemail_icon(self):
@@ -224,10 +241,57 @@ class Call(models.Model):
                 rec.voicemail_icon = ''
 
     def action_transcribe(self):
-        """Transcribe call recording. Extended by other modules for voicemail."""
         self.ensure_one()
         if self.recording:
             self.recording.get_transcript()
+        elif self.voicemail_url:
+            self._transcribe_voicemail()
+
+    def _transcribe_voicemail(self):
+        client = self.env['connect.settings'].get_openai_client()
+        if not client:
+            return
+        temp_file_path = None
+        try:
+            if self.voicemail_attachment_id:
+                data = base64.b64decode(self.voicemail_attachment_id.sudo().datas)
+                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                    f.write(data)
+                    temp_file_path = f.name
+            else:
+                account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
+                auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+                response = requests.get(
+                    self.voicemail_url, stream=True,
+                    auth=(account_sid, auth_token),
+                    timeout=HTTP_DOWNLOAD_TIMEOUT)
+                response.raise_for_status()
+                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                    temp_file_path = f.name
+            if not temp_file_path:
+                return
+            with open(temp_file_path, 'rb') as audio_file:
+                result = client.audio.transcriptions.create(
+                    model='whisper-1', file=audio_file, response_format='text')
+            self.voicemail_transcript = result if isinstance(result, str) else str(result)
+        except Exception as e:
+            logger.exception('Voicemail transcription error call id=%s: %s', self.id, e)
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+
+    def action_view_partner(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'res.partner',
+            'res_id': self.partner.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     def action_summarize(self):
         """Generate summary from transcript. Transcribes first if needed."""
@@ -1067,19 +1131,112 @@ class Call(models.Model):
         if channel and channel.call:
             updates = {
                 'voicemail_url': params.get('RecordingUrl'),
-                'voicemail_duration': int(params.get('RecordingDuration'))
+                'voicemail_duration': int(params.get('RecordingDuration')),
+                'voicemail_sid': params.get('RecordingSid'),
             }
-            # Voicemail was left - update status to 'voicemail'
-            # Only if not already 'answered' (answered takes priority over voicemail)
             if channel.call.status != 'answered':
                 updates['status'] = 'voicemail'
+            # Set initial stage and assignees if not already set
+            if not channel.call.voicemail_stage_id:
+                pending = self.env['connect.voicemail_stage'].sudo().search([], order='sequence asc', limit=1)
+                if pending:
+                    updates['voicemail_stage_id'] = pending.id
+            if not channel.call.voicemail_assignee_ids and channel.call.called_users:
+                updates['voicemail_assignee_ids'] = [Command.set(channel.call.called_users.ids)]
             channel.call.write(updates)
+            # Notify assignees via bus for realtime kanban update
+            try:
+                channel.call._notify_voicemail_new()
+            except Exception as e:
+                logger.exception('Voicemail bus notification error: %s', e)
+            # Transfer voicemail to configured storage
+            recording_storage = self.env['connect.settings'].sudo().get_param('recording_storage', 'twilio')
+            if recording_storage and recording_storage != 'twilio':
+                try:
+                    channel.call._store_voicemail_as_attachment()
+                except Exception as e:
+                    logger.exception('Voicemail storage error: %s', e)
             # Send voicemail notification email
             try:
                 channel.call._send_voicemail_email()
             except Exception as e:
                 logger.exception('Voicemail email error: %s', e)
         return True
+
+    def _notify_voicemail_new(self):
+        self.ensure_one()
+        caller_display = self.partner.name if self.partner else (self.caller or 'Unknown')
+        payload = {
+            'call_id': self.id,
+            'caller': caller_display,
+            'duration': self.voicemail_duration or 0,
+        }
+        recipients = self.voicemail_assignee_ids or self.called_users
+        # Skip the user who triggered this write — their UI is already up to date.
+        for user in recipients.filtered(lambda u: u.id != self.env.uid):
+            self.env['bus.bus']._sendone(
+                'connect_actions_{}'.format(user.id),
+                'voicemail_new',
+                payload,
+            )
+
+    def write(self, vals):
+        stage_changing = 'voicemail_stage_id' in vals
+        res = super().write(vals)
+        if stage_changing:
+            for rec in self.filtered('voicemail_url'):
+                try:
+                    rec._notify_voicemail_new()
+                except Exception as e:
+                    logger.exception('Voicemail stage change notification error: %s', e)
+        return res
+
+    @api.model
+    def _group_expand_voicemail_stage(self, stages, domain):
+        return stages.search([])
+
+    def action_assign_to_me(self):
+        self.ensure_one()
+        if self.env.user not in self.voicemail_assignee_ids:
+            self.voicemail_assignee_ids = [(4, self.env.uid)]
+
+    def _store_voicemail_as_attachment(self):
+        """Download voicemail from Twilio and store as ir.attachment."""
+        self.ensure_one()
+        if not self.voicemail_url:
+            return
+        settings = self.env['connect.settings'].sudo()
+        account_sid = settings.get_param('account_sid')
+        auth_token = settings.get_param('auth_token')
+        response = requests.get(
+            self.voicemail_url, auth=(account_sid, auth_token),
+            timeout=HTTP_DOWNLOAD_TIMEOUT
+        )
+        response.raise_for_status()
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'voicemail_{}.mp3'.format(self.voicemail_sid or self.id),
+            'datas': base64.b64encode(response.content).decode(),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'audio/mpeg',
+        })
+        self.write({'voicemail_attachment_id': attachment.id})
+        if settings.get_param('delete_twilio_recording') and self.voicemail_sid:
+            try:
+                client = self.env['connect.settings'].get_client()
+                if client:
+                    client.recordings(self.voicemail_sid).delete()
+                    logger.info('Deleted voicemail %s from Twilio', self.voicemail_sid)
+            except Exception as e:
+                logger.error('Failed to delete voicemail %s from Twilio: %s', self.voicemail_sid, e)
+        return attachment
+
+    def _get_voicemail_listen_url(self):
+        """Return URL to include in voicemail notification emails. Override for custom storage."""
+        self.ensure_one()
+        if self.voicemail_attachment_id:
+            return '/web/content/{}?download=false'.format(self.voicemail_attachment_id.id)
+        return self.voicemail_url
 
     def _send_voicemail_email(self):
         """Send voicemail notification email to the intended recipient."""
@@ -1128,9 +1285,9 @@ class Call(models.Model):
                 body_html += '<p><strong>Transcription:</strong></p><p>{}</p>'.format(
                     transcript_text)
 
-            if self.voicemail_url:
-                body_html += '<p><a href="{}">Listen to voicemail</a></p>'.format(
-                    self.voicemail_url)
+            listen_url = self._get_voicemail_listen_url()
+            if listen_url:
+                body_html += '<p><a href="{}">Listen to voicemail</a></p>'.format(listen_url)
 
             mail_values = {
                 'subject': subject,
@@ -1939,6 +2096,59 @@ class Call(models.Model):
 
         except Exception as e:
             logger.exception('resume_call: Failed for call %s', call.id)
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def toggle_recording(self, call_sid, recording_sid=None):
+        """Start or stop a recording on an active call.
+
+        Pass recording_sid=None to start; pass the SID to stop.
+        Works for both direct calls and conference calls.
+        Completed recordings still land in connect.recording via the status callback.
+        """
+        call, user_channel, other_channel = self._find_call_channels(call_sid)
+        if not call:
+            return {'success': False, 'error': 'Call not found'}
+
+        client = self.env['connect.settings'].get_client()
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+        status_callback = '{}/twilio/webhook/recordingstatus#e={}'.format(
+            api_url.rstrip('/'), edge)
+
+        try:
+            if not recording_sid:
+                # Start recording
+                if call.conference_name:
+                    conf_sid = call._ensure_conference_sid(client)
+                    if not conf_sid:
+                        return {'success': False, 'error': 'Conference SID not available'}
+                    recording = client.conferences(conf_sid).recordings.create(
+                        recording_status_callback=status_callback,
+                        recording_status_callback_event=['completed'],
+                    )
+                else:
+                    recording = client.calls(call_sid).recordings.create(
+                        recording_status_callback=status_callback,
+                        recording_status_callback_event=['completed'],
+                    )
+                logger.info('toggle_recording: Started %s on call %s', recording.sid, call.id)
+                return {'success': True, 'recording_sid': recording.sid, 'is_recording': True}
+            else:
+                # Stop recording
+                if call.conference_name:
+                    conf_sid = call._ensure_conference_sid(client)
+                    if conf_sid:
+                        client.conferences(conf_sid).recordings(recording_sid).update(status='stopped')
+                    else:
+                        client.calls(call_sid).recordings(recording_sid).update(status='stopped')
+                else:
+                    client.calls(call_sid).recordings(recording_sid).update(status='stopped')
+                logger.info('toggle_recording: Stopped %s on call %s', recording_sid, call.id)
+                return {'success': True, 'recording_sid': None, 'is_recording': False}
+
+        except Exception as e:
+            logger.exception('toggle_recording: Failed for call %s', call.id)
             return {'success': False, 'error': str(e)}
 
     @api.model

@@ -2,6 +2,7 @@
 
 import {_t} from "@web/core/l10n/translation"
 import {registry} from "@web/core/registry"
+import {session} from "@web/session"
 
 export const messageActionsRegistry = registry.category("mail.message/actions")
 
@@ -43,7 +44,7 @@ messageActionsRegistry
         sequence: 120,
     })
     .add("whatsapp-reply", {
-        condition: (component) => component.message.message_type !== null,
+        condition: (component) => component.message.message_type !== null && session.connect_enable_whatsapp !== false,
         icon: "fa fa-whatsapp",
         title: _t("WhatsApp Reply"),
         onClick: async (component) => {

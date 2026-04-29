@@ -64,7 +64,7 @@ class Settings(models.Model):
 
             channel = self.env['connect.channel'].sudo().create({
                 'sid': channel.sid,
-                'technical_direction': 'outboubd-api',
+                'technical_direction': 'outbound-api',
                 'caller_user': user.id,
                 'caller_pbx_user': user.connect_user.id,
                 'partner': partner.id,

@@ -3,6 +3,7 @@
 
 from unittest.mock import patch, MagicMock
 
+from psycopg2.errors import SerializationFailure
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from .common import ConnectTestCase
@@ -360,11 +361,16 @@ class TestUserRender(ConnectTestCase):
 
     def test_dnd_routes_to_voicemail(self):
         """User with DND enabled routes calls to voicemail."""
+        voicemail_audio = self.env['connect.audio'].create({
+            'name': 'DND voicemail',
+            'source': 'twilio_tts',
+            'static_text': 'Leave a message for DND user.',
+        })
         user = self._create_user(
             username='dnduser',
             dnd_enabled=True,
             voicemail_enabled=True,
-            voicemail_prompt='Leave a message for DND user.',
+            voicemail_audio_id=voicemail_audio.id,
         )
         with patch.object(
             self.env['connect.settings'].__class__, 'get_param',
@@ -474,6 +480,26 @@ class TestUserPresence(ConnectTestCase):
             self.env['connect.user'].update_presence('available')
             self.connect_user.invalidate_recordset(['presence_updated'])
             self.assertTrue(self.connect_user.presence_updated)
+
+    def test_update_presence_retries_serialization_conflict(self):
+        """Presence update retries once on serialization failure."""
+        original_write = type(self.connect_user).write
+        calls = {'count': 0}
+
+        def flaky_write(recordset, vals):
+            calls['count'] += 1
+            if calls['count'] == 1:
+                raise SerializationFailure()
+            return original_write(recordset, vals)
+
+        with patch.object(self.env['bus.bus'].__class__, '_sendone'), \
+                patch.object(type(self.connect_user), 'write', autospec=True,
+                             side_effect=flaky_write):
+            self.env['connect.user'].update_presence('available')
+
+        self.connect_user.invalidate_recordset(['presence_status'])
+        self.assertEqual(calls['count'], 2)
+        self.assertEqual(self.connect_user.presence_status, 'available')
 
     def test_get_all_presence(self):
         """get_all_presence returns list with expected fields."""

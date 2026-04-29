@@ -148,6 +148,8 @@ export class Phone extends Component {
             isAudioSettings: false,
             audioEnabled: localStorage.getItem('connect_audio_enabled') !== 'false',
             audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
+            isRecording: false,
+            recordingLoading: false,
         })
         // Phone dimensions for drag constraints (golden ratio)
         this.phoneWidth = 300
@@ -172,6 +174,7 @@ export class Phone extends Component {
         this.userAgent = null
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
+        this.recording_sid = null  // SID of a mid-call recording started by the agent
         this.call_popup_is_enabled = false
         this.call_popup_is_sticky = false
         this.phone_ring_volume = 70
@@ -1236,7 +1239,10 @@ export class Phone extends Component {
 
     async endCall() {
         this._updatePresence(this.sipRegistered ? 'available' : 'offline')
-        this.call_sid = null  // Clear call SID
+        this.call_sid = null
+        this.recording_sid = null
+        this.state.isRecording = false
+        this.state.recordingLoading = false
         this._resetCallQuality()
         this.state.isDisplay = this.state.isDisplayLastState
         this.state.isContactList = false
@@ -1584,6 +1590,40 @@ export class Phone extends Component {
         }
     }
 
+    async _onClickToggleRecording() {
+        if (this.state.recordingLoading) return
+        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        this.state.recordingLoading = true
+        try {
+            const result = await this.orm.call('connect.call', 'toggle_recording', [
+                callSid,
+                this.recording_sid || false,
+            ])
+            if (result.success) {
+                this.state.isRecording = result.is_recording
+                this.recording_sid = result.recording_sid || null
+                if (result.is_recording) {
+                    this.notify('Recording started', {type: 'info', sticky: false})
+                } else {
+                    this.notify('Recording stopped', {type: 'info', sticky: false})
+                }
+            } else {
+                this._setOperationError(result.error || 'Recording toggle failed')
+                this.notify(result.error || 'Recording toggle failed', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Recording toggle error:', e)
+            this._setOperationError('Recording operation failed')
+            this.notify('Recording operation failed', {type: 'warning'})
+        } finally {
+            this.state.recordingLoading = false
+        }
+    }
+
     _onClickTransfer(ev) {
         if (this.state.isTransfer) return
         this.state.isAddParticipant = false
@@ -1654,17 +1694,6 @@ export class Phone extends Component {
     }
 
     async _onClickEndCall(ev) {
-        if (this.state.phone_status === this.status.accepted) {
-            const confirmed = await new Promise(resolve => {
-                this.dialog.add(ConfirmationDialog, {
-                    title: _t("End Call"),
-                    body: _t("Are you sure you want to end this call?"),
-                    confirm: () => resolve(true),
-                    cancel: () => resolve(false),
-                })
-            })
-            if (!confirmed) return
-        }
         if (this.session) {
             this.suppressBroadcastChannel = true
             this.session.disconnect()

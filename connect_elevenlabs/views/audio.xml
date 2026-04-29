@@ -1,0 +1,30 @@
+<odoo>
+
+  <!-- Re-extend the audio form's TTS-gated UI with elevenlabs_tts. Base
+       connect only knows about twilio_tts; installing this module adds
+       elevenlabs_tts both to the source selection (via selection_add on
+       the model) and to these visibility predicates. -->
+  <record id="connect_audio_form_elevenlabs" model="ir.ui.view">
+    <field name="name">connect.audio.form.elevenlabs</field>
+    <field name="model">connect.audio</field>
+    <field name="inherit_id" ref="connect.connect_audio_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='use_default_voice']" position="attributes">
+        <attribute name="invisible">source not in ('twilio_tts', 'elevenlabs_tts')</attribute>
+      </xpath>
+      <xpath expr="//field[@name='resolved_voice_id']" position="attributes">
+        <attribute name="invisible">source not in ('twilio_tts', 'elevenlabs_tts') or not use_default_voice</attribute>
+      </xpath>
+      <xpath expr="//field[@name='voice_id']" position="attributes">
+        <attribute name="invisible">source not in ('twilio_tts', 'elevenlabs_tts') or use_default_voice</attribute>
+      </xpath>
+      <xpath expr="//field[@name='is_dynamic']" position="attributes">
+        <attribute name="invisible">source not in ('twilio_tts', 'elevenlabs_tts')</attribute>
+      </xpath>
+      <xpath expr="//group[field[@name='static_text']]" position="attributes">
+        <attribute name="invisible">source not in ('twilio_tts', 'elevenlabs_tts')</attribute>
+      </xpath>
+    </field>
+  </record>
+
+</odoo>

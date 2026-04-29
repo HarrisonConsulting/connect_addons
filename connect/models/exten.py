@@ -11,9 +11,12 @@ logger = logging.getLogger(__name__)
 
 class Exten(models.Model):
     _name = 'connect.exten'
-    _inherit = ['connect.tts.mixin']
+    _inherit = ['connect.tts.mixin', 'connect.audio.referrer.mixin']
     _description = 'Exten'
     _order = 'number'
+
+    # Polymorphic destination pointer — model + res_id together define the edge.
+    _audio_reachability_fields = ('model', 'res_id')
 
     name = fields.Char(compute='_get_name', copy=False)
     number = fields.Char('Extension Number', required=True, copy=False)

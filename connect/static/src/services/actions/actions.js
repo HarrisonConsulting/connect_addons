@@ -21,6 +21,7 @@ export const pbxActionService = {
         bus_service.addChannel('connect_presence')
         bus_service.subscribe("connect_notify", (action) => this.connect_handle_notify(action))
         bus_service.subscribe("reload_view", (action) => this.connect_handle_reload_view(action))
+        bus_service.subscribe("voicemail_new", (payload) => this.connect_handle_voicemail_new(payload))
     },
 
     connect_handle_reload_view: function (message) {
@@ -36,6 +37,14 @@ export const pbxActionService = {
             this.notification.add(markup(message), {title, sticky, type: 'danger'})
         else
             this.notification.add(markup(message), {title, sticky, type: 'info'})
+    },
+
+    connect_handle_voicemail_new: function(payload) {
+        if (!this.action || !this.action.currentController) return
+        const action = this.action.currentController.action
+        if (action.res_model === 'connect.call') {
+            routerBus.trigger("ROUTE_CHANGE")
+        }
     },
 }
 

@@ -20,13 +20,23 @@ class TestCallflowCRUD(ConnectTestCase):
         self.assertTrue(callflow.id)
         self.assertEqual(callflow.name, 'Main IVR')
         self.assertEqual(callflow.language, 'en-US')
-        self.assertEqual(callflow.voice, 'man')
         self.assertFalse(callflow.gather_input)
         self.assertFalse(callflow.voicemail_enabled)
         self.assertFalse(callflow.business_hours_enabled)
 
     def test_callflow_create_with_gather(self):
         """Create a callflow with gather input settings."""
+        Audio = self.env['connect.audio']
+        prompt = Audio.create({
+            'name': 'Gather prompt',
+            'source': 'twilio_tts',
+            'static_text': 'Press 1 for sales, 2 for support.',
+        })
+        invalid = Audio.create({
+            'name': 'Gather invalid',
+            'source': 'twilio_tts',
+            'static_text': 'Invalid selection. Try again.',
+        })
         callflow = self.env['connect.callflow'].create({
             'name': 'Gather Flow',
             'gather_input': True,
@@ -34,43 +44,53 @@ class TestCallflowCRUD(ConnectTestCase):
             'gather_timeout': 10,
             'gather_digits': 3,
             'gather_hints': 'sales, support, billing',
-            'prompt_message': 'Press 1 for sales, 2 for support.',
-            'invalid_input_message': 'Invalid selection. Try again.',
+            'prompt_audio_id': prompt.id,
+            'invalid_input_audio_id': invalid.id,
         })
         self.assertTrue(callflow.gather_input)
         self.assertEqual(callflow.gather_input_type, 'dtmf')
         self.assertEqual(callflow.gather_timeout, 10)
         self.assertEqual(callflow.gather_digits, 3)
         self.assertEqual(callflow.gather_hints, 'sales, support, billing')
-        self.assertIn('Press 1', callflow.prompt_message)
-        self.assertIn('Invalid selection', callflow.invalid_input_message)
+        self.assertEqual(callflow.prompt_audio_id, prompt)
+        self.assertEqual(callflow.invalid_input_audio_id, invalid)
 
     def test_callflow_create_with_voicemail(self):
         """Create a callflow with voicemail settings."""
+        vm_audio = self.env['connect.audio'].create({
+            'name': 'Voicemail greeting',
+            'source': 'twilio_tts',
+            'static_text': 'Leave a message after the tone.',
+        })
         callflow = self.env['connect.callflow'].create({
             'name': 'Voicemail Flow',
             'voicemail_enabled': True,
-            'voicemail_prompt': 'Leave a message after the tone.',
+            'voicemail_audio_id': vm_audio.id,
         })
         self.assertTrue(callflow.voicemail_enabled)
-        self.assertEqual(callflow.voicemail_prompt, 'Leave a message after the tone.')
+        self.assertEqual(callflow.voicemail_audio_id, vm_audio)
 
     def test_callflow_create_with_business_hours(self):
         """Create a callflow with business hours configuration."""
+        after_hours_audio = self.env['connect.audio'].create({
+            'name': 'Business hours closed',
+            'source': 'twilio_tts',
+            'static_text': 'We are closed. Call back tomorrow.',
+        })
         callflow = self.env['connect.callflow'].create({
             'name': 'Business Hours Flow',
             'business_hours_enabled': True,
             'business_hours_start': 8.0,
             'business_hours_end': 18.0,
             'business_hours_timezone': 'US/Pacific',
-            'after_hours_message': 'We are closed. Call back tomorrow.',
+            'after_hours_audio_id': after_hours_audio.id,
             'after_hours_voicemail': True,
         })
         self.assertTrue(callflow.business_hours_enabled)
         self.assertAlmostEqual(callflow.business_hours_start, 8.0)
         self.assertAlmostEqual(callflow.business_hours_end, 18.0)
         self.assertEqual(callflow.business_hours_timezone, 'US/Pacific')
-        self.assertIn('closed', callflow.after_hours_message)
+        self.assertEqual(callflow.after_hours_audio_id, after_hours_audio)
         self.assertTrue(callflow.after_hours_voicemail)
 
     def test_callflow_default_values(self):
@@ -82,8 +102,8 @@ class TestCallflowCRUD(ConnectTestCase):
         self.assertEqual(callflow.gather_timeout, 5)
         self.assertEqual(callflow.gather_input_type, 'dtmf speech')
         self.assertEqual(callflow.gather_digits, 1)
-        self.assertIn('Welcome to our company', callflow.prompt_message)
-        self.assertIn('wrong input', callflow.invalid_input_message)
+        self.assertFalse(callflow.prompt_audio_id)
+        self.assertFalse(callflow.invalid_input_audio_id)
         self.assertIn('phrase I expect', callflow.gather_hints)
         # Business hours defaults
         self.assertFalse(callflow.business_hours_enabled)
@@ -91,7 +111,7 @@ class TestCallflowCRUD(ConnectTestCase):
         self.assertAlmostEqual(callflow.business_hours_end, 17.0)
         self.assertEqual(callflow.business_hours_timezone, 'US/Eastern')
         # After hours defaults
-        self.assertIn('currently closed', callflow.after_hours_message)
+        self.assertFalse(callflow.after_hours_audio_id)
         self.assertTrue(callflow.after_hours_voicemail)
         # Other defaults
         self.assertFalse(callflow.record_calls)
@@ -105,12 +125,10 @@ class TestCallflowCRUD(ConnectTestCase):
         callflow.write({
             'name': 'Updated Name',
             'language': 'es-MX',
-            'voice': 'woman',
             'gather_input': True,
         })
         self.assertEqual(callflow.name, 'Updated Name')
         self.assertEqual(callflow.language, 'es-MX')
-        self.assertEqual(callflow.voice, 'woman')
         self.assertTrue(callflow.gather_input)
 
     def test_callflow_unlink(self):
@@ -273,12 +291,20 @@ class TestCallflowBusinessHours(ConnectTestCase):
 class TestCallflowAfterHoursRendering(ConnectTestCase):
     """Test _render_after_hours TwiML generation."""
 
+    def _make_after_hours_audio(self, text):
+        return self.env['connect.audio'].create({
+            'name': f'After hours {text[:20]}',
+            'source': 'twilio_tts',
+            'static_text': text,
+        })
+
     def test_render_after_hours_with_message_and_voicemail(self):
-        """After hours with message and voicemail produces Say + Record."""
+        """After hours with audio and voicemail produces Say + Record."""
+        audio = self._make_after_hours_audio('We are closed for the day.')
         callflow = self.env['connect.callflow'].create({
             'name': 'After Hours Test',
             'business_hours_enabled': True,
-            'after_hours_message': 'We are closed for the day.',
+            'after_hours_audio_id': audio.id,
             'after_hours_voicemail': True,
         })
         with self.mockTwilioClient():
@@ -290,10 +316,11 @@ class TestCallflowAfterHoursRendering(ConnectTestCase):
 
     def test_render_after_hours_no_voicemail(self):
         """After hours without voicemail produces Say + Hangup."""
+        audio = self._make_after_hours_audio('Office is closed.')
         callflow = self.env['connect.callflow'].create({
             'name': 'After Hours No VM',
             'business_hours_enabled': True,
-            'after_hours_message': 'Office is closed.',
+            'after_hours_audio_id': audio.id,
             'after_hours_voicemail': False,
         })
         with self.mockTwilioClient():
@@ -304,11 +331,11 @@ class TestCallflowAfterHoursRendering(ConnectTestCase):
             self.assertNotIn('<Record', twiml)
 
     def test_render_after_hours_no_message(self):
-        """After hours with empty message skips Say, still records if enabled."""
+        """After hours without audio skips its Say, still records if enabled."""
         callflow = self.env['connect.callflow'].create({
             'name': 'After Hours Silent',
             'business_hours_enabled': True,
-            'after_hours_message': False,
+            'after_hours_audio_id': False,
             'after_hours_voicemail': True,
         })
         with self.mockTwilioClient():
@@ -597,11 +624,19 @@ class TestNumberRouting(ConnectTestCase):
 class TestCallflowOnCallAction(ConnectTestCase):
     """Test on_call_action webhook handler for post-dial disposition."""
 
+    def _make_vm_audio(self, name, text):
+        return self.env['connect.audio'].create({
+            'name': name,
+            'source': 'twilio_tts',
+            'static_text': text,
+        })
+
     def test_on_call_action_completed_hangup(self):
         """Completed call produces hangup TwiML."""
+        vm_audio = self._make_vm_audio('Action VM', 'Leave a message.')
         callflow = self.env['connect.callflow'].create({
             'name': 'Action Test',
-            'voicemail_prompt': 'Leave a message.',
+            'voicemail_audio_id': vm_audio.id,
         })
         request = {'DialCallStatus': 'completed'}
         with self.mockTwilioClient():
@@ -613,9 +648,10 @@ class TestCallflowOnCallAction(ConnectTestCase):
 
     def test_on_call_action_no_answer_with_voicemail(self):
         """Unanswered call with voicemail prompt produces Record TwiML."""
+        vm_audio = self._make_vm_audio('VM Test', 'Please leave your message.')
         callflow = self.env['connect.callflow'].create({
             'name': 'VM Action Test',
-            'voicemail_prompt': 'Please leave your message.',
+            'voicemail_audio_id': vm_audio.id,
         })
         request = {'DialCallStatus': 'no-answer'}
         with self.mockTwilioClient():
@@ -633,7 +669,7 @@ class TestCallflowOnCallAction(ConnectTestCase):
         """Unanswered call without voicemail produces error + hangup."""
         callflow = self.env['connect.callflow'].create({
             'name': 'No VM Action Test',
-            'voicemail_prompt': False,
+            'voicemail_audio_id': False,
         })
         request = {'DialCallStatus': 'busy'}
         with self.mockTwilioClient():

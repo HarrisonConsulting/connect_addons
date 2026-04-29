@@ -54,6 +54,26 @@
               </group>
             </group>
           </page>
+          <page name="elevenlabs_synthesis" string="Synthesis"
+                invisible="not elevenlabs_enabled">
+            <group>
+              <group string="Model">
+                <field name="elevenlabs_model_id"
+                       placeholder="eleven_flash_v2_5"/>
+              </group>
+              <group string="Voice Settings">
+                <field name="elevenlabs_stability"/>
+                <field name="elevenlabs_similarity_boost"/>
+                <field name="elevenlabs_style"/>
+                <field name="elevenlabs_speaker_boost"/>
+              </group>
+              <div colspan="2">
+                <small>Changing any of these invalidates previously cached utterances; they
+                  will regenerate on next playback. Click <em>REGENERATE PROMPTS</em>
+                  above to clear the cache explicitly.</small>
+              </div>
+            </group>
+          </page>
           <page name="webhook" string="Webhook"
               invisible="not elevenlabs_enabled or not display_elevenlabs_api_key">
             <group>

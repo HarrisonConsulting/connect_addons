@@ -18,6 +18,10 @@ import uuid
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError, UserError
 from twilio.rest import Client
+from .audio_referrer_mixin import (
+    SELECTABLE_AUDIO_STATES,
+    URL_PLAYABLE_AUDIO_SOURCES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +110,28 @@ class Settings(models.Model):
     """
 
     _name = "connect.settings"
+    _inherit = ['connect.audio.referrer.mixin']
     _description = "Settings"
+
+    _audio_reference_fields = ('park_hold_music_audio_id',)
 
     name = fields.Char(compute="_get_name")
     debug_mode = fields.Boolean()
+    # Stamped by connect.audio._refresh_reachability() on each full BFS pass.
+    # Drives the "reachability last refreshed N ago" badge in the Audio
+    # Overview — operators can tell at a glance whether is_reachable flags are
+    # fresh or something's stopped triggering recomputes.
+    last_reachability_refresh_on = fields.Datetime(readonly=True,
+        string='Reachability Last Refreshed')
+
+    def get_default_audio_source(self):
+        """Return (source, voice) tuple for newly-created connect.audio rows.
+
+        Override in provider extensions (e.g. connect_elevenlabs) to switch the
+        default to that provider when enabled. Base default is twilio_tts with
+        no explicit voice (caller falls back to play_on()'s default).
+        """
+        return 'twilio_tts', self.env['connect.voice']
     twilio_auto_sync = fields.Boolean(default=True)
     twilio_region = fields.Selection([
         ('us1', 'US East (Virginia)'),
@@ -167,6 +189,15 @@ class Settings(models.Model):
         string="Fetch Call Prices",
         help="Enable fetching call prices from Twilio API after call completion. May add delay to call processing."
     )
+    recording_storage = fields.Selection([
+        ('twilio', 'Twilio (default)'),
+        ('odoo_filestore', 'Odoo Filestore'),
+    ], default='twilio', required=True, string='Recording Storage',
+       help='Where to store call recordings and voicemails. Odoo Filestore downloads and stores audio locally.')
+    delete_twilio_recording = fields.Boolean(
+        default=False, string='Delete from Twilio After Transfer',
+        help='Delete recordings from Twilio after successfully storing locally. Reduces Twilio storage costs.'
+    )
     ############################################################
     instance_uid = fields.Char("Instance UID", compute="_get_instance_data")
     api_url = fields.Char("API URL", compute="_get_instance_data")
@@ -196,15 +227,16 @@ class Settings(models.Model):
     web_base_url = fields.Char(compute="_get_instance_data", string="Odoo URL")
     call_duration_limit = fields.Integer(compute="_get_instance_data", string="Call Duration Limit (seconds)")
     latest_versions = fields.Html(readonly=True)
-    # Voice settings
-    system_voice = fields.Selection([
-        ('Polly.Danielle-Generative', 'Danielle Generative (en-US)'),
-        ('Polly.Joanna-Generative', 'Joanna Generative (en-US)'),
-        ('Polly.Matthew-Generative', 'Matthew Generative (en-US)'),
-        ('Polly.Ruth-Generative', 'Ruth Generative (en-US)'),
-        ('Polly.Stephen-Generative', 'Stephen Generative (en-US)')
-    ], string='System Voice', default='Polly.Ruth-Generative', required=True,
-       help='Voice used for all system prompts (callflow messages, voicemail, transfers, etc.)')
+    # Voice settings. default_twilio_voice is the DB-wide default for any
+    # connect.audio with source=twilio_tts and use_default_voice=True. Kept as
+    # a Many2one on connect.voice so the set of valid voices is data-driven
+    # (see connect/data/audio.xml) rather than hardcoded in a Selection.
+    default_twilio_voice = fields.Many2one(
+        'connect.voice', string='Default Twilio Voice',
+        domain=[('provider', '=', 'twilio'), ('active', '=', True)],
+        help='Default voice for Twilio <Say> output. Used by connect.audio '
+             'rows with use_default_voice=True and by tts_mixin fallback '
+             'system messages.')
     pronunciation_rules = fields.Text(
         string='Pronunciation Rules',
         help='JSON map of text to pronunciation substitutions (e.g., {"3CHI": "3-chee", "CEO": "C-E-O"})'
@@ -234,15 +266,35 @@ class Settings(models.Model):
         default=300,
         help="Seconds before a parked call times out and rings back the parker (0 = no timeout)"
     )
-    park_hold_music_url = fields.Char(
-        string='Park Hold Music URL',
-        help="Custom hold music URL for parked calls. Leave empty for default classical music"
+    park_hold_music_audio_id = fields.Many2one(
+        'connect.audio', ondelete='set null',
+        domain=[
+            ('state', 'in', SELECTABLE_AUDIO_STATES),
+            ('source', 'in', URL_PLAYABLE_AUDIO_SOURCES),
+        ],
+        string='Park Hold Music',
+        help="Audio played to parked callers. Leave empty for default classical "
+             "music. Twilio's waitUrl only accepts a media URL, so TTS sources "
+             "can't be used here — pick a Browser Recording, Internal "
+             "Attachment, or External URL."
     )
+    # Related surfacing of the picked audio's source so the settings form can
+    # show a warning banner when an operator picks a TTS audio (which can't
+    # play via waitUrl and will silently fall back to the default loop).
+    park_hold_music_audio_id_source = fields.Selection(
+        related='park_hold_music_audio_id.source', readonly=True)
     park_announcement_enabled = fields.Boolean(
         string='Park Announcement',
         default=False,
         help="Play slot number announcement when parking a call"
     )
+    # Messaging settings
+    enable_whatsapp = fields.Boolean(
+        default=True,
+        string='Enable WhatsApp',
+        help='Show WhatsApp menus and action buttons. Disable for deployments that do not use WhatsApp.'
+    )
+
     # Dialing defaults
     default_country_code = fields.Char(
         string='Default Country Code',
@@ -620,6 +672,15 @@ class Settings(models.Model):
         if not self.openai_api_key and vals.get("display_openai_api_key"):
             vals.update({"transcript_calls": True})
         res = super(Settings, self).write(vals)
+        if 'enable_whatsapp' in vals:
+            whatsapp_menus = [
+                'connect.connect_whatsapp_sender_menu',
+                'connect.connect_message_content_template_menu',
+            ]
+            for xml_id in whatsapp_menus:
+                menu = self.env.ref(xml_id, raise_if_not_found=False)
+                if menu:
+                    menu.sudo().write({'active': bool(vals['enable_whatsapp'])})
         changed_fields = {}
         for field_name in PROTECTED_FIELDS:
             if vals.get(field_name):
@@ -641,9 +702,16 @@ class Settings(models.Model):
 
     @api.model
     def get_system_voice(self):
-        """Get the system-wide voice setting for all TwiML say() calls"""
-        voice = self.sudo().get_param('system_voice', 'Polly.Ruth-Generative')
-        return voice
+        """Return the Twilio voice external_id for <Say> fallbacks.
+
+        Resolves settings.default_twilio_voice → external_id. Falls back to
+        DEFAULT_TWILIO_VOICE (Polly.Joanna Standard) when unset so <Say>
+        always has a concrete voice to render even on a fresh install before
+        the operator picks one.
+        """
+        from .tts_mixin import DEFAULT_TWILIO_VOICE
+        voice = self.sudo().search([], limit=1).default_twilio_voice
+        return voice.external_id if voice else DEFAULT_TWILIO_VOICE
 
     @api.model
     def process_pronunciation(self, text):
@@ -663,8 +731,16 @@ class Settings(models.Model):
             for original, pronunciation in rules.items():
                 pattern = re.compile(re.escape(original), re.IGNORECASE)
                 if pattern.search(processed_text):
-                    def replace_func(match):
-                        return f'<sub alias="{pronunciation}">{match.group(0)}</sub>'
+                    # SSML-escape the pronunciation value — a quote or angle
+                    # bracket in the operator-edited rules JSON would break
+                    # the <sub> tag and cause Twilio to speak the raw text.
+                    safe = (pronunciation
+                            .replace('&', '&amp;')
+                            .replace('"', '&quot;')
+                            .replace('<', '&lt;')
+                            .replace('>', '&gt;'))
+                    def replace_func(match, alias=safe):
+                        return f'<sub alias="{alias}">{match.group(0)}</sub>'
 
                     processed_text = pattern.sub(replace_func, processed_text)
                     has_substitutions = True
@@ -876,7 +952,7 @@ class Settings(models.Model):
         self.env["connect.channel"].sudo().create(
             {
                 "sid": channel.sid,
-                "technical_direction": "outboubd-api",
+                "technical_direction": "outbound-api",
                 "caller_user": user.id,
                 "caller_pbx_user": user.connect_user.id,
                 "partner": partner_id,

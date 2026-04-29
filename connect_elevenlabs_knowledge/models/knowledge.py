@@ -268,7 +268,7 @@ class ElevenlabsKnowledge(models.Model):
             'name': f'Agents using "{self.name}"',
             'type': 'ir.actions.act_window',
             'res_model': 'connect.elevenlabs_agent',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('knowledge_base', 'in', [self.id])],
             'context': {'default_knowledge_base': [(6, 0, [self.id])]}
         }

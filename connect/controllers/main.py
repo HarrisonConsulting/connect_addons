@@ -137,11 +137,10 @@ class ConnectController(http.Controller):
                                 ('user', '=', transfer_recipient.id)
                             ], limit=1)
 
-                            if pbx_user and pbx_user.voicemail_enabled and pbx_user.voicemail_prompt:
-                                personalized_prompt = pbx_user.render_voicemail_prompt()
-                                system_voice = http.request.env['connect.settings'].get_system_voice()
-                                processed_text = http.request.env['connect.settings'].process_pronunciation(personalized_prompt)
-                                response.say(processed_text, voice=system_voice)
+                            if pbx_user and pbx_user.voicemail_enabled:
+                                # get_voicemail_prompt handles the audio-missing
+                                # case with a pronunciation-processed <Say>.
+                                pbx_user.sudo().get_voicemail_prompt(response)
                             else:
                                 system_voice = http.request.env['connect.settings'].get_system_voice()
                                 processed_text = http.request.env['connect.settings'].process_pronunciation('Please leave a message after the tone.')

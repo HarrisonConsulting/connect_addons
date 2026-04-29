@@ -94,6 +94,15 @@
                     </group>
                   </group>
                 </page>
+                <page name="messaging" string="Messaging"
+                      invisible="is_registered == False">
+                  <group>
+                    <group string="WhatsApp">
+                      <field name="enable_whatsapp"/>
+                      <small colspan="2">When disabled, WhatsApp menu items and action buttons are hidden. Requires a page refresh to take effect.</small>
+                    </group>
+                  </group>
+                </page>
                 <page name="transcription" string="Transcription"
                       invisible="is_registered == False">
                   <group>

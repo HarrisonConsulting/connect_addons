@@ -1,3 +1,4 @@
+from . import http
 from . import voice
 from . import audio_utterance
 from . import audio

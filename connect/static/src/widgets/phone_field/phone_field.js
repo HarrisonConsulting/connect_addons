@@ -5,6 +5,7 @@ import {patch} from "@web/core/utils/patch"
 import {PhoneField} from "@web/views/fields/phone/phone_field"
 import {useService} from "@web/core/utils/hooks"
 import {user} from "@web/core/user"
+import {session} from "@web/session"
 
 patch(PhoneField.prototype, {
 
@@ -12,6 +13,7 @@ patch(PhoneField.prototype, {
         super.setup()
         this.action = useService("action")
         this.notification = useService("notification")
+        this.connectEnableWhatsapp = session.connect_enable_whatsapp !== false
     },
 
     _validatePhoneNumber(number) {

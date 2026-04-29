@@ -280,6 +280,13 @@ class Settings(models.Model):
         default=False,
         help="Play slot number announcement when parking a call"
     )
+    # Messaging settings
+    enable_whatsapp = fields.Boolean(
+        default=True,
+        string='Enable WhatsApp',
+        help='Show WhatsApp menus and action buttons. Disable for deployments that do not use WhatsApp.'
+    )
+
     # Dialing defaults
     default_country_code = fields.Char(
         string='Default Country Code',
@@ -657,6 +664,10 @@ class Settings(models.Model):
         if not self.openai_api_key and vals.get("display_openai_api_key"):
             vals.update({"transcript_calls": True})
         res = super(Settings, self).write(vals)
+        if 'enable_whatsapp' in vals:
+            menu = self.env.ref('connect.connect_whatsapp_sender_menu', raise_if_not_found=False)
+            if menu:
+                menu.sudo().write({'active': bool(vals['enable_whatsapp'])})
         changed_fields = {}
         for field_name in PROTECTED_FIELDS:
             if vals.get(field_name):

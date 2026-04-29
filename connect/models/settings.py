@@ -665,9 +665,14 @@ class Settings(models.Model):
             vals.update({"transcript_calls": True})
         res = super(Settings, self).write(vals)
         if 'enable_whatsapp' in vals:
-            menu = self.env.ref('connect.connect_whatsapp_sender_menu', raise_if_not_found=False)
-            if menu:
-                menu.sudo().write({'active': bool(vals['enable_whatsapp'])})
+            whatsapp_menus = [
+                'connect.connect_whatsapp_sender_menu',
+                'connect.connect_message_content_template_menu',
+            ]
+            for xml_id in whatsapp_menus:
+                menu = self.env.ref(xml_id, raise_if_not_found=False)
+                if menu:
+                    menu.sudo().write({'active': bool(vals['enable_whatsapp'])})
         changed_fields = {}
         for field_name in PROTECTED_FIELDS:
             if vals.get(field_name):

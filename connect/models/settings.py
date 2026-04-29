@@ -18,6 +18,10 @@ import uuid
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError, UserError
 from twilio.rest import Client
+from .audio_referrer_mixin import (
+    SELECTABLE_AUDIO_STATES,
+    URL_PLAYABLE_AUDIO_SOURCES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +268,10 @@ class Settings(models.Model):
     )
     park_hold_music_audio_id = fields.Many2one(
         'connect.audio', ondelete='set null',
+        domain=[
+            ('state', 'in', SELECTABLE_AUDIO_STATES),
+            ('source', 'in', URL_PLAYABLE_AUDIO_SOURCES),
+        ],
         string='Park Hold Music',
         help="Audio played to parked callers. Leave empty for default classical "
              "music. Twilio's waitUrl only accepts a media URL, so TTS sources "

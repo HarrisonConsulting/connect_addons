@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 # both target `state in ('reviewed', 'live')`.
 SELECTABLE_AUDIO_STATES = ('reviewed', 'live')
 
+# Sources that can resolve to a stable media URL for repeated/looping playback
+# via Twilio <Play> / waitUrl flows. TTS sources render one-shot speech and are
+# not suitable anywhere the platform expects repeatable hold music.
+URL_PLAYABLE_AUDIO_SOURCES = ('external_url', 'attachment', 'record')
+
 
 class AudioReferrerMixin(models.AbstractModel):
     """Single authoritative trigger surface for the connect.audio reference

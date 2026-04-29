@@ -13,6 +13,7 @@ from odoo.models import Constraint
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
+from .audio_referrer_mixin import SELECTABLE_AUDIO_STATES
 from .settings import format_connect_response, debug, strip_number, TWILIO_EDGES
 from .twiml import pretty_xml
 
@@ -77,6 +78,7 @@ class User(models.Model):
         string='Voicemail to Email', default=True,
         help='Send voicemail recordings and transcriptions via email')
     voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='Voicemail Prompt Audio',
         help='Audio played when a caller reaches this user\'s voicemail.')
     voicemail_preview = fields.Html(
@@ -94,6 +96,7 @@ class User(models.Model):
     call_popup_is_enabled = fields.Boolean(default=True, string='Enable Call Notifications', help='Enable notifications for call events')
     call_popup_is_sticky = fields.Boolean(default=False, string='Sticky Call Notifications', help='Require manual dismissal of call notifications?')
     greeting_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='Greeting Audio',
         help='Audio played to callers on first contact, before ringing this '
              'user\'s devices.')

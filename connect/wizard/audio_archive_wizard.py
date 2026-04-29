@@ -20,6 +20,9 @@ import logging
 
 from odoo import fields, models, api
 from odoo.exceptions import UserError
+from odoo.addons.connect.models.audio_referrer_mixin import (
+    SELECTABLE_AUDIO_STATES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +114,9 @@ class AudioArchiveWizardLine(models.TransientModel):
              '(blank the m2o), or swap (point the m2o at a replacement).')
     replacement_audio_id = fields.Many2one('connect.audio',
         string='Replacement',
-        domain="[('id', '!=', wizard_id.audio_id), ('state', '!=', 'archived')]",
+        domain="[('id', '!=', wizard_id.audio_id), ('state', 'in', %s)]" % (
+            repr(SELECTABLE_AUDIO_STATES),
+        ),
         help='Required when action is Swap. Cannot be an archived audio.')
 
     @api.constrains('action', 'replacement_audio_id')

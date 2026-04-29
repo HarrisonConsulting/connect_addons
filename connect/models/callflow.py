@@ -4,6 +4,7 @@ import logging
 from urllib.parse import urljoin
 from odoo import fields, models, api, release
 from twilio.twiml.voice_response import Gather, VoiceResponse, Say, Client, Sip, Dial
+from .audio_referrer_mixin import SELECTABLE_AUDIO_STATES
 from .twiml import pretty_xml
 from .settings import debug
 
@@ -53,12 +54,14 @@ class CallFlow(models.Model):
     gather_timeout = fields.Integer(string='Timeout', default=5)
     gather_hints = fields.Char('Hints', default='This is a phrase I expect to hear, department name or extension number')
     prompt_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='Prompt Audio',
         help='Audio played when the callflow opens.')
     prompt_preview = fields.Html(
         related='prompt_audio_id.latest_utterance_id.preview_audio',
         string='Prompt Preview', sanitize=False)
     invalid_input_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='Invalid Input Audio',
         help='Audio played when the caller\'s DTMF/speech input does not match '
              'any configured choice.')
@@ -71,6 +74,7 @@ class CallFlow(models.Model):
     ring_users = fields.Many2many('connect.user')
     record_calls = fields.Boolean()
     voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='Voicemail Prompt Audio',
         help='Audio played before voicemail recording on this callflow.')
     voicemail_preview = fields.Html(
@@ -94,6 +98,7 @@ class CallFlow(models.Model):
         '_tz_get', string='Timezone', default='US/Eastern',
         help='Timezone for business hours calculation')
     after_hours_audio_id = fields.Many2one('connect.audio', ondelete='set null',
+        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='After Hours Audio',
         help='Audio played to callers outside of configured business hours.')
     after_hours_preview = fields.Html(

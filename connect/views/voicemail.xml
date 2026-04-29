@@ -44,7 +44,6 @@
     <record id="voicemail_kanban" model="ir.ui.view">
         <field name="name">connect.call.voicemail.kanban</field>
         <field name="model">connect.call</field>
-        <field name="priority">1</field>
         <field name="arch" type="xml">
             <kanban default_group_by="voicemail_stage_id" quick_create="false"
                     create="false" delete="false" group_create="false">
@@ -106,7 +105,6 @@
     <record id="voicemail_form" model="ir.ui.view">
         <field name="name">connect.call.voicemail.form</field>
         <field name="model">connect.call</field>
-        <field name="priority">1</field>
         <field name="arch" type="xml">
             <form create="false">
                 <header>
@@ -150,7 +148,6 @@
     <record id="voicemail_list" model="ir.ui.view">
         <field name="name">connect.call.voicemail.list</field>
         <field name="model">connect.call</field>
-        <field name="priority">1</field>
         <field name="arch" type="xml">
             <list create="false" delete="false">
                 <field name="create_date" string="Received" readonly="1"/>

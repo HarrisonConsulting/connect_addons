@@ -90,9 +90,9 @@ def migrate(cr, version):
                 # create a parking row so the binary is not lost.
                 cr.execute("""
                     INSERT INTO connect_audio
-                        (name, system_key, source, voice_id, static_text, is_dynamic,
+                        (uuid, name, system_key, source, voice_id, static_text, is_dynamic,
                          create_date, write_date)
-                    VALUES (%s, %s, 'elevenlabs_tts', %s, %s, FALSE, NOW(), NOW())
+                    VALUES (gen_random_uuid()::text, %s, %s, 'elevenlabs_tts', %s, %s, FALSE, NOW(), NOW())
                     RETURNING id
                 """, (f'System: {message_key}', message_key, default_voice_id, text))
                 audio_id = cr.fetchone()[0]
@@ -111,9 +111,9 @@ def migrate(cr, version):
             label = (text or '')[:60] or f'Legacy file {file_id}'
             cr.execute("""
                 INSERT INTO connect_audio
-                    (name, source, voice_id, static_text, is_dynamic,
+                    (uuid, name, source, voice_id, static_text, is_dynamic,
                      create_date, write_date)
-                VALUES (%s, 'elevenlabs_tts', %s, %s, FALSE, NOW(), NOW())
+                VALUES (gen_random_uuid()::text, %s, 'elevenlabs_tts', %s, %s, FALSE, NOW(), NOW())
                 RETURNING id
             """, (label, default_voice_id, text))
             audio_id = cr.fetchone()[0]

@@ -134,3 +134,21 @@ def migrate(cr, version):
                  WHERE voice IS NOT NULL
                    AND voice NOT IN (SELECT id FROM connect_voice)
             """, (default_voice_id,))
+
+    # connect 1.14.0 renamed connect.user.greeting_message -> greeting_audio_id.
+    # Inherited views that used greeting_message as a position selector are now
+    # invalid. Delete them so Odoo recreates them cleanly from their XML files.
+    cr.execute("""
+        SELECT id FROM ir_ui_view
+        WHERE model = 'connect.user'
+          AND inherit_id IS NOT NULL
+          AND arch_db::text LIKE '%greeting_message%'
+    """)
+    stale_view_ids = [row[0] for row in cr.fetchall()]
+    if stale_view_ids:
+        cr.execute("""
+            DELETE FROM ir_model_data
+            WHERE model = 'ir.ui.view' AND res_id = ANY(%s)
+        """, (stale_view_ids,))
+        cr.execute("DELETE FROM ir_ui_view WHERE id = ANY(%s)", (stale_view_ids,))
+        logger.info('Removed %d stale connect.user views with greeting_message.', len(stale_view_ids))

@@ -91,8 +91,9 @@ def migrate(cr, version):
                 cr.execute("""
                     INSERT INTO connect_audio
                         (uuid, name, system_key, source, voice_id, static_text, is_dynamic,
-                         create_date, write_date)
-                    VALUES (gen_random_uuid()::text, %s, %s, 'elevenlabs_tts', %s, %s, FALSE, NOW(), NOW())
+                         state, create_date, write_date)
+                    VALUES (gen_random_uuid()::text, %s, %s, 'elevenlabs_tts', %s, %s, FALSE,
+                            'draft', NOW(), NOW())
                     RETURNING id
                 """, (f'System: {message_key}', message_key, default_voice_id, text))
                 audio_id = cr.fetchone()[0]
@@ -112,8 +113,9 @@ def migrate(cr, version):
             cr.execute("""
                 INSERT INTO connect_audio
                     (uuid, name, source, voice_id, static_text, is_dynamic,
-                     create_date, write_date)
-                VALUES (gen_random_uuid()::text, %s, 'elevenlabs_tts', %s, %s, FALSE, NOW(), NOW())
+                     state, create_date, write_date)
+                VALUES (gen_random_uuid()::text, %s, 'elevenlabs_tts', %s, %s, FALSE,
+                        'draft', NOW(), NOW())
                 RETURNING id
             """, (label, default_voice_id, text))
             audio_id = cr.fetchone()[0]

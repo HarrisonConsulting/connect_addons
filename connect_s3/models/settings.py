@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from odoo import fields, models
 from odoo.exceptions import UserError
 
@@ -53,6 +53,13 @@ class Settings(models.Model):
             client = self.get_s3_client()
             client.head_bucket(Bucket=bucket)
         except ClientError as e:
+            code = e.response['Error']['Code']
+            if code == '403':
+                raise UserError('S3 access denied — check your access key and bucket permissions.')
+            if code == '404':
+                raise UserError('Bucket "{}" not found.'.format(bucket))
+            raise UserError('S3 error ({}): {}'.format(code, e.response['Error']['Message']))
+        except BotoCoreError as e:
             raise UserError('S3 connection failed: {}'.format(e))
         return {
             'type': 'ir.actions.client',

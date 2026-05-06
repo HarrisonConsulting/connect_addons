@@ -3,6 +3,7 @@ import logging
 import requests
 from io import BytesIO
 from tempfile import NamedTemporaryFile
+from botocore.exceptions import BotoCoreError, ClientError
 from odoo import fields, models
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,14 @@ class Recording(models.Model):
         s3 = settings.get_s3_client()
         bucket = settings.s3_bucket
         key = self._s3_object_key()
-        s3.upload_fileobj(
-            BytesIO(response.content), bucket, key,
-            ExtraArgs={'ContentType': 'audio/mpeg'},
-        )
+        try:
+            s3.upload_fileobj(
+                BytesIO(response.content), bucket, key,
+                ExtraArgs={'ContentType': 'audio/mpeg'},
+            )
+        except (ClientError, BotoCoreError) as e:
+            logger.error('S3 upload failed for recording %s, falling back to attachment: %s', self.sid, e)
+            return super()._store_as_attachment()
         self.write({'s3_key': key})
         if settings.delete_twilio_recording:
             self._delete_from_twilio()
@@ -51,12 +56,15 @@ class Recording(models.Model):
         """Fetch audio from S3 when s3_key is set."""
         if self.s3_key:
             settings = self.env['connect.settings'].sudo().search([], limit=1)
-            s3 = settings.get_s3_client()
-            buf = BytesIO()
-            s3.download_fileobj(settings.s3_bucket, self.s3_key, buf)
-            with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
-                f.write(buf.getvalue())
-                return f.name
+            try:
+                s3 = settings.get_s3_client()
+                buf = BytesIO()
+                s3.download_fileobj(settings.s3_bucket, self.s3_key, buf)
+                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                    f.write(buf.getvalue())
+                    return f.name
+            except (ClientError, BotoCoreError) as e:
+                logger.error('S3 download failed for recording %s (%s): %s', self.id, self.s3_key, e)
         return super()._download_recording_audio()
 
     def _get_recording_widget(self):

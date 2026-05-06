@@ -2,6 +2,7 @@
 import logging
 import requests
 from io import BytesIO
+from botocore.exceptions import BotoCoreError, ClientError
 from odoo import fields, models
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,14 @@ class Call(models.Model):
         s3 = settings.get_s3_client()
         bucket = settings.s3_bucket
         key = self._voicemail_s3_object_key()
-        s3.upload_fileobj(
-            BytesIO(response.content), bucket, key,
-            ExtraArgs={'ContentType': 'audio/mpeg'},
-        )
+        try:
+            s3.upload_fileobj(
+                BytesIO(response.content), bucket, key,
+                ExtraArgs={'ContentType': 'audio/mpeg'},
+            )
+        except (ClientError, BotoCoreError) as e:
+            logger.error('S3 upload failed for voicemail %s, falling back to attachment: %s', self.id, e)
+            return super()._store_voicemail_as_attachment()
         self.write({'voicemail_s3_key': key})
         if settings.delete_twilio_recording and self.voicemail_sid:
             try:

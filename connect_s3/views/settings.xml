@@ -7,7 +7,7 @@
     <field name="inherit_id" ref="connect.connect_settings_form"/>
     <field name="arch" type="xml">
 
-      <xpath expr="//group[@string='Recording Storage']" position="inside">
+      <xpath expr="//group[@name='recording_storage_group']" position="inside">
         <field name="s3_endpoint"
                invisible="recording_storage != 's3'"
                placeholder="https://s3.amazonaws.com (default AWS) or https://minio.example.com"/>

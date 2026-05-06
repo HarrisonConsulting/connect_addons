@@ -75,7 +75,7 @@
                       <field name="fetch_call_prices"/>
                       <small colspan="2">Fetch call prices from Twilio API after call completion. This may add delay to call processing.</small>
                     </group>
-                    <group string="Recording Storage">
+                    <group name="recording_storage_group" string="Recording Storage">
                       <field name="recording_storage"/>
                       <small colspan="2" invisible="recording_storage == 'twilio'">Recordings are downloaded from Twilio and stored locally on each new call.</small>
                       <field name="delete_twilio_recording" invisible="recording_storage == 'twilio'"/>

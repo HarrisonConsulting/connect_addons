@@ -7,6 +7,8 @@ from odoo.exceptions import UserError
 
 logger = logging.getLogger(__name__)
 
+MIGRATION_BATCH = 20
+
 
 class Settings(models.Model):
     _inherit = 'connect.settings'
@@ -70,3 +72,63 @@ class Settings(models.Model):
                 'type': 'success',
             },
         }
+
+    def _s3_object_verified(self, s3_client, bucket, key):
+        """Return True only if the object exists in S3 with non-zero size."""
+        try:
+            head = s3_client.head_object(Bucket=bucket, Key=key)
+            return head.get('ContentLength', 0) > 0
+        except (ClientError, BotoCoreError):
+            return False
+
+    def action_open_migrate_wizard(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'connect.s3.migrate.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def _s3_migration_batch(self):
+        """Process one batch of pending S3 migrations. Called by ir.cron."""
+        settings = self.sudo().search([], limit=1)
+        if not settings or settings.recording_storage != 's3':
+            self._s3_migration_deactivate_cron()
+            return
+
+        processed = 0
+
+        recordings = self.env['connect.recording'].sudo().search([
+            ('s3_key', '=', False),
+            '|',
+            ('media_url', '!=', False),
+            ('attachment_id', '!=', False),
+        ], limit=MIGRATION_BATCH)
+        for rec in recordings:
+            try:
+                rec._migrate_to_s3(settings)
+                processed += 1
+            except Exception as e:
+                logger.error('S3 migration failed for recording %s: %s', rec.id, e)
+
+        remaining = MIGRATION_BATCH - processed
+        if remaining > 0:
+            calls = self.env['connect.call'].sudo().search([
+                ('voicemail_s3_key', '=', False),
+                ('voicemail_url', '!=', False),
+            ], limit=remaining)
+            for call in calls:
+                try:
+                    call._migrate_voicemail_to_s3(settings)
+                    processed += 1
+                except Exception as e:
+                    logger.error('S3 migration failed for voicemail call %s: %s', call.id, e)
+
+        if processed == 0:
+            self._s3_migration_deactivate_cron()
+
+    def _s3_migration_deactivate_cron(self):
+        cron = self.env.ref('connect_s3.ir_cron_s3_migration', raise_if_not_found=False)
+        if cron and cron.sudo().active:
+            cron.sudo().write({'active': False})
+            logger.info('S3 migration complete — cron deactivated')

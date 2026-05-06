@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Connect S3 Recording Storage',
-    'version': '1.0.0',
+    'version': '1.1.0',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
@@ -12,6 +12,9 @@
         'python': ['boto3'],
     },
     'data': [
+        'security/ir.model.access.csv',
+        'data/ir_cron.xml',
+        'views/s3_migrate_wizard.xml',
         'views/settings.xml',
     ],
     'installable': True,

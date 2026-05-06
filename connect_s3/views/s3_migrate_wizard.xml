@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="view_s3_migrate_wizard_form" model="ir.ui.view">
+    <field name="name">connect.s3.migrate.wizard.form</field>
+    <field name="model">connect.s3.migrate.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Migrate Recordings to S3">
+        <sheet>
+          <div invisible="total_count != 0" class="alert alert-success" role="alert">
+            Nothing to migrate — all recordings and voicemails are already in S3.
+          </div>
+          <div invisible="total_count == 0">
+            <group string="Pending Items">
+              <field name="recording_twilio_count" string="Recordings on Twilio"/>
+              <field name="recording_filestore_count" string="Recordings in filestore"/>
+              <field name="voicemail_count" string="Voicemails on Twilio"/>
+              <field name="total_count" string="Total to migrate"/>
+            </group>
+            <group string="Behaviour">
+              <field name="delete_source" widget="boolean_toggle"/>
+            </group>
+            <p class="text-muted">
+              Items are processed in batches of 20 per minute. Each upload is verified
+              in S3 before the source is deleted. Monitor progress under
+              <strong>Settings → Technical → Scheduled Actions → S3 Migration</strong>.
+            </p>
+          </div>
+        </sheet>
+        <footer>
+          <button string="Start Migration" name="action_start_migration" type="object"
+                  class="btn-primary" invisible="total_count == 0"/>
+          <button string="Close" class="btn-secondary" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+</odoo>

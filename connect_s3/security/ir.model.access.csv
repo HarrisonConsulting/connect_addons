@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+connect_s3_migrate_wizard_manager,connect.s3.migrate.wizard manager,connect_s3.model_connect_s3_migrate_wizard,base.group_erp_manager,1,1,1,1

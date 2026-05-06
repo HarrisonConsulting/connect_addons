@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import base64
 import logging
 import requests
 from io import BytesIO
@@ -49,7 +50,10 @@ class Recording(models.Model):
             return super()._store_as_attachment()
         self.write({'s3_key': key})
         if settings.delete_twilio_recording:
-            self._delete_from_twilio()
+            if settings._s3_object_verified(s3, bucket, key):
+                self._delete_from_twilio()
+            else:
+                logger.warning('S3 verify failed for recording %s — skipping Twilio delete', self.sid)
         logger.info('Recording %s stored in S3: %s/%s', self.sid, bucket, key)
 
     def _download_recording_audio(self):
@@ -90,6 +94,42 @@ class Recording(models.Model):
             except Exception as e:
                 logger.error('S3 presigned URL error for recording %s: %s', rec.id, e)
                 rec.recording_widget = ''
+
+    def _migrate_to_s3(self, settings):
+        """Migrate a single recording to S3 from Twilio or local filestore."""
+        self.ensure_one()
+        s3 = settings.get_s3_client()
+        bucket = settings.s3_bucket
+        key = self._s3_object_key()
+
+        if self.attachment_id:
+            audio = base64.b64decode(self.attachment_id.sudo().datas)
+        else:
+            from connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
+            account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
+            auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+            resp = requests.get(
+                self.media_url, auth=(account_sid, auth_token),
+                timeout=HTTP_DOWNLOAD_TIMEOUT,
+            )
+            resp.raise_for_status()
+            audio = resp.content
+
+        s3.upload_fileobj(BytesIO(audio), bucket, key, ExtraArgs={'ContentType': 'audio/mpeg'})
+
+        if not settings._s3_object_verified(s3, bucket, key):
+            raise Exception('S3 verify failed after upload for recording {}'.format(self.id))
+
+        source_attachment = self.attachment_id
+        self.write({'s3_key': key})
+
+        if settings.delete_twilio_recording:
+            if source_attachment:
+                source_attachment.sudo().unlink()
+            elif self.sid:
+                self._delete_from_twilio()
+
+        logger.info('Migrated recording %s to S3: %s/%s', self.id, bucket, key)
 
     def unlink(self):
         """Delete S3 objects when recordings are deleted."""

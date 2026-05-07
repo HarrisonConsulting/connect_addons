@@ -8,7 +8,6 @@
     <field name="code">model._s3_migration_batch()</field>
     <field name="interval_number">1</field>
     <field name="interval_type">minutes</field>
-    <field name="numbercall">-1</field>
     <field name="active">False</field>
     <field name="priority">10</field>
   </record>

@@ -7,6 +7,9 @@
     <field name="arch" type="xml">
       <form string="Migrate Recordings to S3">
         <sheet>
+          <div invisible="last_processed == 0" class="alert alert-info" role="alert">
+            Last batch migrated <field name="last_processed" readonly="1" nolabel="1" class="oe_inline"/> item(s).
+          </div>
           <div invisible="total_count != 0" class="alert alert-success" role="alert">
             Nothing to migrate — all recordings and voicemails are already in S3.
           </div>
@@ -21,14 +24,15 @@
               <field name="delete_source" widget="boolean_toggle"/>
             </group>
             <p class="text-muted">
-              Items are processed in batches of 20 per minute. Each upload is verified
-              in S3 before the source is deleted. Monitor progress under
-              <strong>Settings → Technical → Scheduled Actions → S3 Migration</strong>.
+              Each click migrates one batch (up to 20 items) and verifies every
+              upload in S3 before deleting the source. Items already in S3 are
+              skipped, so partial progress survives any interruption — just
+              click again to resume until nothing is left.
             </p>
           </div>
         </sheet>
         <footer>
-          <button string="Start Migration" name="action_start_migration" type="object"
+          <button string="Migrate Next Batch" name="action_start_migration" type="object"
                   class="btn-primary" invisible="total_count == 0"/>
           <button string="Close" class="btn-secondary" special="cancel"/>
         </footer>

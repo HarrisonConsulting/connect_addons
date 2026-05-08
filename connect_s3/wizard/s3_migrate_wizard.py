@@ -18,6 +18,7 @@ class S3MigrateWizard(models.TransientModel):
         help='Respects the global "Delete recording from Twilio" setting — enable that setting to delete originals after a successful verified upload.',
         readonly=True,
     )
+    last_processed = fields.Integer(string='Migrated in last batch', readonly=True)
 
     @api.model
     def default_get(self, fields_list):
@@ -51,21 +52,16 @@ class S3MigrateWizard(models.TransientModel):
             )
 
     def action_start_migration(self):
-        cron = self.env.ref('connect_s3.ir_cron_s3_migration')
-        cron.sudo().write({
-            'active': True,
-            'nextcall': fields.Datetime.now(),
-        })
+        """Run one batch synchronously. Each call is idempotent — only records
+        missing an s3_key are picked up, so re-clicking resumes from where the
+        last batch left off (or a failure stopped). User clicks again to
+        process the next batch until nothing remains."""
+        self.ensure_one()
+        processed = self.env['connect.settings']._s3_migration_batch()
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': 'Migration Started',
-                'message': (
-                    'Migrating {} items in batches of 20. '
-                    'Monitor progress under Settings → Technical → Scheduled Actions.'
-                ).format(self.total_count),
-                'type': 'success',
-                'sticky': False,
-            },
+            'type': 'ir.actions.act_window',
+            'res_model': 'connect.s3.migrate.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_last_processed': processed},
         }

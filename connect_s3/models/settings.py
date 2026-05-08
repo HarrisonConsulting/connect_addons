@@ -89,21 +89,22 @@ class Settings(models.Model):
             'target': 'new',
         }
 
-    def _s3_migration_batch(self):
-        """Process one batch of pending S3 migrations. Called by ir.cron."""
+    def _s3_migration_batch(self, limit=MIGRATION_BATCH):
+        """Process up to `limit` pending S3 migrations and return how many were
+        actually moved. Idempotent: each call picks up only records still
+        missing an s3_key, so partial progress survives interruption — re-run
+        to resume."""
         settings = self.sudo().search([], limit=1)
         if not settings or settings.recording_storage != 's3':
-            self._s3_migration_deactivate_cron()
-            return
+            return 0
 
         processed = 0
-
         recordings = self.env['connect.recording'].sudo().search([
             ('s3_key', '=', False),
             '|',
             ('media_url', '!=', False),
             ('attachment_id', '!=', False),
-        ], limit=MIGRATION_BATCH)
+        ], limit=limit)
         for rec in recordings:
             try:
                 rec._migrate_to_s3(settings)
@@ -111,7 +112,7 @@ class Settings(models.Model):
             except Exception as e:
                 logger.error('S3 migration failed for recording %s: %s', rec.id, e)
 
-        remaining = MIGRATION_BATCH - processed
+        remaining = limit - processed
         if remaining > 0:
             calls = self.env['connect.call'].sudo().search([
                 ('voicemail_s3_key', '=', False),
@@ -124,11 +125,4 @@ class Settings(models.Model):
                 except Exception as e:
                     logger.error('S3 migration failed for voicemail call %s: %s', call.id, e)
 
-        if processed == 0:
-            self._s3_migration_deactivate_cron()
-
-    def _s3_migration_deactivate_cron(self):
-        cron = self.env.ref('connect_s3.ir_cron_s3_migration', raise_if_not_found=False)
-        if cron and cron.sudo().active:
-            cron.sudo().write({'active': False})
-            logger.info('S3 migration complete — cron deactivated')
+        return processed

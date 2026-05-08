@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.20.9',
+    'version': '1.20.10',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -43,9 +43,9 @@
         'views/twiml.xml',
         'views/debug.xml',
         'views/exten.xml',
+        'views/call_analytics.xml',
         'views/call.xml',
         'views/voicemail.xml',
-        'views/call_analytics.xml',
         'views/park_slot.xml',
         'views/schedule.xml',
         'views/callflow.xml',

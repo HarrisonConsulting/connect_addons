@@ -29,7 +29,7 @@ class Call(models.Model):
         self.ensure_one()
         if not self.voicemail_url:
             return
-        from connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
+        from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
         account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
         auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
         response = requests.get(
@@ -113,7 +113,7 @@ class Call(models.Model):
         if self.voicemail_attachment_id:
             audio = base64.b64decode(self.voicemail_attachment_id.sudo().datas)
         else:
-            from connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
+            from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
             account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
             auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
             resp = requests.get(

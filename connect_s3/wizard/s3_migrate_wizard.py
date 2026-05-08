@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import time
+
 from odoo import api, fields, models
 
 
@@ -18,7 +20,17 @@ class S3MigrateWizard(models.TransientModel):
         help='Respects the global "Delete recording from Twilio" setting — enable that setting to delete originals after a successful verified upload.',
         readonly=True,
     )
+    batch_size = fields.Integer(
+        string='Batch Size',
+        default=20,
+        help='Items to migrate per click. Tune up or down based on the duration reported after each run to stay within your CPU/network budget.',
+    )
     last_processed = fields.Integer(string='Migrated in last batch', readonly=True)
+    last_duration = fields.Float(
+        string='Last batch duration (s)',
+        readonly=True,
+        digits=(10, 2),
+    )
 
     @api.model
     def default_get(self, fields_list):
@@ -57,11 +69,18 @@ class S3MigrateWizard(models.TransientModel):
         last batch left off (or a failure stopped). User clicks again to
         process the next batch until nothing remains."""
         self.ensure_one()
-        processed = self.env['connect.settings']._s3_migration_batch()
+        limit = max(1, self.batch_size or 20)
+        start = time.monotonic()
+        processed = self.env['connect.settings']._s3_migration_batch(limit=limit)
+        duration = time.monotonic() - start
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'connect.s3.migrate.wizard',
             'view_mode': 'form',
             'target': 'new',
-            'context': {'default_last_processed': processed},
+            'context': {
+                'default_batch_size': limit,
+                'default_last_processed': processed,
+                'default_last_duration': duration,
+            },
         }

@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
 
-  <meta name="description" content="Build, sync, and answer phone calls with ElevenLabs conversational AI agents — managed from Odoo.">
-  <meta name="keywords" content="Odoo 19, ElevenLabs, conversational AI, Twilio, voice agents, Harrison Consulting">
-  <meta property="og:title" content="Connect ElevenLabs · Harrison Consulting">
-  <meta property="og:description" content="Build, sync, and answer phone calls with ElevenLabs conversational AI agents — managed from Odoo.">
+  <meta name="description" content="Route Connect calls through your own SIP carrier using Twilio's BYOC trunk infrastructure.">
+  <meta name="keywords" content="Odoo 19, Twilio BYOC, SIP trunk, Connect, carrier routing, Harrison Consulting">
+  <meta property="og:title" content="Twilio BYOC for Connect · Harrison Consulting">
+  <meta property="og:description" content="Route Connect calls through your own SIP carrier using Twilio's BYOC trunk infrastructure.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.harrison.consulting/products/connect_elevenlabs">
-  <title>Connect ElevenLabs · Harrison Consulting</title>
+  <meta property="og:url" content="https://www.harrison.consulting/products/connect_byoc">
+  <title>Twilio BYOC for Connect · Harrison Consulting</title>
 
   <link rel="icon" href="icon.png" type="image/png">
 
@@ -306,7 +306,7 @@
 <header class="hc-topbar">
   <a class="hc-brand" href="https://www.harrison.consulting"><em>Harrison</em> Consulting</a>
   <div class="hc-topbar-right">
-    <span class="hc-version">v1.8.0 · Odoo 19</span>
+    <span class="hc-version">v1.0.2 · Odoo 19</span>
     <button type="button" class="hc-theme-toggle" id="hc-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
       <span id="hc-theme-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -320,10 +320,10 @@
   <section class="hc-hero hc-container">
     <div class="hc-eyebrow">
       <span class="hc-eyebrow-bar"></span>
-      <span>ODOO MODULE · CONVERSATIONAL AI</span>
+      <span>ODOO MODULE · BRING YOUR OWN CARRIER</span>
     </div>
-    <h1>ElevenLabs agents, dialled in from Odoo.</h1>
-    <p class="lede">Configure voice, prompt, model, tools, and limits on an Odoo record; the module mirrors the agent to ElevenLabs and points an extension at it. When the agent answers, the partner, language, and prior-conversation summary travel with the call.</p>
+    <h1>Keep Twilio. Add your carrier.</h1>
+    <p class="lede">Connect BYOC creates a Twilio BYOC trunk and SIP credentials in your account, then routes selected outbound numbers through it using pattern-matched rules. The softphone, callflows, and recordings stay on Twilio — the call leg goes out your carrier.</p>
     <div class="hc-hero-ctas">
       <a class="hc-cta" href="#how">See how it works</a>
       <a class="hc-cta hc-cta--ghost" href="https://www.harrison.consulting/contact">Talk to us →</a>
@@ -332,18 +332,18 @@
 
   <section class="hc-section hc-container">
     <h2>Why</h2>
-    <p>ElevenLabs runs the agent. Twilio carries the audio. Odoo holds the customer, the calendar, and the history. Stitching the three together by hand means juggling agent IDs, knowledge-base IDs, webhook signatures, and conversation summaries. This module makes the Odoo record the source of truth: edits sync up, conversations sync back, transcripts and summaries land on the call record.</p>
+    <p>Twilio's signaling is excellent. Twilio's per-minute rate to certain destinations isn't. International routes, in-country compliance, or an existing carrier relationship can all justify keeping a SIP trunk you already own. BYOC stitches the two together — but configuring the Twilio side by hand (connection policies, trunks, credential lists, BYOC domains) is tedious. This module does it from the Odoo UI.</p>
   </section>
 
   <section class="hc-section hc-section--alt" id="how">
     <div class="hc-container">
       <h2>How it works</h2>
       <ol class="hc-numbered">
-        <li><div><div class="hc-step-title">Author an agent in Odoo</div><div class="hc-step-body">Pick a voice, choose an LLM (GPT, Claude, Gemini, or ElevenLabs-hosted), set first message, stability, speed, and turn timing.</div></div></li>
-        <li><div><div class="hc-step-title">Save syncs to ElevenLabs</div><div class="hc-step-body">Create mirrors to the platform API; write updates push only the changed fields; delete removes the agent and its knowledge base.</div></div></li>
-        <li><div><div class="hc-step-title">Attach a Twilio extension</div><div class="hc-step-body">The agent gets a Connect extension; inbound calls render a TwiML <span class="mono">&lt;Stream&gt;</span> to your media-bridge service for the live conversation.</div></div></li>
-        <li><div><div class="hc-step-title">Tools call back into Odoo</div><div class="hc-step-body">Calendar slots, event creation, meeting lookup, and agent transfer are HTTP routes guarded by a shared token in the <span class="mono">x-elevenlabs-agent-token</span> header.</div></div></li>
-        <li><div><div class="hc-step-title">Post-call writes summary and audio</div><div class="hc-step-body">An HMAC-signed post-call webhook lands the transcript, summary, conversation ID, and full recording onto the matching <span class="mono">connect.call</span>.</div></div></li>
+        <li><div><div class="hc-step-title">Define a BYOC entry</div><div class="hc-step-body">Friendly name and a SIP username/password create a Twilio BYOC trunk, a connection policy, a dedicated SIP domain, and a credential list — one click, four resources.</div></div></li>
+        <li><div><div class="hc-step-title">List your origination URIs</div><div class="hc-step-body">Add <span class="mono">sip:</span> or <span class="mono">sips:</span> targets with priority and weight. Each one syncs to Twilio as a connection-policy target.</div></div></li>
+        <li><div><div class="hc-step-title">Write outgoing rules</div><div class="hc-step-body">A rule matches a number prefix and points to a BYOC trunk. The deepest-matching rule wins; optional prefix add or leading-digit trim adjusts the dialed string.</div></div></li>
+        <li><div><div class="hc-step-title">Caller-ID resolves by case</div><div class="hc-step-body">User caller ID, BYOC default, and country match interact through five explicit cases — so cross-border calls present a number your carrier will accept.</div></div></li>
+        <li><div><div class="hc-step-title">Sync pulls Twilio state back</div><div class="hc-step-body">A sync action reconciles BYOC trunks in Twilio with Odoo records, surfacing trunks added or removed externally as on-screen notifications.</div></div></li>
       </ol>
     </div>
   </section>
@@ -353,28 +353,28 @@
       <h2>What's in the box</h2>
       <div class="hc-grid-3">
         <div class="hc-card">
-          <h3>Bidirectional agent sync</h3>
-          <p>Edit in Odoo, push to ElevenLabs; or pull a manual <em>sync</em> to import existing agents and update their fields by <span class="mono">agent_uid</span>.</p>
+          <h3>Twilio resources from one form</h3>
+          <p>Trunk creation provisions the connection policy, BYOC domain, and SIP credential list together — including unique subdomain and webhook URLs.</p>
         </div>
         <div class="hc-card">
-          <h3>Prompt version history</h3>
-          <p>Every prompt edit snapshots a numbered version on the agent; the active version is selectable so you can roll forward or back.</p>
+          <h3>Prioritized origination targets</h3>
+          <p>Multiple SIP URIs per trunk with priority and weight, kept in lock-step with Twilio on create, write, and unlink.</p>
         </div>
         <div class="hc-card">
-          <h3>Custom and built-in tools</h3>
-          <p>Define webhook tools with parameters and timeouts; system tools cover voicemail detection, DTMF tones, and agent-to-agent transfer.</p>
+          <h3>Prefix-match outgoing rules</h3>
+          <p>Pattern-based routing with optional leading-digit trim and prefix add, ordered by deepest match so specific rules beat generic ones.</p>
         </div>
         <div class="hc-card">
-          <h3>Calendar tooling, authenticated</h3>
-          <p>Four routes — free slots, create event, list meetings, remove meeting — accept timezone strings or offsets, all behind a shared token check.</p>
+          <h3>BYOC caller-ID type</h3>
+          <p>The caller-ID model gains a <em>BYOC</em> type linked to a trunk, and onchange handlers keep the type and BYOC reference consistent.</p>
         </div>
         <div class="hc-card">
-          <h3>Knowledge base per agent</h3>
-          <p>Editing the knowledge-base text on the agent creates, updates, or deletes the corresponding ElevenLabs document and keeps the ID in sync.</p>
+          <h3>Country-aware fallback</h3>
+          <p>When the user's caller ID and the destination disagree on country code, the dialer falls back to the BYOC's default — instead of getting rejected at the carrier.</p>
         </div>
         <div class="hc-card">
-          <h3>Phone-number registration</h3>
-          <p>A separate model registers Twilio caller-ID numbers with ElevenLabs for outbound agent calls, with status, error, and last-sync tracking.</p>
+          <h3>SIP password rules from Twilio</h3>
+          <p>Password changes route through Twilio's credential list API, surfacing the platform's strength rules as native Odoo validation errors.</p>
         </div>
       </div>
     </div>
@@ -384,24 +384,23 @@
     <h2>Compatibility</h2>
     <p>
       <span class="hc-version">Odoo 19.0</span>
-      <span class="hc-version">ElevenLabs Convai</span>
-      <span class="hc-version">Python elevenlabs SDK</span>
+      <span class="hc-version">Twilio BYOC</span>
     </p>
     <p class="muted" style="margin-top: 1rem;">
-      Depends on <span class="mono">connect</span>, <span class="mono">calendar</span>, <span class="mono">mail</span>, <span class="mono">queue_job</span>. Live conversation streaming requires a media-bridge service (Dockerfile included under <span class="mono">service/</span>) reachable from Twilio.
+      Depends on <span class="mono">connect</span>. Requires a Twilio account with BYOC enabled and your carrier reachable over SIP.
     </p>
   </section>
 
   <aside class="hc-field-note hc-container">
-    <h3>Field note — sync errors are facts, not failures</h3>
-    <p>Agents have a <em>Sync Status</em> field that goes red when the platform call fails. We do not retry blindly; the last error is on the record so the operator can see exactly what ElevenLabs complained about. Fix the field, save again, status returns to synced. Boring is the point.</p>
+    <h3>Field note — opinionated about caller ID</h3>
+    <p>Most BYOC failures we see in the field are caller-ID problems: the user's preferred number doesn't pass at the carrier, or international routes spoof the wrong country. The five caller-ID cases are deliberate, not over-engineered. If your carrier accepts anything, you'll never notice — that's the point.</p>
   </aside>
 
 </main>
 
 <footer class="hc-foot">
   <span>©2026 Harrison Consulting, LLC</span>
-  <span class="mono">OPL-1</span>
+  <span class="mono">Other proprietary</span>
   <a href="https://www.harrison.consulting">harrison.consulting →</a>
 </footer>
 
@@ -435,7 +434,7 @@
 {
   "@context": "https://schema.org/",
   "@type": "SoftwareApplication",
-  "name": "Connect ElevenLabs",
+  "name": "Twilio BYOC for Connect",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Odoo 19",
   "publisher": {

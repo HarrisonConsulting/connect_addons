@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
 
-  <meta name="description" content="Build, sync, and answer phone calls with ElevenLabs conversational AI agents — managed from Odoo.">
-  <meta name="keywords" content="Odoo 19, ElevenLabs, conversational AI, Twilio, voice agents, Harrison Consulting">
-  <meta property="og:title" content="Connect ElevenLabs · Harrison Consulting">
-  <meta property="og:description" content="Build, sync, and answer phone calls with ElevenLabs conversational AI agents — managed from Odoo.">
+  <meta name="description" content="Send Odoo's native SMS — chatter, marketing, automation — through the Twilio account Connect already owns.">
+  <meta name="keywords" content="Odoo 19, Connect SMS, Twilio, sms_twilio, Harrison Consulting">
+  <meta property="og:title" content="Connect SMS Bridge · Harrison Consulting">
+  <meta property="og:description" content="Send Odoo's native SMS — chatter, marketing, automation — through the Twilio account Connect already owns.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.harrison.consulting/products/connect_elevenlabs">
-  <title>Connect ElevenLabs · Harrison Consulting</title>
+  <meta property="og:url" content="https://www.harrison.consulting/products/connect_sms">
+  <title>Connect SMS Bridge · Harrison Consulting</title>
 
   <link rel="icon" href="icon.png" type="image/png">
 
@@ -306,7 +306,7 @@
 <header class="hc-topbar">
   <a class="hc-brand" href="https://www.harrison.consulting"><em>Harrison</em> Consulting</a>
   <div class="hc-topbar-right">
-    <span class="hc-version">v1.8.0 · Odoo 19</span>
+    <span class="hc-version">v19.0.1.0.5 · Odoo 19</span>
     <button type="button" class="hc-theme-toggle" id="hc-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
       <span id="hc-theme-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -320,10 +320,10 @@
   <section class="hc-hero hc-container">
     <div class="hc-eyebrow">
       <span class="hc-eyebrow-bar"></span>
-      <span>ODOO MODULE · CONVERSATIONAL AI</span>
+      <span>ODOO MODULE · SMS BRIDGE</span>
     </div>
-    <h1>ElevenLabs agents, dialled in from Odoo.</h1>
-    <p class="lede">Configure voice, prompt, model, tools, and limits on an Odoo record; the module mirrors the agent to ElevenLabs and points an extension at it. When the agent answers, the partner, language, and prior-conversation summary travel with the call.</p>
+    <h1>One Twilio account, every Odoo SMS.</h1>
+    <p class="lede">Connect SMS routes Odoo's native <span class="mono">sms.sms</span> pipeline through the same Twilio credentials Connect already uses. Chatter messages, marketing campaigns, and automated rules go out the same number you make calls on.</p>
     <div class="hc-hero-ctas">
       <a class="hc-cta" href="#how">See how it works</a>
       <a class="hc-cta hc-cta--ghost" href="https://www.harrison.consulting/contact">Talk to us →</a>
@@ -332,18 +332,18 @@
 
   <section class="hc-section hc-container">
     <h2>Why</h2>
-    <p>ElevenLabs runs the agent. Twilio carries the audio. Odoo holds the customer, the calendar, and the history. Stitching the three together by hand means juggling agent IDs, knowledge-base IDs, webhook signatures, and conversation summaries. This module makes the Odoo record the source of truth: edits sync up, conversations sync back, transcripts and summaries land on the call record.</p>
+    <p>Connect manages Twilio numbers, credentials, and webhook security for telephony. But Odoo's built-in SMS marketing, chatter SMS, and automation rules use a separate provider abstraction (<span class="mono">sms_twilio</span>) with its own credentials and number list. Without a bridge, you maintain two configurations of the same Twilio account — and history splits across two models.</p>
   </section>
 
   <section class="hc-section hc-section--alt" id="how">
     <div class="hc-container">
       <h2>How it works</h2>
       <ol class="hc-numbered">
-        <li><div><div class="hc-step-title">Author an agent in Odoo</div><div class="hc-step-body">Pick a voice, choose an LLM (GPT, Claude, Gemini, or ElevenLabs-hosted), set first message, stability, speed, and turn timing.</div></div></li>
-        <li><div><div class="hc-step-title">Save syncs to ElevenLabs</div><div class="hc-step-body">Create mirrors to the platform API; write updates push only the changed fields; delete removes the agent and its knowledge base.</div></div></li>
-        <li><div><div class="hc-step-title">Attach a Twilio extension</div><div class="hc-step-body">The agent gets a Connect extension; inbound calls render a TwiML <span class="mono">&lt;Stream&gt;</span> to your media-bridge service for the live conversation.</div></div></li>
-        <li><div><div class="hc-step-title">Tools call back into Odoo</div><div class="hc-step-body">Calendar slots, event creation, meeting lookup, and agent transfer are HTTP routes guarded by a shared token in the <span class="mono">x-elevenlabs-agent-token</span> header.</div></div></li>
-        <li><div><div class="hc-step-title">Post-call writes summary and audio</div><div class="hc-step-body">An HMAC-signed post-call webhook lands the transcript, summary, conversation ID, and full recording onto the matching <span class="mono">connect.call</span>.</div></div></li>
+        <li><div><div class="hc-step-title">Installs auto on dependency match</div><div class="hc-step-body">When <span class="mono">connect</span> and <span class="mono">sms_twilio</span> are both installed, the bridge installs itself and runs a one-shot sync.</div></div></li>
+        <li><div><div class="hc-step-title">Credentials flow one direction</div><div class="hc-step-body">Account SID and auth token written in Connect settings copy into every company's <span class="mono">sms_twilio</span> configuration on save.</div></div></li>
+        <li><div><div class="hc-step-title">DID numbers sync to senders</div><div class="hc-step-body">Outgoing caller IDs of type <em>number</em> populate <span class="mono">sms.twilio.number</span>; plain caller IDs are skipped because they cannot send SMS.</div></div></li>
+        <li><div><div class="hc-step-title">Sent messages journal back</div><div class="hc-step-body">After Odoo's pipeline returns a Twilio SID, the bridge writes a matching <span class="mono">connect.message</span> so Connect's message history stays the canonical view.</div></div></li>
+        <li><div><div class="hc-step-title">Delivery updates round-trip</div><div class="hc-step-body">Status callbacks landing on <span class="mono">sms.tracker</span> propagate to the connect.message record by Twilio SID.</div></div></li>
       </ol>
     </div>
   </section>
@@ -353,28 +353,16 @@
       <h2>What's in the box</h2>
       <div class="hc-grid-3">
         <div class="hc-card">
-          <h3>Bidirectional agent sync</h3>
-          <p>Edit in Odoo, push to ElevenLabs; or pull a manual <em>sync</em> to import existing agents and update their fields by <span class="mono">agent_uid</span>.</p>
+          <h3>Credential sync on write</h3>
+          <p>Connect settings respect the protected-field write pattern, so the second write — the one carrying the real token — triggers the sync.</p>
         </div>
         <div class="hc-card">
-          <h3>Prompt version history</h3>
-          <p>Every prompt edit snapshots a numbered version on the agent; the active version is selectable so you can roll forward or back.</p>
+          <h3>Number list reconciliation</h3>
+          <p>Adds new DID numbers and removes stale ones per company on every caller-ID sync, keeping <span class="mono">sms.twilio.number</span> in step with Connect.</p>
         </div>
         <div class="hc-card">
-          <h3>Custom and built-in tools</h3>
-          <p>Define webhook tools with parameters and timeouts; system tools cover voicemail detection, DTMF tones, and agent-to-agent transfer.</p>
-        </div>
-        <div class="hc-card">
-          <h3>Calendar tooling, authenticated</h3>
-          <p>Four routes — free slots, create event, list meetings, remove meeting — accept timezone strings or offsets, all behind a shared token check.</p>
-        </div>
-        <div class="hc-card">
-          <h3>Knowledge base per agent</h3>
-          <p>Editing the knowledge-base text on the agent creates, updates, or deletes the corresponding ElevenLabs document and keeps the ID in sync.</p>
-        </div>
-        <div class="hc-card">
-          <h3>Phone-number registration</h3>
-          <p>A separate model registers Twilio caller-ID numbers with ElevenLabs for outbound agent calls, with status, error, and last-sync tracking.</p>
+          <h3>Unified message journal</h3>
+          <p>SMS sent through marketing, chatter, or automation lands in the same <span class="mono">connect.message</span> log as SMS sent from the softphone.</p>
         </div>
       </div>
     </div>
@@ -384,17 +372,15 @@
     <h2>Compatibility</h2>
     <p>
       <span class="hc-version">Odoo 19.0</span>
-      <span class="hc-version">ElevenLabs Convai</span>
-      <span class="hc-version">Python elevenlabs SDK</span>
     </p>
     <p class="muted" style="margin-top: 1rem;">
-      Depends on <span class="mono">connect</span>, <span class="mono">calendar</span>, <span class="mono">mail</span>, <span class="mono">queue_job</span>. Live conversation streaming requires a media-bridge service (Dockerfile included under <span class="mono">service/</span>) reachable from Twilio.
+      Depends on <span class="mono">connect</span> and <span class="mono">sms_twilio</span>. Marked <span class="mono">auto_install</span> — installs once both are present.
     </p>
   </section>
 
   <aside class="hc-field-note hc-container">
-    <h3>Field note — sync errors are facts, not failures</h3>
-    <p>Agents have a <em>Sync Status</em> field that goes red when the platform call fails. We do not retry blindly; the last error is on the record so the operator can see exactly what ElevenLabs complained about. Fix the field, save again, status returns to synced. Boring is the point.</p>
+    <h3>Field note — a bridge, not a replacement</h3>
+    <p>This module does not move SMS sending out of Odoo's pipeline. It threads Twilio's credentials and numbers through the standard provider abstraction so the rest of Odoo behaves normally. If you want Connect to own the send path, this is the wrong module — keep using its softphone composer.</p>
   </aside>
 
 </main>
@@ -435,7 +421,7 @@
 {
   "@context": "https://schema.org/",
   "@type": "SoftwareApplication",
-  "name": "Connect ElevenLabs",
+  "name": "Connect SMS Bridge",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Odoo 19",
   "publisher": {

@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
 
-  <meta name="description" content="Build, sync, and answer phone calls with ElevenLabs conversational AI agents — managed from Odoo.">
-  <meta name="keywords" content="Odoo 19, ElevenLabs, conversational AI, Twilio, voice agents, Harrison Consulting">
-  <meta property="og:title" content="Connect ElevenLabs · Harrison Consulting">
-  <meta property="og:description" content="Build, sync, and answer phone calls with ElevenLabs conversational AI agents — managed from Odoo.">
+  <meta name="description" content="Move Connect recordings and voicemails off Twilio and your Odoo filestore into S3-compatible object storage.">
+  <meta name="keywords" content="Odoo 19, Connect S3, Twilio recordings, MinIO, voicemail storage, Harrison Consulting">
+  <meta property="og:title" content="Connect S3 Recording Storage · Harrison Consulting">
+  <meta property="og:description" content="Move Connect recordings and voicemails off Twilio and your Odoo filestore into S3-compatible object storage.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.harrison.consulting/products/connect_elevenlabs">
-  <title>Connect ElevenLabs · Harrison Consulting</title>
+  <meta property="og:url" content="https://www.harrison.consulting/products/connect_s3">
+  <title>Connect S3 Recording Storage · Harrison Consulting</title>
 
   <link rel="icon" href="icon.png" type="image/png">
 
@@ -306,7 +306,7 @@
 <header class="hc-topbar">
   <a class="hc-brand" href="https://www.harrison.consulting"><em>Harrison</em> Consulting</a>
   <div class="hc-topbar-right">
-    <span class="hc-version">v1.8.0 · Odoo 19</span>
+    <span class="hc-version">v1.3.0 · Odoo 19</span>
     <button type="button" class="hc-theme-toggle" id="hc-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
       <span id="hc-theme-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -320,10 +320,10 @@
   <section class="hc-hero hc-container">
     <div class="hc-eyebrow">
       <span class="hc-eyebrow-bar"></span>
-      <span>ODOO MODULE · CONVERSATIONAL AI</span>
+      <span>ODOO MODULE · RECORDING STORAGE</span>
     </div>
-    <h1>ElevenLabs agents, dialled in from Odoo.</h1>
-    <p class="lede">Configure voice, prompt, model, tools, and limits on an Odoo record; the module mirrors the agent to ElevenLabs and points an extension at it. When the agent answers, the partner, language, and prior-conversation summary travel with the call.</p>
+    <h1>Recordings off Twilio, into your bucket.</h1>
+    <p class="lede">Connect S3 hands new recordings and voicemails straight to AWS S3 or any compatible endpoint, plays them back through short-lived presigned URLs, and offers a resumable wizard to move what's already on Twilio or in the Odoo filestore.</p>
     <div class="hc-hero-ctas">
       <a class="hc-cta" href="#how">See how it works</a>
       <a class="hc-cta hc-cta--ghost" href="https://www.harrison.consulting/contact">Talk to us →</a>
@@ -332,18 +332,18 @@
 
   <section class="hc-section hc-container">
     <h2>Why</h2>
-    <p>ElevenLabs runs the agent. Twilio carries the audio. Odoo holds the customer, the calendar, and the history. Stitching the three together by hand means juggling agent IDs, knowledge-base IDs, webhook signatures, and conversation summaries. This module makes the Odoo record the source of truth: edits sync up, conversations sync back, transcripts and summaries land on the call record.</p>
+    <p>Twilio bills for stored recordings. Odoo's filestore grows without natural compaction. Once a Connect deployment runs a year, two recordings per call adds up to a real ops problem: backups slow, replication costs climb, and deleting from Twilio without a verified copy is the kind of mistake nobody wants to be on call for.</p>
   </section>
 
   <section class="hc-section hc-section--alt" id="how">
     <div class="hc-container">
       <h2>How it works</h2>
       <ol class="hc-numbered">
-        <li><div><div class="hc-step-title">Author an agent in Odoo</div><div class="hc-step-body">Pick a voice, choose an LLM (GPT, Claude, Gemini, or ElevenLabs-hosted), set first message, stability, speed, and turn timing.</div></div></li>
-        <li><div><div class="hc-step-title">Save syncs to ElevenLabs</div><div class="hc-step-body">Create mirrors to the platform API; write updates push only the changed fields; delete removes the agent and its knowledge base.</div></div></li>
-        <li><div><div class="hc-step-title">Attach a Twilio extension</div><div class="hc-step-body">The agent gets a Connect extension; inbound calls render a TwiML <span class="mono">&lt;Stream&gt;</span> to your media-bridge service for the live conversation.</div></div></li>
-        <li><div><div class="hc-step-title">Tools call back into Odoo</div><div class="hc-step-body">Calendar slots, event creation, meeting lookup, and agent transfer are HTTP routes guarded by a shared token in the <span class="mono">x-elevenlabs-agent-token</span> header.</div></div></li>
-        <li><div><div class="hc-step-title">Post-call writes summary and audio</div><div class="hc-step-body">An HMAC-signed post-call webhook lands the transcript, summary, conversation ID, and full recording onto the matching <span class="mono">connect.call</span>.</div></div></li>
+        <li><div><div class="hc-step-title">Pick S3 in settings</div><div class="hc-step-body">Set <em>Recording storage</em> to <em>S3 / Object Storage</em>. Provide bucket, endpoint (blank for AWS, set for MinIO), region, and ERP-manager-protected keys.</div></div></li>
+        <li><div><div class="hc-step-title">Verify the connection</div><div class="hc-step-body">A test button runs <span class="mono">head_bucket</span> and tells you exactly which credential or permission is wrong instead of failing silently at upload time.</div></div></li>
+        <li><div><div class="hc-step-title">New audio uploads on completion</div><div class="hc-step-body">Recordings and voicemails upload as <span class="mono">audio/mpeg</span> on the same hook that previously stored them as Odoo attachments — same trigger, different destination.</div></div></li>
+        <li><div><div class="hc-step-title">Playback uses presigned URLs</div><div class="hc-step-body">Form widgets get 8-hour links; voicemail email notifications get 7-day links. Bucket can stay private.</div></div></li>
+        <li><div><div class="hc-step-title">Migrate the backlog on your terms</div><div class="hc-step-body">A wizard counts what remains on Twilio and the filestore, then processes one batch per click — idempotent, so re-clicking resumes after any interruption.</div></div></li>
       </ol>
     </div>
   </section>
@@ -353,28 +353,28 @@
       <h2>What's in the box</h2>
       <div class="hc-grid-3">
         <div class="hc-card">
-          <h3>Bidirectional agent sync</h3>
-          <p>Edit in Odoo, push to ElevenLabs; or pull a manual <em>sync</em> to import existing agents and update their fields by <span class="mono">agent_uid</span>.</p>
+          <h3>S3-compatible by default</h3>
+          <p>Leave endpoint blank for AWS S3, fill it for MinIO, Wasabi, Backblaze, or any service that speaks the same API.</p>
         </div>
         <div class="hc-card">
-          <h3>Prompt version history</h3>
-          <p>Every prompt edit snapshots a numbered version on the agent; the active version is selectable so you can roll forward or back.</p>
+          <h3>Verified delete</h3>
+          <p>When <em>Delete recording from Twilio</em> is enabled, the bridge re-reads the S3 object first. If verify fails the Twilio copy stays.</p>
         </div>
         <div class="hc-card">
-          <h3>Custom and built-in tools</h3>
-          <p>Define webhook tools with parameters and timeouts; system tools cover voicemail detection, DTMF tones, and agent-to-agent transfer.</p>
+          <h3>Resumable batch migration</h3>
+          <p>Wizard picks up only records still missing an <span class="mono">s3_key</span>. Tune the batch size, see last-run duration, click again until done.</p>
         </div>
         <div class="hc-card">
-          <h3>Calendar tooling, authenticated</h3>
-          <p>Four routes — free slots, create event, list meetings, remove meeting — accept timezone strings or offsets, all behind a shared token check.</p>
+          <h3>Voicemail and call recordings both</h3>
+          <p>One setting routes both <span class="mono">connect.recording</span> and the voicemail audio attached to <span class="mono">connect.call</span> through the same S3 path.</p>
         </div>
         <div class="hc-card">
-          <h3>Knowledge base per agent</h3>
-          <p>Editing the knowledge-base text on the agent creates, updates, or deletes the corresponding ElevenLabs document and keeps the ID in sync.</p>
+          <h3>Tidy key layout</h3>
+          <p>Objects land under <span class="mono">connect/recordings/&lt;db&gt;/&lt;sid&gt;.mp3</span> and <span class="mono">connect/voicemails/&lt;db&gt;/&lt;sid&gt;.mp3</span>, so one bucket can host several databases.</p>
         </div>
         <div class="hc-card">
-          <h3>Phone-number registration</h3>
-          <p>A separate model registers Twilio caller-ID numbers with ElevenLabs for outbound agent calls, with status, error, and last-sync tracking.</p>
+          <h3>Cleanup on delete</h3>
+          <p>Unlinking a recording in Odoo removes the matching object from S3 too. Errors are logged, not raised, so a missing object doesn't block deletion.</p>
         </div>
       </div>
     </div>
@@ -384,17 +384,16 @@
     <h2>Compatibility</h2>
     <p>
       <span class="hc-version">Odoo 19.0</span>
-      <span class="hc-version">ElevenLabs Convai</span>
-      <span class="hc-version">Python elevenlabs SDK</span>
+      <span class="hc-version">Python boto3</span>
     </p>
     <p class="muted" style="margin-top: 1rem;">
-      Depends on <span class="mono">connect</span>, <span class="mono">calendar</span>, <span class="mono">mail</span>, <span class="mono">queue_job</span>. Live conversation streaming requires a media-bridge service (Dockerfile included under <span class="mono">service/</span>) reachable from Twilio.
+      Depends on <span class="mono">connect</span>. Requires <span class="mono">boto3</span>. Works with any service that implements the S3 API.
     </p>
   </section>
 
   <aside class="hc-field-note hc-container">
-    <h3>Field note — sync errors are facts, not failures</h3>
-    <p>Agents have a <em>Sync Status</em> field that goes red when the platform call fails. We do not retry blindly; the last error is on the record so the operator can see exactly what ElevenLabs complained about. Fix the field, save again, status returns to synced. Boring is the point.</p>
+    <h3>Field note — the migration is the feature</h3>
+    <p>Switching the storage backend is easy. Moving years of recordings without losing one is the hard part. The wizard runs synchronously, one batch at a time, with verify-before-delete — so if the connection wobbles you re-click and it resumes. Slower than a background job, easier to trust.</p>
   </aside>
 
 </main>
@@ -435,7 +434,7 @@
 {
   "@context": "https://schema.org/",
   "@type": "SoftwareApplication",
-  "name": "Connect ElevenLabs",
+  "name": "Connect S3 Recording Storage",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Odoo 19",
   "publisher": {

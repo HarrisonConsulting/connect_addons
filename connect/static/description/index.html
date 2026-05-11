@@ -1,69 +1,492 @@
-<section class="oe_container">
-  <div class="oe_row oe_spaced">
-    <div class="oe_span6">
-      <h2 class="oe_slogan" style="color:#875A7B;">Twilio-enable your Odoo and get a boost in communications!</h2>
-      <h3 class="oe_slogan">Empower your Odoo with Connect!</h3>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+
+  <meta name="description" content="The Twilio integration application for Odoo — softphone, callflows, recordings, SMS, and WhatsApp on one stack.">
+  <meta name="keywords" content="Odoo 19, Twilio, Connect, softphone, callflow, WhatsApp, SMS, voicemail, Harrison Consulting">
+  <meta property="og:title" content="Connect · Harrison Consulting">
+  <meta property="og:description" content="The Twilio integration application for Odoo — softphone, callflows, recordings, SMS, and WhatsApp on one stack.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.harrison.consulting/products/connect">
+  <title>Connect · Harrison Consulting</title>
+
+  <link rel="icon" href="icon.png" type="image/png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Epilogue:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+  <style>
+    :root {
+      --hc-bg: #F5F1EA;
+      --hc-surface: #FFFFFF;
+      --hc-surface-2: #EFE9DD;
+      --hc-border: rgba(0,0,0,0.08);
+      --hc-border-accent: rgba(0,0,0,0.14);
+      --hc-text: #1A1A1A;
+      --hc-text-muted: #5A5A5A;
+      --hc-text-dim: #8A8680;
+      --hc-amber: #A8862B;
+      --hc-amber-dim: rgba(168,134,43,0.10);
+      --hc-amber-border: rgba(168,134,43,0.30);
+      --hc-lane: #3A6CA8;
+      --hc-lane-soft: rgba(58,108,168,0.10);
+
+      --hc-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --hc-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      color-scheme: light;
+    }
+    [data-bs-theme="dark"] {
+      --hc-bg: #0D0F14;
+      --hc-surface: #13161E;
+      --hc-surface-2: #1A1E28;
+      --hc-border: rgba(255,255,255,0.08);
+      --hc-border-accent: rgba(255,255,255,0.14);
+      --hc-text: #E4DFD5;
+      --hc-text-muted: #7A7670;
+      --hc-text-dim: #4A4845;
+      --hc-amber: #C9A84C;
+      --hc-amber-dim: rgba(201,168,76,0.12);
+      --hc-amber-border: rgba(201,168,76,0.25);
+      --hc-lane: #5A8FC4;
+      --hc-lane-soft: rgba(90,143,196,0.12);
+
+      --hc-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --hc-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+
+    .hc-no-transition,
+    .hc-no-transition *,
+    .hc-no-transition *::before,
+    .hc-no-transition *::after { transition: none !important; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+    @media (min-width: 768px) { html { font-size: 17px; } }
+    body {
+      font-family: 'Epilogue', system-ui, -apple-system, sans-serif;
+      font-weight: 400;
+      line-height: 1.7;
+      color: var(--hc-text);
+      background: var(--hc-bg);
+      transition: background-color 200ms ease, color 200ms ease;
+    }
+    a { color: var(--hc-lane); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img, svg { max-width: 100%; display: block; }
+    code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    h1, h2, h3 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--hc-text);
+    }
+    h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+    h2 { font-size: clamp(1.6rem, 3.2vw, 2.4rem); margin-bottom: 1.2rem; }
+    h3 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+    p { color: var(--hc-text); }
+    p + p { margin-top: 1rem; }
+    .muted { color: var(--hc-text-muted); }
+
+    .hc-container { max-width: 760px; margin: 0 auto; padding: 0 1.5rem; }
+    .hc-container--wide { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+
+    .hc-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--hc-border);
+      max-width: 1100px; margin: 0 auto;
+    }
+    .hc-brand {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.1rem; letter-spacing: 0.02em; color: var(--hc-text);
+    }
+    .hc-brand em { font-style: italic; color: var(--hc-amber); }
+    .hc-topbar-right { display: flex; align-items: center; gap: 1rem; }
+
+    .hc-theme-toggle {
+      background: transparent; border: 1px solid var(--hc-border);
+      color: var(--hc-text-muted);
+      width: 34px; height: 34px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 6px; cursor: pointer;
+      transition: border-color 200ms ease, color 200ms ease;
+    }
+    .hc-theme-toggle:hover { border-color: var(--hc-lane); color: var(--hc-lane); }
+    .hc-theme-toggle svg { width: 18px; height: 18px; }
+
+    .hc-eyebrow {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem; font-weight: 500;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--hc-text-muted); margin-bottom: 1.5rem;
+    }
+    .hc-eyebrow-bar { width: 2px; height: 0.875rem; background: var(--hc-lane); }
+
+    .hc-hero { padding: 5rem 0 4rem; text-align: left; }
+    @media (max-width: 640px) { .hc-hero { padding: 3rem 0 2.5rem; } }
+    .hc-hero h1 { max-width: 18ch; margin-bottom: 1.25rem; }
+    .hc-hero .lede {
+      font-size: clamp(1.05rem, 2vw, 1.2rem);
+      color: var(--hc-text-muted); max-width: 56ch; margin-bottom: 2rem;
+    }
+    .hc-hero-ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+    .hc-section { padding: 4rem 0; }
+    @media (max-width: 640px) { .hc-section { padding: 2.5rem 0; } }
+    .hc-section--alt {
+      background: var(--hc-surface-2);
+      border-top: 1px solid var(--hc-border);
+      border-bottom: 1px solid var(--hc-border);
+      transition: background-color 200ms ease;
+    }
+    .hc-section p { max-width: 60ch; }
+
+    .hc-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .hc-card {
+      background: var(--hc-surface);
+      border: 1px solid var(--hc-border);
+      border-top: 2px solid var(--hc-lane);
+      border-radius: 6px; padding: 1.5rem;
+      box-shadow: var(--hc-shadow-sm);
+      transition: border-color 200ms ease, transform 200ms ease, background-color 200ms ease;
+    }
+    .hc-card:hover {
+      border-color: var(--hc-border-accent);
+      transform: translateY(-2px);
+      box-shadow: var(--hc-shadow-md);
+    }
+    .hc-card h3 { color: var(--hc-text); margin-bottom: 0.5rem; }
+    .hc-card p { font-size: 0.95rem; color: var(--hc-text-muted); }
+
+    .hc-numbered { list-style: none; counter-reset: hc; margin-top: 1.5rem; }
+    .hc-numbered li {
+      counter-increment: hc;
+      display: grid; grid-template-columns: 2.25rem 1fr;
+      gap: 1rem; padding: 1rem 0;
+      border-bottom: 1px solid var(--hc-border);
+    }
+    .hc-numbered li:last-child { border-bottom: 0; }
+    .hc-numbered li::before {
+      content: counter(hc, decimal-leading-zero);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem; color: var(--hc-lane);
+      align-self: start; padding-top: 0.1rem;
+    }
+    .hc-numbered .hc-step-title { font-weight: 600; color: var(--hc-text); margin-bottom: 0.25rem; }
+    .hc-numbered .hc-step-body { color: var(--hc-text-muted); font-size: 0.95rem; }
+
+    .hc-field-note {
+      background: var(--hc-amber-dim);
+      border: 1px solid var(--hc-amber-border);
+      border-radius: 6px; padding: 1.75rem;
+      margin: 3rem 0 4rem; max-width: 60ch;
+    }
+    .hc-field-note h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--hc-amber); margin-bottom: 0.75rem;
+    }
+    .hc-field-note p {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.15rem; line-height: 1.5; color: var(--hc-text);
+    }
+
+    .hc-cta {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--hc-lane); color: #fff;
+      border: 1px solid var(--hc-lane); border-radius: 6px;
+      font-family: 'Epilogue', sans-serif;
+      font-weight: 500; font-size: 0.95rem;
+      cursor: pointer; transition: opacity 200ms ease;
+    }
+    .hc-cta:hover { opacity: 0.85; text-decoration: none; color: #fff; }
+    .hc-cta--ghost { background: transparent; color: var(--hc-lane); }
+    .hc-cta--ghost:hover { background: var(--hc-lane-soft); }
+
+    .hc-version {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      background: var(--hc-lane-soft);
+      color: var(--hc-lane);
+      border: 1px solid var(--hc-border);
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; font-weight: 500;
+    }
+
+    .hc-foot {
+      max-width: 1100px; margin: 0 auto;
+      padding: 2rem 1.5rem;
+      border-top: 1px solid var(--hc-border);
+      display: flex; flex-wrap: wrap; gap: 1rem;
+      justify-content: space-between;
+      font-size: 0.85rem; color: var(--hc-text-muted);
+    }
+    .hc-foot a { color: var(--hc-text-muted); }
+    .hc-foot a:hover { color: var(--hc-lane); }
+  </style>
+
+  <script>
+    (function(){
+      function getCookie(n){var v="; "+document.cookie,p=v.split("; "+n+"=");if(p.length===2)return p.pop().split(";").shift();return null}
+      function setCookie(n,v){
+        if(v===null||v==='system'){document.cookie=n+'=;path=/;max-age=0;SameSite=Lax';}
+        else{document.cookie=n+'='+v+';path=/;max-age=31536000;SameSite=Lax';}
+      }
+      function systemPrefersDark(){return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;}
+      function resolve(mode){
+        if(mode==='dark'||mode==='light')return mode;
+        return systemPrefersDark()?'dark':'light';
+      }
+      function apply(mode){
+        var resolved=resolve(mode);
+        document.documentElement.setAttribute('data-bs-theme',resolved);
+        document.documentElement.setAttribute('data-hc-theme-mode',mode);
+      }
+      var raw=getCookie('hc_theme');
+      var mode=(raw==='light'||raw==='dark'||raw==='system')?raw:'system';
+      apply(mode);
+
+      document.documentElement.classList.add('hc-no-transition');
+      window.addEventListener('load',function(){
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            document.documentElement.classList.remove('hc-no-transition');
+          });
+        });
+      });
+
+      if(window.matchMedia){
+        var mq=window.matchMedia('(prefers-color-scheme: dark)');
+        var onChange=function(){if(window.hcTheme.getMode()==='system'){apply('system');dispatch();}};
+        if(mq.addEventListener)mq.addEventListener('change',onChange);
+        else if(mq.addListener)mq.addListener(onChange);
+      }
+
+      function dispatch(){
+        window.dispatchEvent(new CustomEvent('hc-theme-change',{
+          detail:{mode:window.hcTheme.getMode(),resolved:window.hcTheme.get()}
+        }));
+      }
+
+      window.hcTheme={
+        get:function(){return document.documentElement.getAttribute('data-bs-theme')||'light';},
+        getMode:function(){return document.documentElement.getAttribute('data-hc-theme-mode')||'system';},
+        setMode:function(m){
+          if(m!=='system'&&m!=='light'&&m!=='dark')return;
+          setCookie('hc_theme',m);
+          apply(m);
+          dispatch();
+        },
+        cycle:function(){
+          var order=['system','light','dark'];
+          var cur=this.getMode();
+          var idx=order.indexOf(cur);
+          this.setMode(order[(idx+1)%order.length]);
+        },
+      };
+    })();
+  </script>
+</head>
+<body>
+
+<header class="hc-topbar">
+  <a class="hc-brand" href="https://www.harrison.consulting"><em>Harrison</em> Consulting</a>
+  <div class="hc-topbar-right">
+    <span class="hc-version">v1.20.10 · Odoo 19</span>
+    <button type="button" class="hc-theme-toggle" id="hc-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+      <span id="hc-theme-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <section class="hc-hero hc-container">
+    <div class="hc-eyebrow">
+      <span class="hc-eyebrow-bar"></span>
+      <span>ODOO APPLICATION · TWILIO TELEPHONY</span>
     </div>
-    <div class="oe_span6">
-      <div class="oe_row_img oe_centered">
-        <img alt="Icon" class="oe_picture" src="icon.png"/>
+    <h1>A Twilio phone system, in Odoo.</h1>
+    <p class="lede">Connect turns an Odoo database into a working Twilio PBX: softphone in the web client, callflows and IVR, recordings, voicemail, SMS, and WhatsApp — all in records you can query, automate, and integrate with the rest of the business.</p>
+    <div class="hc-hero-ctas">
+      <a class="hc-cta" href="#how">See how it works</a>
+      <a class="hc-cta hc-cta--ghost" href="https://www.harrison.consulting/contact">Talk to us →</a>
+    </div>
+  </section>
+
+  <section class="hc-section hc-container">
+    <h2>Why</h2>
+    <p>Most Odoo telephony is a thin click-to-dial veneer over a separate platform. Connect goes the other way: Twilio resources — numbers, domains, TwiML apps, BYOC trunks, WhatsApp senders, recordings — are first-class Odoo models with sync, security, and webhook validation. A call lives next to the partner, the lead, the ticket, and the order it relates to.</p>
+  </section>
+
+  <section class="hc-section hc-section--alt" id="how">
+    <div class="hc-container">
+      <h2>How it works</h2>
+      <ol class="hc-numbered">
+        <li><div><div class="hc-step-title">Twilio resources sync as records</div><div class="hc-step-body">Account SID and auth token are stored as protected fields; a settings <em>sync</em> action mirrors numbers, domains, and trunks from Twilio into Odoo and back.</div></div></li>
+        <li><div><div class="hc-step-title">Webhooks land on signed routes</div><div class="hc-step-body">Twilio call status, recording status, message, conference, and transfer events arrive on signature-validated controllers and update <span class="mono">connect.call</span>, <span class="mono">connect.channel</span>, and <span class="mono">connect.message</span>.</div></div></li>
+        <li><div><div class="hc-step-title">Callflows decide the route</div><div class="hc-step-body">Gather, schedule, business hours, voicemail prompt, ring-group fanout, and after-hours fallback — all editable on a callflow record with audio previews.</div></div></li>
+        <li><div><div class="hc-step-title">The softphone runs in Odoo</div><div class="hc-step-body">OWL components for tray, dialpad, contacts, favorites, and active calls bind to a Twilio client; chat-thread widgets render SMS and WhatsApp inline.</div></div></li>
+        <li><div><div class="hc-step-title">Records are the audit trail</div><div class="hc-step-body">Caller and called partners, the answering user, transfer chain, duration, recording, transcript, and voicemail all live on the call record — searchable, securable, exportable.</div></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="hc-section">
+    <div class="hc-container--wide">
+      <h2>What's in the box</h2>
+      <div class="hc-grid-3">
+        <div class="hc-card">
+          <h3>OWL softphone</h3>
+          <p>Tray, dialpad, recent calls, favorites, and contacts — five top-level components under <span class="mono">/components/phone</span> with dark-mode SCSS.</p>
+        </div>
+        <div class="hc-card">
+          <h3>Callflows with schedules</h3>
+          <p>Gather digit or speech, schedule lines and holidays, business-hours timezone, after-hours audio and voicemail — all on one record.</p>
+        </div>
+        <div class="hc-card">
+          <h3>SMS and WhatsApp</h3>
+          <p>Inbound and outbound messages, status callbacks, conversation grouping, WhatsApp content templates with approval workflow, and per-user senders.</p>
+        </div>
+        <div class="hc-card">
+          <h3>Recordings and voicemail</h3>
+          <p>Per-call recording widget, transcript, voicemail stages, email notifications with playback link, optional Twilio-side cleanup after capture.</p>
+        </div>
+        <div class="hc-card">
+          <h3>Call parking</h3>
+          <p>Pre-provisioned park slots backed by Twilio conferences, with occupancy, parked-by, and duration computed on the slot record.</p>
+        </div>
+        <div class="hc-card">
+          <h3>Webhook security</h3>
+          <p>A dedicated webhook user, record rules, request-signature validation, and an explicit kill-switch — disabled gets logged at WARNING.</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="oe_container">
-  <div class="oe_row oe_spaced">
-    <div class="alert alert-danger oe_mt32" style="padding:0.3em 0.6em; font-size: 150%;">
-      You must purchase a monthly subscription to use this application. For pricing and other details, visit http://connect.com/pricing
-    </div>
-  </div>
-</section>
-
-
-<section class="oe_container">
-  <div class="oe_row oe_spaced">
-    <div class="oe_span12">
-      <h4 class="oe_slogan"><b>Features</b></h4>
-      <div class="alert alert-info oe_mt32" style="padding:0.3em 0.6em; font-size: 150%;">
-        <ul class="list-unstyled">
-            <li>
-              <i class="fa fa-check-square-o text-primary"></i>
-              One click calling from Odoo!
-            </li>
-            <li>
-              <i class="fa fa-check-square-o text-primary"></i>
-              TwiML/Python programmable PBX features right from the Odoo!
-            </li>
-            <li>
-              <i class="fa fa-check-square-o text-primary"></i>
-              Call recording.
-            </li>
-            <li>
-              <i class="fa fa-check-square-o text-primary"></i>
-              Call analytics.
-            </li>
-            <li>
-              <i class="fa fa-check-square-o text-primary"></i>
-              ChatGPT interface to the call transcripts gives a NEW tool for your business!
-            </li>
-                <li>
-                  <i class="fa fa-square-o text-primary"></i>
-                  More features coming! Join now to get early bid pricing!
-                </li>
-        </ul>
+  <section class="hc-section hc-section--alt">
+    <div class="hc-container--wide">
+      <h2>The Connect family</h2>
+      <p class="muted" style="max-width: 60ch;">Connect ships the base application. Six sibling modules extend it — one per integration register, installed only when needed.</p>
+      <div class="hc-grid-3" style="margin-top: 1.5rem;">
+        <div class="hc-card">
+          <div class="hc-eyebrow"><span class="mono">connect_crm</span></div>
+          <h3>CRM integration</h3>
+          <p>Creates leads from inbound calls, links calls to leads, and tracks UTM campaigns on the call record.</p>
+        </div>
+        <div class="hc-card">
+          <div class="hc-eyebrow"><span class="mono">connect_elevenlabs</span></div>
+          <h3>ElevenLabs Conversational AI</h3>
+          <p>Author AI voice agents in Odoo, sync to ElevenLabs, answer Twilio calls with them — transcripts and summaries land on the call.</p>
+        </div>
+        <div class="hc-card">
+          <div class="hc-eyebrow"><span class="mono">connect_byoc</span></div>
+          <h3>Bring Your Own Carrier</h3>
+          <p>Provision a Twilio BYOC trunk and route selected outbound numbers through your own SIP carrier via pattern-matched rules.</p>
+        </div>
+        <div class="hc-card">
+          <div class="hc-eyebrow"><span class="mono">connect_s3</span></div>
+          <h3>S3 recording storage</h3>
+          <p>Stream new recordings and voicemails to AWS S3 or any compatible bucket; a resumable wizard migrates the existing backlog.</p>
+        </div>
+        <div class="hc-card">
+          <div class="hc-eyebrow"><span class="mono">connect_sms</span></div>
+          <h3>SMS bridge</h3>
+          <p>Route Odoo's native SMS pipeline (chatter, marketing, automation) through the same Twilio credentials Connect already uses.</p>
+        </div>
+        <div class="hc-card">
+          <div class="hc-eyebrow"><span class="mono">connect_helpdesk</span></div>
+          <h3>Helpdesk integration</h3>
+          <p>Create and link helpdesk tickets from inbound calls; surface call history on the ticket and ticket context on the call.</p>
+        </div>
       </div>
+      <p class="muted" style="margin-top: 1rem; font-size: 0.9rem;">
+        Also available: <span class="mono">connect_website</span> (one-click web call), <span class="mono">connect_elevenlabs_knowledge</span>, <span class="mono">connect_elevenlabs_sale</span>, <span class="mono">connect_elevenlabs_helpdesk</span>.
+      </p>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="oe_container">
-  <div class="oe_row oe_spaced">
-  <div class="oe_span12">
-   <h4 class="oe_slogan"><b>Documentation</b></h4>
-   <div class="alert alert-warning oe_mt32" style="padding:0.3em 0.6em; font-size: 150%;">
-      <h2>For documentation and support visit connect.com</h2>
-   </div>
-  </div>
-  </div>
-</section>
+  <section class="hc-section hc-container">
+    <h2>Compatibility</h2>
+    <p>
+      <span class="hc-version">Odoo 19.0</span>
+      <span class="hc-version">Twilio Voice + SMS</span>
+      <span class="hc-version">WhatsApp Content API</span>
+    </p>
+    <p class="muted" style="margin-top: 1rem;">
+      Depends on <span class="mono">mail</span>, <span class="mono">contacts</span>, <span class="mono">sms</span>. Requires Python packages <span class="mono">twilio</span>, <span class="mono">openai</span>, <span class="mono">numpy</span>, <span class="mono">samplerate</span>. A public HTTPS endpoint is required for Twilio webhooks.
+    </p>
+  </section>
+
+  <aside class="hc-field-note hc-container">
+    <h3>Field note — built for operators, not demos</h3>
+    <p>Connect chooses verbosity over magic. Five caller-ID cases, explicit webhook-signature checks, transfer context kept on the call. New operators read more code on day one and re-debug less in week two. If your team owns the phone system, that trade is worth it.</p>
+  </aside>
+
+</main>
+
+<footer class="hc-foot">
+  <span>©2026 Harrison Consulting, LLC</span>
+  <span class="mono">OPL-1</span>
+  <a href="https://www.harrison.consulting">harrison.consulting →</a>
+</footer>
+
+<script>
+  (function(){
+    var ICONS = {
+      system:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+      light: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+      dark:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+    };
+    var TITLES = {
+      system: 'Theme: System (click for Light)',
+      light:  'Theme: Light (click for Dark)',
+      dark:   'Theme: Dark (click for System)'
+    };
+    var btn = document.getElementById('hc-theme-toggle');
+    var iconHost = document.getElementById('hc-theme-icon');
+    function paint() {
+      if (!window.hcTheme) return;
+      var mode = window.hcTheme.getMode();
+      iconHost.innerHTML = ICONS[mode] || ICONS.system;
+      btn.title = TITLES[mode];
+    }
+    btn.addEventListener('click', function(e){ e.preventDefault(); window.hcTheme.cycle(); });
+    window.addEventListener('hc-theme-change', paint);
+    paint();
+  })();
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "SoftwareApplication",
+  "name": "Connect",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Odoo 19",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Harrison Consulting, LLC",
+    "url": "https://www.harrison.consulting"
+  }
+}
+</script>
+
+</body>
+</html>

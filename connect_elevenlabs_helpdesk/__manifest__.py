@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect Elevenlabs Helpdesk',
-    'version': '1.0.0',
+    'version': '1.0.1',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'live_test_url': 'https://connect-demo-18.oduist.com/',

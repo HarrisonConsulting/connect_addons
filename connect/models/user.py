@@ -84,6 +84,9 @@ class User(models.Model):
     voicemail_preview = fields.Html(
         related='voicemail_audio_id.latest_utterance_id.preview_audio',
         string='Voicemail Preview', sanitize=False)
+    voicemail_box_id = fields.Many2one(
+        'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
+        help='Shared box for this user\'s personal voicemails. All box members gain access to calls and voicemails routed to this user.')
     application = fields.Many2one('connect.twiml')
     sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
     client_ring_timeout = fields.Integer(required=True, default=20, string='Web client ring timeout')

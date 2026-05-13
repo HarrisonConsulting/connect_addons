@@ -115,6 +115,9 @@
                                     <field name="voicemail_preview" widget="html"
                                            nolabel="1" colspan="2"
                                            invisible="not voicemail_enabled or not voicemail_preview"/>
+                                    <field name="voicemail_box_id"
+                                           invisible="not voicemail_enabled"
+                                           options="{'no_create': True}"/>
                                     <field name="application"/>
                                 </group>
                             </group>

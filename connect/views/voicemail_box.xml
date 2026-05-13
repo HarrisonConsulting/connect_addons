@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="voicemail_box_list" model="ir.ui.view">
+        <field name="name">connect.voicemail_box.list</field>
+        <field name="model">connect.voicemail_box</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="member_ids" widget="many2many_avatar_user" optional="show"/>
+                <field name="member_count" string="Members"/>
+                <field name="voicemail_count" string="Voicemails"/>
+                <field name="active" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="voicemail_box_form" model="ir.ui.view">
+        <field name="name">connect.voicemail_box.form</field>
+        <field name="model">connect.voicemail_box</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_voicemails" type="object"
+                                class="oe_stat_button" icon="fa-envelope-o">
+                            <field name="voicemail_count" widget="statinfo" string="Voicemails"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Voicemail Box"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Sales, Support, Exec Assistant"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="active" invisible="1"/>
+                            <field name="voicemail_audio_id"/>
+                            <field name="voicemail_stage_id"/>
+                            <field name="color" widget="color_picker"/>
+                        </group>
+                        <group>
+                            <field name="description" placeholder="What is this box for?"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="members" string="Members">
+                            <field name="member_ids" widget="many2many_avatar_user">
+                                <list>
+                                    <field name="avatar_128" widget="image" options="{'size': [24, 24]}"/>
+                                    <field name="name"/>
+                                    <field name="login"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="voicemail_box_search" model="ir.ui.view">
+        <field name="name">connect.voicemail_box.search</field>
+        <field name="model">connect.voicemail_box</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="member_ids" string="Member"/>
+                <filter name="active" string="Active"
+                        domain="[('active', '=', True)]"/>
+                <filter name="archived" string="Archived"
+                        domain="[('active', '=', False)]"/>
+                <filter name="my_boxes" string="My Boxes"
+                        domain="[('member_ids', 'in', [uid])]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="voicemail_box_action" model="ir.actions.act_window">
+        <field name="name">Voicemail Boxes</field>
+        <field name="res_model">connect.voicemail_box</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="voicemail_box_search"/>
+    </record>
+
+    <menuitem id="connect_voicemail_box_menu" name="Voicemail Boxes"
+        parent="connect.connect_settings_menu" sequence="85"
+        groups="connect.group_connect_admin"
+        action="voicemail_box_action"/>
+
+</odoo>

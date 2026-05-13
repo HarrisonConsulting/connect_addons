@@ -81,6 +81,9 @@ class CallFlow(models.Model):
         related='voicemail_audio_id.latest_utterance_id.preview_audio',
         string='Voicemail Preview', sanitize=False)
     voicemail_enabled = fields.Boolean()
+    voicemail_box_id = fields.Many2one(
+        'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
+        help='Shared box for voicemails landing on this callflow. All box members gain access to its calls and voicemails.')
     # fallback_extension
     schedule_id = fields.Many2one(
         'connect.schedule', string='Schedule',
@@ -263,6 +266,7 @@ class CallFlow(models.Model):
         else:
             # No ring users set, just send to voicemail if enabled.
             if self.voicemail_enabled:
+                self._stamp_voicemail_box(request)
                 response.pause(length=1)
                 # get_voicemail_prompt_message falls back to a generic <Say>
                 # when voicemail_audio_id is unset so the caller is never
@@ -317,6 +321,19 @@ class CallFlow(models.Model):
                 logger.error('Invalid input audio render failed for callflow %s: %s', self.id, e)
         self._say_fallback(response, 'We received wrong input. Please try again.')
 
+    def _stamp_voicemail_box(self, request):
+        """Tag the active call with this callflow's voicemail box so members of
+        the box gain access to the call record and the resulting voicemail."""
+        self.ensure_one()
+        if not self.voicemail_box_id:
+            return
+        call_sid = (request or {}).get('CallSid')
+        if not call_sid:
+            return
+        channel = self.env['connect.channel'].sudo().search([('sid', '=', call_sid)], limit=1)
+        if channel.call and not channel.call.voicemail_box_id:
+            channel.call.sudo().voicemail_box_id = self.voicemail_box_id.id
+
     def get_voicemail_prompt_message(self, response):
         """Play voicemail_audio_id or fall back to a generic voicemail prompt
         so <Record> is never preceded by silence."""
@@ -338,6 +355,7 @@ class CallFlow(models.Model):
             # m2o — get_voicemail_prompt_message handles the missing-audio
             # case with a generic <Say> fallback.
             if callflow.voicemail_enabled:
+                callflow._stamp_voicemail_box(request)
                 api_url = self.env['connect.settings'].sudo().get_param('api_url')
                 edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))

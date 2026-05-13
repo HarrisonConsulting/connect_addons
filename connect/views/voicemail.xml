@@ -53,6 +53,7 @@
                 <field name="voicemail_duration"/>
                 <field name="voicemail_assignee_ids"/>
                 <field name="voicemail_stage_id"/>
+                <field name="voicemail_box_id"/>
                 <field name="create_date"/>
                 <templates>
                     <t t-name="card">
@@ -82,6 +83,12 @@
                                     <span class="badge text-bg-secondary">
                                         <i class="fa fa-clock-o me-1"/>
                                         <t t-esc="record.voicemail_duration.value"/>s
+                                    </span>
+                                </t>
+                                <t t-if="record.voicemail_box_id.value">
+                                    <span class="badge text-bg-info ms-1">
+                                        <i class="fa fa-inbox me-1"/>
+                                        <t t-esc="record.voicemail_box_id.value"/>
                                     </span>
                                 </t>
                             </div>
@@ -137,6 +144,7 @@
                             <field name="create_date" string="Received"/>
                         </group>
                         <group string="Assigned To" name="assignment">
+                            <field name="voicemail_box_id" options="{'no_create': True}"/>
                             <field name="voicemail_assignee_ids" widget="many2many_tags"
                                    nolabel="1" colspan="2"/>
                         </group>
@@ -164,6 +172,7 @@
                 <field name="called" string="To" optional="hide" readonly="1"/>
                 <field name="voicemail_duration" string="Dur (s)" readonly="1"/>
                 <field name="voicemail_stage_id" string="Stage"/>
+                <field name="voicemail_box_id" string="Box" optional="show"/>
                 <field name="voicemail_assignee_ids" widget="many2many_tags"
                        string="Assignees"/>
                 <field name="summary" string="Notes" optional="hide"/>
@@ -180,14 +189,17 @@
                 <field name="caller"/>
                 <field name="voicemail_assignee_ids" string="Assignee"/>
                 <field name="voicemail_stage_id" string="Stage"/>
+                <field name="voicemail_box_id" string="Box"/>
                 <filter name="my_voicemails" string="My Voicemails"
-                        domain="[('voicemail_assignee_ids', 'in', [uid])]"/>
+                        domain="['|', ('voicemail_assignee_ids', 'in', [uid]), ('voicemail_box_id.member_ids', 'in', [uid])]"/>
                 <filter name="unassigned" string="Unassigned"
                         domain="[('voicemail_assignee_ids', '=', False)]"/>
                 <separator/>
                 <group>
                     <filter name="by_stage" string="Stage"
                             context="{'group_by': 'voicemail_stage_id'}"/>
+                    <filter name="by_box" string="Box"
+                            context="{'group_by': 'voicemail_box_id'}"/>
                     <filter name="by_assignee" string="Assignee"
                             context="{'group_by': 'voicemail_assignee_ids'}"/>
                     <filter name="by_created" string="Date"

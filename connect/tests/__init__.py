@@ -9,6 +9,7 @@ from . import test_conversation
 from . import test_park_slot
 from . import test_number_routing
 from . import test_voicemail
+from . import test_voicemail_box
 from . import test_error_handling
 from . import test_domain
 from . import test_user

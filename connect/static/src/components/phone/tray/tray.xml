@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <div t-name="connect.menu" owl="1">
+    <div t-name="connect.menu" class="connect-tray" owl="1">
         <button type="button" t-attf-class="o-dropdown dropdown-toggle dropdown toggle-phone {{state.inCall ? 'busy' : 'available'}}" aria-expanded="false" title="Toggle Connect Phone" t-on-click="_onClick">
             <i aria-label="Toggle Phone" class="fa fa-lg icon-call" role="img"/>
         </button>

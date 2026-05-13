@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.20.12',
+    'version': '1.20.13',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -24,6 +24,7 @@
         'data/twiml.xml',
         'data/res_partner.xml',
         'data/whatsapp_templates.xml',
+        'data/mail_templates.xml',
         # Security
         'security/groups.xml',
         'security/admin.xml',
@@ -45,6 +46,7 @@
         'views/exten.xml',
         'views/call_analytics.xml',
         'views/call.xml',
+        'views/voicemail_box.xml',
         'views/voicemail.xml',
         'views/park_slot.xml',
         'views/schedule.xml',

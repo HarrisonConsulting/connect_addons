@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="email_template_voicemail_notification" model="mail.template">
+        <field name="name">Connect: Voicemail Notification</field>
+        <field name="model_id" ref="connect.model_connect_call"/>
+        <field name="subject">Voicemail from {{ object.partner.name if object.partner else (object.caller or 'Unknown') }}</field>
+        <field name="email_from">{{ object.company_id.email or user.email_formatted }}</field>
+        <field name="auto_delete" eval="True"/>
+        <field name="body_html" type="html">
+            <div>
+                <p>You have a new voicemail:</p>
+                <ul style="margin: 12px 0; padding-left: 18px;">
+                    <li>
+                        <strong>From:</strong>
+                        <t t-out="object.partner.name if object.partner else (object.caller or 'Unknown')"/>
+                    </li>
+                    <li>
+                        <strong>Duration:</strong>
+                        <t t-out="object.voicemail_duration or 0"/>s
+                    </li>
+                    <li>
+                        <strong>Date:</strong>
+                        <t t-out="format_datetime(object.create_date, tz=user.tz) if object.create_date else ''"/>
+                    </li>
+                </ul>
+                <t t-set="transcript" t-value="object.voicemail_transcript or (object.recording.transcript if object.recording else '')"/>
+                <p t-if="transcript">
+                    <strong>Transcription:</strong><br/>
+                    <t t-out="transcript"/>
+                </p>
+                <t t-set="listen_url" t-value="'/web/content/%s?download=false' % object.voicemail_attachment_id.id if object.voicemail_attachment_id else object.voicemail_url"/>
+                <p t-if="listen_url">
+                    <a t-att-href="listen_url">Listen to voicemail</a>
+                </p>
+            </div>
+        </field>
+    </record>
+</odoo>

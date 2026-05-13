@@ -91,6 +91,10 @@ class Call(models.Model):
         help="Internal users responsible for handling this voicemail"
     )
     voicemail_transcript = fields.Text(string='Voicemail Transcript', help="")
+    voicemail_box_id = fields.Many2one(
+        'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
+        index=True, tracking=True,
+        help='Shared box this call belongs to. Members of the box gain read access to the call record and its voicemail.')
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')
     has_error = fields.Boolean(index=True)
@@ -1045,6 +1049,9 @@ class Call(models.Model):
             if channel.called_user.id not in channel.call.called_users.ids:
                 channel.call.called_users = [(4, channel.called_user.id)]
                 logger.info(f"Added {channel.called_user.login} to called_users (call_source: {getattr(channel, 'call_source', 'None')}) for call {channel.call.id}")
+        # Stamp voicemail box from called_pbx_user when configured
+        if not channel.call.voicemail_box_id and channel.called_pbx_user.voicemail_box_id:
+            channel.call.voicemail_box_id = channel.called_pbx_user.voicemail_box_id.id
         # Update webhook expectations for child call webhooks
         if params.get('ParentCallSid'):
             call_status = params.get('CallStatus')
@@ -1138,9 +1145,10 @@ class Call(models.Model):
                 updates['status'] = 'voicemail'
             # Set initial stage and assignees if not already set
             if not channel.call.voicemail_stage_id:
-                pending = self.env['connect.voicemail_stage'].sudo().search([], order='sequence asc', limit=1)
-                if pending:
-                    updates['voicemail_stage_id'] = pending.id
+                box = channel.call.voicemail_box_id or channel.called_pbx_user.voicemail_box_id
+                stage = box.voicemail_stage_id if box and box.voicemail_stage_id else self.env['connect.voicemail_stage'].sudo().search([], order='sequence asc', limit=1)
+                if stage:
+                    updates['voicemail_stage_id'] = stage.id
             if not channel.call.voicemail_assignee_ids and channel.call.called_users:
                 updates['voicemail_assignee_ids'] = [Command.set(channel.call.called_users.ids)]
             channel.call.write(updates)
@@ -1172,6 +1180,7 @@ class Call(models.Model):
             'duration': self.voicemail_duration or 0,
         }
         recipients = self.voicemail_assignee_ids or self.called_users
+        recipients |= self.voicemail_box_id.member_ids
         # Skip the user who triggered this write — their UI is already up to date.
         for user in recipients.filtered(lambda u: u.id != self.env.uid):
             self.env['bus.bus']._sendone(
@@ -1249,6 +1258,7 @@ class Call(models.Model):
         if self.transferred_users and not self.completed_by_user:
             recipients = self.transferred_users
 
+        template = self.env.ref('connect.email_template_voicemail_notification')
         for user in recipients:
             connect_user = user.connect_user
             if not connect_user or not connect_user.voicemail_email_enabled:
@@ -1256,47 +1266,15 @@ class Call(models.Model):
             if not user.email:
                 continue
 
-            # Build email
-            caller_display = self.caller or 'Unknown'
-            if self.partner:
-                caller_display = self.partner.name
-
-            subject = 'Voicemail from {}'.format(caller_display)
-
-            # Get transcription if available (may arrive later via recording pipeline)
-            transcript_text = ''
-            if self.recording and self.recording.transcript:
-                transcript_text = self.recording.transcript
-
-            body_html = (
-                '<p>You have a new voicemail:</p>'
-                '<ul>'
-                '<li><strong>From:</strong> {caller}</li>'
-                '<li><strong>Duration:</strong> {duration}s</li>'
-                '<li><strong>Date:</strong> {date}</li>'
-                '</ul>'
-            ).format(
-                caller=caller_display,
-                duration=self.voicemail_duration or 0,
-                date=self.create_date.strftime('%Y-%m-%d %H:%M') if self.create_date else '',
+            template.send_mail(
+                self.id,
+                email_layout_xmlid='mail.mail_notification_layout',
+                force_send=True,
+                email_values={
+                    'email_to': user.email,
+                    'email_from': self.env.company.email or 'noreply@example.com',
+                },
             )
-
-            if transcript_text:
-                body_html += '<p><strong>Transcription:</strong></p><p>{}</p>'.format(
-                    transcript_text)
-
-            listen_url = self._get_voicemail_listen_url()
-            if listen_url:
-                body_html += '<p><a href="{}">Listen to voicemail</a></p>'.format(listen_url)
-
-            mail_values = {
-                'subject': subject,
-                'body_html': body_html,
-                'email_to': user.email,
-                'email_from': self.env.company.email or 'noreply@example.com',
-                'auto_delete': True,
-            }
-            self.env['mail.mail'].sudo().create(mail_values).send()
             logger.info('Voicemail email sent to %s for call %s', user.email, self.id)
 
     @api.model

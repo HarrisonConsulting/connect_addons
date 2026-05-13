@@ -38,6 +38,11 @@
   --phone-width: 300px;
   --phone-height: 486px;  // Exact golden ratio
   --phone-activity-height: 68px;
+  // Activity bar (connect_enqueue) heights — used by addons that mount the
+  // ActivityToggle widget. Collapsed shows only the current activity line;
+  // expanded reveals the full action button row.
+  --phone-activity-collapsed-height: 40px;
+  --phone-activity-expanded-height: 160px;
   width: var(--phone-width);
   height: var(--phone-height);
   position: fixed;

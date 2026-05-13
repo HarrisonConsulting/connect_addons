@@ -93,8 +93,12 @@ class Call(models.Model):
     voicemail_transcript = fields.Text(string='Voicemail Transcript', help="")
     voicemail_box_id = fields.Many2one(
         'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
-        index=True, tracking=True,
-        help='Shared box this call belongs to. Members of the box gain read access to the call record and its voicemail.')
+        index=True, tracking=True, readonly=True,
+        help='Shared box this call belongs to. Set via the user or callflow that received the voicemail.')
+    callflow_id = fields.Many2one(
+        'connect.callflow', ondelete='set null', string='Callflow',
+        index=True, readonly=True,
+        help='Callflow that routed this call to voicemail.')
     # Reference, to submit call history and summary.
     ref = fields.Reference(selection=[('res.partner', 'Partner')], compute='_get_ref')
     has_error = fields.Boolean(index=True)
@@ -1145,8 +1149,7 @@ class Call(models.Model):
                 updates['status'] = 'voicemail'
             # Set initial stage and assignees if not already set
             if not channel.call.voicemail_stage_id:
-                box = channel.call.voicemail_box_id or channel.called_pbx_user.voicemail_box_id
-                stage = box.voicemail_stage_id if box and box.voicemail_stage_id else self.env['connect.voicemail_stage'].sudo().search([], order='sequence asc', limit=1)
+                stage = self.env['connect.voicemail_stage'].sudo().search([], order='sequence asc', limit=1)
                 if stage:
                     updates['voicemail_stage_id'] = stage.id
             if not channel.call.voicemail_assignee_ids and channel.call.called_users:

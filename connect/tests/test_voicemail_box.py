@@ -215,13 +215,11 @@ class TestVoicemailBoxWebhook(ConnectTestCase):
         cls.Channel = cls.env['connect.channel']
         cls.Call = cls.env['connect.call']
 
-    def test_webhook_uses_box_default_stage(self):
-        """When the box has a voicemail_stage_id, new VM uses that stage."""
-        custom_stage = self.Stage.create({'name': 'Box Custom Stage', 'sequence': 99})
-        box = self.Box.create({
-            'name': 'StagedBox',
-            'voicemail_stage_id': custom_stage.id,
-        })
+    def test_webhook_always_uses_global_first_stage(self):
+        """Box has no default stage — webhook always uses the global first stage."""
+        first_global = self.Stage.search([], order='sequence asc', limit=1)
+        self.assertTrue(first_global, "fixture: at least one global stage must exist")
+        box = self.Box.create({'name': 'StagedBox'})
         call = self._create_test_call(
             direction='incoming', status='no-answer',
             voicemail_box_id=box.id,
@@ -241,7 +239,7 @@ class TestVoicemailBoxWebhook(ConnectTestCase):
             'RecordingSid': 'REboxstage' + 'x' * 24,
         })
         call.invalidate_recordset()
-        self.assertEqual(call.voicemail_stage_id, custom_stage)
+        self.assertEqual(call.voicemail_stage_id, first_global)
 
     def test_webhook_falls_back_to_global_default_without_box_stage(self):
         """No box stage → falls back to first global stage."""

@@ -7,7 +7,7 @@ import re
 import string
 from datetime import timedelta
 from urllib.parse import urljoin
-from odoo import fields, models, api
+from odoo import fields, models, api, Command
 from odoo.exceptions import ValidationError
 from odoo.models import Constraint
 from twilio.jwt.access_token import AccessToken
@@ -815,6 +815,36 @@ class User(models.Model):
             self._manage_channel_callflow('client', True)
         else:
             self._manage_channel_callflow('client', False)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        users = super().create(vals_list)
+        for pbx_user in users:
+            if pbx_user.voicemail_box_id:
+                continue
+            box = self.env['connect.voicemail_box'].sudo().create({
+                'name': (pbx_user.user.name if pbx_user.user else pbx_user.username) or 'Voicemail',
+                'member_ids': [Command.link(pbx_user.user.id)] if pbx_user.user else [],
+            })
+            pbx_user.sudo().voicemail_box_id = box.id
+        return users
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'voicemail_box_id' in vals:
+            new_box_id = vals['voicemail_box_id'] or None
+            for pbx_user in self:
+                pbx_user.env.cr.execute("""
+                    UPDATE connect_call
+                    SET voicemail_box_id = %s
+                    WHERE voicemail_url IS NOT NULL
+                    AND id IN (
+                        SELECT connect_call_id
+                        FROM connect_call_connect_user_rel
+                        WHERE connect_user_id = %s
+                    )
+                """, (new_box_id, pbx_user.id))
+        return res
 
     @api.constrains('voicemail_enabled')
     def _manage_voicemail_enabled(self):

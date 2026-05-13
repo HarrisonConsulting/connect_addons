@@ -24,9 +24,6 @@ class VoicemailBox(models.Model):
         domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
         string='Default Voicemail Prompt',
         help='Default voicemail prompt audio for boxes. Overridden by the user/callflow audio when set there.')
-    voicemail_stage_id = fields.Many2one(
-        'connect.voicemail_stage', string='Default Stage',
-        help='Default stage for new voicemails landing in this box.')
 
     @api.depends('member_ids')
     def _compute_counts(self):

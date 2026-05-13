@@ -39,7 +39,6 @@
                         <group>
                             <field name="active" invisible="1"/>
                             <field name="voicemail_audio_id"/>
-                            <field name="voicemail_stage_id"/>
                             <field name="color" widget="color_picker"/>
                         </group>
                         <group>

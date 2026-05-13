@@ -42,7 +42,7 @@
         <field name="name">connect_call_user</field>
         <field name="model_id" ref="connect.model_connect_call"/>
         <field name="groups" eval="[(6, 0, [ref('group_connect_user')])]"/>
-        <field name="domain_force">['|', '|', '|', ('caller_user', '=', user.id), ('called_users', '=', user.id), ('answered_user', '=', user.id), ('voicemail_box_id.member_ids', 'in', [user.id])]</field>
+        <field name="domain_force">['|', '|', '|', '|', ('caller_user', '=', user.id), ('called_users', '=', user.id), ('answered_user', '=', user.id), ('voicemail_box_id.member_ids', 'in', [user.id]), '&amp;', ('voicemail_box_id', '=', False), ('voicemail_url', '!=', False)]</field>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="0"/>
         <field name="perm_create" eval="0"/>

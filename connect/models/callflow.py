@@ -321,18 +321,34 @@ class CallFlow(models.Model):
                 logger.error('Invalid input audio render failed for callflow %s: %s', self.id, e)
         self._say_fallback(response, 'We received wrong input. Please try again.')
 
+    def write(self, vals):
+        res = super().write(vals)
+        if 'voicemail_box_id' in vals:
+            new_box_id = vals['voicemail_box_id'] or None
+            for rec in self:
+                rec.env.cr.execute("""
+                    UPDATE connect_call
+                    SET voicemail_box_id = %s
+                    WHERE callflow_id = %s AND voicemail_url IS NOT NULL
+                """, (new_box_id, rec.id))
+        return res
+
     def _stamp_voicemail_box(self, request):
-        """Tag the active call with this callflow's voicemail box so members of
-        the box gain access to the call record and the resulting voicemail."""
+        """Stamp the active call with this callflow's ID and voicemail box.
+        Always records the callflow association; only stamps the box when
+        configured and the call has no box yet."""
         self.ensure_one()
-        if not self.voicemail_box_id:
-            return
         call_sid = (request or {}).get('CallSid')
         if not call_sid:
             return
         channel = self.env['connect.channel'].sudo().search([('sid', '=', call_sid)], limit=1)
-        if channel.call and not channel.call.voicemail_box_id:
-            channel.call.sudo().voicemail_box_id = self.voicemail_box_id.id
+        if not channel.call:
+            return
+        call = channel.call.sudo()
+        if not call.callflow_id:
+            call.callflow_id = self.id
+        if self.voicemail_box_id and not call.voicemail_box_id:
+            call.voicemail_box_id = self.voicemail_box_id.id
 
     def get_voicemail_prompt_message(self, response):
         """Play voicemail_audio_id or fall back to a generic voicemail prompt

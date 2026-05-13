@@ -173,6 +173,8 @@ export class Phone extends Component {
         this.heldCallId = null
         this.heldCallerId = null
         this.userAgent = null
+        this._reconnecting = false
+        this._reconnectToastClose = null
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
         this.recording_sid = null        // SID of the active recording
@@ -527,6 +529,7 @@ export class Phone extends Component {
             if (this._tokenRefreshInterval) {
                 clearInterval(this._tokenRefreshInterval)
             }
+            this._clearReconnectToast()
             this.destroyCallCounter()
             this.bc.close()
         })
@@ -692,8 +695,23 @@ export class Phone extends Component {
     }
 
     async _reconnect() {
+        // Re-entry guard: cascading device errors (31009 → AccessTokenInvalid → AccessTokenExpired)
+        // can all schedule reconnects through per-device closures. Gate at the instance level so
+        // the whole cascade collapses into a single reconnect cycle.
+        if (this._reconnecting) {
+            return
+        }
+        this._reconnecting = true
         this.state.connectionStatus = 'connecting'
         this.bus.trigger('busTraySetException', {exception: null})
+
+        // One sticky toast for the entire cycle — cleared on 'registered' or replaced on failure.
+        if (!this._reconnectToastClose) {
+            this._reconnectToastClose = this.notification.add(
+                'Reconnecting to phone service...',
+                {title: 'Connect', type: 'info', sticky: true},
+            )
+        }
 
         // Destroy existing device if present
         if (this.userAgent) {
@@ -711,16 +729,28 @@ export class Phone extends Component {
             if (token) {
                 this.token = token
                 this.initUserAgent()
-                this.notification.add('Reconnecting to phone service...', {title: 'Connect', type: 'info'})
             } else {
-                this.state.connectionStatus = 'error'
-                this.notification.add('Failed to obtain phone token. Please try again.', {title: 'Connect', type: 'warning'})
+                this._failReconnect('Failed to obtain phone token. Please try again.', 'warning')
             }
         } catch (e) {
             console.error('Connect: Reconnect failed:', e)
-            this.state.connectionStatus = 'error'
-            this.notification.add('Reconnection failed: ' + (e.message || 'Unknown error'), {title: 'Connect', type: 'danger'})
+            this._failReconnect('Reconnection failed: ' + (e.message || 'Unknown error'), 'danger')
+        } finally {
+            this._reconnecting = false
         }
+    }
+
+    _clearReconnectToast() {
+        if (this._reconnectToastClose) {
+            this._reconnectToastClose()
+            this._reconnectToastClose = null
+        }
+    }
+
+    _failReconnect(message, type) {
+        this.state.connectionStatus = 'error'
+        this._clearReconnectToast()
+        this.notification.add(message, {title: 'Connect', type})
     }
 
     _onClickReconnect() {
@@ -828,6 +858,7 @@ export class Phone extends Component {
             self.state.connectionStatus = 'ready'
             self.sipRegistered = true
             self._updatePresence('available')
+            self._clearReconnectToast()
         })
 
         self.userAgent.on('unregistered', () => {
@@ -856,25 +887,22 @@ export class Phone extends Component {
         self.userAgent.on('error', (error) => {
             console.error('Connect: Device error:', error.message || error)
 
-            if (error.code === 31009 || error.code === 31005) {
-                // Transport dead — full teardown+rebuild, but only once
-                if (errorRecoveryPending) return
+            const isTransportError = error.code === 31009 || error.code === 31005
+            const isTokenError = error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid'
+
+            if (isTransportError || isTokenError) {
+                // Dead transport or rejected token — full teardown+rebuild with fresh token.
+                // Per-device debounce + instance-level _reconnecting guard prevent both intra-device
+                // cascades (31009 → AccessTokenInvalid on the same corpse) and cross-device cascades
+                // (each new Device firing its own error before the prior reconnect completes).
+                if (errorRecoveryPending || self._reconnecting) return
                 errorRecoveryPending = true
                 self.state.connectionStatus = 'connecting'
                 self._updatePresence('offline')
                 setTimeout(() => {
                     errorRecoveryPending = false
                     self._reconnect()
-                }, 5000)
-            } else if (error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid') {
-                // Token expired or rejected — full reconnect with fresh token
-                if (errorRecoveryPending) return
-                errorRecoveryPending = true
-                self.state.connectionStatus = 'connecting'
-                setTimeout(() => {
-                    errorRecoveryPending = false
-                    self._reconnect()
-                }, 2000)
+                }, isTransportError ? 5000 : 2000)
             } else if (error.name === 'NotSupportedError') {
                 console.error('Connect: Browser does not support required features:', error.message)
                 self.state.isActive = false

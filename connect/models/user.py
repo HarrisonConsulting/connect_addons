@@ -7,6 +7,7 @@ import re
 import string
 from datetime import timedelta
 from urllib.parse import urljoin
+from psycopg2.errors import SerializationFailure
 from odoo import fields, models, api, Command
 from odoo.exceptions import ValidationError
 from odoo.models import Constraint

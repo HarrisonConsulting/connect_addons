@@ -282,6 +282,15 @@ export class Phone extends Component {
                 }
             })
 
+            // When an auto-recording starts (record-from-answer-dual via TwiML), Twilio
+            // sends an in-progress callback that we relay here. Refresh state immediately
+            // so the UI shows "Recording" without waiting for retry polling to succeed.
+            this.busService.subscribe("recording_started", () => {
+                if (this.call_sid) {
+                    this._fetchRecordingState()
+                }
+            })
+
             // Handle tab visibility changes: when user returns to an idle tab,
             // the browser may have closed IDB connections and Twilio websocket.
             // Re-initialize the device if needed.
@@ -1624,13 +1633,12 @@ export class Phone extends Component {
         }
     }
 
-    async _fetchRecordingState(delayMs = 1500) {
+    async _fetchRecordingState(retryAttempt = 0) {
         const callSid = this.call_sid
         if (!callSid) return
-        // Twilio REST API can lag 1-2s before a newly-started dial-level recording
-        // appears in recordings.list(). Retry once after a brief pause if not found.
-        const query = async () => {
-            const result = await this.orm.call('connect.call', 'get_recording_state', [callSid])
+        // Twilio REST API lags 1-5s before a newly-started dial-level recording appears
+        // in recordings.list(). Retry with exponential backoff when can_record=true.
+        const applyResult = (result) => {
             if (result.success) {
                 this.state.isRecording = result.is_recording
                 this.state.isPaused = result.is_paused
@@ -1640,14 +1648,18 @@ export class Phone extends Component {
             return result
         }
         try {
-            const first = await query()
-            // If nothing found on the first try, retry once after the delay
-            if (first.success && !first.recording_sid && delayMs > 0) {
+            const result = applyResult(
+                await this.orm.call('connect.call', 'get_recording_state', [callSid])
+            )
+            // Not found yet but user can record — retry with backoff (2s, 4s, 8s)
+            const maxRetries = 3
+            if (result.success && !result.recording_sid && result.can_record && retryAttempt < maxRetries) {
+                const delay = [2000, 4000, 8000][retryAttempt]
                 setTimeout(async () => {
-                    if (this.call_sid === callSid) {  // call may have ended
-                        try { await query() } catch (e) { /* silent */ }
+                    if (this.call_sid === callSid) {
+                        try { await this._fetchRecordingState(retryAttempt + 1) } catch (e) { /* silent */ }
                     }
-                }, delayMs)
+                }, delay)
             }
         } catch (e) {
             console.warn('Connect: Could not fetch recording state:', e?.message || e)

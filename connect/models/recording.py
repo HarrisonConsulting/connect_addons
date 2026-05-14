@@ -373,6 +373,31 @@ class Recording(models.Model):
                     logger.exception('Transcript error: %s', e)
         return recs
 
+    def _notify_recording_started(self, params, channel):
+        """Push a bus event so the phone UI immediately reflects auto-recording state.
+
+        Dial-level recordings live on the parent call SID, not the browser client SID.
+        For incoming calls: recording is on the parent, browser client is a child channel.
+        For outgoing calls: recording is on the browser's own channel (as caller).
+        """
+        call_sid = params['CallSid']
+        recording_sid = params['RecordingSid']
+
+        uids = set()
+        # Outgoing calls: recording lives on the caller's own channel
+        if channel and channel.caller_user:
+            uids.add(channel.caller_user.id)
+        # Incoming calls: browser client is a child of the parent call SID
+        child_channels = self.env['connect.channel'].search([('parent_sid', '=', call_sid)])
+        for ch in child_channels:
+            if ch.called_user:
+                uids.add(ch.called_user.id)
+
+        payload = {'recording_call_sid': call_sid, 'recording_sid': recording_sid}
+        for uid in uids:
+            self.env['bus.bus']._sendone(
+                'connect_actions_{}'.format(uid), 'recording_started', payload)
+
     @api.model
     def on_recording_status(self, params):
         self = self.sudo()
@@ -414,6 +439,13 @@ class Recording(models.Model):
                 data['called_user'] = called_user.id
             data['caller_number'] = call.caller
             data['called_number'] = call.called
+
+        # For in-progress callbacks (auto-recording just started), notify the UI and
+        # skip record creation — the completed callback will create the full record.
+        if params['RecordingStatus'] == 'in-progress':
+            self._notify_recording_started(params, channel)
+            return True
+
         # Fetch recording
         client = self.env['connect.settings'].get_client()
         try:

@@ -263,14 +263,23 @@ export class Phone extends Component {
         })
 
         onMounted(() => {
-            // Suppress AbortError from Twilio SDK audio play/pause race conditions
-            this._abortErrorHandler = (event) => {
+            // Suppress benign unhandled rejections from the vendored Twilio SDK:
+            //   - AbortError: audio play/pause race conditions
+            //   - InvalidArgumentError "Device not found": AudioHelper._updateDevices()
+            //     fires setTimeout(_setInputDevice('default')) with no .catch() when a
+            //     devicechange leaves no 'default' input device enumerated.
+            this._twilioRejectionHandler = (event) => {
                 const error = event.reason
                 if (error instanceof DOMException && error.name === 'AbortError') {
                     event.preventDefault()
+                    return
+                }
+                if (error?.name === 'InvalidArgumentError'
+                        && error.message?.includes('Device not found')) {
+                    event.preventDefault()
                 }
             }
-            window.addEventListener('unhandledrejection', this._abortErrorHandler)
+            window.addEventListener('unhandledrejection', this._twilioRejectionHandler)
 
             // Setup audio unlock handler for browser autoplay restrictions
             setupAudioUnlock()
@@ -514,8 +523,8 @@ export class Phone extends Component {
         })
 
         onWillUnmount(() => {
-            if (this._abortErrorHandler) {
-                window.removeEventListener('unhandledrejection', this._abortErrorHandler)
+            if (this._twilioRejectionHandler) {
+                window.removeEventListener('unhandledrejection', this._twilioRejectionHandler)
             }
             if (this._visibilityHandler) {
                 document.removeEventListener('visibilitychange', this._visibilityHandler)

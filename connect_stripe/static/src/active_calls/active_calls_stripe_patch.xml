@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-inherit="connect.active_calls_popup" t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[last()]" position="after">
+            <th>Pay</th>
+        </xpath>
+        <xpath expr="//tbody/tr/td[last()]" position="after">
+            <td t-on-click="(ev) => this._onClickTakePayment(ev, call)">
+                <button class="btn btn-sm btn-primary" title="Take Payment">
+                    <i class="fa fa-credit-card" title="Take Payment"/>
+                </button>
+            </td>
+        </xpath>
+    </t>
+
+</templates>

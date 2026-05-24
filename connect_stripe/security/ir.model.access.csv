@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_stripe_payment_user,connect.stripe.payment user,model_connect_stripe_payment,connect.group_connect_user,1,0,0,0
+access_stripe_payment_admin,connect.stripe.payment admin,model_connect_stripe_payment,connect.group_connect_admin,1,1,1,1
+access_stripe_payment_webhook,connect.stripe.payment webhook,model_connect_stripe_payment,connect.group_connect_webhook,1,1,1,0

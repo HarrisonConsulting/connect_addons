@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_connect_stripe_payments"
+              name="Phone Payments"
+              parent="connect.connect_voice_menu"
+              action="connect_stripe_payment_action"
+              sequence="50"/>
+
+</odoo>

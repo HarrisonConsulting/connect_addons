@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="connect_stripe_settings_form_inherit" model="ir.ui.view">
+        <field name="name">connect_stripe_settings_form_inherit</field>
+        <field name="model">connect.settings</field>
+        <field name="inherit_id" ref="connect.connect_settings_form"/>
+        <field name="arch" type="xml">
+            <page name="keys" position="after">
+                <page name="stripe" string="Stripe" invisible="is_registered == False">
+                    <separator string="Stripe Phone Payments"/>
+
+                    <group invisible="stripe_provider_active">
+                        <div colspan="2" class="alert alert-warning" role="alert">
+                            <strong>The Odoo Stripe payment provider is not configured.</strong>
+                            Connect Stripe requires it — configure the Stripe provider under
+                            <em>Accounting → Configuration → Payment Providers</em>, set state to
+                            <em>Enabled</em> or <em>Test Mode</em>, then return here.
+                        </div>
+                    </group>
+
+                    <group invisible="not stripe_provider_active">
+                        <div colspan="2" class="alert alert-info" role="alert">
+                            Stripe payment provider is active. API keys and the receivable
+                            journal come from <em>Accounting → Configuration → Payment Providers</em>.
+                        </div>
+                    </group>
+
+                    <group>
+                        <group>
+                            <field name="stripe_pay_connector_name"
+                                   placeholder="StripeConnector"/>
+                            <field name="stripe_default_currency_id"/>
+                        </group>
+                    </group>
+
+                    <field name="stripe_provider_active" invisible="1"/>
+                </page>
+            </page>
+        </field>
+    </record>
+
+</odoo>

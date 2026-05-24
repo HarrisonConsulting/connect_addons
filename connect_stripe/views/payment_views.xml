@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="connect_stripe_payment_action" model="ir.actions.act_window">
+        <field name="name">Phone Payments</field>
+        <field name="res_model">connect.stripe.payment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="connect_stripe_payment_list" model="ir.ui.view">
+        <field name="name">connect_stripe_payment_list</field>
+        <field name="model">connect.stripe.payment</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'complete'"
+                  decoration-danger="state == 'failed'"
+                  decoration-warning="state in ('capturing', 'captured', 'processing')">
+                <field name="name"/>
+                <field name="call_id"/>
+                <field name="partner_id"/>
+                <field name="amount"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state"/>
+                <field name="card_type"/>
+                <field name="masked_card"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="connect_stripe_payment_form" model="ir.ui.view">
+        <field name="name">connect_stripe_payment_form</field>
+        <field name="model">connect.stripe.payment</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_initiate" type="object" string="Retry"
+                            class="btn-primary"
+                            invisible="state != 'failed'"/>
+                    <button name="action_refund" type="object" string="Refund"
+                            class="btn-secondary"
+                            confirm="Issue a full Stripe refund for this payment?"
+                            invisible="state != 'complete'"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            class="btn-secondary"
+                            invisible="state not in ('capturing', 'captured', 'processing')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,capturing,captured,processing,complete"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Payment">
+                            <field name="call_id"/>
+                            <field name="partner_id"/>
+                            <field name="amount" widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group string="Card">
+                            <field name="card_type"/>
+                            <field name="masked_card"/>
+                            <field name="token_id"/>
+                            <field name="transaction_id"/>
+                            <field name="payment_id"/>
+                            <field name="stripe_payment_intent_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Documents">
+                            <field name="invoice_id" invisible="not invoice_id"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not error_message">
+                        <strong>Error: </strong>
+                        <field name="error_message" nolabel="1"/>
+                    </div>
+                    <group string="Technical">
+                        <group>
+                            <field name="twilio_call_sid"/>
+                            <field name="twilio_session_id"/>
+                        </group>
+                        <group>
+                            <field name="stripe_payment_method_id"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="connect_stripe_payment_search" model="ir.ui.view">
+        <field name="name">connect_stripe_payment_search</field>
+        <field name="model">connect.stripe.payment</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="call_id"/>
+                <field name="partner_id"/>
+                <separator/>
+                <filter name="complete" string="Complete" domain="[('state', '=', 'complete')]"/>
+                <filter name="failed" string="Failed" domain="[('state', '=', 'failed')]"/>
+                <filter name="in_progress" string="In Progress"
+                        domain="[('state', 'in', ('capturing', 'captured', 'processing'))]"/>
+                <group>
+                    <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                    <filter name="group_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

@@ -47,6 +47,15 @@ class TestStripeControllerHttp(StripeTestCase, HttpCase):
         # Branded prompt before <Pay>.
         self.assertIn('<Say', body)
         self.assertIn('keypad', body.lower())
+        # chargeAmount must NOT appear — token_type=payment-method alone is
+        # how we signal "tokenise only" to the Stripe Pay Connector. Including
+        # chargeAmount="0" risks Twilio treating it as a literal zero charge.
+        self.assertNotIn('chargeAmount', body)
+        # Stripe-bound metadata via <Parameter> children.
+        self.assertIn('OdooPartnerId', body)
+        self.assertIn(f'value="{self.partner_1.id}"', body)
+        self.assertIn('CustomerPhone', body)
+        self.assertIn(self.partner_1.phone, body)
 
     def test_twiml_endpoint_unknown_session_returns_error_twiml(self):
         res = self.url_open('/connect/stripe/twiml?session_id=does-not-exist')

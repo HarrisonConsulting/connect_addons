@@ -123,9 +123,12 @@ class ConnectStripeController(Controller):
                 'then the expiration date, then the security code.',
                 voice='Polly.Joanna',
             )
+            # token_type='payment-method' alone signals "tokenise only, return
+            # a Stripe pm_xxx" — no charge_amount needed (and including
+            # charge_amount='0' would risk Twilio interpreting it as a literal
+            # zero charge, which Stripe rejects below the $0.50 minimum).
             pay = Pay(
                 payment_connector=connector,
-                charge_amount='0',  # Tokenise only; Odoo charges via payment.transaction.
                 token_type='payment-method',
                 currency=currency_code,
                 language='en-US',
@@ -139,6 +142,17 @@ class ConnectStripeController(Controller):
                 security_code='true',
                 valid_card_types='visa mastercard amex discover',
             )
+            # Metadata Twilio forwards to Stripe (attached to the resulting
+            # PaymentMethod). Lets you trace any Stripe charge back to the
+            # Odoo partner without going through our DB, and gives Stripe's
+            # fraud tools a phone-number signal.
+            # sudo() because the webhook user lacks res.partner read.
+            partner = payment.partner_id.sudo() if payment.partner_id else False
+            if partner:
+                pay.parameter(name='OdooPartnerId', value=str(partner.id))
+                customer_phone = partner.phone or partner.mobile or ''
+                if customer_phone:
+                    pay.parameter(name='CustomerPhone', value=customer_phone)
             response.append(pay)
             payment.state = 'capturing'
             return Response(str(response), content_type='text/xml')

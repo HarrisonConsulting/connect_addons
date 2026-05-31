@@ -50,7 +50,8 @@
                       <field name="display_region_auth_token" string="Region Auth Token" password="1" invisible="twilio_region == 'us1'" required="twilio_region != 'us1'"/>
                       <field name="twilio_api_key" string="API Key SID"/>
                       <field name="display_twilio_api_secret" string="API Key Secret" password="1"/>
-                      <field name="twilio_edge" string="Edge"/>
+                      <field name="twilio_edge" string="Edge" invisible="rest_api_host"/>
+                      <field name="rest_api_host" string="REST API Host" placeholder="api.twilio.com (default)" groups="base.group_no_one"/>
                       <field name="default_country_code" string="Default Country" placeholder="e.g. US, GB, DE"/>
                       <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary"/>
                     </group>

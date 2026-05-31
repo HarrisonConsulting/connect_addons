@@ -13,11 +13,12 @@ import requests
 import random
 import re
 import string
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 import uuid
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError, UserError
 from twilio.rest import Client
+from twilio.http.http_client import TwilioHttpClient
 from .audio_referrer_mixin import (
     SELECTABLE_AUDIO_STATES,
     URL_PLAYABLE_AUDIO_SOURCES,
@@ -51,6 +52,32 @@ TWILIO_EDGES = [
     ('tokyo', 'Japan'),
     ('singapore', 'Singapore'),
 ]
+
+
+class _RewriteHostHttpClient(TwilioHttpClient):
+    """Twilio HTTP client that rewrites the request host.
+
+    Lets Connect point the Twilio SDK at a Twilio-API-compatible provider
+    (e.g. VoiceTel's ``voiceml.voicetel.com``) without touching the hundreds of
+    SDK call sites. The SDK builds canonical Twilio URLs (``api.twilio.com``,
+    ``messaging.twilio.com`` ...); we swap the netloc on the way out. The
+    provider's compatibility guarantee is that request/response shapes and the
+    ``/2010-04-01/Accounts/...`` path layout match Twilio exactly.
+
+    Scope: this only covers traffic routed through the Twilio SDK Client. Direct
+    ``requests`` calls to Twilio (WhatsApp ``messaging``/``content`` endpoints,
+    twimlets hold music) bypass it and remain Twilio-only.
+    """
+
+    def __init__(self, rewrite_host, **kwargs):
+        super().__init__(**kwargs)
+        self._rewrite_host = rewrite_host
+
+    def request(self, method, url, params=None, data=None, headers=None,
+                auth=None, timeout=None, allow_redirects=False):
+        url = urlunsplit(urlsplit(url)._replace(netloc=self._rewrite_host))
+        return super().request(method, url, params, data, headers, auth,
+                               timeout, allow_redirects)
 
 
 def debug(rec, message, level="info"):
@@ -139,6 +166,16 @@ class Settings(models.Model):
         ('au1', 'Australia (Sydney)'),
     ], default='us1', required=True)
     twilio_edge = fields.Selection(selection=TWILIO_EDGES, required=True, default='ashburn')
+    rest_api_host = fields.Char(
+        string="REST API Host",
+        help="Hostname of a Twilio-API-compatible provider (e.g. "
+             "voiceml.voicetel.com). Leave empty to use Twilio. When set, all "
+             "Twilio SDK REST traffic is routed to this host and the "
+             "Region/Edge settings are ignored. Put the provider's Account SID "
+             "in Account SID and its API key in Auth Token. Note: WhatsApp "
+             "(messaging/content.twilio.com) is Twilio-only and is not affected "
+             "by this setting.",
+    )
     account_sid = fields.Char(string="Account SID")
     auth_token = fields.Char(
         groups="base.group_erp_manager,connect.group_connect_webhook"
@@ -764,11 +801,17 @@ class Settings(models.Model):
                 logger.warning("Twilio credentials not configured (account_sid=%s, auth_token=%s)",
                                bool(account_sid), bool(auth_token))
                 return None
-            client = Client(account_sid, auth_token)
+            token_to_use = auth_token
             if region:
                 region_auth_token = self.sudo().get_param("region_auth_token")
                 token_to_use = region_auth_token if region_auth_token else auth_token
-                client = Client(account_sid, token_to_use)
+            # A custom REST host points the SDK at a Twilio-compatible provider
+            # (e.g. VoiceTel). The host is then fixed, so Twilio region/edge
+            # routing is moot and intentionally skipped.
+            rest_api_host = (self.sudo().get_param("rest_api_host") or "").strip()
+            http_client = _RewriteHostHttpClient(rest_api_host) if rest_api_host else None
+            client = Client(account_sid, token_to_use, http_client=http_client)
+            if region and not rest_api_host:
                 twilio_region = self.sudo().get_param("twilio_region")
                 if twilio_region:
                     client.region = twilio_region

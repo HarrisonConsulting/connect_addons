@@ -1,7 +1,7 @@
 {
     'name': 'Connect SMS Bridge',
     'version': '19.0.1.0.6',
-    'category': 'Hidden/Tools',
+    'category': 'Phone',
     'summary': 'Bridge Connect Twilio telephony with Odoo SMS provider pipeline',
     'description': """
 Bridges the Connect Twilio telephony module with Odoo's native sms_twilio

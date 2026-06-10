@@ -549,11 +549,20 @@ class User(models.Model):
         return '{}@{}'.format(self.username, self.domain.domain_name)
 
     @api.model
+    def _can_issue_client_token(self):
+        """Whether the current user may mint a Twilio client token.
+
+        Extracted as an overridable predicate so downstream modules (e.g.
+        connect_portal) can widen issuance to additional groups without
+        duplicating the token logic below.
+        """
+        return (self.env.user.has_group('connect.group_connect_user')
+                or self.env.user.has_group('connect.group_connect_admin'))
+
+    @api.model
     def get_client_token(self):
         try:
-            has_user_group = self.env.user.has_group('connect.group_connect_user')
-            has_admin_group = self.env.user.has_group('connect.group_connect_admin')
-            if not (has_user_group or has_admin_group):
+            if not self._can_issue_client_token():
                 return {'token': False}
             user = self.search([('user', '=', self.env.user.id)])
             if not user:

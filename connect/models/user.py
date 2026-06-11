@@ -574,6 +574,14 @@ class User(models.Model):
             account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
             api_key = self.env['connect.settings'].sudo().get_param('twilio_api_key')
             api_secret = self.env['connect.settings'].sudo().get_param('twilio_api_secret')
+            if not (account_sid and api_key and api_secret):
+                # Neutralized copy (data/neutralize.sql scrubs the API keys)
+                # or an unprovisioned database. Fail clean — the web phone
+                # simply stays unmounted — instead of letting to_jwt() raise.
+                logger.info(
+                    'Twilio API key credentials not configured — '
+                    'web phone disabled for user %s.', self.env.user.id)
+                return {'token': False}
             identity = user.get_client_identity()
             token = AccessToken(account_sid, api_key, api_secret, identity=identity, ttl=3600,
                 region=self.env['connect.settings'].sudo().get_param('twilio_region'),

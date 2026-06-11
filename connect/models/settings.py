@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import uuid
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError, UserError
+from odoo.tools import config
 from twilio.rest import Client
 from twilio.http.http_client import TwilioHttpClient
 from .audio_referrer_mixin import (
@@ -27,6 +28,63 @@ from .audio_referrer_mixin import (
 logger = logging.getLogger(__name__)
 
 TWILIO_LOG_LEVEL = logging.WARNING
+
+# Dev/test credential override. Process environment (or a gitignored .env at
+# the repo root) supplies CONNECT_* values that take precedence over the
+# credentials stored in connect.settings. Environment wins deliberately: a
+# database cloned from production carries live carrier credentials, and the
+# override is what guarantees a dev session talks to the sandbox account
+# instead. Production is unaffected — no .env is ever committed (gitignored)
+# and no CONNECT_* variables exist there.
+ENV_OVERRIDE_PARAMS = {
+    'account_sid': 'CONNECT_ACCOUNT_SID',
+    'auth_token': 'CONNECT_AUTH_TOKEN',
+    'twilio_api_key': 'CONNECT_TWILIO_API_KEY',
+    'twilio_api_secret': 'CONNECT_TWILIO_API_SECRET',
+    'twilio_region': 'CONNECT_TWILIO_REGION',
+    'twilio_edge': 'CONNECT_TWILIO_EDGE',
+}
+
+DOTENV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+
+_dotenv_cache = {'mtime': None, 'values': {}}
+
+
+def _dotenv_values():
+    """Parse the repo-root .env (KEY=VALUE lines), cached on file mtime."""
+    try:
+        mtime = os.stat(DOTENV_PATH).st_mtime
+    except OSError:
+        return {}
+    if _dotenv_cache['mtime'] != mtime:
+        values = {}
+        try:
+            with open(DOTENV_PATH) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    key, _, value = line.partition('=')
+                    values[key.strip()] = value.strip().strip('"\'')
+        except OSError:
+            return {}
+        _dotenv_cache.update(mtime=mtime, values=values)
+    return _dotenv_cache['values']
+
+
+def get_env_credential(param):
+    """Return the CONNECT_* override for a credential param, or None.
+
+    Stands down under test mode (``--test-enable``): tests assert DB
+    round-trips and unconfigured-credential behavior, and must not be
+    shadowed by whatever .env happens to sit in the checkout.
+    """
+    if config['test_enable']:
+        return None
+    env_name = ENV_OVERRIDE_PARAMS.get(param)
+    if not env_name:
+        return None
+    return os.environ.get(env_name) or _dotenv_values().get(env_name) or None
 
 # HTTP request timeouts: (connect_timeout_secs, read_timeout_secs)
 HTTP_DOWNLOAD_TIMEOUT = (10, 60)   # For media downloads (audio files)
@@ -521,6 +579,9 @@ class Settings(models.Model):
     # @ormcache('param')
     def get_param(self, param, default=False):
         """ """
+        override = get_env_credential(param)
+        if override is not None:
+            return override
         data = self.search([])
         if not data:
             data = self.sudo().with_context(no_constrains=True).create({})

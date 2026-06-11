@@ -4,6 +4,7 @@
 from unittest.mock import patch, MagicMock
 
 from psycopg2.errors import SerializationFailure
+from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from .common import ConnectTestCase
@@ -215,6 +216,11 @@ class TestGetClientToken(ConnectTestCase):
             'client_enabled': True,
             'user': cls.env.user.id,
         })
+        # Token issuance is gated on connect group membership
+        # (_can_issue_client_token). Odoo 19 has_group() has no superuser
+        # bypass, so the test user must genuinely be in the group.
+        cls.env.user.write({'group_ids': [Command.link(
+            cls.env.ref('connect.group_connect_user').id)]})
 
     def test_get_client_token(self):
         """JWT token generated with correct identity and grants."""
@@ -250,6 +256,21 @@ class TestGetClientToken(ConnectTestCase):
         self.connect_user.with_context(skip_sync=True).write({
             'client_enabled': True,
         })
+
+    def test_get_client_token_missing_credentials(self):
+        """No API key credentials (neutralized/fresh copy): clean False.
+
+        Must not reach AccessToken/to_jwt — that raises 'JWT does not have
+        a signing key configured' and used to surface as an ERROR traceback
+        on every neutralized copy.
+        """
+        with patch.object(
+            self.env['connect.settings'].__class__, 'get_param',
+            side_effect=lambda param, *a, **kw: '',
+        ):
+            result = self.env['connect.user'].get_client_token()
+        self.assertFalse(result.get('token'))
+        self.assertNotIn('error', result)
 
     def test_get_client_token_no_connect_user(self):
         """User without connect.user record gets no token."""

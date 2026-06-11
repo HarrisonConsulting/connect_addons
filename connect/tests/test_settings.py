@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 """Tests for connect.settings model."""
 
+import os
+import tempfile
+from unittest.mock import patch
+
+from odoo.tools import config
 from odoo.tests import tagged
 from .common import ConnectTestCase
+from ..models import settings as settings_module
 
 
 @tagged('post_install', '-at_install')
@@ -27,6 +33,80 @@ class TestSettings(ConnectTestCase):
         self.env['connect.settings'].set_param('account_sid', test_value)
         result = self.env['connect.settings'].get_param('account_sid')
         self.assertEqual(result, test_value)
+
+
+@tagged('post_install', '-at_install')
+class TestEnvCredentialOverride(ConnectTestCase):
+    """CONNECT_* environment / .env overrides for credential params."""
+
+    def _force_runtime_mode(self):
+        """Open the test-mode gate so the override path is exercised."""
+        return patch.dict(config.options, {'test_enable': False})
+
+    def test_stands_down_under_test_mode(self):
+        """With test_enable on (as in this very run), no override applies."""
+        with patch.dict(os.environ, {'CONNECT_ACCOUNT_SID': 'ACenv'}):
+            self.assertIsNone(settings_module.get_env_credential('account_sid'))
+
+    def test_environ_overrides_db(self):
+        """A CONNECT_* process env var beats the stored settings value."""
+        self.env['connect.settings'].set_param('account_sid', 'ACdb')
+        with self._force_runtime_mode(), \
+                patch.dict(os.environ, {'CONNECT_ACCOUNT_SID': 'ACenv'}):
+            self.assertEqual(
+                self.env['connect.settings'].get_param('account_sid'), 'ACenv')
+        # Gate closed again: DB value visible.
+        self.assertEqual(
+            self.env['connect.settings'].get_param('account_sid'), 'ACdb')
+
+    def test_non_credential_param_unaffected(self):
+        """Only the allowlisted credential params consult the environment."""
+        with self._force_runtime_mode(), \
+                patch.dict(os.environ, {'CONNECT_DEBUG_MODE': '1'}):
+            self.assertIsNone(settings_module.get_env_credential('debug_mode'))
+
+    def test_dotenv_file_parsed(self):
+        """KEY=VALUE lines (with quotes/comments) load from the .env file."""
+        with tempfile.NamedTemporaryFile('w', suffix='.env', delete=False) as f:
+            f.write('# comment\n'
+                    'CONNECT_TWILIO_API_KEY="SKdotenv"\n'
+                    'CONNECT_TWILIO_API_SECRET=plain_secret\n'
+                    'NOT_A_KV_LINE\n')
+            path = f.name
+        try:
+            with self._force_runtime_mode(), \
+                    patch.object(settings_module, 'DOTENV_PATH', path), \
+                    patch.dict(settings_module._dotenv_cache,
+                               {'mtime': None, 'values': {}}), \
+                    patch.dict(os.environ):
+                os.environ.pop('CONNECT_TWILIO_API_KEY', None)
+                os.environ.pop('CONNECT_TWILIO_API_SECRET', None)
+                self.assertEqual(
+                    settings_module.get_env_credential('twilio_api_key'),
+                    'SKdotenv')
+                self.assertEqual(
+                    settings_module.get_env_credential('twilio_api_secret'),
+                    'plain_secret')
+        finally:
+            os.unlink(path)
+
+    def test_environ_beats_dotenv(self):
+        """Process environment takes precedence over the .env file."""
+        with tempfile.NamedTemporaryFile('w', suffix='.env', delete=False) as f:
+            f.write('CONNECT_AUTH_TOKEN=from_file\n')
+            path = f.name
+        try:
+            with self._force_runtime_mode(), \
+                    patch.object(settings_module, 'DOTENV_PATH', path), \
+                    patch.dict(settings_module._dotenv_cache,
+                               {'mtime': None, 'values': {}}), \
+                    patch.dict(os.environ,
+                               {'CONNECT_AUTH_TOKEN': 'from_environ'}):
+                self.assertEqual(
+                    settings_module.get_env_credential('auth_token'),
+                    'from_environ')
+        finally:
+            os.unlink(path)
 
 
 @tagged('post_install', '-at_install')

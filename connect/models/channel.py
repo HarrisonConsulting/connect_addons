@@ -392,9 +392,14 @@ class Channel(models.Model):
                         del current_context['_external_termination']
                         call.transfer_context = current_context
                 except Exception as e:
+                    reraise_if_concurrency_retry(e)
                     logger.error(f'Failed to clean up termination context: {e}')
 
         except Exception as e:
+            # A serialization failure here is the flush of the upstream
+            # channel.write() in on_call_status; let it propagate so Odoo's
+            # HTTP dispatcher retries instead of burying it as a 25P02.
+            reraise_if_concurrency_retry(e)
             logger.error(f'Error handling external call termination: {e}', exc_info=True)
 
     def transfer(self, to=None):

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import test_call
 from . import test_channel
+from . import test_concurrency_retry
 from . import test_recording
 from . import test_settings
 from . import test_transfer

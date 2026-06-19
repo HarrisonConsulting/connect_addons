@@ -216,6 +216,18 @@ class BYOC(models.Model):
             connection_policy = client.voice.v1.connection_policies.create(
                 friendly_name=rec.friendly_name
             )
+            # The BYOC chain links three resources by SID (connection policy ->
+            # BYOC trunk -> SIP domain), all on the Twilio Voice v1 API. A
+            # provider or REST API Host that does not implement Voice v1 returns
+            # no SID here, and passing an empty connection_policy_sid into the
+            # trunk surfaces later as an opaque foreign-key style rejection.
+            # Fail fast at the real cause instead.
+            if not getattr(connection_policy, 'sid', None):
+                raise ValidationError(
+                    'Carrier returned no ConnectionPolicy SID. The voice provider '
+                    'or configured REST API Host may not implement the Twilio '
+                    'Voice v1 API (ConnectionPolicies) required for BYOC.'
+                )
             data = {'connection_policy_sid': connection_policy.sid}
             # Create BYOC trunk
             byoc_trunk = client.voice.v1.byoc_trunks.create(
@@ -226,6 +238,12 @@ class BYOC(models.Model):
                 voice_fallback_url=rec.voice_fallback_url,
                 status_callback_url=rec.voice_status_url,
             )
+            if not getattr(byoc_trunk, 'sid', None):
+                raise ValidationError(
+                    'Carrier returned no BYOC Trunk SID. The voice provider '
+                    'or configured REST API Host may not implement the Twilio '
+                    'Voice v1 API (ByocTrunks) required for BYOC.'
+                )
             data['sid'] = byoc_trunk.sid
             rec.with_context(skip_twilio_sync=True).write(data)
             # Set BYOC trunk in twilio.

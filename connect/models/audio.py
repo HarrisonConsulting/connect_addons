@@ -1798,6 +1798,37 @@ class Audio(models.Model):
     # Playback helper
     # ------------------------------------------------------------------
 
+    @api.model
+    def resolve_qa_recording_notice(self):
+        """Resolve the uniform "recording for quality assurance" notice audio.
+
+        Shared by the realtime voice-agent origination (voice_connect) and
+        connect_callout so both outbound experiences play the identical notice
+        to the callee before connecting. The record is pointed at by the
+        ``connect.qa_recording_notice_audio`` config param (default xmlid
+        ``connect.audio_qa_recording_notice``) so it is swappable to a recorded
+        brand-voice file with no code change.
+
+        The param value may be an xmlid (``module.name``), a bare database id,
+        or a ``system_key``. Returns an empty recordset when unresolvable so
+        callers can skip the notice gracefully rather than crash.
+        """
+        ICP = self.env['ir.config_parameter'].sudo()
+        ref = (ICP.get_param('connect.qa_recording_notice_audio')
+               or 'connect.audio_qa_recording_notice')
+        Audio = self.sudo()
+        rec = None
+        if '.' in ref:
+            rec = self.env.ref(ref, raise_if_not_found=False)
+            if rec is not None and rec._name != 'connect.audio':
+                rec = None
+        if rec is None and ref.isdigit():
+            candidate = Audio.browse(int(ref))
+            rec = candidate if candidate.exists() else None
+        if rec is None:
+            rec = Audio.search([('system_key', '=', ref)], limit=1) or None
+        return rec.sudo() if rec else Audio.browse()
+
     def play_on(self, response, record=None):
         """Render, then attach to a TwiML VoiceResponse/Gather.
 

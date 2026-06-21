@@ -169,4 +169,31 @@
     <field name="static_text">A configuration error occurred. Please contact support.</field>
   </record>
 
+  <!-- Uniform "recording for quality assurance" notice. Played deterministically
+       to the callee BEFORE either outbound experience connects: the realtime
+       voice-agent origination (voice_connect) and connect_callout campaigns.
+       A fixed notice that ends "…we'll connect you now" makes the two-speaker
+       transition credible without depending on an LLM/human to remember.
+       state=live so it plays immediately; system_key keeps it pinned live and
+       reachable. Both consumers resolve it via connect.audio
+       resolve_qa_recording_notice(), keyed off the config param below — so the
+       text (or a recorded brand-voice file) is swappable with no code change. -->
+  <record id="audio_qa_recording_notice" model="connect.audio">
+    <field name="name">System: QA Recording Notice</field>
+    <field name="system_key">system.qa_recording_notice</field>
+    <field name="uuid">ee95d265-80c7-4c1e-94f2-c6ab30993353</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">This call will be recorded for quality assurance. We'll connect you now.</field>
+  </record>
+
+  <!-- Indirection so the notice is swappable (e.g. to a recorded brand-voice
+       file) without touching either consumer. Value is the xmlid both paths
+       resolve via env.ref; resolve_qa_recording_notice() also accepts a bare
+       database id or a system_key. -->
+  <record id="qa_recording_notice_audio_param" model="ir.config_parameter">
+    <field name="key">connect.qa_recording_notice_audio</field>
+    <field name="value">connect.audio_qa_recording_notice</field>
+  </record>
+
 </odoo>

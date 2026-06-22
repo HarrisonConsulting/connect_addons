@@ -79,7 +79,7 @@ class Domain(models.Model):
                 timeout=60,
                 callerId=callerId,
                 timeLimit=call_duration_limit,
-                record="record-from-answer",
+                record="record-from-answer-dual",
                 recordingStatusCallback=record_status_url,
             )
         else:

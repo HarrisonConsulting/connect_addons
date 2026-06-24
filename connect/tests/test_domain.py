@@ -55,6 +55,19 @@ class TestDomainNameComputation(ConnectTestCase):
         # roaming should never appear
         self.assertNotIn('roaming', self.domain.edge_domains)
 
+    def test_domain_name_custom_sip_suffix(self):
+        self.env['connect.settings'].set_param(
+            'sip_domain_suffix', 'sip.voiceml.example.com')
+        domain = self.env['connect.domain'].with_context(
+            no_twilio_create=True,
+        ).create({
+            'friendly_name': 'VoiceML Domain',
+            'subdomain': 'pbx',
+            'application': self.twiml_app.id,
+        })
+        self.assertEqual(domain.domain_name, 'pbx.sip.voiceml.example.com')
+        self.assertEqual(domain.edge_domains, 'pbx.sip.voiceml.example.com')
+
 
 @tagged('post_install', '-at_install')
 class TestCreateTwilioSipDomain(ConnectTestCase):

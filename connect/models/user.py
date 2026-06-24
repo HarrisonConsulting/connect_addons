@@ -15,7 +15,7 @@ from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
 from .audio_referrer_mixin import SELECTABLE_AUDIO_STATES
-from .settings import format_connect_response, debug, strip_number, TWILIO_EDGES
+from .settings import format_connect_response, debug, strip_number, TWILIO_EDGES, DEFAULT_SIP_DOMAIN_SUFFIX
 from .twiml import pretty_xml
 
 logger = logging.getLogger(__name__)
@@ -128,13 +128,16 @@ class User(models.Model):
         settings = self.env['connect.settings']
         default_edge = settings.get_param('twilio_edge') or 'roaming'
         for rec in self:
+            if not rec.username or not rec.domain or not rec.domain.subdomain:
+                rec.uri = ''
+                rec.connect_uri = ''
+                continue
             edge = rec.twilio_edge or default_edge
-            # Render URI is always global
             rec.uri = '{}@{}'.format(rec.username, rec.domain.domain_name)
-            if edge == 'roaming':
-                rec.connect_uri = '{}@{}'.format(rec.username, rec.domain.domain_name)
+            if edge == 'roaming' or settings.normalized_sip_domain_suffix() != DEFAULT_SIP_DOMAIN_SUFFIX:
+                rec.connect_uri = rec.uri
             else:
-                rec.connect_uri = '{}@{}.sip.{}.twilio.com'.format(
+                rec.connect_uri = settings.format_sip_connect_uri(
                     rec.username, rec.domain.subdomain, edge)
 
     def _create_sip_account(self, username, password, client=None):
@@ -563,6 +566,10 @@ class User(models.Model):
     def get_client_token(self):
         try:
             if not self._can_issue_client_token():
+                return {'token': False}
+            if not self.env['connect.settings'].is_webrtc_enabled():
+                logger.info(
+                    'Browser phone disabled in settings (webrtc_provider=disabled).')
                 return {'token': False}
             user = self.search([('user', '=', self.env.user.id)])
             if not user:

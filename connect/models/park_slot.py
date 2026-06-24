@@ -142,7 +142,7 @@ class ParkSlot(models.Model):
         # live <Say> can't be used as a conference waitUrl). Fall back to
         # the default Twimlet in that case so parked callers never land on
         # silent hold.
-        hold_music_url = (hold_audio and hold_audio.get_play_url()) or DEFAULT_HOLD_MUSIC
+        hold_music_url = (hold_audio and hold_audio.get_play_url()) or settings.get_default_hold_music_url()
         announcement_enabled = settings.get_param('park_announcement_enabled')
 
         try:

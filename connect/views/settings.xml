@@ -51,7 +51,10 @@
                       <field name="twilio_api_key" string="API Key SID"/>
                       <field name="display_twilio_api_secret" string="API Key Secret" password="1"/>
                       <field name="twilio_edge" string="Edge" invisible="rest_api_host"/>
-                      <field name="rest_api_host" string="REST API Host" placeholder="api.twilio.com (default)" groups="base.group_no_one"/>
+                      <field name="rest_api_host" string="REST API Host" placeholder="Leave empty for Twilio"/>
+                      <field name="sip_domain_suffix" string="SIP Domain Suffix" placeholder="sip.twilio.com (default)"/>
+                      <field name="default_hold_music_url" string="Default Hold Music URL" placeholder="Twilio twimlets default when empty"/>
+                      <field name="webrtc_provider" string="Browser Phone"/>
                       <field name="default_country_code" string="Default Country" placeholder="e.g. US, GB, DE"/>
                       <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary"/>
                     </group>

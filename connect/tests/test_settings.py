@@ -119,3 +119,24 @@ class TestSettingsTwilioClient(ConnectTestCase):
             client = self.env['connect.settings'].get_client()
             self.assertIsNotNone(client)
             self.assertEqual(client.region, 'us1')
+
+
+@tagged('post_install', '-at_install')
+class TestVoiceMLCompatSettings(ConnectTestCase):
+
+    def test_sip_suffix_defaults_to_twilio(self):
+        settings = self.env['connect.settings']
+        settings.set_param('sip_domain_suffix', False)
+        self.assertEqual(settings.normalized_sip_domain_suffix(), 'sip.twilio.com')
+
+    def test_get_client_ignores_region_token_with_rest_host(self):
+        settings = self.env['connect.settings']
+        settings.set_param('account_sid', 'ACtest')
+        settings.set_param('auth_token', 'primary_token')
+        settings.set_param('region_auth_token', 'region_token')
+        settings.set_param('rest_api_host', 'voiceml.example.com')
+        with patch('connect.models.settings.Client') as mock_client_cls:
+            settings.get_client()
+            args, kwargs = mock_client_cls.call_args
+            self.assertEqual(args[1], 'primary_token')
+            self.assertIsNotNone(kwargs.get('http_client'))

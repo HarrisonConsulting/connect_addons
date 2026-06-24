@@ -80,6 +80,7 @@
     </record>
 
     <record id="voicemail_box_action" model="ir.actions.act_window">
+        <field name="path">voicemail-box-action</field>
         <field name="name">Voicemail Boxes</field>
         <field name="res_model">connect.voicemail_box</field>
         <field name="view_mode">list,form</field>

@@ -2,6 +2,7 @@
 <odoo>
 
     <record id="connect_stripe_payment_action" model="ir.actions.act_window">
+        <field name="path">connect-stripe-payment-action</field>
         <field name="name">Phone Payments</field>
         <field name="res_model">connect.stripe.payment</field>
         <field name="view_mode">list,form</field>

@@ -34,6 +34,7 @@
     </record>
 
     <record id="voicemail_stage_action" model="ir.actions.act_window">
+        <field name="path">voicemail-stage-action</field>
         <field name="name">Voicemail Stages</field>
         <field name="res_model">connect.voicemail_stage</field>
         <field name="view_mode">list,form</field>

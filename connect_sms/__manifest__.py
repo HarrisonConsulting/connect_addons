@@ -1,6 +1,6 @@
 {
     'name': 'Connect SMS Bridge',
-    'version': '19.0.1.0.6',
+    'version': '19.0.1.0.7',
     'category': 'Phone',
     'summary': 'Bridge Connect Twilio telephony with Odoo SMS provider pipeline',
     'description': """

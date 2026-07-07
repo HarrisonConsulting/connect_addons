@@ -21,6 +21,7 @@
                            statusbar_visible="draft,synced"/>
                 </header>
                 <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_button_box" name="button_box"/>
                     <widget name="web_ribbon" title="Registered" bg_color="text-bg-success"
                             invisible="sync_status != 'synced'"/>
@@ -38,7 +39,7 @@
                         <group string="ElevenLabs Registration">
                             <field name="elevenlabs_phone_id" readonly="1"/>
                             <field name="last_sync" readonly="1"/>
-                            <field name="active"/>
+                            <field name="active" invisible="1"/>
                         </group>
                     </group>
                     <group string="Error Details" invisible="not sync_error">

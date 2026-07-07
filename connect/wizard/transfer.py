@@ -357,7 +357,7 @@ class CallForwardHandler(models.TransientModel):
                 conf_name,
                 startConferenceOnEnter=True,
                 endConferenceOnExit=True,
-                waitUrl='http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical',
+                waitUrl=self.env['connect.settings'].get_default_hold_music_url(),
             )
             response_other.append(dial_conf)
             client.calls(other_channel.sid).update(twiml=str(response_other))

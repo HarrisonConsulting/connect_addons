@@ -111,6 +111,11 @@ TWILIO_EDGES = [
     ('singapore', 'Singapore'),
 ]
 
+DEFAULT_SIP_DOMAIN_SUFFIX = 'sip.twilio.com'
+DEFAULT_HOLD_MUSIC_URL = (
+    'http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical'
+)
+
 
 class _RewriteHostHttpClient(TwilioHttpClient):
     """Twilio HTTP client that rewrites the request host.
@@ -233,6 +238,29 @@ class Settings(models.Model):
              "in Account SID and its API key in Auth Token. Note: WhatsApp "
              "(messaging/content.twilio.com) is Twilio-only and is not affected "
              "by this setting.",
+    )
+    sip_domain_suffix = fields.Char(
+        string="SIP Domain Suffix",
+        help="Suffix for SIP domain hostnames (subdomain.suffix). Leave empty "
+             "for Twilio (sip.twilio.com). Set to your registrar host when "
+             "using a Twilio-compatible voice API with your own SIP edge.",
+    )
+    default_hold_music_url = fields.Char(
+        string="Default Hold Music URL",
+        help="Audio URL for conference hold and call park wait music. Leave "
+             "empty to use the Twilio twimlets default.",
+    )
+    webrtc_provider = fields.Selection(
+        [
+            ('twilio', 'Twilio WebRTC (browser phone)'),
+            ('disabled', 'Disabled (SIP phones only)'),
+        ],
+        default='twilio',
+        required=True,
+        string="Browser Phone",
+        help="The in-Odoo softphone uses Twilio WebRTC and Twilio media edges. "
+             "Disable when REST points at a compatible voice API without "
+             "Twilio browser phone; use SIP desk phones instead.",
     )
     account_sid = fields.Char(string="Account SID")
     auth_token = fields.Char(
@@ -797,6 +825,60 @@ class Settings(models.Model):
             self.with_context(skip_protected_fields=True).sudo().write(changed_fields)
         # Reset cache
         self.env.registry.clear_cache()
+        return res
+
+    @api.model
+    def uses_compatible_rest_api(self):
+        return bool((self.get_param('rest_api_host') or '').strip())
+
+    @api.model
+    def normalized_sip_domain_suffix(self):
+        suffix = (self.get_param('sip_domain_suffix') or '').strip().lstrip('.')
+        return suffix or DEFAULT_SIP_DOMAIN_SUFFIX
+
+    @api.model
+    def format_sip_domain_name(self, subdomain):
+        return '{}.{}'.format(subdomain, self.normalized_sip_domain_suffix())
+
+    @api.model
+    def format_sip_edge_domain(self, subdomain, edge):
+        suffix = self.normalized_sip_domain_suffix()
+        if suffix == DEFAULT_SIP_DOMAIN_SUFFIX and edge:
+            return '{}.sip.{}.twilio.com'.format(subdomain, edge)
+        return self.format_sip_domain_name(subdomain)
+
+    @api.model
+    def format_sip_connect_uri(self, username, subdomain, edge=None):
+        suffix = self.normalized_sip_domain_suffix()
+        if suffix == DEFAULT_SIP_DOMAIN_SUFFIX and edge and edge != 'roaming':
+            return '{}@{}.sip.{}.twilio.com'.format(username, subdomain, edge)
+        return '{}@{}'.format(username, self.format_sip_domain_name(subdomain))
+
+    @api.model
+    def get_default_hold_music_url(self):
+        url = (self.get_param('default_hold_music_url') or '').strip()
+        return url or DEFAULT_HOLD_MUSIC_URL
+
+    @api.model
+    def is_webrtc_enabled(self):
+        return self.get_param('webrtc_provider') != 'disabled'
+
+    @api.model
+    def parse_sip_to_user(self, to_val):
+        if not isinstance(to_val, str) or not to_val.startswith('sip:'):
+            return None
+        at = to_val.find('@')
+        if at == -1:
+            return None
+        user_part = to_val[4:at]
+        host_part = to_val[at + 1:]
+        suffix = self.normalized_sip_domain_suffix()
+        if suffix == DEFAULT_SIP_DOMAIN_SUFFIX:
+            if re.match(r'^.+\.sip(\.[^.]+)?\.twilio\.com$', host_part):
+                return user_part
+        elif host_part == suffix or host_part.endswith('.' + suffix):
+            return user_part
+        return None
 
     @api.model
     def get_system_voice(self):
@@ -862,14 +944,14 @@ class Settings(models.Model):
                 logger.warning("Twilio credentials not configured (account_sid=%s, auth_token=%s)",
                                bool(account_sid), bool(auth_token))
                 return None
+            rest_api_host = (self.sudo().get_param("rest_api_host") or "").strip()
             token_to_use = auth_token
-            if region:
+            if region and not rest_api_host:
                 region_auth_token = self.sudo().get_param("region_auth_token")
                 token_to_use = region_auth_token if region_auth_token else auth_token
             # A custom REST host points the SDK at a Twilio-compatible provider
             # (e.g. VoiceTel). The host is then fixed, so Twilio region/edge
             # routing is moot and intentionally skipped.
-            rest_api_host = (self.sudo().get_param("rest_api_host") or "").strip()
             http_client = _RewriteHostHttpClient(rest_api_host) if rest_api_host else None
             client = Client(account_sid, token_to_use, http_client=http_client)
             if region and not rest_api_host:

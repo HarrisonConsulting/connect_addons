@@ -5,20 +5,10 @@ from markupsafe import escape
 from twilio.rest import Client
 from odoo import fields, models
 from odoo.exceptions import UserError
-from ..migrators import NumberMigrator, TwimlMigrator, DomainMigrator
+from ..migrators import MigrationResult
 from ..models.settings import _RewriteHostHttpClient, format_connect_response
 
 logger = logging.getLogger(__name__)
-
-# Order doesn't encode a Twilio-side dependency (numbers, TwiML apps and SIP
-# domains are independent resource types) — numbers first only because it's
-# the most commonly hit path and gives the fastest signal.
-MIGRATORS = [NumberMigrator, TwimlMigrator, DomainMigrator]
-MIGRATOR_TITLES = {
-    'numbers': 'Numbers',
-    'twiml_apps': 'TwiML Apps',
-    'domains': 'SIP Domains',
-}
 
 
 class SettingsMigrateWizard(models.TransientModel):
@@ -41,8 +31,8 @@ class SettingsMigrateWizard(models.TransientModel):
         [('draft', 'Draft'), ('preview', 'Preview'), ('done', 'Done')],
         default='draft', required=True,
         help="Draft: enter target credentials. Preview: dry-run results are "
-             "shown, nothing was changed. Done: numbers, TwiML apps and SIP "
-             "domains migrated and Connect switched to the target account.")
+             "shown, nothing was changed. Done: all previewed resource types "
+             "migrated and Connect switched to the target account.")
     result = fields.Html(
         readonly=True,
         help="Per-resource outcome of the dry run or migration, plus the "
@@ -71,10 +61,18 @@ class SettingsMigrateWizard(models.TransientModel):
             return '<h5 class="{}">{} ({})</h5><ul>{}</ul>'.format(
                 css, escape(title), len(items), rows)
 
+        titles = {cls.name: cls.title or cls.name
+                  for cls in self.env['connect.settings']._get_account_migrators()}
         html = ''
         for res in results:
-            html += '<h4>{}</h4>'.format(
-                escape(MIGRATOR_TITLES.get(res.name, res.name)))
+            html += '<h4>{}</h4>'.format(escape(titles.get(res.name, res.name)))
+            # Rendered first and distinctly from "Target-only" warnings: a
+            # notice is something to act on (e.g. a newly generated,
+            # unrecoverable secret), not routine will-be-imported-by-SYNC
+            # noise — burying it under the same heading has already lost a
+            # password once (also logged server-side, see the migrator).
+            html += section('⚠ ACTION REQUIRED', res.notices,
+                            css='text-danger')
             html += section('Skipped (already on target with same SID)', res.skipped)
             html += section('Rebound (adopt target SID, push config)', res.rebound)
             html += section('Created on target', res.created)
@@ -84,9 +82,23 @@ class SettingsMigrateWizard(models.TransientModel):
                 'Errors', ['{}: {}'.format(k, v) for k, v in res.errors],
                 css='text-danger')
             if not (res.skipped or res.rebound or res.created or res.warnings
-                    or res.errors):
+                    or res.errors or res.notices):
                 html += '<p>Nothing to migrate.</p>'
         return html
+
+    def _run_migrator(self, migrator_cls, client, dry_run):
+        """Run one Migrator, isolating an unexpected failure to its own
+        result instead of losing every other migrator's results — a
+        migrator's up-front listing call (e.g. BYOC's Voice v1 lookup) can
+        legitimately 404 against a provider that doesn't implement that API,
+        and the wizard runs several migrators in one action."""
+        try:
+            return migrator_cls(self.env).run(client, dry_run)
+        except Exception as e:
+            logger.exception('Migrator %s failed:', migrator_cls.name)
+            result = MigrationResult(name=migrator_cls.name)
+            result.errors.append(('*', str(e)))
+            return result
 
     def _reopen(self):
         return {
@@ -100,16 +112,18 @@ class SettingsMigrateWizard(models.TransientModel):
     def action_preview(self):
         self.ensure_one()
         client = self._get_target_client()
-        results = [migrator_cls(self.env).run(client, dry_run=True)
-                   for migrator_cls in MIGRATORS]
+        results = [self._run_migrator(migrator_cls, client, dry_run=True)
+                   for migrator_cls in
+                   self.env['connect.settings']._get_account_migrators()]
         self.write({'result': self._render_result(results), 'state': 'preview'})
         return self._reopen()
 
     def action_migrate(self):
         self.ensure_one()
         client = self._get_target_client()
-        results = [migrator_cls(self.env).run(client, dry_run=False)
-                   for migrator_cls in MIGRATORS]
+        results = [self._run_migrator(migrator_cls, client, dry_run=False)
+                   for migrator_cls in
+                   self.env['connect.settings']._get_account_migrators()]
         total_errors = sum(len(res.errors) for res in results)
         if total_errors:
             # Cutting credentials over while anything failed to migrate would
@@ -160,6 +174,9 @@ class SettingsMigrateWizard(models.TransientModel):
                 ', '.join(callerids.mapped('number')) if callerids else 'none'),
             'Mint a new API Key SID/Secret on the target account for the '
             'browser phone.',
+            'SIP credentials cannot be copied between accounts: migrated '
+            'SIP endpoints/carriers received newly generated passwords and '
+            'must be re-provisioned with them.',
             'Re-register WhatsApp senders and content templates on the '
             'target account.',
             'Historical call/message logs are not migrated; use Twilio '

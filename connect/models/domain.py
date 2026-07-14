@@ -163,6 +163,19 @@ class Domain(models.Model):
                 debug(self, "Error creating SIP credential for user {}: {}".format(
                     user.username, str(e)), level="error")
 
+    def _should_reconcile_credentials(self):
+        """Whether sync() should pull this domain's SIP credential list into
+        connect.user records.
+
+        True by default (ordinary user-registration domains). Extension
+        modules override this to exclude domains whose credential list holds
+        credentials that do not correspond to a connect.user — importing one
+        would silently create a phantom user that then matches inbound calls
+        by username (see connect_byoc's override).
+        """
+        self.ensure_one()
+        return True
+
     def _import_existing_domain_by_name(self, client=None):
         """Import existing domain from Twilio by domain name (for region migration).
 
@@ -513,6 +526,18 @@ class Domain(models.Model):
             if odoo_domain:
                 try:
                     odoo_domain.update_twilio_domain(client)
+                    # Reconcile per-user SIP credentials on every sync so users
+                    # added after an initial migration still reach the target
+                    # account; the method is idempotent and never raises.
+                    # _should_reconcile_credentials() lets extension modules
+                    # exclude domains whose credential list holds non-user
+                    # credentials (e.g. connect_byoc's carrier SIP account) —
+                    # importing those would silently create a phantom
+                    # connect.user that then matches inbound calls by username.
+                    if (odoo_domain.cred_list_sid
+                            and odoo_domain._should_reconcile_credentials()):
+                        odoo_domain._import_sip_credentials_from_twilio(
+                            client, odoo_domain.cred_list_sid)
                 except Exception as e:
                     raise
 

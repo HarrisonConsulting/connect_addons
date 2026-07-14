@@ -15,10 +15,17 @@ class MigrationResult:
     skipped: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
+    # Distinct from warnings: something the operator must act on before the
+    # target account is usable (e.g. a newly generated, unrecoverable
+    # secret) rather than routine "will be picked up by SYNC" noise. Render
+    # separately and log it — this wizard is a TransientModel that gets
+    # vacuumed, so a value shown only in `warnings` can be permanently lost.
+    notices: list = field(default_factory=list)
 
 
 class Migrator(ABC):
     name = None
+    title = None
 
     def __init__(self, env):
         self.env = env
@@ -34,6 +41,7 @@ class Migrator(ABC):
 
 class NumberMigrator(Migrator):
     name = 'numbers'
+    title = 'Numbers'
 
     def run(self, dest_client, dry_run):
         result = MigrationResult(name=self.name)
@@ -76,6 +84,7 @@ class NumberMigrator(Migrator):
 
 class DomainMigrator(Migrator):
     name = 'domains'
+    title = 'SIP Domains'
 
     def run(self, dest_client, dry_run):
         result = MigrationResult(name=self.name)
@@ -110,6 +119,7 @@ class DomainMigrator(Migrator):
 
 class TwimlMigrator(Migrator):
     name = 'twiml_apps'
+    title = 'TwiML Apps'
 
     def run(self, dest_client, dry_run):
         result = MigrationResult(name=self.name)

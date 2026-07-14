@@ -23,6 +23,7 @@ from .audio_referrer_mixin import (
     SELECTABLE_AUDIO_STATES,
     URL_PLAYABLE_AUDIO_SOURCES,
 )
+from ..migrators import DomainMigrator, NumberMigrator, TwimlMigrator
 
 logger = logging.getLogger(__name__)
 
@@ -856,6 +857,17 @@ class Settings(models.Model):
     @api.model
     def _get_rest_api_host(self):
         return (self.sudo().get_param('rest_api_host') or '').strip()
+
+    @api.model
+    def _get_account_migrators(self):
+        """Migrator classes the account migration wizard runs, in list order.
+
+        Extension modules must APPEND to super()'s result: appended migrators
+        run after the core ones and may depend on their target-side results
+        (e.g. BYOC trunks bind SIP domains and their credential lists, which
+        exist on the target only once domains have migrated).
+        """
+        return [NumberMigrator, TwimlMigrator, DomainMigrator]
 
     @api.model
     def uses_compatible_rest_api(self):

@@ -29,12 +29,40 @@ class OriginationURI(models.Model):
         res = super(OriginationURI, self).create(vals_list)
         if self.env.context.get('skip_twilio_sync'):
             return res
-        client = self.env["connect.settings"].get_client()
         for rec in res:
-            target = client.voice.v1.connection_policies(
-                rec.byoc.connection_policy_sid).targets.create(target=rec.target)
-            rec.sid = target.sid
+            rec.create_twilio_target()
         return res
+
+    def create_twilio_target(self, client=None):
+        self.ensure_one()
+        if not client:
+            client = self.env["connect.settings"].get_client()
+        # Always send priority/weight: the Odoo fields are required with
+        # defaults, so omitting them would let carrier-side defaults diverge.
+        target = client.voice.v1.connection_policies(
+            self.byoc.connection_policy_sid).targets.create(
+                target=self.target,
+                priority=self.priority,
+                weight=self.weight,
+            )
+        self.with_context(skip_twilio_sync=True).write({'sid': target.sid})
+
+    def update_twilio_target(self, client=None):
+        self.ensure_one()
+        if not client:
+            client = self.env["connect.settings"].get_client()
+        try:
+            client.voice.v1.connection_policies(
+                self.byoc.connection_policy_sid).targets(self.sid).update(
+                    target=self.target,
+                    priority=self.priority,
+                    weight=self.weight,
+                )
+        except Exception as e:
+            if 'was not found' in str(e):
+                raise ValidationError('Target not found in Twilio!')
+            else:
+                raise
 
     def unlink(self):
         to_delete = {}
@@ -58,19 +86,8 @@ class OriginationURI(models.Model):
         res = super(OriginationURI, self).write(vals)
         if self.env.context.get('skip_twilio_sync'):
             return res
-        client = self.env["connect.settings"].get_client()
         for rec in self:
-            try:
-                client.voice.v1.connection_policies(rec.byoc.connection_policy_sid).targets(rec.sid).update(
-                    target=rec.target,
-                    priority=rec.priority,
-                    weight=rec.weight,
-                )
-            except Exception as e:
-                if 'was not found' in str(e):
-                    raise ValidationError('Target not found in Twilio!')
-                else:
-                    raise
+            rec.update_twilio_target()
         return res
 
     @api.constrains('target')
@@ -178,10 +195,10 @@ class BYOC(models.Model):
             else:
                 raise ValidationError(str(e))
 
-    def _create_sip_account(self, username, password):
+    def _create_sip_account(self, username, password, client=None):
         self.ensure_one()
         try:
-            client = self.env['connect.settings'].get_client()
+            client = client or self.env['connect.settings'].get_client()
             credential = client.sip.credential_lists(
                 self.domain.cred_list_sid).credentials.create(
                     username=username, password=password)
@@ -207,49 +224,100 @@ class BYOC(models.Model):
             # Get main domain
             main_domain = self.env['connect.domain'].search([('byoc', '=', False)])[0]
             # Create a new domain
-            domain = self.env['connect.domain'].create({
+            self.env['connect.domain'].create({
                 'friendly_name': main_domain.friendly_name + ' BYOC {}'.format(rec.id),
                 'subdomain': main_domain.subdomain + '-byoc-{}'.format(rec.id),
                 'byoc': rec.id,
             })
-            # Create connection_policy resource.
-            connection_policy = client.voice.v1.connection_policies.create(
-                friendly_name=rec.friendly_name
+            rec.create_twilio_byoc(client)
+        return recs
+
+    def create_twilio_byoc(self, client):
+        self.ensure_one()
+        policies = {
+            p.friendly_name: p
+            for p in client.voice.v1.connection_policies.list()
+        }
+        policy = policies.get(self.friendly_name)
+        if not policy:
+            policy = client.voice.v1.connection_policies.create(
+                friendly_name=self.friendly_name)
+        # The BYOC chain links three resources by SID (connection policy ->
+        # BYOC trunk -> SIP domain), all on the Twilio Voice v1 API. A
+        # provider or REST API Host that does not implement Voice v1 returns
+        # no SID here, and passing an empty connection_policy_sid into the
+        # trunk surfaces later as an opaque foreign-key style rejection.
+        # Fail fast at the real cause instead.
+        if not getattr(policy, 'sid', None):
+            raise ValidationError(
+                'Carrier returned no ConnectionPolicy SID. The voice provider '
+                'or configured REST API Host may not implement the Twilio '
+                'Voice v1 API (ConnectionPolicies) required for BYOC.'
             )
-            # The BYOC chain links three resources by SID (connection policy ->
-            # BYOC trunk -> SIP domain), all on the Twilio Voice v1 API. A
-            # provider or REST API Host that does not implement Voice v1 returns
-            # no SID here, and passing an empty connection_policy_sid into the
-            # trunk surfaces later as an opaque foreign-key style rejection.
-            # Fail fast at the real cause instead.
-            if not getattr(connection_policy, 'sid', None):
-                raise ValidationError(
-                    'Carrier returned no ConnectionPolicy SID. The voice provider '
-                    'or configured REST API Host may not implement the Twilio '
-                    'Voice v1 API (ConnectionPolicies) required for BYOC.'
-                )
-            data = {'connection_policy_sid': connection_policy.sid}
-            # Create BYOC trunk
-            byoc_trunk = client.voice.v1.byoc_trunks.create(
-                friendly_name=rec.friendly_name,
-                connection_policy_sid=connection_policy.sid,
-                from_domain_sid=domain.sid,
-                voice_url=rec.voice_url,
-                voice_fallback_url=rec.voice_fallback_url,
-                status_callback_url=rec.voice_status_url,
+        self.with_context(skip_twilio_sync=True).write(
+            {'connection_policy_sid': policy.sid})
+        self._reconcile_policy_targets(client)
+        trunks = {t.friendly_name: t for t in client.voice.v1.byoc_trunks.list()}
+        trunk = trunks.get(self.friendly_name)
+        if trunk:
+            self.with_context(skip_twilio_sync=True).write({'sid': trunk.sid})
+            self.update_twilio_byoc(client)
+        else:
+            trunk = client.voice.v1.byoc_trunks.create(
+                friendly_name=self.friendly_name,
+                connection_policy_sid=policy.sid,
+                from_domain_sid=self.domain.sid or None,
+                voice_url=self.voice_url,
+                voice_fallback_url=self.voice_fallback_url,
+                status_callback_url=self.voice_status_url,
             )
-            if not getattr(byoc_trunk, 'sid', None):
+            if not getattr(trunk, 'sid', None):
                 raise ValidationError(
                     'Carrier returned no BYOC Trunk SID. The voice provider '
                     'or configured REST API Host may not implement the Twilio '
                     'Voice v1 API (ByocTrunks) required for BYOC.'
                 )
-            data['sid'] = byoc_trunk.sid
-            rec.with_context(skip_twilio_sync=True).write(data)
-            # Set BYOC trunk in twilio.
-            twilio_domain = client.sip.domains(domain.sid)
-            twilio_domain.update(byoc_trunk_sid=byoc_trunk.sid)
-        return recs
+            self.with_context(skip_twilio_sync=True).write({'sid': trunk.sid})
+        if self.domain.sid:
+            # Re-point the SIP domain at the trunk: without this inbound
+            # calls on the target account never route through BYOC.
+            client.sip.domains(self.domain.sid).update(byoc_trunk_sid=self.sid)
+
+    def _reconcile_policy_targets(self, client):
+        self.ensure_one()
+        # Targets carry no friendly_name; the URI itself is the natural key.
+        existing = {
+            t.target: t
+            for t in client.voice.v1.connection_policies(
+                self.connection_policy_sid).targets.list()
+        }
+        for rec in self.origination_uris:
+            match = existing.get(rec.target)
+            if match:
+                rec.with_context(skip_twilio_sync=True).write({'sid': match.sid})
+                rec.update_twilio_target(client)
+            else:
+                rec.create_twilio_target(client)
+
+    def _reconcile_sip_credential(self, client):
+        self.ensure_one()
+        if not (self.sip_username and self.domain.cred_list_sid):
+            return False
+        credentials = client.sip.credential_lists(
+            self.domain.cred_list_sid).credentials.list()
+        for credential in credentials:
+            if credential.username == self.sip_username:
+                self.with_context(skip_twilio_sync=True).write(
+                    {'sip_credential_sid': credential.sid})
+                # Never rotate an existing credential on re-run: the carrier
+                # already registers with the working password and the original
+                # is stored masked, so rotation would silently break it.
+                return False
+        password = self.env['connect.user'].generate_twilio_password()
+        self._create_sip_account(self.sip_username, password, client=client)
+        self.with_context(skip_twilio_sync=True).write(
+            {'sip_password': '*' * len(password)})
+        return password
 
     @api.model
     def sync(self):
@@ -301,6 +369,8 @@ class BYOC(models.Model):
             trunk = client.voice.v1.byoc_trunks(self.sid)
             trunk.update(
                 friendly_name=self.friendly_name,
+                connection_policy_sid=self.connection_policy_sid or None,
+                from_domain_sid=self.domain.sid or None,
                 voice_url=self.voice_url,
                 voice_fallback_url=self.voice_fallback_url,
                 status_callback_url=self.voice_status_url,

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '1.0.0',
+    'version': '1.1.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -18,7 +18,7 @@ VoiceTel provider for Connect
 Adds VoiceTel as a telephony provider in Connect settings:
 - VoiceTel-labeled credentials (Account SID, API Key, API Secret, REST host)
 - Routes the Connect REST client to the VoiceML API
-- Dry-run launcher for the twilio-migration tool
+- Migration uses Connect's native Migrate Account wizard, no external tooling
     """,
     'depends': ['connect'],
     'data': [

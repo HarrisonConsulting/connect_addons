@@ -28,6 +28,13 @@ class Domain(models.Model):
 
     byoc = fields.Many2one('connect.byoc', string='BYOC', readonly=True)
 
+    def _should_reconcile_credentials(self):
+        # A BYOC domain's credential list holds the carrier's SIP account
+        # (connect.byoc.sip_username), not end-user registrations — importing
+        # it via sync() would create a phantom connect.user for the carrier.
+        self.ensure_one()
+        return super()._should_reconcile_credentials() and not self.byoc
+
     def get_byoc_caller_id_number(self, byoc, number, callerId):
         if byoc:
             if not callerId and byoc.default_callerid:

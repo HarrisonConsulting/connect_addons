@@ -23,6 +23,8 @@ class OriginationURI(models.Model):
                               help='Determines order of preference. Lower numbers = higher priority')
     weight = fields.Integer(required=True, default=10,
                             help='Used only when multiple targets share the same priority. Distributes calls proportionally among them.')
+    enabled = fields.Boolean(default=True,
+        help='Whether this target is active on the carrier. A disabled target is kept but not dialed.')
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -37,13 +39,15 @@ class OriginationURI(models.Model):
         self.ensure_one()
         if not client:
             client = self.env["connect.settings"].get_client()
-        # Always send priority/weight: the Odoo fields are required with
-        # defaults, so omitting them would let carrier-side defaults diverge.
+        # Always send priority/weight/enabled: the Odoo fields are required
+        # with defaults, so omitting them would let carrier-side defaults
+        # diverge.
         target = client.voice.v1.connection_policies(
             self.byoc.connection_policy_sid).targets.create(
                 target=self.target,
                 priority=self.priority,
                 weight=self.weight,
+                enabled=self.enabled,
             )
         self.with_context(skip_twilio_sync=True).write({'sid': target.sid})
 
@@ -57,6 +61,7 @@ class OriginationURI(models.Model):
                     target=self.target,
                     priority=self.priority,
                     weight=self.weight,
+                    enabled=self.enabled,
                 )
         except Exception as e:
             if 'was not found' in str(e):
@@ -117,6 +122,8 @@ class BYOC(models.Model):
     sip_username = fields.Char('SIP Username')
     sip_password = fields.Char('SIP password')
     default_callerid = fields.Many2one('connect.outgoing_callerid', ondelete='set null')
+    cnam_lookup_enabled = fields.Boolean('CNAM Lookup',
+        help='Look up the caller name (CNAM) for inbound calls on this trunk.')
 
     def _get_urls(self):
         api_url = self.env['connect.settings'].get_param('api_url')
@@ -270,6 +277,7 @@ class BYOC(models.Model):
                 voice_url=self.voice_url,
                 voice_fallback_url=self.voice_fallback_url,
                 status_callback_url=self.voice_status_url,
+                cnam_lookup_enabled=self.cnam_lookup_enabled,
             )
             if not getattr(trunk, 'sid', None):
                 raise ValidationError(
@@ -319,6 +327,63 @@ class BYOC(models.Model):
             {'sip_password': '*' * len(password)})
         return password
 
+    def _import_policy_targets(self, client):
+        """Pull this trunk's connection-policy targets from Twilio into
+        origination_uris, so a console-adopted trunk (sync(), not
+        create_twilio_byoc()) carries real routing when later migrated —
+        create_twilio_byoc() rebuilds the destination policy FROM
+        origination_uris, so an empty set here means the migrated trunk
+        routes nowhere."""
+        self.ensure_one()
+        if not self.connection_policy_sid:
+            return
+        targets = client.voice.v1.connection_policies(
+            self.connection_policy_sid).targets.list()
+        existing = {rec.target: rec for rec in self.origination_uris}
+        for target in targets:
+            rec = existing.get(target.target)
+            vals = {
+                'sid': target.sid,
+                'priority': target.priority or 10,
+                'weight': target.weight or 10,
+                'enabled': target.enabled if target.enabled is not None else True,
+            }
+            if rec:
+                rec.with_context(skip_twilio_sync=True).write(vals)
+            else:
+                self.env['connect.byoc_origination_uri'].with_context(
+                    skip_twilio_sync=True).create(
+                        dict(vals, byoc=self.id, target=target.target))
+
+    def _import_byoc_domain(self, client, trunk):
+        """Best-effort link to an existing connect.domain by name, so a
+        console-adopted trunk's from_domain_sid survives a later migration
+        (create_twilio_byoc() sends self.domain.sid, which is empty without
+        this). Never creates a domain record — only links one that's already
+        being synced independently — so this can't invent SIP domains as a
+        side effect of a routine trunk scan."""
+        self.ensure_one()
+        from_domain_sid = getattr(trunk, 'from_domain_sid', None)
+        if not from_domain_sid or self.domain:
+            return
+        try:
+            twilio_domain = client.sip.domains(from_domain_sid).fetch()
+        except Exception:
+            debug(self, 'Could not fetch BYOC trunk {}\'s SIP domain {} for '
+                  'linking.'.format(self.friendly_name, from_domain_sid),
+                  level='warning')
+            return
+        domain = self.env['connect.domain'].search(
+            [('domain_name', '=', twilio_domain.domain_name)], limit=1)
+        if domain and not domain.byoc:
+            domain.with_context(skip_twilio_sync=True).write({'byoc': self.id})
+        elif not domain:
+            debug(self, 'BYOC trunk {}\'s SIP domain {} has no matching '
+                  'connect.domain record; from_domain_sid will stay unset on '
+                  'this trunk until the domain is synced.'.format(
+                      self.friendly_name, twilio_domain.domain_name),
+                  level='warning')
+
     @api.model
     def sync(self):
         client = self.env["connect.settings"].get_client()
@@ -332,8 +397,12 @@ class BYOC(models.Model):
                         "sid": trunk.sid,
                         "friendly_name": trunk.friendly_name,
                         "connection_policy_sid": trunk.connection_policy_sid,
+                        "cnam_lookup_enabled": bool(
+                            getattr(trunk, 'cnam_lookup_enabled', False)),
                     }
                 )
+                rec._import_policy_targets(client)
+                rec._import_byoc_domain(client, trunk)
                 # Update voice URLs.
                 rec.update_twilio_byoc(client)
                 self.env["connect.settings"].connect_notify(
@@ -347,8 +416,12 @@ class BYOC(models.Model):
                         "sid": trunk.sid,
                         "friendly_name": trunk.friendly_name,
                         "connection_policy_sid": trunk.connection_policy_sid,
+                        "cnam_lookup_enabled": bool(
+                            getattr(trunk, 'cnam_lookup_enabled', False)),
                     }
                 )
+                rec._import_policy_targets(client)
+                rec._import_byoc_domain(client, trunk)
                 rec.update_twilio_byoc(client)
         # Remove trunks that exist only in Odoo (trunk was removed in Twilio).
         trunks_to_remove = self.search([("sid", "not in", [k.sid for k in trunks])])
@@ -374,6 +447,7 @@ class BYOC(models.Model):
                 voice_url=self.voice_url,
                 voice_fallback_url=self.voice_fallback_url,
                 status_callback_url=self.voice_status_url,
+                cnam_lookup_enabled=self.cnam_lookup_enabled,
             )
             debug(self, "BYOC {} updated.".format(self.friendly_name))
         except Exception as e:

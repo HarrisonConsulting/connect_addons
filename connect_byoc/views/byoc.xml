@@ -43,6 +43,7 @@
                                     <field name="target" placeholder="sip:your.siptrunk.com:5060"/>
                                     <field name="priority"/>
                                     <field name="weight"/>
+                                    <field name="enabled"/>
                                 </list>
                             </field>
                             <field name="app"/>
@@ -50,6 +51,7 @@
                         <group>
                             <field name="id" invisible="1"/>
                             <field name="default_callerid"/>
+                            <field name="cnam_lookup_enabled"/>
                             <field name="sip_username" invisible="id == False" required="id != False"/>
                             <field name="sip_password" invisible="id == False" required="id != False"/>
                             <field name="domain_name" string="Domain" invisible="id == False"/>

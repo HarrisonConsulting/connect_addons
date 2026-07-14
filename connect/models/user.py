@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 SIP_TWILIO_EDGES = TWILIO_EDGES.copy()
 SIP_TWILIO_EDGES.insert(0, ['roaming', 'Global Low-latency Roaming'])
 
+
 class UserCallflowCall(models.Model):
     _name = 'connect.user_callflow_call'
     _log_access = False
@@ -563,7 +564,7 @@ class User(models.Model):
                 or self.env.user.has_group('connect.group_connect_admin'))
 
     @api.model
-    def get_client_token(self):
+    def get_client_token(self, nonce=False):
         try:
             if not self._can_issue_client_token():
                 return {'token': False}
@@ -578,34 +579,49 @@ class User(models.Model):
             if not user.client_enabled:
                 logger.info("Client for user %s not enabled!", self.env.user.id)
                 return {'token': False}
-            account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-            api_key = self.env['connect.settings'].sudo().get_param('twilio_api_key')
-            api_secret = self.env['connect.settings'].sudo().get_param('twilio_api_secret')
-            if not (account_sid and api_key and api_secret):
-                # Neutralized copy (data/neutralize.sql scrubs the API keys)
-                # or an unprovisioned database. Fail clean — the web phone
-                # simply stays unmounted — instead of letting to_jwt() raise.
-                logger.info(
-                    'Twilio API key credentials not configured — '
-                    'web phone disabled for user %s.', self.env.user.id)
-                return {'token': False}
-            identity = user.get_client_identity()
-            token = AccessToken(account_sid, api_key, api_secret, identity=identity, ttl=3600,
-                region=self.env['connect.settings'].sudo().get_param('twilio_region'),
-            )
-            voice_grant = VoiceGrant(
-                outgoing_application_sid=user.application.sid or user.domain.application.sid,
-                outgoing_application_params={},
-                incoming_allow=True,
-            )
-            token.add_grant(voice_grant)
-            return {
-                'token': token.to_jwt(),
-                'edge': user.twilio_edge or self.env['connect.settings'].sudo().get_param('twilio_edge'),
-            }
+            return user._mint_client_token(nonce)
         except Exception as e:
-            logger.exception('Error getting Twilio JWT:')
+            logger.exception('Error getting client token:')
             return {'error': str(e)}
+
+    def _mint_client_token(self, nonce=False):
+        """Mint the browser softphone credential for the active provider.
+
+        This is the built-in Twilio implementation — the default provider.
+        Provider extensions (e.g. connect_voicetel) override this, checking
+        their own provider condition first and falling back to super() so
+        Twilio stays reachable when the active provider doesn't match theirs.
+        `nonce` (unused here) identifies the calling browser tab/session —
+        Twilio's JWT is stateless so every tab can share one identity;
+        stateful providers need it to avoid tabs rotating each other's
+        credentials out from under themselves.
+        """
+        self.ensure_one()
+        account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
+        api_key = self.env['connect.settings'].sudo().get_param('twilio_api_key')
+        api_secret = self.env['connect.settings'].sudo().get_param('twilio_api_secret')
+        if not (account_sid and api_key and api_secret):
+            # Neutralized copy (data/neutralize.sql scrubs the API keys)
+            # or an unprovisioned database. Fail clean — the web phone
+            # simply stays unmounted — instead of letting to_jwt() raise.
+            logger.info(
+                'Twilio API key credentials not configured — '
+                'web phone disabled for user %s.', self.id)
+            return {'token': False}
+        identity = self.get_client_identity()
+        token = AccessToken(account_sid, api_key, api_secret, identity=identity, ttl=3600,
+            region=self.env['connect.settings'].sudo().get_param('twilio_region'),
+        )
+        voice_grant = VoiceGrant(
+            outgoing_application_sid=self.application.sid or self.domain.application.sid,
+            outgoing_application_params={},
+            incoming_allow=True,
+        )
+        token.add_grant(voice_grant)
+        return {
+            'token': token.to_jwt(),
+            'edge': self.twilio_edge or self.env['connect.settings'].sudo().get_param('twilio_edge'),
+        }
 
     @api.model
     def update_presence(self, status):

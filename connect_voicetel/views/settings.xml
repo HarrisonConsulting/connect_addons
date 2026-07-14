@@ -15,6 +15,7 @@
           <field name="display_voicetel_api_key" string="API Key" password="1"/>
           <field name="display_voicetel_api_secret" string="API Secret" password="1"/>
           <field name="voicetel_rest_host" string="REST API Host"/>
+          <field name="voicetel_wss_server" string="Browser Phone WSS Server"/>
           <div colspan="2">
             <small>Use <strong>MIGRATE ACCOUNT</strong> above to move numbers, TwiML apps, SIP domains and BYOC trunks to this VoiceTel account.</small>
           </div>

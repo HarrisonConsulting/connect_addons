@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+connect_user_browser_credential_admin,connect.user_browser_credential admin,connect_voicetel.model_connect_user_browser_credential,connect.group_connect_admin,1,1,1,1

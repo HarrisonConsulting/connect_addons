@@ -1,6 +1,5 @@
 /** @odoo-module **/
 "use strict"
-import {loadJS} from "@web/core/assets"
 import {useService} from "@web/core/utils/hooks"
 import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
@@ -11,6 +10,7 @@ import {useDebounced} from "@web/core/utils/timing"
 import {user} from "@web/core/user"
 import {ConfirmationDialog} from "@web/core/confirmation_dialog/confirmation_dialog"
 import {_t} from "@web/core/l10n/translation"
+import {registry} from "@web/core/registry"
 
 const uid = user.userId
 
@@ -59,7 +59,8 @@ export class Phone extends Component {
     static template = 'connect.phone'
     static props = {
         bus: Object,
-        token_data: Object
+        token_data: Object,
+        browserSessionNonce: {type: String, optional: true}
     }
 
     static components = {Calls, Contacts, Favorites}
@@ -67,8 +68,26 @@ export class Phone extends Component {
     constructor() {
         super(...arguments)
         this.bus = this.props.bus
+        // Identifies this tab across every get_client_token() call it makes
+        // (initial mount in main.js, plus reconnect/updateToken below) so a
+        // VoiceTel user's concurrent tabs each rotate their own SIP
+        // credential instead of racing over one shared password. Unused on
+        // the Twilio path (JWTs are stateless — no cross-tab collision).
+        this.browserSessionNonce = this.props.browserSessionNonce
         this.token = this.props.token_data.token
         this.edge = this.props.token_data.edge
+        // Twilio's current get_client_token() response has no 'provider' key
+        // (byte-identical contract, see backend task notes) — default to
+        // 'twilio' when absent.
+        this.provider = this.props.token_data.provider || 'twilio'
+        // VoiceTel-specific connection fields (get_client_token()'s 'voicetel'
+        // response shape — see connect.user._get_voicetel_client_token()).
+        // Unused when provider === 'twilio'.
+        this.sipUri = this.props.token_data.sip_uri
+        this.sipUsername = this.props.token_data.username
+        this.sipPassword = this.props.token_data.password
+        this.wssServer = this.props.token_data.wss_server
+        this.displayName = this.props.token_data.display_name
         this.callStatus = {
             NoAnswer: 'noanswer',
             Busy: 'busy',
@@ -172,7 +191,7 @@ export class Phone extends Component {
         this.heldCallSid = null
         this.heldCallId = null
         this.heldCallerId = null
-        this.userAgent = null
+        this.transport = null
         this._reconnecting = false
         this._reconnectToastClose = null
         this.call_id = null
@@ -224,7 +243,7 @@ export class Phone extends Component {
         }, 400)
 
         onWillStart(async () => {
-            await loadJS('/connect/static/src/lib/twilio.min.js')
+            await this._getTransportClass(this.provider).loadDependencies()
 
             // EVENTS
             this.bus.addEventListener('busPhoneMakeCall', ({detail}) => this.prepareCall(detail))
@@ -309,25 +328,25 @@ export class Phone extends Component {
                         this._needsTokenRefresh = false
                         this.updateToken()
                     }
-                    if (!this.userAgent || this.userAgent.state === 'destroyed') {
-                        // Device was destroyed while tab was hidden — full re-init
-                        console.debug('Connect: Twilio device was destroyed while tab was hidden, re-initializing')
-                        this.initUserAgent()
-                    } else if (this.userAgent.state === 'unregistered') {
-                        // Device lost registration while tab was hidden — refresh token and re-register
-                        console.debug('Connect: Twilio device unregistered while tab was hidden, re-registering')
+                    if (!this.transport || this.transport.state === 'destroyed') {
+                        // Transport was destroyed while tab was hidden — full re-init
+                        console.debug('Connect: transport was destroyed while tab was hidden, re-initializing')
+                        this.initTransport()
+                    } else if (this.transport.state === 'unregistered') {
+                        // Transport lost registration while tab was hidden — refresh token and re-register
+                        console.debug('Connect: transport unregistered while tab was hidden, re-registering')
                         this.updateToken()
                     }
                 }
             }
             document.addEventListener('visibilitychange', this._visibilityHandler)
 
-            this.initUserAgent()
+            this.initTransport()
 
             // Proactive token refresh every 50 minutes (token TTL is 3600s/60min).
             // Prevents silent expiry on idle tabs that miss error-driven refresh.
             this._tokenRefreshInterval = setInterval(() => {
-                if (this.state.isActive && this.userAgent && this.userAgent.state !== 'destroyed'
+                if (this.state.isActive && this.transport && this.transport.state !== 'destroyed'
                         && this.state.connectionStatus !== 'connecting') {
                     this.updateToken()
                 }
@@ -459,8 +478,8 @@ export class Phone extends Component {
                     const index = self.windows.indexOf(params.id)
                     if (index > -1) {
                         self.windows.splice(index, 1)
-                        if (self.id === self.windows.at(-1) && self.userAgent && self.userAgent.state === 'unregistered') {
-                            self.userAgent.register().catch((e) => {
+                        if (self.id === self.windows.at(-1) && self.transport && self.transport.state === 'unregistered') {
+                            self.transport.register().catch((e) => {
                                 console.warn('Connect: Re-registration on tab close failed:', e?.message || e)
                             })
                         }
@@ -481,11 +500,11 @@ export class Phone extends Component {
                     self.state.waitingCallerId = params.waitingCallerId || {}
                 } else if (event === 'tbcMicrophoneMute') {
                     if (self.session) {
-                        if (params.mute === true) {
-                            self.session.mute()
-                        } else {
-                            self.session.unmute()
-                        }
+                        // Call.mute(bool) is the only mute primitive the transport interface
+                        // exposes. (Previously this branch called the Twilio-only .unmute(),
+                        // which Twilio's Call never actually defines and would throw — see
+                        // the phone.js transport-extraction notes.)
+                        self.session.mute(params.mute === true)
                     }
                     self.state.isMicrophoneMute = params.mute
                 } else if (event === 'tbcSoundMute') {
@@ -592,7 +611,7 @@ export class Phone extends Component {
                     phoneNumber,
                     'blind',
                     this.call_id,
-                    this.session.parameters.CallSid
+                    this.session.params.CallSid
                 ])
                 if (result.success) {
                     this.notify(result.message, {sticky: false, type: 'success'})
@@ -617,7 +636,7 @@ export class Phone extends Component {
         const phoneNumber = this.state.pendingTransferNumber
         this.state.showTransferChoice = false
         this.state.pendingTransferNumber = ''
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) {
             this.notify('No active call', {type: 'warning'})
             return
@@ -642,7 +661,7 @@ export class Phone extends Component {
     }
 
     async _onClickCompleteTransfer() {
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         const consultTarget = this.state.xTransferTo
         if (!callSid || !consultTarget) {
             this.notify('Missing call or transfer target', {type: 'warning'})
@@ -667,7 +686,7 @@ export class Phone extends Component {
     }
 
     async _onClickCancelTransfer() {
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) return
         try {
             const result = await this.orm.call('connect.call', 'cancel_attended_transfer', [callSid])
@@ -689,7 +708,7 @@ export class Phone extends Component {
     }
 
     async _busPhoneAddParticipant({phoneNumber} = {}) {
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) {
             this.notify('No active call', {type: 'warning'})
             return
@@ -731,22 +750,23 @@ export class Phone extends Component {
             )
         }
 
-        // Destroy existing device if present
-        if (this.userAgent) {
+        // Destroy existing transport if present
+        if (this.transport) {
             try {
-                this.userAgent.destroy()
+                this.transport.destroy()
             } catch (e) {
-                console.warn('Connect: Error destroying existing device:', e)
+                console.warn('Connect: Error destroying existing transport:', e)
             }
-            this.userAgent = null
+            this.transport = null
         }
 
         // Fetch a new token and re-initialize
         try {
-            const {token} = await this.orm.call('connect.user', 'get_client_token')
-            if (token) {
-                this.token = token
-                this.initUserAgent()
+            const token_data = await this.orm.call(
+                'connect.user', 'get_client_token', [], {nonce: this.browserSessionNonce})
+            if (this._hasCredential(token_data)) {
+                this._applyTokenData(token_data)
+                this.initTransport()
             } else {
                 this._failReconnect('Failed to obtain phone token. Please try again.', 'warning')
             }
@@ -796,32 +816,33 @@ export class Phone extends Component {
     }
 
     async updateToken() {
-        // Guard: skip if device is unavailable or a reconnect is already in progress
-        if (!this.userAgent || this.userAgent.state === 'destroyed') {
+        // Guard: skip if transport is unavailable or a reconnect is already in progress
+        if (!this.transport || this.transport.state === 'destroyed') {
             return
         }
         if (this.state.connectionStatus === 'connecting') {
             return
         }
         try {
-            const {token} = await this.orm.call('connect.user', 'get_client_token')
-            // Re-check device state after async call — reconnect may have destroyed it
-            if (!token || !this.userAgent || this.userAgent.state === 'destroyed') {
+            const token_data = await this.orm.call(
+                'connect.user', 'get_client_token', [], {nonce: this.browserSessionNonce})
+            // Re-check transport state after async call — reconnect may have destroyed it
+            if (!this._hasCredential(token_data) || !this.transport || this.transport.state === 'destroyed') {
                 return
             }
             try {
-                this.userAgent.updateToken(token)
+                this.transport.updateAuth(this._buildConnData(token_data))
             } catch (e) {
-                // Device.updateToken() throws synchronously if transport is dead
-                console.warn('Connect: Device.updateToken() threw:', e?.message || e)
+                // updateAuth() throws synchronously if transport is dead
+                console.warn('Connect: transport.updateAuth() threw:', e?.message || e)
                 return
             }
-            this.token = token
-            // Re-register only if device is unregistered (e.g. after disconnect)
-            // Calling register() on an already-registered device throws InvalidStateError
-            if (this.userAgent.state === 'unregistered') {
+            this._applyTokenData(token_data)
+            // Re-register only if transport is unregistered (e.g. after disconnect)
+            // Calling register() on an already-registered transport throws InvalidStateError
+            if (this.transport.state === 'unregistered') {
                 try {
-                    await this.userAgent.register()
+                    await this.transport.register()
                 } catch (regErr) {
                     console.warn('Connect: Re-registration after token refresh failed:', regErr?.message || regErr)
                 }
@@ -832,13 +853,65 @@ export class Phone extends Component {
         }
     }
 
-    initUserAgent() {
+    /**
+     * Extension point: providers register their transport class into the
+     * "connect.telephony_transports" registry (see twilio_transport.js's/
+     * voicetel_transport.js's own registry.category(...).add(...) calls) —
+     * nothing here, or anywhere else in this file, needs to change to add a
+     * further provider. A provider module that isn't installed simply never
+     * registers, and is never imported by this file either.
+     */
+    _getTransportClass(provider) {
+        const TransportClass = registry.category("connect.telephony_transports").get(provider, null)
+        if (!TransportClass) {
+            throw new Error(`Connect: no telephony transport implemented for provider "${provider}"`)
+        }
+        return TransportClass
+    }
+
+    _createTransport(provider) {
+        return new (this._getTransportClass(provider))()
+    }
+
+    /**
+     * Builds the connData object transport.init()/updateAuth() expect. When
+     * tokenData is omitted, builds from the fields currently held on the
+     * component (set by the constructor or a prior _applyTokenData()).
+     * Delegated to the active provider's transport class — see
+     * TelephonyTransport.buildConnData()'s default and each transport's
+     * override (e.g. VoiceTelTransport.buildConnData()).
+     */
+    _buildConnData(tokenData) {
+        const data = tokenData || {
+            token: this.token, edge: this.edge, sip_uri: this.sipUri,
+            username: this.sipUsername, password: this.sipPassword,
+            wss_server: this.wssServer, display_name: this.displayName,
+        }
+        return this._getTransportClass(this.provider).buildConnData(data)
+    }
+
+    /** True once get_client_token() returned a usable credential for the active provider. */
+    _hasCredential(tokenData) {
+        return this._getTransportClass(this.provider).hasCredential(tokenData)
+    }
+
+    _applyTokenData(tokenData) {
+        this.token = tokenData.token
+        this.edge = tokenData.edge
+        this.sipUri = tokenData.sip_uri
+        this.sipUsername = tokenData.username
+        this.sipPassword = tokenData.password
+        this.wssServer = tokenData.wss_server
+        this.displayName = tokenData.display_name
+    }
+
+    initTransport() {
         const self = this
         if (!self.state.isActive) {
             return
         }
 
-        // Check WebRTC support before initializing Twilio
+        // Check WebRTC support before initializing the transport
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.error('Connect: WebRTC not supported in this browser')
             self.state.isActive = false
@@ -846,16 +919,12 @@ export class Phone extends Component {
             return
         }
 
+        self.transport = self._createTransport(self.provider)
+
         try {
-            self.userAgent = new Twilio.Device(self.token, {
-                edge: self.edge,
-                logLevel: 4,
-                codecPreferences: ["opus", "pcmu"],
-                // Allow incoming audio even if AudioContext is suspended initially
-                allowIncomingWhileBusy: true
-            })
+            self.transport.init(self._buildConnData())
         } catch (error) {
-            console.error('Connect: Failed to create Twilio Device:', error)
+            console.error('Connect: Failed to create transport:', error)
             self.state.isActive = false
             self.bus.trigger('busTraySetException', {exception: error.name || 'InitFailed'})
             return
@@ -867,28 +936,28 @@ export class Phone extends Component {
         } catch (e) {
             console.warn('Connect: Could not set incoming volume (AudioContext may be blocked):', e)
         }
-        self.userAgent.on('tokenWillExpire', () => {
+        self.transport.on('authWillExpire', () => {
             console.debug('Connect: Token expiring, refreshing')
             self.updateToken()
         })
 
-        self.userAgent.on('registered', () => {
+        self.transport.on('registered', () => {
             self.state.connectionStatus = 'ready'
             self.sipRegistered = true
             self._updatePresence('available')
             self._clearReconnectToast()
         })
 
-        self.userAgent.on('unregistered', () => {
+        self.transport.on('unregistered', () => {
             self.sipRegistered = false
             // If not in a call, attempt silent auto-recovery instead of staying offline
             if (!self.state.inCall && self.state.isActive) {
                 self.state.connectionStatus = 'connecting'
-                console.debug('Connect: Device unregistered, attempting silent re-registration')
+                console.debug('Connect: Transport unregistered, attempting silent re-registration')
                 setTimeout(() => {
                     // Skip soft recovery if a transport error already triggered full reconnect
                     if (errorRecoveryPending) return
-                    if (self.userAgent && self.userAgent.state === 'unregistered') {
+                    if (self.transport && self.transport.state === 'unregistered') {
                         self.updateToken()
                     }
                 }, 3000)
@@ -902,8 +971,8 @@ export class Phone extends Component {
         // a dead transport fires 31009 on every pending operation (register, setToken, etc.)
         let errorRecoveryPending = false
 
-        self.userAgent.on('error', (error) => {
-            console.error('Connect: Device error:', error.message || error)
+        self.transport.on('error', (error) => {
+            console.error('Connect: Transport error:', error.message || error)
 
             const isTransportError = error.code === 31009 || error.code === 31005
             const isTokenError = error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid'
@@ -912,7 +981,7 @@ export class Phone extends Component {
                 // Dead transport or rejected token — full teardown+rebuild with fresh token.
                 // Per-device debounce + instance-level _reconnecting guard prevent both intra-device
                 // cascades (31009 → AccessTokenInvalid on the same corpse) and cross-device cascades
-                // (each new Device firing its own error before the prior reconnect completes).
+                // (each new transport firing its own error before the prior reconnect completes).
                 if (errorRecoveryPending || self._reconnecting) return
                 errorRecoveryPending = true
                 self.state.connectionStatus = 'connecting'
@@ -932,29 +1001,28 @@ export class Phone extends Component {
                 self._updatePresence('offline')
             }
         })
-        let lastTime = (new Date()).getTime()
-        // HANDLE RTCSession
-        self.userAgent.on("incoming", async function (session) {
+
+        // HANDLE incoming calls
+        self.transport.on("incoming", async function (call) {
             self.state.isContactList = false
-            let phoneNumber = session.customParameters.get('From')
-            phoneNumber = phoneNumber ? phoneNumber : session.parameters.From
+            let phoneNumber = call.params.From
             if (phoneNumber.startsWith("whatsapp:")) {
                 phoneNumber = phoneNumber.replace(/^whatsapp:/, "")
                 self.state.isWhatsapp = true
             }
-            const callCallerName = session.customParameters.get('CallerName')
-            const callPartnerId = session.customParameters.get('Partner')
-            const autoAnswer = session.customParameters.get('autoAnswer')
+            const callCallerName = call.params.CallerName
+            const callPartnerId = call.params.Partner
+            const autoAnswer = call.params.autoAnswer
 
             if (self.session === null) {
-                self.session = session
+                self.session = call
                 self.sipSessions.push(self.id)
                 const params = {id: self.id, action: 'push'}
                 self.bc.postMessage({event: 'tbcSipSession', params})
             } else {
                 // During attended transfer, incoming call may be the consult leg — don't reject
                 if (self.state.isAttendedTransfer) {
-                    self.waitingSession = session
+                    self.waitingSession = call
                     self.state.hasWaitingCall = true
                     self.state.waitingCallerId = {
                         phoneNumber,
@@ -968,13 +1036,13 @@ export class Phone extends Component {
                     }})
                     return
                 }
-                // Call waiting: store the incoming session instead of rejecting
+                // Call waiting: store the incoming call instead of rejecting
                 if (self.waitingSession) {
                     // Already have a waiting call — reject the third one
-                    session.reject()
+                    call.reject()
                     return
                 }
-                self.waitingSession = session
+                self.waitingSession = call
                 self.state.hasWaitingCall = true
 
                 // Extract caller info for display
@@ -991,8 +1059,8 @@ export class Phone extends Component {
                     waitingCallerId: {...self.state.waitingCallerId},
                 }})
 
-                // Set up handlers for the waiting session
-                session.on('cancel', () => {
+                // Set up handlers for the waiting call
+                call.on('cancel', () => {
                     // Caller hung up before we answered
                     self.waitingSession = null
                     self.state.hasWaitingCall = false
@@ -1004,8 +1072,8 @@ export class Phone extends Component {
                     }})
                 })
 
-                session.on('disconnect', () => {
-                    if (self.waitingSession === session) {
+                call.on('disconnect', () => {
+                    if (self.waitingSession === call) {
                         self.waitingSession = null
                         self.state.hasWaitingCall = false
                         self.state.waitingCallerId = {}
@@ -1046,19 +1114,17 @@ export class Phone extends Component {
             self.state.isDialingPanel = true
             self.startCall()
             // incoming call here
-            session.on("accept", async function (data) {
-                // console.log('incoming -> accept: ', data)
+            call.on("accept", async function (data) {
                 // Store CallSid for forward functionality
-                self.call_sid = session.parameters?.CallSid || null
+                self.call_sid = call.params.CallSid || null
                 self.createCallCounter(phoneNumber)
                 self.state.phone_status = self.status.accepted
                 self._updatePresence('on_call')
-                self._attachQualityMonitor(session)
+                self._attachQualityMonitor(call)
                 await self.setCallStatus("Answered")
                 self._fetchRecordingState()
             })
-            session.on("disconnect", async function (data) {
-                // console.log('incoming -> ended: ', data)
+            call.on("disconnect", async function (data) {
                 self.state.phone_status = self.status.ended
                 await self.setCallStatus("Canceled")
                 await self.endCall()
@@ -1069,8 +1135,7 @@ export class Phone extends Component {
                     self.bc.postMessage({event: "tbcEndCall"})
                 }
             })
-            session.on("cancel", async function (data) {
-                // console.log('incoming -> failed: ', data)
+            call.on("cancel", async function (data) {
                 self.state.phone_status = self.status.ended
                 await self.setCallStatus("Canceled")
                 const index = self.sipSessions.indexOf(self.id)
@@ -1080,8 +1145,7 @@ export class Phone extends Component {
                 self.session = null
                 await self.endCall()
             })
-            session.on("reject", async function (data) {
-                // console.log('incoming -> reject')
+            call.on("reject", async function (data) {
                 self.state.phone_status = self.status.ended
                 await self.setCallStatus("Rejected")
                 const index = self.sipSessions.indexOf(self.id)
@@ -1093,8 +1157,7 @@ export class Phone extends Component {
             })
 
             if (autoAnswer === 'yes') {
-                // console.log('Auto Answer')
-                session.accept()
+                call.accept()
                 self.state.phone_status = self.status.accepted
                 self.state.inIncoming = false
                 self.startCall()
@@ -1105,7 +1168,7 @@ export class Phone extends Component {
         const registerWithRetry = async (attempt = 0) => {
             const maxAttempts = 3
             try {
-                await self.userAgent.register()
+                await self.transport.register()
             } catch (e) {
                 if (attempt < maxAttempts - 1) {
                     const delay = Math.pow(2, attempt + 1) * 1000
@@ -1123,8 +1186,8 @@ export class Phone extends Component {
 
     setIncomingVolume() {
         try {
-            if (this.userAgent && this.userAgent.audio) {
-                this.userAgent.audio.incoming(!this.state.isSoundMute)
+            if (this.transport) {
+                this.transport.setIncomingAudio(!this.state.isSoundMute)
             }
         } catch (e) {
             console.warn('Connect: Could not set incoming volume:', e)
@@ -1132,54 +1195,55 @@ export class Phone extends Component {
     }
 
     /**
-     * Attach call quality monitoring listeners to a Twilio Call session.
-     * Listens for 'sample' (every ~1s with RTCStats), 'warning', and 'warning-cleared'.
-     * Only updates state when quality level changes or metrics shift meaningfully
-     * to avoid unnecessary re-renders.
+     * Attach call quality monitoring to a Call. Listens for the transport's
+     * normalized 'quality' event (Twilio-only today — see TwilioCall, which
+     * maps its 'sample' (every ~1s with RTCStats)/'warning'/'warning-cleared'
+     * events into this shape; a transport that can't measure quality simply
+     * never emits it). Only updates state when quality level changes or
+     * metrics shift meaningfully to avoid unnecessary re-renders.
      */
-    _attachQualityMonitor(session) {
+    _attachQualityMonitor(call) {
         const self = this
 
-        session.on('sample', (sample) => {
-            const mos = sample.mos
-            let quality = 'unknown'
-            if (mos >= 4.2) quality = 'excellent'
-            else if (mos >= 3.8) quality = 'good'
-            else if (mos >= 3.2) quality = 'fair'
-            else if (mos > 0) quality = 'poor'
+        call.on('quality', (evt) => {
+            if (evt.kind === 'sample') {
+                const sample = evt.sample
+                const mos = sample.mos
+                let quality = 'unknown'
+                if (mos >= 4.2) quality = 'excellent'
+                else if (mos >= 3.8) quality = 'good'
+                else if (mos >= 3.2) quality = 'fair'
+                else if (mos > 0) quality = 'poor'
 
-            const jitter = sample.jitter ? Math.round(sample.jitter) : 0
-            const rtt = sample.rtt ? Math.round(sample.rtt) : 0
-            let packetLoss = 0
-            if (sample.packetsReceived > 0) {
-                packetLoss = parseFloat(((sample.packetsLost / (sample.packetsReceived + sample.packetsLost)) * 100).toFixed(1))
+                const jitter = sample.jitter ? Math.round(sample.jitter) : 0
+                const rtt = sample.rtt ? Math.round(sample.rtt) : 0
+                let packetLoss = 0
+                if (sample.packetsReceived > 0) {
+                    packetLoss = parseFloat(((sample.packetsLost / (sample.packetsReceived + sample.packetsLost)) * 100).toFixed(1))
+                }
+
+                // Only update state if quality level changed or metrics shifted meaningfully (>10%)
+                const qualityChanged = quality !== self.state.callQuality
+                const metricsChanged = (
+                    Math.abs(jitter - self.state.callQualityJitter) > Math.max(1, self.state.callQualityJitter * 0.1) ||
+                    Math.abs(rtt - self.state.callQualityRtt) > Math.max(1, self.state.callQualityRtt * 0.1) ||
+                    Math.abs(packetLoss - self.state.callQualityPacketLoss) > 0.5
+                )
+
+                if (qualityChanged || metricsChanged) {
+                    self.state.callQuality = quality
+                    self.state.callQualityMos = mos ? mos.toFixed(1) : '—'
+                    self.state.callQualityJitter = jitter
+                    self.state.callQualityRtt = rtt
+                    self.state.callQualityPacketLoss = packetLoss
+                }
+            } else if (evt.kind === 'warning') {
+                if (!self.state.callQualityWarnings.includes(evt.name)) {
+                    self.state.callQualityWarnings = [...self.state.callQualityWarnings, evt.name]
+                }
+            } else if (evt.kind === 'warning-cleared') {
+                self.state.callQualityWarnings = self.state.callQualityWarnings.filter(w => w !== evt.name)
             }
-
-            // Only update state if quality level changed or metrics shifted meaningfully (>10%)
-            const qualityChanged = quality !== self.state.callQuality
-            const metricsChanged = (
-                Math.abs(jitter - self.state.callQualityJitter) > Math.max(1, self.state.callQualityJitter * 0.1) ||
-                Math.abs(rtt - self.state.callQualityRtt) > Math.max(1, self.state.callQualityRtt * 0.1) ||
-                Math.abs(packetLoss - self.state.callQualityPacketLoss) > 0.5
-            )
-
-            if (qualityChanged || metricsChanged) {
-                self.state.callQuality = quality
-                self.state.callQualityMos = mos ? mos.toFixed(1) : '—'
-                self.state.callQualityJitter = jitter
-                self.state.callQualityRtt = rtt
-                self.state.callQualityPacketLoss = packetLoss
-            }
-        })
-
-        session.on('warning', (warningName) => {
-            if (!self.state.callQualityWarnings.includes(warningName)) {
-                self.state.callQualityWarnings = [...self.state.callQualityWarnings, warningName]
-            }
-        })
-
-        session.on('warning-cleared', (warningName) => {
-            self.state.callQualityWarnings = self.state.callQualityWarnings.filter(w => w !== warningName)
         })
     }
 
@@ -1231,12 +1295,11 @@ export class Phone extends Component {
             Called: phoneNumber,
         }
 
-        self.session = await self.userAgent.connect({params})
+        self.session = await self.transport.dial(params)
 
         self.session.on("accept", async function () {
-            // console.log('outgoing -> accepted: ', data)
             // Store CallSid for forward functionality
-            self.call_sid = self.session.parameters?.CallSid || null
+            self.call_sid = self.session.params.CallSid || null
             self.createCallCounter(phoneNumber)
             self.state.phone_status = self.status.accepted
             self._updatePresence('on_call')
@@ -1248,7 +1311,6 @@ export class Phone extends Component {
             self._fetchRecordingState()
         })
         self.session.on("disconnect", async function () {
-            // console.log('outgoing -> ended: ', data)
             self.state.phone_status = self.status.ended
             await self.setCallStatus('Disconnect')
             await self.endCall()
@@ -1260,7 +1322,6 @@ export class Phone extends Component {
             }
         })
         self.session.on("cancel", async function () {
-            // console.log('outgoing -> ended: ', data)
             self.state.phone_status = self.status.ended
             await self.setCallStatus('Cancel')
             await self.endCall()
@@ -1601,7 +1662,7 @@ export class Phone extends Component {
     async _onClickHold(ev) {
         if (this.state.holdInProgress) return
         this.state.holdInProgress = true
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) {
             this.state.holdInProgress = false
             this.notify('No active call', {type: 'warning'})
@@ -1677,7 +1738,7 @@ export class Phone extends Component {
 
     async _onClickToggleRecording() {
         if (this.state.recordingLoading) return
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) {
             this.notify('No active call', {type: 'warning'})
             return
@@ -1832,7 +1893,7 @@ export class Phone extends Component {
         if (!this.waitingSession) return
 
         // Put current call on hold first
-        const callSid = this.session?.parameters?.CallSid || this.call_sid
+        const callSid = this.session?.params?.CallSid || this.call_sid
         if (callSid) {
             try {
                 await this.orm.call('connect.call', 'hold_call', [callSid])

@@ -30,6 +30,12 @@ class VoicetelSettings(models.Model):
         default=VOICETEL_DEFAULT_HOST,
         help="Hostname of the VoiceML REST API. Leave the default unless "
              "VoiceTel support tells you otherwise.")
+    voicetel_wss_server = fields.Char(
+        default='wss://tls.voicetel.com:443',
+        help="WSS gateway the VoiceTel browser softphone registers against "
+             "over SIP.js. Separate from voicetel_rest_host, which is the "
+             "REST API host. Override if VoiceTel points your account at a "
+             "different gateway.")
 
     @api.model
     def _get_protected_fields(self):

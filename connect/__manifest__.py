@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.23.0',
+    'version': '1.25.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -89,6 +89,7 @@
             '/connect/static/src/services/active_calls/*',
             '/connect/static/src/services/mail/*',
             '/connect/static/src/components/phone/*/*',
+            '/connect/static/src/components/phone/phone/transports/*',
             '/connect/static/src/js/idb_error_handler.js',
             '/connect/static/src/js/main.js',
             '/connect/static/src/js/utils.js',

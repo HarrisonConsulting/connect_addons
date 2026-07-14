@@ -236,7 +236,8 @@ class ConnectMessage(models.Model):
     @api.model
     def receive(self, params):
         try:
-            if params.get('AccountSid') != self.env['connect.settings'].get_param('account_sid'):
+            expected_sid, _ = self.env['connect.settings'].sudo()._get_client_credentials()
+            if params.get('AccountSid') != expected_sid:
                 logger.warning("Received Twilio SMS webhook with incorrect AccountSid")
                 return
             if params.get('SmsStatus') == 'received':

@@ -17,14 +17,15 @@ class ConnectController(Controller):
 
     @staticmethod
     def check_signature(data, region=True):
-        if not request.env['connect.settings'].sudo().get_param('twilio_verify_requests'):
+        settings = request.env['connect.settings'].sudo()
+        if not settings.get_param('twilio_verify_requests'):
             logger.warning('SECURITY: Twilio webhook signature verification is DISABLED')
             return True
-        settings = request.env['connect.settings'].sudo()
-        if region:
-            auth_token = settings.get_param('region_auth_token') or settings.get_param('auth_token')
-        else:
-            auth_token = settings.get_param('auth_token')
+        _, auth_token = settings._get_client_credentials()
+        # region_auth_token is a Twilio-region concept with no VoiceTel
+        # equivalent; only apply the fallback on the Twilio path.
+        if region and settings.get_param('rest_provider') == 'twilio':
+            auth_token = settings.get_param('region_auth_token') or auth_token
         validator = RequestValidator(auth_token)
         url = request.httprequest.url.replace('http:', 'https:')
         signature = request.httprequest.headers.get('X-Twilio-Signature', '')

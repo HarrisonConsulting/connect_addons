@@ -59,8 +59,7 @@ class ConnectController(http.Controller):
 
     def _serve_media(self, media_url):
         media_name = '{}.wav'.format(media_url.split('/')[-1])
-        account_sid = http.request.env['connect.settings'].sudo().get_param('account_sid')
-        auth_token = http.request.env['connect.settings'].sudo().get_param('auth_token')
+        account_sid, auth_token = http.request.env['connect.settings'].sudo()._get_client_credentials()
         response = requests.get(media_url, auth=(account_sid, auth_token), timeout=HTTP_API_TIMEOUT)
         if response.status_code == 200:
             # Create the response
@@ -375,8 +374,7 @@ class ConnectController(http.Controller):
         checks = {}
 
         # Check 1: Credentials configured
-        account_sid = settings.get_param('account_sid')
-        auth_token = settings.get_param('auth_token')
+        account_sid, auth_token = settings._get_client_credentials()
         checks['credentials_configured'] = bool(account_sid and auth_token)
 
         # Check 2: Twilio API reachable

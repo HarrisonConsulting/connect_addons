@@ -453,15 +453,19 @@ class Domain(models.Model):
         return res
 
     @api.model
-    def sync(self):
-        """Sync domains between Odoo and Twilio.
+    def sync(self, client=None):
+        """Sync domains between Odoo and Twilio (or a migration target).
 
         Rules:
         1. Do NOT import records that exist only in Twilio
         2. Create in Twilio what exists only in Odoo (handles account migration)
         3. Update what exists in both
+
+        client: pass an explicit client to reconcile against a different
+        (migration target) account instead of the active connect.settings one
+        — used by connect.migrators.DomainMigrator.
         """
-        client = self.env["connect.settings"].get_client()
+        client = client or self.env["connect.settings"].get_client()
         # Twilio records
         twilio_records = client.sip.domains.list()
         twilio_sids = set([k.sid for k in twilio_records])

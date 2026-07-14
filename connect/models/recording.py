@@ -133,8 +133,7 @@ class Recording(models.Model):
                 return f.name
         if not self.media_url:
             return None
-        account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-        auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+        account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
         response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token),
                                 timeout=HTTP_DOWNLOAD_TIMEOUT)
         response.raise_for_status()
@@ -297,8 +296,7 @@ class Recording(models.Model):
         if not self.media_url:
             return
         settings = self.env['connect.settings'].sudo()
-        account_sid = settings.get_param('account_sid')
-        auth_token = settings.get_param('auth_token')
+        account_sid, auth_token = settings._get_client_credentials()
         response = requests.get(
             self.media_url, auth=(account_sid, auth_token),
             timeout=HTTP_DOWNLOAD_TIMEOUT

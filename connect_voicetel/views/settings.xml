@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="connect_voicetel_settings_form" model="ir.ui.view">
+    <field name="name">connect_voicetel_settings_form</field>
+    <field name="model">connect.settings</field>
+    <field name="inherit_id" ref="connect.connect_settings_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//group[@name='twilio_api']" position="after">
+        <group string="VoiceTel" name="voicetel_api" invisible="rest_provider != 'voicetel'">
+          <div colspan="2">
+            <small><strong>Enter the credentials from your VoiceTel account. No Twilio region, edge or API Key SID needed.</strong></small>
+          </div>
+          <field name="voicetel_account_sid" string="Account SID"/>
+          <field name="display_voicetel_api_key" string="API Key" password="1"/>
+          <field name="display_voicetel_api_secret" string="API Secret" password="1"/>
+          <field name="voicetel_rest_host" string="REST API Host"/>
+          <button colspan="2" name="action_voicetel_migration_dry_run" type="object"
+                  string="RUN VOICETEL MIGRATION (DRY-RUN)" class="btn btn-primary"/>
+          <field name="voicetel_migration_log" readonly="1" colspan="2"
+                 invisible="not voicetel_migration_log"/>
+        </group>
+      </xpath>
+    </field>
+  </record>
+
+</odoo>

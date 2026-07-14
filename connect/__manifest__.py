@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.21.7',
+    'version': '1.22.0',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -38,6 +38,8 @@
         'data/voicemail_stage_data.xml',
         # Views
         'views/menu.xml',
+        # Before settings.xml: its MIGRATE ACCOUNT button references this action.
+        'wizard/settings_migrate_views.xml',
         'views/settings.xml',
         'views/domain.xml',
         'views/user.xml',

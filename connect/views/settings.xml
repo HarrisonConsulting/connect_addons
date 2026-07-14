@@ -40,23 +40,25 @@
                       invisible="is_registered == False">
                   <group>
                     <group string="Twilio" name="twilio_api">
-                      <div colspan="2">
+                      <field name="rest_provider"/>
+                      <div colspan="2" invisible="rest_provider != 'twilio'">
                         <small><strong>You can find your Twilio API data in <a href="https://console.twilio.com/" target="_blank">your Twilio Console</a></strong></small>
                       </div>
                       <field name="twilio_auto_sync" groups="base.group_no_one"/>
-                      <field name="account_sid"/>
-                      <field name="display_auth_token" string="Auth Token" password="1"/>
-                      <field name="twilio_region" string="Region"/>
-                      <field name="display_region_auth_token" string="Region Auth Token" password="1" invisible="twilio_region == 'us1'" required="twilio_region != 'us1'"/>
-                      <field name="twilio_api_key" string="API Key SID"/>
-                      <field name="display_twilio_api_secret" string="API Key Secret" password="1"/>
-                      <field name="twilio_edge" string="Edge" invisible="rest_api_host"/>
-                      <field name="rest_api_host" string="REST API Host" placeholder="Leave empty for Twilio"/>
+                      <field name="account_sid" invisible="rest_provider != 'twilio'"/>
+                      <field name="display_auth_token" string="Auth Token" password="1" invisible="rest_provider != 'twilio'"/>
+                      <field name="twilio_region" string="Region" invisible="rest_provider != 'twilio'"/>
+                      <field name="display_region_auth_token" string="Region Auth Token" password="1" invisible="rest_provider != 'twilio' or twilio_region == 'us1'" required="rest_provider == 'twilio' and twilio_region != 'us1'"/>
+                      <field name="twilio_api_key" string="API Key SID" invisible="rest_provider != 'twilio'"/>
+                      <field name="display_twilio_api_secret" string="API Key Secret" password="1" invisible="rest_provider != 'twilio'"/>
+                      <field name="twilio_edge" string="Edge" invisible="rest_provider != 'twilio' or rest_api_host"/>
+                      <field name="rest_api_host" string="REST API Host" placeholder="Leave empty for Twilio" invisible="rest_provider != 'twilio'"/>
                       <field name="sip_domain_suffix" string="SIP Domain Suffix" placeholder="sip.twilio.com (default)"/>
                       <field name="default_hold_music_url" string="Default Hold Music URL" placeholder="Twilio twimlets default when empty"/>
                       <field name="webrtc_provider" string="Browser Phone"/>
                       <field name="default_country_code" string="Default Country" placeholder="e.g. US, GB, DE"/>
                       <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary"/>
+                      <button colspan="2" name="%(connect.connect_settings_migrate_wizard_action)d" type="action" string="MIGRATE ACCOUNT" class="btn btn-secondary"/>
                     </group>
                     <group name="openai_api" string="OpenAI">
                       <div colspan="2">

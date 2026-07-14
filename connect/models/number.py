@@ -95,6 +95,14 @@ class Number(models.Model):
             logger.exception('Number Update Exception:')
             raise ValidationError(format_connect_response(str(e)))
 
+    def _adopt_sid(self, sid, client):
+        # Adopt a SID minted by another account for the same phone number,
+        # then push our config to it (the follow-up update pass that sets
+        # friendly_name and voice/sms URLs on the new account).
+        self.ensure_one()
+        self.with_context(skip_twilio_sync=True).write({'sid': sid})
+        self.update_twilio_number(client)
+
     def write(self, vals):
         if 'destination' in vals:
             for field in ['user', 'callflow', 'twiml']:
@@ -120,18 +128,24 @@ class Number(models.Model):
         for number in numbers:
             rec = self.search([('sid', '=', number.sid)])
             if not rec:
-                # Create number in Odoo:
-                rec = self.create({
-                    'phone_number': number.phone_number,
-                    'sid': number.sid,
-                    'friendly_name': number.friendly_name,
-                })
-                # Update voice URLs and routing region.
-                rec.update_twilio_number(client)
-                self.env['connect.settings' ].connect_notify(
-                    title="Twilio Sync",
-                    message='Number {} added'.format(number.phone_number)
-                )
+                # Fall back to the natural key: after an account swap the same
+                # phone number comes back with a new SID, so adopt it instead
+                # of failing the unique constraint and unlinking the old row.
+                rec = self.search([('phone_number', '=', number.phone_number)])
+                if rec:
+                    rec._adopt_sid(number.sid, client)
+                else:
+                    rec = self.create({
+                        'phone_number': number.phone_number,
+                        'sid': number.sid,
+                        'friendly_name': number.friendly_name,
+                    })
+                    # Update voice URLs and routing region.
+                    rec.update_twilio_number(client)
+                    self.env['connect.settings' ].connect_notify(
+                        title="Twilio Sync",
+                        message='Number {} added'.format(number.phone_number)
+                    )
             else:
                 # Number already in Odoo, update Voice URLs and routing region
                 rec.update_twilio_number(client)
@@ -150,10 +164,21 @@ class Number(models.Model):
                         rec.phone_number, str(e)), level="warning")
 
         # Remove numbers that exist only in Odoo (number was removed in Twilio).
-        numbers_to_remove = self.search([
-            ('sid', 'not in', [k.sid for k in numbers]),
-            ('sid', '!=', False) # BYOC related number are not included!
-        ])
+        # Skip entirely when the account returned no numbers at all: that's
+        # far more likely a mid-migration or empty target account than every
+        # number having been deleted, and the alternative is unlinking
+        # everything (and cascading message configurations with it) on a
+        # single SYNC click.
+        numbers_to_remove = self.env['connect.number']
+        if numbers:
+            numbers_to_remove = self.search([
+                ('sid', 'not in', [k.sid for k in numbers]),
+                # Also match by phone number so an account swap re-adopts
+                # numbers instead of deleting every row whose SID no longer
+                # resolves.
+                ('phone_number', 'not in', [k.phone_number for k in numbers]),
+                ('sid', '!=', False) # BYOC related number are not included!
+            ])
         if numbers_to_remove:
             user_message = 'Number(s) {} removed in Twilio!'.format(
                 ','.join([k.phone_number for k in numbers_to_remove]))

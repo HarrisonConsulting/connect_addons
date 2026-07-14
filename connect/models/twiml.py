@@ -316,8 +316,11 @@ class TwiML(models.Model):
         return super().unlink()
 
     @api.model
-    def sync(self):
-        client = self.env['connect.settings'].get_client()
+    def sync(self, client=None):
+        """client: pass an explicit client to reconcile against a migration
+        target account instead of the active connect.settings one — used by
+        connect.migrators.TwimlMigrator."""
+        client = client or self.env['connect.settings'].get_client()
         for rec in self.search([]):
             rec.update_twilio_app(client)
 

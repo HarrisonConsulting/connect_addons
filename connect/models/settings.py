@@ -2,7 +2,6 @@
 import inspect
 import json
 import logging
-from multiprocessing import RLock
 import os
 import secrets
 
@@ -16,7 +15,7 @@ import string
 from urllib.parse import urljoin, urlsplit, urlunsplit
 import uuid
 from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import ValidationError
 from odoo.tools import config
 from twilio.rest import Client
 from twilio.http.http_client import TwilioHttpClient
@@ -223,6 +222,15 @@ class Settings(models.Model):
         """
         return 'twilio_tts', self.env['connect.voice']
     twilio_auto_sync = fields.Boolean(default=True)
+    rest_provider = fields.Selection(
+        [('twilio', 'Twilio')],
+        default='twilio',
+        required=True,
+        string='Telephony Provider',
+        help="REST API provider used for calls, numbers and SIP. Provider "
+             "modules such as Connect VoiceTel add options here; Twilio is "
+             "the built-in default.",
+    )
     twilio_region = fields.Selection([
         ('us1', 'US East (Virginia)'),
         ('ie1', 'Ireland (Dublin)'),
@@ -755,7 +763,7 @@ class Settings(models.Model):
                     call_minutes = self.env.cr.fetchall()[0][0]
                     res["usage"][model]["minutes"] = call_minutes
             except Exception as e:
-                res["errors"][model] = str(e)
+                res["usage_errors"][model] = str(e)
         data = self.prepare_registration_data()
         data.update(res)
         try:
@@ -808,7 +816,7 @@ class Settings(models.Model):
                 if menu:
                     menu.sudo().write({'active': bool(vals['enable_whatsapp'])})
         changed_fields = {}
-        for field_name in PROTECTED_FIELDS:
+        for field_name in self._get_protected_fields():
             if vals.get(field_name):
                 value = vals[field_name]
                 # Never overwrite real credentials with masked asterisk values
@@ -828,8 +836,30 @@ class Settings(models.Model):
         return res
 
     @api.model
+    def _get_protected_fields(self):
+        """Display-field names masked like a password after write().
+
+        Provider extensions with their own secrets (e.g. Connect VoiceTel's
+        API key/secret) override this to add their own ``display_*`` field
+        names alongside PROTECTED_FIELDS rather than duplicating the write()
+        masking logic.
+        """
+        return list(PROTECTED_FIELDS)
+
+    @api.model
+    def _get_client_credentials(self):
+        return (
+            self.sudo().get_param('account_sid'),
+            self.sudo().get_param('auth_token'),
+        )
+
+    @api.model
+    def _get_rest_api_host(self):
+        return (self.sudo().get_param('rest_api_host') or '').strip()
+
+    @api.model
     def uses_compatible_rest_api(self):
-        return bool((self.get_param('rest_api_host') or '').strip())
+        return bool(self._get_rest_api_host())
 
     @api.model
     def normalized_sip_domain_suffix(self):
@@ -938,13 +968,12 @@ class Settings(models.Model):
     def get_client(self, region=True):
         try:
             self.check_access("read")
-            account_sid = self.sudo().get_param("account_sid")
-            auth_token = self.sudo().get_param("auth_token")
+            account_sid, auth_token = self._get_client_credentials()
             if not account_sid or not auth_token:
                 logger.warning("Twilio credentials not configured (account_sid=%s, auth_token=%s)",
                                bool(account_sid), bool(auth_token))
                 return None
-            rest_api_host = (self.sudo().get_param("rest_api_host") or "").strip()
+            rest_api_host = self._get_rest_api_host()
             token_to_use = auth_token
             if region and not rest_api_host:
                 region_auth_token = self.sudo().get_param("region_auth_token")
@@ -1002,9 +1031,8 @@ class Settings(models.Model):
         return message
 
     def sync(self):
-        if not (
-            self.sudo().get_param("account_sid") and self.sudo().get_param("auth_token")
-        ):
+        account_sid, auth_token = self.sudo()._get_client_credentials()
+        if not (account_sid and auth_token):
             raise ValidationError("You must set account SID and Auth token!")
         api_url_check = self.check_api_url()
         if api_url_check:

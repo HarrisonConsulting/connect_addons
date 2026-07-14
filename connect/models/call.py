@@ -267,8 +267,7 @@ class Call(models.Model):
                     f.write(data)
                     temp_file_path = f.name
             else:
-                account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-                auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+                account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
                 response = requests.get(
                     self.voicemail_url, stream=True,
                     auth=(account_sid, auth_token),
@@ -1218,8 +1217,7 @@ class Call(models.Model):
         if not self.voicemail_url:
             return
         settings = self.env['connect.settings'].sudo()
-        account_sid = settings.get_param('account_sid')
-        auth_token = settings.get_param('auth_token')
+        account_sid, auth_token = settings._get_client_credentials()
         response = requests.get(
             self.voicemail_url, auth=(account_sid, auth_token),
             timeout=HTTP_DOWNLOAD_TIMEOUT

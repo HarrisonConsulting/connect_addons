@@ -1,7 +1,6 @@
 from odoo import models, fields, api
 import ast
 from odoo.exceptions import ValidationError
-from odoo.tools.safe_eval import safe_eval
 
 
 class ConnectMessageConfiguration(models.Model):
@@ -9,7 +8,7 @@ class ConnectMessageConfiguration(models.Model):
     _description = 'Message Handling Configuration'
     _rec_name = 'id'
 
-    number = fields.Many2one('connect.number', required=True)
+    number = fields.Many2one('connect.number', required=True, ondelete='cascade')
     destination = fields.Selection([
         ('res.partner', 'Partner'),
     ], required=True, default='res.partner', ondelete={'res.partner': 'set default'}, help='Destination model to create records from messages.')

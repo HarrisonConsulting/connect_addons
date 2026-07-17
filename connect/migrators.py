@@ -92,28 +92,43 @@ class DomainMigrator(Migrator):
         records = self.env['connect.domain'].search([])
         for rec in records:
             dest = dest_domains.pop(rec.domain_name, None)
-            if dest and dest.sid == rec.sid:
-                result.skipped.append(rec.friendly_name)
-            elif dest:
-                result.rebound.append(rec.friendly_name)
-            else:
-                result.created.append(rec.friendly_name)
+            try:
+                if dest and dest.sid == rec.sid:
+                    if not dry_run:
+                        rec.update_twilio_domain(dest_client)
+                        if rec.cred_list_sid and rec._should_reconcile_credentials():
+                            rec._import_sip_credentials_from_twilio(
+                                dest_client, rec.cred_list_sid)
+                    result.skipped.append(rec.friendly_name)
+                elif dest:
+                    # Matched by domain_name but under a different sid —
+                    # adopt it directly rather than going through sync()'s
+                    # sid-based classification, which wouldn't recognize
+                    # this as the same domain in the first place.
+                    if not dry_run:
+                        rec._import_existing_domain_by_name(dest_client)
+                    result.rebound.append(rec.friendly_name)
+                else:
+                    if not dry_run:
+                        try:
+                            rec.create_twilio_sip_domain(dest_client)
+                        except Exception as e:
+                            if 'already exists' in str(e):
+                                rec._import_existing_domain_by_name(dest_client)
+                            else:
+                                raise
+                    result.created.append(rec.friendly_name)
+            except Exception as e:
+                # Per-item isolation: one bad domain no longer aborts every
+                # domain after it in the batch (the previous implementation
+                # delegated to sync(), which raises on the first
+                # unrecoverable error and stops there).
+                logger.exception('Domain migration failed for %s:', rec.friendly_name)
+                result.errors.append((rec.friendly_name, str(e)))
         for domain_name in dest_domains:
             result.warnings.append(
                 '{} exists only on the target account and will be imported '
                 'by SYNC after cutover.'.format(domain_name))
-        if not dry_run and records:
-            try:
-                # sync() resolves create-vs-adopt-vs-update per record against
-                # dest_client itself — same reconcile logic this preview
-                # mirrors, not duplicated here. It raises on the first
-                # unrecoverable per-domain error rather than isolating
-                # failures (existing behavior, unchanged); a raised error here
-                # means later domains in the batch were not attempted.
-                self.env['connect.domain'].sync(client=dest_client)
-            except Exception as e:
-                logger.exception('Domain migration failed:')
-                result.errors.append(('*', str(e)))
         return result
 
 
@@ -127,23 +142,34 @@ class TwimlMigrator(Migrator):
         records = self.env['connect.twiml'].search([('sid', '!=', False)])
         for rec in records:
             dest = dest_apps.pop(rec.name, None)
-            if dest and dest.sid == rec.sid:
-                result.skipped.append(rec.name)
-            elif dest:
-                result.rebound.append(rec.name)
-            else:
-                result.created.append(rec.name)
+            try:
+                if dest and dest.sid == rec.sid:
+                    if not dry_run:
+                        rec.update_twilio_app(dest_client)
+                    result.skipped.append(rec.name)
+                elif dest:
+                    # update_twilio_app() only looks an app up by SID, and
+                    # create_twilio_app() has no adopt-by-name fallback
+                    # (Twilio doesn't enforce unique friendly_name on
+                    # Applications) — calling either naively here would
+                    # create a duplicate instead of adopting the one we
+                    # already found. Adopt it directly.
+                    if not dry_run:
+                        rec._adopt_sid(dest.sid, dest_client)
+                    result.rebound.append(rec.name)
+                else:
+                    if not dry_run:
+                        rec.create_twilio_app(dest_client)
+                    result.created.append(rec.name)
+            except Exception as e:
+                # Per-item isolation: one bad app no longer aborts every app
+                # after it in the batch (the previous implementation
+                # delegated to connect.twiml.sync(), which raises on the
+                # first unrecoverable error and stops there).
+                logger.exception('TwiML app migration failed for %s:', rec.name)
+                result.errors.append((rec.name, str(e)))
         for friendly_name in dest_apps:
             result.warnings.append(
                 '{} exists only on the target account and will be imported '
                 'by SYNC after cutover.'.format(friendly_name))
-        if not dry_run and records:
-            try:
-                # Same non-isolating-failure caveat as DomainMigrator: a
-                # raised error here means later apps in the batch were not
-                # attempted (existing connect.twiml.sync() behavior).
-                self.env['connect.twiml'].sync(client=dest_client)
-            except Exception as e:
-                logger.exception('TwiML app migration failed:')
-                result.errors.append(('*', str(e)))
         return result

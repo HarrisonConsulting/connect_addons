@@ -210,8 +210,12 @@ class TwiML(models.Model):
             status_callback=self.voice_status_url,
         )
 
-        # Update sids: new sid from Twilio, old_sid from previous value
-        self.write({
+        # Update sids: new sid from Twilio, old_sid from previous value.
+        # skip_twilio_sync: the record we just created already reflects
+        # current config, and write()'s auto-sync would otherwise push an
+        # update through the ACTIVE account's client — wrong when `client`
+        # here is a migration target, not the active one.
+        self.with_context(skip_twilio_sync=True).write({
             'sid': application.sid,
             'old_sid': old_sid_to_store
         })
@@ -233,6 +237,8 @@ class TwiML(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
+        if self.env.context.get('skip_twilio_sync'):
+            return res
         # Check if twilio_auto_sync is disabled
         if not self.env["connect.settings"].get_param("twilio_auto_sync"):
             return res
@@ -242,6 +248,14 @@ class TwiML(models.Model):
             if rec.sid:
                 rec.update_twilio_app(client)
         return res
+
+    def _adopt_sid(self, sid, client):
+        """Re-point this app's sid to one minted/adopted on a different
+        (migration target) account, then push current config to it — the
+        follow-up update pass. Mirrors connect.number._adopt_sid()."""
+        self.ensure_one()
+        self.with_context(skip_twilio_sync=True).write({'sid': sid})
+        self.update_twilio_app(client)
 
     def update_twilio_app(self, client):
         self.ensure_one()

@@ -209,11 +209,12 @@ class ConnectMessage(models.Model):
     @api.depends('from_number', 'create_date', 'message_type')
     def _compute_name(self):
         for record in self:
+            message_type = record.sudo().message_type  # restricted read via sudo
             if record.create_date:
                 formatted_number = self._format_phone_number(record.from_number)
-                record.name = f"{record.message_type} from {formatted_number} on {record.create_date.strftime('%Y-%m-%d %H:%M:%S')}"
+                record.name = f"{message_type} from {formatted_number} on {record.create_date.strftime('%Y-%m-%d %H:%M:%S')}"
             else:
-                record.name = f"New {record.message_type}"
+                record.name = f"New {message_type}"
 
     def get_receive_message_values(self, params):
         return {

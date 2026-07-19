@@ -144,25 +144,28 @@ class Call(models.Model):
             else:
                 rec.hour_of_day = 0
                 rec.day_of_week = ''
+            # restricted reads via sudo — the recompute may run as a low-priv user
+            r = rec.sudo()
+            voicemail_url, status, direction = r.voicemail_url, r.status, r.direction
             # Call result classification
-            if rec.voicemail_url:
+            if voicemail_url:
                 rec.call_result = 'voicemail'
                 rec.is_missed = False
-            elif rec.status == 'busy':
+            elif status == 'busy':
                 rec.call_result = 'busy'
                 rec.is_missed = False
-            elif rec.status in ('failed', 'canceled'):
+            elif status in ('failed', 'canceled'):
                 rec.call_result = 'failed'
                 rec.is_missed = False
-            elif rec.direction == 'incoming' and not rec.answered_user and rec.status in ('no-answer', 'completed'):
+            elif direction == 'incoming' and not rec.answered_user and status in ('no-answer', 'completed'):
                 rec.call_result = 'missed'
                 rec.is_missed = True
-            elif rec.answered_user or rec.status == 'completed':
+            elif rec.answered_user or status == 'completed':
                 rec.call_result = 'answered'
                 rec.is_missed = False
             else:
-                rec.call_result = 'missed' if rec.direction == 'incoming' else 'failed'
-                rec.is_missed = rec.direction == 'incoming'
+                rec.call_result = 'missed' if direction == 'incoming' else 'failed'
+                rec.is_missed = direction == 'incoming'
 
     def _get_name(self):
         for rec in self:

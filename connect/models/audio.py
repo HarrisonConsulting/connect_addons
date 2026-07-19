@@ -287,7 +287,7 @@ class Audio(models.Model):
             rec.is_referenced = bool(rec.reference_count)
             # system_key audios are dispatched at runtime via tts_system_message —
             # no stored m2o, but they're always reachable. Treat as active.
-            rec.has_active_reference = bool(rec.active_reference_count or rec.system_key)
+            rec.has_active_reference = bool(rec.active_reference_count or rec.sudo().system_key)
 
     @api.depends('reference_ids', 'reference_ids.is_active',
                  'reference_ids.referrer_model_label', 'system_key')
@@ -300,8 +300,9 @@ class Audio(models.Model):
         """
         for rec in self:
             parts = []
-            if rec.system_key:
-                parts.append(f'system: {rec.system_key}')
+            system_key = rec.sudo().system_key  # restricted read via sudo (recompute may run as low-priv user)
+            if system_key:
+                parts.append(f'system: {system_key}')
             by_label = {}
             for ref in rec.reference_ids:
                 label = ref.referrer_model_label or ref.referrer_model
@@ -368,12 +369,14 @@ class Audio(models.Model):
     def _compute_source_preview_audio(self):
         for rec in self:
             src = None
-            if rec.source == 'external_url' and rec.static_url:
+            # restricted reads via sudo — the recompute may run as a low-priv user
+            source, static_url = rec.sudo().source, rec.sudo().static_url
+            if source == 'external_url' and static_url:
                 # User-supplied URL — escape so a quote in the path can't
                 # break out of the src attribute (this Html field is
                 # sanitize=False).
-                src = escape(rec.static_url)
-            elif rec.source == 'attachment' and rec.attachment_id:
+                src = escape(static_url)
+            elif source == 'attachment' and rec.attachment_id:
                 stamp = rec.attachment_id.write_date or ''
                 src = (f'/web/content?model=ir.attachment'
                        f'&id={rec.attachment_id.id}'

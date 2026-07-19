@@ -129,17 +129,18 @@ class User(models.Model):
         settings = self.env['connect.settings']
         default_edge = settings.get_param('twilio_edge') or 'roaming'
         for rec in self:
-            if not rec.username or not rec.domain or not rec.domain.subdomain:
+            username = rec.sudo().username  # restricted read via sudo
+            if not username or not rec.domain or not rec.domain.subdomain:
                 rec.uri = ''
                 rec.connect_uri = ''
                 continue
             edge = rec.twilio_edge or default_edge
-            rec.uri = '{}@{}'.format(rec.username, rec.domain.domain_name)
+            rec.uri = '{}@{}'.format(username, rec.domain.domain_name)
             if edge == 'roaming' or settings.normalized_sip_domain_suffix() != DEFAULT_SIP_DOMAIN_SUFFIX:
                 rec.connect_uri = rec.uri
             else:
                 rec.connect_uri = settings.format_sip_connect_uri(
-                    rec.username, rec.domain.subdomain, edge)
+                    username, rec.domain.subdomain, edge)
 
     def _create_sip_account(self, username, password, client=None):
         self.ensure_one()

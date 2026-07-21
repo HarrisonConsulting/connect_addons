@@ -364,6 +364,22 @@ class Domain(models.Model):
             logger.warning("Failed to import SIP credentials for domain %s: %s",
                          self.friendly_name, str(e))
 
+    @staticmethod
+    def _is_twilio_domain_conflict(exc):
+        """True when Twilio refuses a SIP domain create because the name is taken.
+
+        SIP domain names are globally unique across ALL Twilio accounts, so a
+        create fails with HTTP 409 either because the name already exists in the
+        current account or because it is 'already registered to another account'.
+        Match on the 409 status (robust), with a string fallback for exceptions
+        that were stringified before reaching here. The previous 'already exists'
+        substring never matched Twilio's real 409 wording.
+        """
+        if getattr(exc, "status", None) == 409:
+            return True
+        msg = str(exc).lower()
+        return "already exists" in msg or "already registered" in msg
+
     def create_domain(self, client):
         self.ensure_one()
         try:
@@ -372,8 +388,11 @@ class Domain(models.Model):
             # Create domain.
             self.create_twilio_sip_domain(client)
         except Exception as e:
-            if "already exists" in str(e):
-                raise ValidationError('The hostname is already used in Twilio!')
+            if self._is_twilio_domain_conflict(e):
+                raise ValidationError(
+                    "The SIP domain name '{}' is already registered in Twilio "
+                    "(possibly under a different account). Choose a different "
+                    "subdomain.".format(self.domain_name))
             else:
                 ret = format_connect_response(e)
                 raise ValidationError(ret)
@@ -513,9 +532,19 @@ class Domain(models.Model):
                     debug(self, "Domain {} migrated: old SID {}, new SID {}".format(
                         odoo_domain.friendly_name, old_sid, odoo_domain.sid))
                 except Exception as e:
-                    if 'already exists' in str(e):
-                        debug(self, "Domain {} already exists in Twilio - checking ownership".format(odoo_domain.domain_name))
-                        odoo_domain._import_existing_domain_by_name(client)
+                    if self._is_twilio_domain_conflict(e):
+                        debug(self, "Domain {} already registered in Twilio - checking ownership".format(odoo_domain.domain_name))
+                        try:
+                            odoo_domain._import_existing_domain_by_name(client)
+                        except ValidationError as import_err:
+                            # Name is globally owned by another Twilio account, so
+                            # it can be neither created nor imported here. Log and
+                            # continue so one domain does not abort the whole sync
+                            # (expected during an account / provider migration).
+                            logger.warning(
+                                "Skipping domain %s during sync: %s",
+                                odoo_domain.friendly_name,
+                                import_err.args[0] if import_err.args else import_err)
                     else:
                         raise ValidationError("Error creating domain {} in Twilio: {}".format(
                             odoo_domain.friendly_name, format_connect_response(str(e))))

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '1.2.0',
+    'version': '1.2.1',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,

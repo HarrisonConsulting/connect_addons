@@ -32,7 +32,7 @@
                     </group>
                     <group string="Balance">
                       <field name="twilio_balance" string="Current Balance" readonly="1"/>
-                      <button class="btn btn-info" colspan="2" name="get_twilio_balance" type="object" string="GET TWILIO BALANCE"/>
+                      <button class="btn btn-info" colspan="2" name="get_twilio_balance" type="object" string="GET TWILIO BALANCE" invisible="rest_provider != 'twilio'"/>
                     </group>
                   </group>
                 </page>
@@ -57,7 +57,7 @@
                       <field name="default_hold_music_url" string="Default Hold Music URL" placeholder="Twilio twimlets default when empty"/>
                       <field name="webrtc_provider" string="Browser Phone"/>
                       <field name="default_country_code" string="Default Country" placeholder="e.g. US, GB, DE"/>
-                      <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary"/>
+                      <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary" invisible="rest_provider != 'twilio'"/>
                       <button colspan="2" name="%(connect.connect_settings_migrate_wizard_action)d" type="action" string="MIGRATE ACCOUNT" class="btn btn-secondary"/>
                     </group>
                     <group name="openai_api" string="OpenAI">

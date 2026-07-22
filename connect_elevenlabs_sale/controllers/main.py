@@ -108,6 +108,8 @@ class ConnectElevenlabsSaleController(ConnectElevenlabsController):
             return 'You must provide your partner ID to get your orders!'
         if not data.get('order_name'):
             return 'You must provide order name to search for your order!'
+        if not call.partner or call.partner.id != int(data.get('partner_id')):
+            return 'partner_id does not belong to this call'
         search_domain = [
             ('partner_id', '=', data.get('partner_id')),
             ('name', '=', data.get('order_name')),
@@ -149,6 +151,8 @@ class ConnectElevenlabsSaleController(ConnectElevenlabsController):
             data['partner_phone'] = call.caller
         if not data.get('partner_id'):
             return 'You must provide your partner ID to get your orders!'
+        if not call.partner or call.partner.id != int(data.get('partner_id')):
+            return 'partner_id does not belong to this call'
         search_domain = [
             ('partner_id', '=', data.get('partner_id'))
         ]

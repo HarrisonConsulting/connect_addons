@@ -11,6 +11,7 @@ from odoo import fields, http, release
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.addons.connect.models.settings import HTTP_API_TIMEOUT
+from .twilio_webhooks import ConnectController as TwilioWebhooksController
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,8 @@ class ConnectController(http.Controller):
     @http.route('/connect/<string:extension_number>', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
     def extension_handler(self, extension_number, **kw):
         """Handle extension calls via direct URL"""
+        if not TwilioWebhooksController.check_signature(kw):
+            return TwilioWebhooksController._reject_invalid_request()
         try:
             exten = http.request.env['connect.exten'].sudo().search([('number', '=', extension_number)])
             if not exten:
@@ -91,6 +94,8 @@ class ConnectController(http.Controller):
     @http.route('/connect/dial_complete', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
     def dial_complete_handler(self, **kw):
         """Handle Dial action completion for transfer redirects and update call completion fields"""
+        if not TwilioWebhooksController.check_signature(kw):
+            return TwilioWebhooksController._reject_invalid_request()
         try:
             from twilio.twiml.voice_response import VoiceResponse
 

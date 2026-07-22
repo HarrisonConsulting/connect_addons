@@ -52,8 +52,9 @@ const ConnectButtonWidget = publicWidget.Widget.extend({
     initUserAgent: async function () {
         await loadJS('/connect_website/static/src/snippets/s_connect_button/twilio.min.js')
 
-        this.identity = this.getIdentity()
-        const token = await this.getToken()
+        const {token, identity} = await this.getToken()
+        this.identity = identity
+        this.setIdentity(identity)
 
         // User Agent
         this.userAgent = new Twilio.Device(token, {
@@ -111,7 +112,7 @@ const ConnectButtonWidget = publicWidget.Widget.extend({
     updateToken: async function () {
         if (!this.userAgent || this.userAgent.state === 'destroyed') return
         try {
-            const token = await this.getToken()
+            const {token} = await this.getToken()
             if (!this.userAgent || this.userAgent.state === 'destroyed') return
             this.userAgent.updateToken(token)
         } catch (e) {
@@ -178,24 +179,11 @@ const ConnectButtonWidget = publicWidget.Widget.extend({
     },
 
     getToken: async function () {
-        return await this.rpc("/get_connect_website_button_token/", {identity: this.identity})
-    },
-
-    generateIdentity: function () {
-        return `${Math.floor(Math.random() * (99999999 - 10000000) + 10000000)}`
+        return await this.rpc("/get_connect_website_button_token/")
     },
 
     checkIdentity: function () {
         return localStorage.getItem('connect_website_button_identity') || false
-    },
-
-    getIdentity: function () {
-        let identity = this.checkIdentity()
-        if (!identity) {
-            identity = this.generateIdentity()
-            this.setIdentity(identity)
-        }
-        return identity
     },
 
     setIdentity: function setIdentity(param) {

@@ -4,6 +4,7 @@ import logging
 from psycopg2.errors import SerializationFailure
 
 from odoo.http import request, Controller, route, Response
+from odoo.addons.connect.models.settings import get_env_credential
 from twilio.request_validator import RequestValidator
 
 logger = logging.getLogger(__name__)
@@ -19,8 +20,14 @@ class ConnectController(Controller):
     def check_signature(data, region=True):
         settings = request.env['connect.settings'].sudo()
         if not settings.get_param('twilio_verify_requests'):
-            logger.warning('SECURITY: Twilio webhook signature verification is DISABLED')
-            return True
+            if get_env_credential('account_sid') is not None:
+                logger.critical('SECURITY: Twilio webhook signature verification is DISABLED')
+                return True
+            logger.critical(
+                'SECURITY: twilio_verify_requests is disabled but no CONNECT_* '
+                'sandbox override is active (production context); refusing to '
+                'skip Twilio webhook signature verification.'
+            )
         _, auth_token = settings._get_client_credentials()
         # region_auth_token is a Twilio-region concept with no VoiceTel
         # equivalent; only apply the fallback on the Twilio path.

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import secrets
+
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 
@@ -15,12 +17,13 @@ class APIConnectWidget(http.Controller):
         return {'enabled': enabled, 'number': number}
 
     @http.route('/get_connect_website_button_token', type=route_type, auth='public', sitemap=False)
-    def get_connect_website_button_token(self, identity):
+    def get_connect_website_button_token(self):
         account_sid = request.env['connect.settings'].sudo().get_param('account_sid')
         api_key = request.env['connect.settings'].sudo().get_param('twilio_api_key')
         api_secret = request.env['connect.settings'].sudo().get_param('twilio_api_secret')
         exten = request.env['connect.settings'].sudo().get_param('connect_website_connect_extension')
         domain = request.env['connect.settings'].sudo().get_param('connect_website_connect_domain')
+        identity = ''.join(secrets.choice('0123456789') for _ in range(8))
         token = AccessToken(account_sid, api_key, api_secret, identity=identity, ttl=3600)
         voice_grant = VoiceGrant(
             outgoing_application_sid=domain.application.sid,
@@ -28,4 +31,4 @@ class APIConnectWidget(http.Controller):
             incoming_allow=True,
         )
         token.add_grant(voice_grant)
-        return token.to_jwt()
+        return {'token': token.to_jwt(), 'identity': identity}

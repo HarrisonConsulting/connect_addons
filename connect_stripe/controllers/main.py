@@ -20,6 +20,7 @@ from twilio.request_validator import RequestValidator
 from twilio.twiml.voice_response import VoiceResponse, Pay, Dial
 
 from odoo.http import Controller, route, request, Response
+from odoo.addons.connect.models.settings import get_env_credential
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,14 @@ class ConnectStripeController(Controller):
         """
         settings = request.env['connect.settings'].sudo()
         if not settings.get_param('twilio_verify_requests'):
-            logger.warning('SECURITY: Twilio webhook signature verification is DISABLED')
-            return True
+            if get_env_credential('account_sid') is not None:
+                logger.critical('SECURITY: Twilio webhook signature verification is DISABLED')
+                return True
+            logger.critical(
+                'SECURITY: twilio_verify_requests is disabled but no CONNECT_* '
+                'sandbox override is active (production context); refusing to '
+                'skip Twilio webhook signature verification.'
+            )
         auth_token = settings.get_param('auth_token')
         validator = RequestValidator(auth_token)
         url = request.httprequest.url.replace('http:', 'https:')

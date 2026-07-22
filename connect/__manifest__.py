@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.26.2',
+    'version': '1.26.5',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,

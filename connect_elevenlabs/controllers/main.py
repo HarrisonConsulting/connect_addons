@@ -26,7 +26,7 @@ class ConnectElevenlabsController(http.Controller):
         if not expected_token:
             logger.warning('Tool token check failed: elevenlabs_agent_token is not configured in settings')
             return False
-        if token != expected_token:
+        if not hmac.compare_digest(token, expected_token):
             logger.warning('Tool token check failed: token mismatch (received %s...)', token[:8])
             return False
         logger.info('Tool token check passed')
@@ -54,7 +54,7 @@ class ConnectElevenlabsController(http.Controller):
             digestmod=sha256,
         )
         digest = 'v0=' + mac.hexdigest()
-        if hmac_signature != digest:
+        if not hmac.compare_digest(hmac_signature, digest):
             logger.warning('Post call webhook check failed: signature mismatch')
             return False
         logger.info('Post call webhook signature check passed')

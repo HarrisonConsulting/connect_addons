@@ -636,6 +636,87 @@ class Settings(models.Model):
         setattr(data, param, value)
 
     @api.model
+    def check_security_preflight(self):
+        """Runtime health check for the classic misconfigurations that leave
+        Twilio webhook signature verification ineffective or disabled. Called
+        from post_init_hook (fresh install/upgrade -- an admin sees a problem
+        immediately in the deploy log) and a daily cron (ongoing drift -- the
+        toggle gets flipped off later, or credentials get cleared, well after
+        install). Returns a list of {code, level, message} dicts and never
+        raises -- a failing check here must not block install/upgrade or a cron
+        run. Findings are ALSO logged (not just returned): a 'critical' log is
+        what actually reaches an admin, since this workspace's error-capture
+        pipeline picks up critical-level logs without needing any new UI here.
+        """
+        findings = []
+        data = self.sudo().search([], limit=1)
+        if not data:
+            return findings  # nothing configured yet -- nothing to warn about
+
+        if not data.twilio_verify_requests:
+            sandboxed = get_env_credential('account_sid') is not None
+            findings.append({
+                'code': 'twilio_verify_requests_disabled',
+                'level': 'info' if sandboxed else 'critical',
+                'message': (
+                    'Twilio webhook signature verification is disabled '
+                    '(connect.settings.twilio_verify_requests=False). '
+                    + ('A CONNECT_* sandbox override is active, so webhook checks '
+                       'still fail closed regardless -- expected for a dev/test '
+                       'environment.'
+                       if sandboxed else
+                       'No CONNECT_* sandbox override is active, so this looks like '
+                       'a production instance running with signature verification '
+                       'off. Re-enable it in Connect > Settings unless there is a '
+                       'specific, current reason it needs to stay off.')
+                ),
+            })
+
+        if data.rest_provider == 'twilio' and (
+                not data.get_param('account_sid') or not data.get_param('auth_token')):
+            findings.append({
+                'code': 'twilio_credentials_missing',
+                'level': 'critical',
+                'message': (
+                    'Telephony provider is Twilio but account_sid/auth_token are not '
+                    'both configured. If twilio_verify_requests is (or becomes) '
+                    'enabled, every real Twilio webhook will fail signature '
+                    'validation and calls will be rejected -- fix this before '
+                    'turning verification on, not after.'
+                ),
+            })
+
+        if not config['proxy_mode']:
+            findings.append({
+                'code': 'proxy_mode_disabled',
+                'level': 'warning',
+                'message': (
+                    "Odoo server config proxy_mode is off. If this instance sits "
+                    "behind a reverse proxy/load balancer, Odoo reconstructs the "
+                    "WRONG url (scheme, host) for anything that needs the original "
+                    "request Twilio signed, so signature verification fails even "
+                    "with correct credentials -- and remote_addr-based checks "
+                    "elsewhere see the proxy's IP, not the caller's. Set "
+                    "proxy_mode=True in odoo.conf (or --proxy-mode) if a proxy sits "
+                    "in front of this instance."
+                ),
+            })
+
+        for f in findings:
+            log = {'critical': logger.critical, 'warning': logger.warning}.get(f['level'], logger.info)
+            log('Connect security preflight [%s]: %s', f['code'], f['message'])
+
+        return findings
+
+    def _register_hook(self):
+        """Run the security preflight every time the registry is built --
+        server start, module install, and module upgrade all rebuild the
+        registry, so this one hook covers all three without a cron worker.
+        """
+        super()._register_hook()
+        self.check_security_preflight()
+
+    @api.model
     def set_instance_uid(self, instance_uid=False):
         existing_uid = self.env["ir.config_parameter"].get_param("connect.instance_uid")
         if not existing_uid:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*
 
+import hmac
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -23,7 +24,7 @@ class CalendarController(http.Controller):
         if not expected_token:
             logger.warning('Tool token check failed: elevenlabs_agent_token is not configured in settings')
             return False
-        if token != expected_token:
+        if not hmac.compare_digest(token, expected_token):
             logger.warning('Tool token check failed: token mismatch (received %s...)', token[:8])
             return False
         logger.info('Tool token check passed')

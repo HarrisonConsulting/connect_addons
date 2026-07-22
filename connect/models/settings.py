@@ -636,16 +636,25 @@ class Settings(models.Model):
         setattr(data, param, value)
 
     @api.model
+    def _is_neutralized(self):
+        """True once Odoo's standard neutralize.sql has run (dev clones,
+        odoo.sh staging duplicates). Missing/disabled Twilio config on a
+        neutralized database is expected, not an incident.
+        """
+        value = self.env['ir.config_parameter'].sudo().get_param('database.is_neutralized', False)
+        return str(value).lower() in ('true', 't', '1')
+
+    @api.model
     def check_security_preflight(self):
         """Runtime health check for the classic misconfigurations that leave
         Twilio webhook signature verification ineffective or disabled. Called
-        from post_init_hook (fresh install/upgrade -- an admin sees a problem
-        immediately in the deploy log) and a daily cron (ongoing drift -- the
-        toggle gets flipped off later, or credentials get cleared, well after
-        install). Returns a list of {code, level, message} dicts and never
-        raises -- a failing check here must not block install/upgrade or a cron
-        run. Findings are ALSO logged (not just returned): a 'critical' log is
-        what actually reaches an admin, since this workspace's error-capture
+        from _register_hook, which runs on server start, install, and upgrade
+        -- so drift (the toggle gets flipped off later, or credentials get
+        cleared, well after install) is caught on the next restart too, with
+        no cron worker needed. Returns a list of {code, level, message} dicts
+        and never raises -- a failing check here must not block boot/install.
+        Findings are ALSO logged (not just returned): a 'critical' log is what
+        actually reaches an admin, since this workspace's error-capture
         pipeline picks up critical-level logs without needing any new UI here.
         """
         findings = []
@@ -653,22 +662,28 @@ class Settings(models.Model):
         if not data:
             return findings  # nothing configured yet -- nothing to warn about
 
+        # Not-production signals: a CONNECT_* sandbox override, OR the standard
+        # Odoo neutralization flag (odoo/addons/base/data/neutralize.sql sets
+        # ir_config_parameter['database.is_neutralized'] on every neutralize run,
+        # including odoo.sh staging). Either means missing/disabled Twilio
+        # verification is expected, not an incident.
+        sandboxed = get_env_credential('account_sid') is not None or self._is_neutralized()
+
         if not data.twilio_verify_requests:
-            sandboxed = get_env_credential('account_sid') is not None
             findings.append({
                 'code': 'twilio_verify_requests_disabled',
                 'level': 'info' if sandboxed else 'critical',
                 'message': (
                     'Twilio webhook signature verification is disabled '
                     '(connect.settings.twilio_verify_requests=False). '
-                    + ('A CONNECT_* sandbox override is active, so webhook checks '
-                       'still fail closed regardless -- expected for a dev/test '
+                    + ('This is a sandboxed/neutralized database, so webhook checks '
+                       'still fail closed regardless -- expected for a dev/staging '
                        'environment.'
                        if sandboxed else
-                       'No CONNECT_* sandbox override is active, so this looks like '
-                       'a production instance running with signature verification '
-                       'off. Re-enable it in Connect > Settings unless there is a '
-                       'specific, current reason it needs to stay off.')
+                       'No sandbox override or neutralization flag is active, so this '
+                       'looks like a production instance running with signature '
+                       'verification off. Re-enable it in Connect > Settings unless '
+                       'there is a specific, current reason it needs to stay off.')
                 ),
             })
 
@@ -676,13 +691,17 @@ class Settings(models.Model):
                 not data.get_param('account_sid') or not data.get_param('auth_token')):
             findings.append({
                 'code': 'twilio_credentials_missing',
-                'level': 'critical',
+                'level': 'info' if sandboxed else 'critical',
                 'message': (
                     'Telephony provider is Twilio but account_sid/auth_token are not '
-                    'both configured. If twilio_verify_requests is (or becomes) '
-                    'enabled, every real Twilio webhook will fail signature '
-                    'validation and calls will be rejected -- fix this before '
-                    'turning verification on, not after.'
+                    'both configured. '
+                    + ('This is a sandboxed/neutralized database, so missing live '
+                       'credentials is expected -- no action needed.'
+                       if sandboxed else
+                       'If twilio_verify_requests is (or becomes) enabled, every real '
+                       'Twilio webhook will fail signature validation and calls will '
+                       'be rejected -- fix this before turning verification on, not '
+                       'after.')
                 ),
             })
 

@@ -980,6 +980,24 @@ class Call(models.Model):
             logger.error('No channel returned from on_call_status!')
             return False
         if not channel.parent_channel and not channel.call:
+            # A queue agent-dial leg belongs to the CALLER's call, never to a
+            # new one of its own. Its parent is resolved from parent_sid (the
+            # task's caller_sid), and when that fails to resolve — the task
+            # carried no caller_sid, or the caller channel is already gone —
+            # falling through to create() minted one bogus customer-facing
+            # call PER DIAL ATTEMPT. During a redial storm that is what filled
+            # the call list with a run of duplicate calls against a single
+            # partner, and each one broadcast a view reload. Reservation and
+            # attempt bookkeeping for this leg already ran in
+            # connect.channel.on_call_status above, so there is nothing left
+            # to do. hasattr guard: is_queue_agent_dial only exists when
+            # connect_enqueue is installed (same idiom as call_source below).
+            if getattr(channel, 'is_queue_agent_dial', False):
+                logger.info(
+                    'Orphan queue agent-dial leg %s (parent_sid=%s did not '
+                    'resolve); not creating a call for it.',
+                    channel.sid, channel.parent_sid)
+                return False
             # Create a new call.
             if channel.technical_direction == 'outbound-api':
                 # Click2call originated call.

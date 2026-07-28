@@ -969,6 +969,11 @@ class Call(models.Model):
     @api.model
     def on_call_status(self, params):
         self = self.sudo()
+        # Tracks whether this webhook produced a change worth pushing to every
+        # open connect.call view. Every channel-leg status event used to
+        # broadcast unconditionally, which turned a single call that hunts a
+        # non-answering agent into a company-wide ~1 Hz view reload.
+        call_created = False
         # Create channel
         channel = self.env['connect.channel'].on_call_status(params)
         if not channel:
@@ -1011,6 +1016,10 @@ class Call(models.Model):
                 call_vals['parent_call'] = parent_call_id
             call = self.with_context(tracking_disable=True).create(call_vals)
             channel.call = call
+            # A new row in the call list/kanban is worth a client reload;
+            # the per-leg churn below is not. See the reload gate at the
+            # end of this method.
+            call_created = True
         elif channel.parent_channel and channel.parent_channel.call:
             # Secondary channel, assign the call from the parent.
             channel.call = channel.parent_channel.call
@@ -1068,6 +1077,7 @@ class Call(models.Model):
                 expectation_source = 'ring_group'
             channel.call._update_webhook_expectation_callsid(expectation_source, call_sid, call_status)
         # Determine finalization authority
+        call_finalized = False
         is_parent_call_webhook = not params.get('ParentCallSid')
         if channel.call.direction == 'outgoing':
             if params.get('ParentCallSid'):
@@ -1089,6 +1099,9 @@ class Call(models.Model):
             current_status = channel.call.status
             logger.info(f"Call {channel.call.id}: All conditions met for finalization")
             channel.call._finalize_call_details()
+            # Finalization is where status/duration/answered_user settle —
+            # the transition users actually need to see.
+            call_finalized = True
             new_called_users = set(channel.call.called_users.ids)
             status_changed = channel.call.status != current_status
             users_changed = current_called_users != new_called_users
@@ -1111,9 +1124,9 @@ class Call(models.Model):
             if params.get('CallStatus') in CALL_END_STATUSES:
                 if self.env['connect.settings'].sudo().get_param('fetch_call_prices'):
                     self.save_call_price(channel.call, params)
-        # Reload call view
-        self.env['connect.settings'].connect_reload_view('connect.call')
+        call_errored = False
         if params.get('ErrorCode') and params.get('ErrorCode') not in IGNORE_ERROR_CODES:
+            call_errored = not channel.call.has_error
             channel.call.update({
                 'has_error': True,
                 'error_code': params.get('ErrorCode'),
@@ -1135,6 +1148,14 @@ class Call(models.Model):
                     message=message_text,
                     warning=True,
                 )
+        # Reload call views only on the transitions a list/kanban actually
+        # renders differently: the call appearing, the call settling, or the
+        # call going into error. Intermediate child-leg webhooks move only
+        # `duration`, which is not worth a full view reload — and broadcasting
+        # on them is what let one looping call refresh every user's screen
+        # roughly once a second for four hours.
+        if call_created or call_finalized or call_errored:
+            self.env['connect.settings'].connect_reload_view('connect.call')
         return channel.call.id
 
     @api.model

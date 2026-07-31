@@ -29,6 +29,18 @@ class Call(models.Model):
         self.ensure_one()
         if not self.voicemail_url:
             return
+        s3 = settings.get_s3_client()
+        bucket = settings.s3_bucket
+        key = self._voicemail_s3_object_key()
+        # Retry fallback: a previous attempt may have uploaded to S3 (and
+        # deleted the provider original) before its transaction failed —
+        # HTTP side effects don't roll back. If the object is already
+        # there, adopt it instead of re-downloading a recording that may
+        # no longer exist.
+        if settings._s3_object_verified(s3, bucket, key):
+            self.write({'voicemail_s3_key': key})
+            logger.info('Voicemail already in S3, adopted: %s/%s', bucket, key)
+            return
         from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
         account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
         auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
@@ -37,9 +49,6 @@ class Call(models.Model):
             timeout=HTTP_DOWNLOAD_TIMEOUT,
         )
         response.raise_for_status()
-        s3 = settings.get_s3_client()
-        bucket = settings.s3_bucket
-        key = self._voicemail_s3_object_key()
         try:
             s3.upload_fileobj(
                 BytesIO(response.content), bucket, key,
@@ -51,16 +60,37 @@ class Call(models.Model):
         self.write({'voicemail_s3_key': key})
         if settings.delete_twilio_recording and self.voicemail_sid:
             if settings._s3_object_verified(s3, bucket, key):
-                try:
-                    client = self.env['connect.settings'].get_client()
-                    if client:
-                        client.recordings(self.voicemail_sid).delete()
-                        logger.info('Deleted voicemail %s from Twilio', self.voicemail_sid)
-                except Exception as e:
-                    logger.error('Failed to delete voicemail %s from Twilio: %s', self.voicemail_sid, e)
+                # Post-commit: never destroy the provider original inside a
+                # transaction that could still fail and forget the S3 key.
+                settings.defer_twilio_recording_delete(self.voicemail_sid)
             else:
                 logger.warning('S3 verify failed for voicemail %s — skipping Twilio delete', self.voicemail_sid)
         logger.info('Voicemail stored in S3: %s/%s', bucket, key)
+
+    def _download_voicemail_audio(self):
+        """Serve the S3 copy when one exists.
+
+        Checks object presence by computed key (not just voicemail_s3_key):
+        a failed webhook transaction can leave the object in S3 with no key
+        on the record — self-heal the key when that happens. Falls back to
+        the core implementation (attachment / provider URL) otherwise.
+        """
+        self.ensure_one()
+        settings = self.env['connect.settings'].sudo().search([], limit=1)
+        if settings.recording_storage != 's3':
+            return super()._download_voicemail_audio()
+        s3 = settings.get_s3_client()
+        bucket = settings.s3_bucket
+        key = self.voicemail_s3_key or self._voicemail_s3_object_key()
+        if not settings._s3_object_verified(s3, bucket, key):
+            return super()._download_voicemail_audio()
+        if not self.voicemail_s3_key:
+            self.write({'voicemail_s3_key': key})
+            logger.info('Voicemail S3 key self-healed for call %s: %s', self.id, key)
+        from tempfile import NamedTemporaryFile
+        with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+            s3.download_fileobj(bucket, key, f)
+            return f.name
 
     def _get_voicemail_listen_url(self):
         """Return a presigned S3 URL when voicemail is stored in S3."""

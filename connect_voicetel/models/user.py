@@ -113,7 +113,10 @@ class VoicetelUser(models.Model):
             # no worse an exposure than a bearer token, but noted since this
             # credential (unlike the JWT) has no built-in expiry on its own.
             'password': password,
-            'wss_server': self.env['connect.settings'].sudo().get_param('voicetel_wss_server'),
+            # VoiceTel WSS gateways are domain-level isolated (one gateway
+            # per SIP domain, port 8443), so the server is derived from the
+            # user's own domain rather than configured globally.
+            'wss_server': 'wss://{}:8443'.format(self.domain.domain_name),
             'display_name': self.name or self.username,
         }
 

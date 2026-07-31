@@ -7,7 +7,6 @@ import re
 import string
 from datetime import timedelta
 from urllib.parse import urljoin
-from psycopg2.errors import SerializationFailure
 from odoo import fields, models, api, Command
 from odoo.exceptions import ValidationError
 from odoo.models import Constraint
@@ -626,27 +625,23 @@ class User(models.Model):
 
     @api.model
     def update_presence(self, status):
-        """Update current user's telephony presence status. Called from JS on Device/call events."""
+        """Update current user's telephony presence status. Called from JS on Device/call events.
+
+        A SerializationFailure on this write is NOT raised here: write()
+        only updates the ORM cache and marks the field dirty (see
+        odoo.orm.fields.Field.write); the actual UPDATE runs later at
+        flush time, outside this method. There is therefore nothing this
+        method can retry — the framework-level retry (Odoo's HTTP
+        dispatcher replaying the whole request on a transient
+        serialization failure) is what actually rescues these calls, and
+        already does.
+        """
         user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
         if user:
-            for attempt in range(2):
-                try:
-                    user.with_context(skip_sync=True, no_clear_cache=True).write({
-                        'presence_status': status,
-                        'presence_updated': fields.Datetime.now(),
-                    })
-                    break
-                except SerializationFailure:
-                    self.env.cr.rollback()
-                    if attempt == 0:
-                        logger.info(
-                            'Retrying update_presence after serialization conflict '
-                            'for connect.user %s', user.id)
-                        continue
-                    logger.warning(
-                        'Ignoring update_presence after serialization conflict '
-                        'for connect.user %s', user.id)
-                    return True
+            user.with_context(skip_sync=True, no_clear_cache=True).write({
+                'presence_status': status,
+                'presence_updated': fields.Datetime.now(),
+            })
             self.env['bus.bus']._sendone(
                 'connect_presence',
                 'presence_update',

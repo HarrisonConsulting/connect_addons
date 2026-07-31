@@ -1149,18 +1149,39 @@ class Settings(models.Model):
         api_url_check = self.check_api_url()
         if api_url_check:
             raise ValidationError(api_url_check)
-        try:
-            self.env["connect.twiml"].sync()
-            self.env["connect.domain"].sync()
-            self.env["connect.number"].sync()
-            self.env["connect.outgoing_callerid"].sync()
-            self.env["connect.whatsapp_sender"].sync()
-            self.env["connect.message_content_template"].sync()
-        except Exception as e:
-            if 'errors/20003' in str(e):
-                raise ValidationError('Error authenticating requests to the Twilio API! Check your Auth Key!')
-            else:
-                raise
+        # Each resource type syncs inside its own savepoint: one failing
+        # type must not roll back the others. The provider-side API calls
+        # a sub-sync makes are NOT transactional — an all-or-nothing
+        # rollback discards the SIDs a sub-sync just persisted while the
+        # provider keeps the created resources, so every retry re-creates
+        # them (observed live: one crashing sub-sync orphaned 3 TwiML apps
+        # per Sync click).
+        errors = []
+        for model in ("connect.twiml", "connect.domain", "connect.number",
+                      "connect.outgoing_callerid", "connect.whatsapp_sender",
+                      "connect.message_content_template"):
+            try:
+                with self.env.cr.savepoint():
+                    self.env[model].sync()
+            except Exception as e:
+                if 'errors/20003' in str(e):
+                    # Bad credentials fail every sub-sync identically;
+                    # abort outright instead of reporting it six times.
+                    raise ValidationError('Error authenticating requests to the Twilio API! Check your Auth Key!')
+                logger.exception('Sync failed for %s:', model)
+                errors.append('{}: {}'.format(
+                    self.env[model]._description, format_connect_response(str(e))))
+        if errors:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Sync completed with errors',
+                    'message': '\n'.join(errors),
+                    'type': 'warning',
+                    'sticky': True,
+                },
+            }
 
     # Called from the settings.
     def reformat_numbers_button(self):

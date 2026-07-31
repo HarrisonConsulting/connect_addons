@@ -502,25 +502,23 @@ class TestUserPresence(ConnectTestCase):
             self.connect_user.invalidate_recordset(['presence_updated'])
             self.assertTrue(self.connect_user.presence_updated)
 
-    def test_update_presence_retries_serialization_conflict(self):
-        """Presence update retries once on serialization failure."""
-        original_write = type(self.connect_user).write
-        calls = {'count': 0}
+    def test_update_presence_does_not_swallow_serialization_conflict(self):
+        """update_presence must not catch SerializationFailure itself.
 
-        def flaky_write(recordset, vals):
-            calls['count'] += 1
-            if calls['count'] == 1:
-                raise SerializationFailure()
-            return original_write(recordset, vals)
-
+        write() only marks the field dirty; the actual UPDATE (and any
+        SerializationFailure) fires later at flush time, outside any try
+        block this method could wrap. A local retry-and-swallow here is
+        therefore dead code (it never once fired in 15 days of production
+        logs) and, worse, can leave a poisoned transaction behind for the
+        next statement to trip over. The real rescue is Odoo's HTTP
+        dispatcher retrying the whole request, which requires the error to
+        propagate uncaught.
+        """
         with patch.object(self.env['bus.bus'].__class__, '_sendone'), \
                 patch.object(type(self.connect_user), 'write', autospec=True,
-                             side_effect=flaky_write):
-            self.env['connect.user'].update_presence('available')
-
-        self.connect_user.invalidate_recordset(['presence_status'])
-        self.assertEqual(calls['count'], 2)
-        self.assertEqual(self.connect_user.presence_status, 'available')
+                             side_effect=SerializationFailure()):
+            with self.assertRaises(SerializationFailure):
+                self.env['connect.user'].update_presence('available')
 
     def test_get_all_presence(self):
         """get_all_presence returns list with expected fields."""

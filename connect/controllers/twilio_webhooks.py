@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*
 
 import logging
-from psycopg2.errors import SerializationFailure
 
 from odoo.http import request, Controller, route, Response
+from odoo.service.model import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
 from odoo.addons.connect.models.settings import get_env_credential
 from twilio.request_validator import RequestValidator
 
@@ -72,13 +72,23 @@ class ConnectController(Controller):
             logger.warning('Webhook %s missing required params: %s (got: %s)',
                            'callstatus_webhook', missing, list(kw.keys()))
             return '<Response/>'
+        # Retry the WHOLE unit of work on any transient PG concurrency error,
+        # not just serialization_failure (40001). This handler is the only
+        # retry on the on_call_status call graph — the broad `except Exception`
+        # below stops the exception ever reaching Odoo's own
+        # `service.model.retrying`, so whatever is not caught here is dropped.
+        # connect_enqueue's reservation teardown re-raises through
+        # `connect.tools.reraise_if_concurrency_retry`, which propagates all
+        # three of PG_CONCURRENCY_EXCEPTIONS_TO_RETRY; deadlock_detected
+        # (40P01) in particular is what the abandon-vs-close lock inversion
+        # produces, and catching only 40001 left it in the drop path.
         for attempt in range(2):
             try:
                 res = request.env['connect.call'].with_user(
                     request.env.ref("connect.user_connect_webhook")
                 ).on_call_status(kw)
                 return f'{res}'
-            except SerializationFailure:
+            except PG_CONCURRENCY_EXCEPTIONS_TO_RETRY:
                 request.env.cr.rollback()
                 if attempt == 0:
                     logger.info(

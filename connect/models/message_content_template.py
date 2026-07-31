@@ -325,6 +325,11 @@ class ConnectMessageContentTemplate(models.Model):
         - Updates status/links/dates on existing records (does not overwrite content fields).
         """
         settings = self.env['connect.settings']
+        if settings.sudo().get_param('rest_provider') != 'twilio':
+            # The Content API host below is Twilio-only; compatible
+            # providers neither serve it nor own these templates.
+            logger.info('Skipping content template sync: non-Twilio provider.')
+            return
         account_sid = settings.get_param('account_sid')
         auth_token = settings.get_param('auth_token')
         if not account_sid or not auth_token:

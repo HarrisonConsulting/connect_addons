@@ -108,6 +108,11 @@ class ConnectWhatsappSender(models.Model):
     @api.model
     def sync(self):
         settings = self.env['connect.settings']
+        if settings.sudo().get_param('rest_provider') != 'twilio':
+            # The Messaging API host below is Twilio-only; compatible
+            # providers neither serve it nor own these senders.
+            debug(self, 'Skipping WhatsApp sender sync: non-Twilio provider.')
+            return
         account_sid = settings.get_param('account_sid')
         auth_token = settings.get_param('auth_token')
         if not account_sid or not auth_token:

@@ -138,22 +138,29 @@ class TwimlMigrator(Migrator):
 
     def run(self, dest_client, dry_run):
         result = MigrationResult(name=self.name)
-        dest_apps = {k.friendly_name: k for k in dest_client.applications.list()}
+        # Match by voice_url path, the app's natural key: it embeds the
+        # record id, is machine-generated, and survives renames. Matching
+        # by friendly_name is unsafe — providers don't enforce uniqueness
+        # on it (a duplicate-laden target account would make the match
+        # arbitrary) and users can rename apps.
+        dest_apps = list(dest_client.applications.list())
         records = self.env['connect.twiml'].search([('sid', '!=', False)])
         for rec in records:
-            dest = dest_apps.pop(rec.name, None)
+            marker = '/twilio/webhook/twiml/{}'.format(rec.id)
+            dest = next(
+                (k for k in dest_apps
+                 if marker in (k.voice_url or '').split('#')[0]), None)
+            if dest:
+                dest_apps.remove(dest)
             try:
                 if dest and dest.sid == rec.sid:
                     if not dry_run:
                         rec.update_twilio_app(dest_client)
                     result.skipped.append(rec.name)
                 elif dest:
-                    # update_twilio_app() only looks an app up by SID, and
-                    # create_twilio_app() has no adopt-by-name fallback
-                    # (Twilio doesn't enforce unique friendly_name on
-                    # Applications) — calling either naively here would
-                    # create a duplicate instead of adopting the one we
-                    # already found. Adopt it directly.
+                    # Found under a different sid — adopt it directly
+                    # rather than letting the sid-based lookup miss it and
+                    # mint a duplicate.
                     if not dry_run:
                         rec._adopt_sid(dest.sid, dest_client)
                     result.rebound.append(rec.name)
@@ -168,8 +175,8 @@ class TwimlMigrator(Migrator):
                 # first unrecoverable error and stops there).
                 logger.exception('TwiML app migration failed for %s:', rec.name)
                 result.errors.append((rec.name, str(e)))
-        for friendly_name in dest_apps:
+        for app in dest_apps:
             result.warnings.append(
                 '{} exists only on the target account and will be imported '
-                'by SYNC after cutover.'.format(friendly_name))
+                'by SYNC after cutover.'.format(app.friendly_name))
         return result

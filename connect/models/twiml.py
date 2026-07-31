@@ -198,6 +198,45 @@ class TwiML(models.Model):
                 # Re-raise unexpected errors
                 raise
 
+    def _find_twilio_app_by_voice_url(self, client):
+        """Find an existing app by its voice_url path, the app's natural key.
+
+        The voice_url embeds this record's id (twilio/webhook/twiml/<id>),
+        so it identifies "our" app even when every SID we hold is stale —
+        e.g. after a provider migration, or when a prior sync created the
+        app but the surrounding transaction rolled back before the minted
+        SID could be persisted. friendly_name is not usable for this:
+        providers don't enforce uniqueness on it and users can rename.
+        Matches on the path only (host-agnostic) so a base-URL change does
+        not orphan the app.
+        """
+        self.ensure_one()
+        marker = '/twilio/webhook/twiml/{}'.format(self.id)
+        for application in client.applications.list():
+            if marker in (application.voice_url or '').split('#')[0]:
+                debug(self, 'Found existing TwiML app {} by voice_url for record {}.'.format(
+                    application.sid, self.id))
+                return application
+        return None
+
+    def _rebind_to_app(self, client, existing_app):
+        """Adopt `existing_app`: push current config to it and swap sids."""
+        self.ensure_one()
+        application = client.applications(existing_app.sid).update(
+            voice_url=self.voice_url,
+            voice_fallback_url=self.voice_fallback_url,
+            friendly_name=self.name,
+            status_callback=self.voice_status_url,
+        )
+        old_current_sid = self.sid
+        self.with_context(skip_twilio_sync=True).write({
+            'sid': existing_app.sid,
+            'old_sid': old_current_sid or self.old_sid,
+        })
+        debug(self, 'TwiML app {} rebound. SID: {} -> {}'.format(
+            self.name, old_current_sid, existing_app.sid))
+        return application
+
     def create_twilio_app(self, client):
         self.ensure_one()
         # Store current sid as old_sid before creating new app
@@ -273,42 +312,26 @@ class TwiML(models.Model):
                 return application
             except Exception as e:
                 if 'not found' in str(e):
-                    debug(self, 'TwiML app {} not found by current sid {}, checking for region migration.'.format(
+                    debug(self, 'TwiML app {} not found by current sid {}, checking fallbacks.'.format(
                         self.name, self.sid))
-                    # App not found by current sid, try to find by old_sid for region migration
-                    existing_app = self._find_twilio_app_by_old_sid(client)
+                    # Stale sid: try old_sid (region migration), then the
+                    # voice_url natural key (provider migration / rollback
+                    # orphan), and only then mint a new app.
+                    existing_app = (self._find_twilio_app_by_old_sid(client)
+                                    or self._find_twilio_app_by_voice_url(client))
                     if existing_app:
-                        # Found existing app by old_sid, update it and swap sids
-                        debug(self, 'Reusing existing TwiML app {} during region migration.'.format(
-                            existing_app.friendly_name))
-
-                        # Update the existing app with current configuration
-                        application = client.applications(existing_app.sid).update(
-                            voice_url=self.voice_url,
-                            voice_fallback_url=self.voice_fallback_url,
-                            friendly_name=self.name,
-                            status_callback=self.voice_status_url,
-                        )
-
-                        # Swap sids: current sid becomes old_sid, existing app sid becomes current sid
-                        old_current_sid = self.sid
-                        self.write({
-                            'sid': existing_app.sid,
-                            'old_sid': old_current_sid
-                        })
-
-                        debug(self, 'TwiML app {} updated during region migration. SID: {} -> {}'.format(
-                            self.name, old_current_sid, existing_app.sid))
-                        return application
-                    else:
-                        # No existing app found by old_sid, create a new one
-                        debug(self, 'No existing TwiML app found for region migration, creating new app.')
-                        return self.create_twilio_app(client)
+                        return self._rebind_to_app(client, existing_app)
+                    debug(self, 'No existing TwiML app found by old_sid or voice_url, creating new app.')
+                    return self.create_twilio_app(client)
                 else:
                     # Re-raise unexpected errors
                     raise
         else:
-            # No current sid, create new app
+            # No current sid: adopt an app already carrying our voice_url
+            # if one exists, otherwise create.
+            existing_app = self._find_twilio_app_by_voice_url(client)
+            if existing_app:
+                return self._rebind_to_app(client, existing_app)
             debug(self, 'No current SID for TwiML app {}, creating new app.'.format(self.name))
             return self.create_twilio_app(client)
 

@@ -2,7 +2,10 @@
 
 import psycopg2
 
-from odoo.service.model import PG_CONCURRENCY_ERRORS_TO_RETRY
+from odoo.service.model import (
+    PG_CONCURRENCY_ERRORS_TO_RETRY,
+    PG_CONCURRENCY_EXCEPTIONS_TO_RETRY,
+)
 
 
 def reraise_if_concurrency_retry(exc):
@@ -25,12 +28,25 @@ def reraise_if_concurrency_retry(exc):
     ``__cause__`` / ``__context__`` chain so a wrapped error is still caught —
     and returns normally otherwise, leaving the caller free to log-and-swallow
     genuine failures.
+
+    Matching is by exception CLASS first, mirroring Odoo core
+    (``service/model.py`` ``retrying()`` tests
+    ``isinstance(exc, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY)`` before it ever looks
+    at a pgcode). ``psycopg2.Error.pgcode`` is a READ-ONLY attribute populated
+    from the live cursor, so a concurrency exception that is re-created rather
+    than raised by the driver carries ``pgcode = None``. Matching on pgcode alone
+    silently failed to re-raise those, which is the precise bug this helper
+    exists to prevent. The pgcode test is kept as a second arm so an exotic
+    ``OperationalError`` carrying a concurrency pgcode but not one of the three
+    classes is still caught; the two arms together are a strict superset of the
+    old behaviour, so this can only ever re-raise more, never less.
     """
     cause = exc
     seen = set()
     while cause is not None and id(cause) not in seen:
-        if (isinstance(cause, psycopg2.OperationalError)
-                and cause.pgcode in PG_CONCURRENCY_ERRORS_TO_RETRY):
+        if (isinstance(cause, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY)
+                or (isinstance(cause, psycopg2.OperationalError)
+                    and cause.pgcode in PG_CONCURRENCY_ERRORS_TO_RETRY)):
             raise exc
         seen.add(id(cause))
         cause = cause.__cause__ or cause.__context__

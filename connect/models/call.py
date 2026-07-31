@@ -258,29 +258,41 @@ class Call(models.Model):
         elif self.voicemail_url:
             self._transcribe_voicemail()
 
+    def _download_voicemail_audio(self):
+        """Download this voicemail's audio to a temp file and return its path.
+
+        The single seam every consumer (playback storage, transcription in
+        core and extension modules) must go through, so storage backends can
+        override it — e.g. connect_s3 serves the S3 copy even when the
+        provider-side original is already deleted.
+        """
+        self.ensure_one()
+        if self.voicemail_attachment_id:
+            data = base64.b64decode(self.voicemail_attachment_id.sudo().datas)
+            with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                f.write(data)
+                return f.name
+        if not self.voicemail_url:
+            return None
+        account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
+        response = requests.get(
+            self.voicemail_url, stream=True,
+            auth=(account_sid, auth_token),
+            timeout=HTTP_DOWNLOAD_TIMEOUT)
+        response.raise_for_status()
+        with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+            return f.name
+
     def _transcribe_voicemail(self):
         client = self.env['connect.settings'].get_openai_client()
         if not client:
             return
         temp_file_path = None
         try:
-            if self.voicemail_attachment_id:
-                data = base64.b64decode(self.voicemail_attachment_id.sudo().datas)
-                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
-                    f.write(data)
-                    temp_file_path = f.name
-            else:
-                account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
-                response = requests.get(
-                    self.voicemail_url, stream=True,
-                    auth=(account_sid, auth_token),
-                    timeout=HTTP_DOWNLOAD_TIMEOUT)
-                response.raise_for_status()
-                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                    temp_file_path = f.name
+            temp_file_path = self._download_voicemail_audio()
             if not temp_file_path:
                 return
             with open(temp_file_path, 'rb') as audio_file:
@@ -1273,14 +1285,8 @@ class Call(models.Model):
             'mimetype': 'audio/mpeg',
         })
         self.write({'voicemail_attachment_id': attachment.id})
-        if settings.get_param('delete_twilio_recording') and self.voicemail_sid:
-            try:
-                client = self.env['connect.settings'].get_client()
-                if client:
-                    client.recordings(self.voicemail_sid).delete()
-                    logger.info('Deleted voicemail %s from Twilio', self.voicemail_sid)
-            except Exception as e:
-                logger.error('Failed to delete voicemail %s from Twilio: %s', self.voicemail_sid, e)
+        if settings.get_param('delete_twilio_recording'):
+            settings.defer_twilio_recording_delete(self.voicemail_sid)
         return attachment
 
     def _get_voicemail_listen_url(self):

@@ -1111,6 +1111,33 @@ class Settings(models.Model):
                 raise
 
     @api.model
+    @api.model
+    def defer_twilio_recording_delete(self, sid):
+        """Delete a provider recording only after the current transaction commits.
+
+        The delete is an irreversible external side effect. Executed inline,
+        a transaction that later fails (e.g. a webhook hitting a
+        serialization-failure retry) forgets the stored copy while the
+        remote original is already gone — the retry then 404s and the
+        recording is unrecoverable. postcommit callbacks are cleared on
+        rollback, so a failed transaction never triggers the delete and the
+        retry can simply re-download.
+        """
+        if not sid:
+            return
+        client = self.get_client()
+        if not client:
+            return
+
+        def _delete():
+            try:
+                client.recordings(sid).delete()
+                logger.info('Deleted recording %s from provider (post-commit)', sid)
+            except Exception as e:
+                logger.error('Post-commit provider delete failed for %s: %s', sid, e)
+
+        self.env.cr.postcommit.add(_delete)
+
     def get_openai_client(self):
         api_key = self.sudo().get_param('openai_api_key')
         if not api_key:

@@ -315,17 +315,13 @@ class Recording(models.Model):
         return attachment
 
     def _delete_from_twilio(self):
-        """Delete this recording from Twilio to reduce storage costs."""
+        """Queue deletion of this recording from the provider.
+
+        Runs post-commit so a failed/retried transaction never destroys a
+        remote recording the database has no committed copy of.
+        """
         self.ensure_one()
-        if not self.sid:
-            return
-        try:
-            client = self.env['connect.settings'].get_client()
-            if client:
-                client.recordings(self.sid).delete()
-                logger.info('Deleted recording %s from Twilio', self.sid)
-        except Exception as e:
-            logger.error('Failed to delete recording %s from Twilio: %s', self.sid, e)
+        self.env['connect.settings'].defer_twilio_recording_delete(self.sid)
 
     def _get_list_view_summary(self):
         for rec in self:

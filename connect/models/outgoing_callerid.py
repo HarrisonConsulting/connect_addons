@@ -53,7 +53,10 @@ class OutgoingCallerID(models.Model):
                     'sid': number.sid,
                     'callerid_type': callerid_type,
                     'number': number.phone_number,
-                    'friendly_name': number.friendly_name,
+                    # Twilio always sends a friendly name; Twilio-compatible
+                    # providers may send null. friendly_name is NOT NULL
+                    # locally, so a missing value must not abort the sync.
+                    'friendly_name': number.friendly_name or number.phone_number,
             }
             callerid_count = self.search_count([])
             if callerid_count == 0:
@@ -66,6 +69,11 @@ class OutgoingCallerID(models.Model):
                 debug(self, 'CallerID {} ({}) created in Odoo from {}'.format(
                     number.phone_number, number.friendly_name, callerid_type))
             else:
+                if not number.friendly_name:
+                    # Provider has no friendly name for this number: keep
+                    # the locally set one instead of clobbering it with the
+                    # phone-number fallback on every sync.
+                    data.pop('friendly_name')
                 # CallerID exists, update it's type.
                 existing_number.with_context(skip_number_check=True).write(data)
                 # CallerID exists, update friendly name to Twilio
@@ -171,7 +179,15 @@ class OutgoingCallerID(models.Model):
             try:
                 client.outgoing_caller_ids(sid).delete()
             except Exception as e:
-                logger.error('Could not delete outgoing callerid number %s', sids[sid])
+                if 'not found' in str(e).lower():
+                    # Already absent on the provider: the delete is
+                    # idempotent, local removal may proceed.
+                    logger.info('Outgoing callerid %s already absent on provider.', sids[sid])
+                else:
+                    # Anything else must abort so local and provider state
+                    # cannot diverge (local record gone, remote kept).
+                    logger.error('Could not delete outgoing callerid number %s: %s', sids[sid], e)
+                    raise
         return res
 
     @api.constrains('number')

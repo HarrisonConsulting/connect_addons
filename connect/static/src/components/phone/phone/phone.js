@@ -1854,7 +1854,14 @@ export class Phone extends Component {
     async _onClickEndCall(ev) {
         if (this.session) {
             this.suppressBroadcastChannel = true
-            this.session.disconnect()
+            try {
+                this.session.disconnect()
+            } catch (e) {
+                // An already-ended session is not a failed hang-up. The
+                // cleanup below must run regardless, or the UI is left on a
+                // dead call and the follow-on status/bus updates error out.
+                console.warn('Connect: disconnect on ended session:', e)
+            }
         }
         this.bc.postMessage({event: "tbcEndCall"})
         this.state.phone_status = this.status.ended
@@ -1879,7 +1886,13 @@ export class Phone extends Component {
     async _onClickRejectIncoming(ev) {
         if (this.session) {
             this.suppressBroadcastChannel = true
-            this.session.reject()
+            try {
+                this.session.reject()
+            } catch (e) {
+                // Caller already gone == nothing left to reject; still run
+                // the cleanup below.
+                console.warn('Connect: reject on ended session:', e)
+            }
         }
         this.bc.postMessage({event: "tbcEndCall"})
         this.state.inIncoming = false

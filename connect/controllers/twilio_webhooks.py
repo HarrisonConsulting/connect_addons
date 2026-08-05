@@ -41,7 +41,14 @@ class ConnectController(Controller):
             if request.httprequest.url.startswith('http:'):
                 logger.error('Twilio requires HTTPS to be setup!')
             else:
-                logger.error('Twilio request is not valid!')
+                # Distinguish the two failure classes for provider debugging:
+                # a missing header means the provider does not sign at all; a
+                # present-but-wrong one means a secret or URL-reconstruction
+                # mismatch (proxy headers, ports, trailing slashes).
+                logger.error(
+                    'Twilio request is not valid! signature_header_present=%s '
+                    'signature_len=%s validated_url=%s',
+                    bool(signature), len(signature), url)
         return request_valid
 
     @route('/twilio/webhook/domain', methods=['POST'], type='http', auth='public', csrf=False)

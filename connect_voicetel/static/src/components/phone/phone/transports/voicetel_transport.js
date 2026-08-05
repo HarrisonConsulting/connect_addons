@@ -42,19 +42,38 @@ export class VoiceTelCall extends TelephonyCall {
         // classification into TelephonyCall's four termination events below
         // is this transport's own normalization, unverified against a live
         // account.
-        const terminateOnce = (eventName) => {
-            if (this._terminated) return
-            this._terminated = true
-            this._teardownRemoteAudio()
-            this._emit(eventName)
-        }
-        session.on('bye', () => terminateOnce('disconnect'))
-        session.on('rejected', () => terminateOnce('reject'))
+        session.on('bye', () => this._terminate('disconnect'))
+        session.on('rejected', () => this._terminate('reject'))
         // No answer yet when the session dies == the caller/far end gave up
         // before we (or they) connected — normalize to 'cancel', matching
         // Twilio's own accept-vs-cancel split (see TwilioCall).
-        session.on('failed', () => terminateOnce(session.hasAnswer ? 'disconnect' : 'cancel'))
-        session.on('terminated', () => terminateOnce(session.hasAnswer ? 'disconnect' : 'cancel'))
+        session.on('failed', () => this._terminate(session.hasAnswer ? 'disconnect' : 'cancel'))
+        session.on('terminated', () => this._terminate(session.hasAnswer ? 'disconnect' : 'cancel'))
+    }
+
+    _terminate(eventName) {
+        if (this._terminated) return
+        this._terminated = true
+        this._teardownRemoteAudio()
+        this._emit(eventName)
+    }
+
+    /* SIP.js (0.15 legacy API) throws INVALID_STATE_ERROR when bye/cancel/
+     * reject/accept is invoked on a session that already ended — which
+     * happens whenever remote termination (a rejection like 403, or the far
+     * end hanging up first) races the user's button click. Already-ended IS
+     * the desired outcome of ending a call: normalize it to termination
+     * instead of letting the throw abort the caller's whole cleanup
+     * sequence (that abort was the meeting-observed cascade: invalid state
+     * error -> stuck call UI -> follow-on status/bus errors). */
+    _safeSessionOp(op, terminalEvent) {
+        if (this._terminated) return
+        try {
+            op()
+        } catch (e) {
+            console.warn('Connect: VoiceTelTransport: session op on ended session, normalizing:', e)
+            this._terminate(terminalEvent)
+        }
     }
 
     // Live-read from the underlying SIP.js session every access, same
@@ -81,19 +100,24 @@ export class VoiceTelCall extends TelephonyCall {
     }
 
     accept() {
-        this._session.accept()
+        // A dead session can't be accepted; the caller is gone — cancel.
+        this._safeSessionOp(() => this._session.accept(), 'cancel')
     }
 
     reject() {
-        this._session.reject({statusCode: 486, reasonPhrase: "Busy Here"})
+        this._safeSessionOp(
+            () => this._session.reject({statusCode: 486, reasonPhrase: "Busy Here"}),
+            'reject')
     }
 
     disconnect() {
-        if (this._session.hasAnswer) {
-            this._session.bye()
-        } else {
-            this._session.cancel()
-        }
+        this._safeSessionOp(() => {
+            if (this._session.hasAnswer) {
+                this._session.bye()
+            } else {
+                this._session.cancel()
+            }
+        }, this._session.hasAnswer ? 'disconnect' : 'cancel')
     }
 
     mute(shouldMute) {

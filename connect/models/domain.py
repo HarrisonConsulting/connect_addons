@@ -163,6 +163,19 @@ class Domain(models.Model):
                 debug(self, "Error creating SIP credential for user {}: {}".format(
                     user.username, str(e)), level="error")
 
+    def _credential_is_person(self, credential):
+        """Whether one provider credential-list entry represents a person.
+
+        Companion to _should_reconcile_credentials(), one level finer: that
+        hook excludes whole domains from the credential import; this one
+        excludes individual entries within an imported domain. True by
+        default. Extension modules that mint non-person credentials into a
+        person domain's list (e.g. connect_voicetel's per-browser-tab SIP
+        credentials) override this so those artifacts don't materialize as
+        phantom connect.users.
+        """
+        return True
+
     def _should_reconcile_credentials(self):
         """Whether sync() should pull this domain's SIP credential list into
         connect.user records.
@@ -295,6 +308,12 @@ class Domain(models.Model):
 
             # Step 2: Process Twilio credentials -> Odoo users
             for credential in twilio_credentials:
+                if not self._credential_is_person(credential):
+                    # Session artifacts (e.g. per-browser-tab SIP
+                    # credentials) share the domain credential list with
+                    # person credentials but must not materialize as users.
+                    debug(self, "Skipping non-person credential {}".format(credential.username))
+                    continue
                 # Find matching user in Odoo by username
                 matching_user = domain_users.filtered(lambda u: u.username == credential.username)
 

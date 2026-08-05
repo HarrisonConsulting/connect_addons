@@ -85,9 +85,20 @@ class OutgoingCallerID(models.Model):
                     else:
                         client.incoming_phone_numbers(existing_number.sid).update(
                             friendly_name=existing_number.friendly_name)
-        # Now sync numbers from Odoo
+        # Now sync numbers from Odoo. Skip the delete pass entirely when the
+        # provider returned nothing: an empty list is far more likely a
+        # mid-migration state or a compat-provider gap than every caller ID
+        # having been removed, and the alternative wipes defaults and user
+        # assignments on a single SYNC click (same guard as connect.number).
+        if not numbers:
+            debug(self, 'Provider returned no {} entries; skipping removal pass.'.format(callerid_type))
+            return
         recs_to_remove = self.env['connect.outgoing_callerid'].search(
-            [('sid', 'not in', [k.sid for k in numbers]), ('callerid_type', '=', callerid_type)])
+            [('sid', 'not in', [k.sid for k in numbers]),
+             # Match by number too, so an account swap re-adopts records
+             # instead of deleting every row whose SID no longer resolves.
+             ('number', 'not in', [k.phone_number for k in numbers]),
+             ('callerid_type', '=', callerid_type)])
         debug(self, 'Removing {} CallerIds: {}'.format(callerid_type, [k.number for k in recs_to_remove]))
         recs_to_remove.unlink()
 

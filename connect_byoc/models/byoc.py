@@ -424,7 +424,19 @@ class BYOC(models.Model):
                 rec._import_byoc_domain(client, trunk)
                 rec.update_twilio_byoc(client)
         # Remove trunks that exist only in Odoo (trunk was removed in Twilio).
-        trunks_to_remove = self.search([("sid", "not in", [k.sid for k in trunks])])
+        # Skip entirely when the provider returned no trunks: far more likely
+        # a mid-migration state or a compat provider without the Voice v1
+        # surface than every trunk having been deleted — the alternative
+        # unlinks every trunk (cascading its origination URIs) on one SYNC
+        # click (same guard as connect.number).
+        if not trunks:
+            return
+        trunks_to_remove = self.search([
+            ("sid", "not in", [k.sid for k in trunks]),
+            # Match by name too, so an account swap re-adopts trunks instead
+            # of deleting every row whose SID no longer resolves.
+            ("friendly_name", "not in", [k.friendly_name for k in trunks]),
+        ])
         if trunks_to_remove:
             user_message = "BYOC(s) {} removed in Twilio!".format(
                 ",".join([k.friendly_name for k in trunks_to_remove])

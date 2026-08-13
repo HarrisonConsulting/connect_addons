@@ -19,6 +19,7 @@ from . import test_audio_utterance_cache
 from . import test_audio_reachability
 from . import test_audio_ulaw_transcode
 from . import test_audio_controller
+from . import test_customer_portal
 from . import test_audio_voice_resolution
 from . import test_audio_jinja
 from . import test_twiml_audio_refs

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="portal_my_home_menu_connect_calls"
+              name="Portal layout: Connect call breadcrumbs"
+              inherit_id="portal.portal_breadcrumbs" priority="35">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name in ('connect_calls', 'connect_call')"
+                t-attf-class="breadcrumb-item #{'active' if page_name == 'connect_calls' else ''}">
+                <a t-if="page_name == 'connect_call'" href="/my/calls">Calls</a>
+                <t t-else="">Calls</t>
+            </li>
+            <li t-if="page_name == 'connect_call'" class="breadcrumb-item active">
+                Call <t t-out="call.id"/>
+            </li>
+        </xpath>
+    </template>
+
+    <template id="portal_my_home_connect_calls"
+              name="Portal My Home: Customer calls"
+              inherit_id="portal.portal_my_home" priority="35">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
+            <t t-if="connect_customer_call_portal_enabled">
+                <t t-call="portal.portal_docs_entry">
+                    <t t-set="icon" t-value="'/connect/static/description/logo.png'"/>
+                    <t t-set="title">Calls &amp; Voicemails</t>
+                    <t t-set="url" t-value="'/my/calls'"/>
+                    <t t-set="text">Listen to your recordings and read available transcripts</t>
+                    <t t-set="placeholder_count" t-value="'connect_call_count'"/>
+                    <t t-set="config_card" t-value="True"/>
+                </t>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="portal_my_calls" name="My Calls and Voicemails">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">Calls &amp; Voicemails</t>
+            </t>
+
+            <div t-if="not calls" class="alert alert-info" role="alert">
+                No calls or voicemails were found for your account.
+            </div>
+
+            <t t-if="calls" t-call="portal.portal_table">
+                <thead>
+                    <tr class="active">
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Phone number</th>
+                        <th class="text-end">Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="calls" t-as="connect_call">
+                        <tr>
+                            <td>
+                                <a t-att-href="'/my/calls/%s' % connect_call.id">
+                                    <span t-field="connect_call.create_date"/>
+                                </a>
+                            </td>
+                            <td>
+                                <span t-if="connect_call.call_result == 'voicemail'"
+                                      class="badge text-bg-info">Voicemail</span>
+                                <span t-elif="connect_call.direction == 'incoming'"
+                                      class="badge text-bg-secondary">Incoming call</span>
+                                <span t-elif="connect_call.direction == 'outgoing'"
+                                      class="badge text-bg-primary">Outgoing call</span>
+                                <span t-else="" class="badge text-bg-secondary">Call</span>
+                            </td>
+                            <td>
+                                <t t-out="connect_call.caller if connect_call.direction == 'incoming' else connect_call.called"/>
+                            </td>
+                            <td class="text-end">
+                                <t t-out="connect_call.duration_human or '—'"/>
+                            </td>
+                        </tr>
+                    </t>
+                </tbody>
+            </t>
+        </t>
+    </template>
+
+    <template id="portal_my_call" name="My Call">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">Call Details</t>
+            </t>
+
+            <div class="row g-3">
+                <div class="col-12 col-lg-5">
+                    <div class="card h-100">
+                        <div class="card-header fw-bold">Call information</div>
+                        <div class="card-body">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">Date</dt>
+                                <dd class="col-sm-8"><span t-field="call.create_date"/></dd>
+                                <dt class="col-sm-4">Direction</dt>
+                                <dd class="col-sm-8"><t t-out="(call.direction or 'call').replace('-', ' ').title()"/></dd>
+                                <dt class="col-sm-4">From</dt>
+                                <dd class="col-sm-8"><t t-out="call.caller or '—'"/></dd>
+                                <dt class="col-sm-4">To</dt>
+                                <dd class="col-sm-8"><t t-out="call.called or '—'"/></dd>
+                                <dt class="col-sm-4">Duration</dt>
+                                <dd class="col-sm-8"><t t-out="call.duration_human or '—'"/></dd>
+                                <dt class="col-sm-4">Result</dt>
+                                <dd class="col-sm-8"><t t-out="(call.call_result or call.status or 'unknown').replace('-', ' ').title()"/></dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-7">
+                    <div t-if="recording" class="card mb-3">
+                        <div class="card-header fw-bold">Call recording</div>
+                        <div class="card-body">
+                            <audio controls="controls" preload="metadata" class="w-100">
+                                <source t-att-src="'/my/calls/%s/recording' % call.id"/>
+                            </audio>
+                        </div>
+                    </div>
+                    <div t-if="call.voicemail_attachment_id or call.voicemail_url" class="card mb-3">
+                        <div class="card-header fw-bold">Voicemail</div>
+                        <div class="card-body">
+                            <audio controls="controls" preload="metadata" class="w-100">
+                                <source t-att-src="'/my/calls/%s/voicemail' % call.id"/>
+                            </audio>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div t-if="recording and recording.transcript" class="card mt-3">
+                <div class="card-header fw-bold">Call transcript</div>
+                <div class="card-body">
+                    <p class="mb-0 text-break" style="white-space: pre-wrap;"
+                       t-out="recording.transcript"/>
+                </div>
+            </div>
+
+            <div t-if="call.voicemail_transcript" class="card mt-3">
+                <div class="card-header fw-bold">Voicemail transcript</div>
+                <div class="card-body">
+                    <p class="mb-0 text-break" style="white-space: pre-wrap;"
+                       t-out="call.voicemail_transcript"/>
+                </div>
+            </div>
+
+            <div t-if="call.summary" class="card mt-3">
+                <div class="card-header fw-bold">Summary</div>
+                <div class="card-body" t-field="call.summary"/>
+            </div>
+
+            <div t-if="not ((recording and recording.transcript) or call.voicemail_transcript or call.summary)"
+                 class="alert alert-light border mt-3" role="status">
+                No transcript or summary is available for this call.
+            </div>
+        </t>
+    </template>
+
+</odoo>

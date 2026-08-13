@@ -31,6 +31,18 @@ class Call(models.Model):
     _description = 'Call'
     _order = 'id desc'
 
+    @api.model
+    def _customer_portal_domain(self, partner):
+        """Return the complete customer-facing authorization boundary.
+
+        Calls are intentionally matched to the portal user's exact contact,
+        not their commercial entity. A portal contact must never inherit call
+        history from sibling contacts merely because they share a company.
+        Customer portal controllers may sudo only after applying this domain.
+        """
+        partner.ensure_one()
+        return [('partner', '=', partner.id)]
+
     name = fields.Char(compute='_get_name')
     channels = fields.One2many('connect.channel', 'call', readonly=True)
     recording = fields.Many2one('connect.recording', compute='_get_recording_data')

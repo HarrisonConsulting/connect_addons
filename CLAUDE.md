@@ -14,7 +14,7 @@ Connect Addons is a Twilio-based telephony integration suite for Odoo, originall
 
 | Module | Version | License | Purpose |
 |--------|---------|---------|---------|
-| `connect` | 1.0.31 | Other proprietary | Core Twilio-Odoo integration (calls, SMS, WhatsApp, recordings, callflows) |
+| `connect` | 1.27.0 | OPL-1 | Core Twilio-Odoo integration, including read-only customer call history in `/my` |
 | `connect_crm` | 1.0.4 | Other proprietary | CRM integration: lead creation from calls, UTM tracking |
 | `connect_helpdesk` | 1.0.1 | Other proprietary | Helpdesk integration: ticket creation from calls |
 | `connect_website` | 1.0.1 | Other proprietary | Website click-to-call snippet using Twilio |
@@ -38,6 +38,7 @@ connect (Application - core Twilio integration)
 
 **Key patterns:**
 - `connect` is the main application with the top-level phone menu
+- Core `connect` owns the ordinary customer `/my/calls` experience; access is read-only, globally opt-in, and scoped to calls linked directly to the portal contact
 - OWL components in `connect/static/src/components/phone/` for the softphone UI
 - Dark mode support via `web.assets_web_dark` bundle
 - Webhook security groups for external Twilio callbacks

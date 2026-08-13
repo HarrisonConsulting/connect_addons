@@ -87,6 +87,12 @@
                       <field name="delete_twilio_recording" invisible="recording_storage == 'twilio'"/>
                       <small colspan="2" invisible="recording_storage == 'twilio' or not delete_twilio_recording">Recordings are permanently deleted from Twilio after local transfer. Ensure your storage is reliable before enabling.</small>
                     </group>
+                    <group string="Customer Portal">
+                      <field name="customer_portal_calls_enabled"/>
+                      <small colspan="2" invisible="not customer_portal_calls_enabled">
+                        Customers can view only calls linked directly to their portal contact. Access is read-only.
+                      </small>
+                    </group>
                     <group string="Voice">
                       <field name="default_twilio_voice"
                              options="{'no_create': True}"/>

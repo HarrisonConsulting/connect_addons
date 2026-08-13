@@ -2,8 +2,9 @@
 
 {
     'name': 'Connect',
-    'version': '1.26.14',
-    'author': 'Oduist',
+    'version': '1.27.0',
+    'author': 'Harrison Consulting, LLC',
+    'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
     'price': 0,
     'currency': 'EUR',
@@ -12,7 +13,7 @@
     'category': 'Phone',
     'summary': 'Twilio and Odoo integration application',
     'description': '',
-    'depends': ['mail', 'contacts', 'sms'],
+    'depends': ['mail', 'contacts', 'sms', 'portal'],
     'external_dependencies': {
         'python': ['twilio', 'openai', 'numpy', 'samplerate'],
     },
@@ -64,6 +65,7 @@
         'views/message_configuration.xml',
         'views/message_content_template.xml',
         'views/whatsapp_sender.xml',
+        'views/portal_templates.xml',
         'views/versions.xml',
         'views/documentation.xml',
         # Wizard

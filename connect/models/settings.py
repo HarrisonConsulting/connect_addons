@@ -330,6 +330,12 @@ class Settings(models.Model):
         default=False, string='Delete from Twilio After Transfer',
         help='Delete recordings from Twilio after successfully storing locally. Reduces Twilio storage costs.'
     )
+    customer_portal_calls_enabled = fields.Boolean(
+        string='Customer Call Portal',
+        default=False,
+        help='Let portal customers view calls linked directly to their contact, '
+             'including recordings, voicemails, and available transcripts.',
+    )
     ############################################################
     instance_uid = fields.Char("Instance UID", compute="_get_instance_data")
     api_url = fields.Char("API URL", compute="_get_instance_data")

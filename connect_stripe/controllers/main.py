@@ -16,11 +16,10 @@ Reference: https://www.twilio.com/docs/usage/webhooks/webhooks-security
 
 import logging
 
-from twilio.request_validator import RequestValidator
 from twilio.twiml.voice_response import VoiceResponse, Pay, Dial
 
 from odoo.http import Controller, route, request, Response
-from odoo.addons.connect.models.settings import get_env_credential
+from odoo.addons.connect.tools import validate_twilio_request
 
 logger = logging.getLogger(__name__)
 
@@ -49,29 +48,10 @@ class ConnectStripeController(Controller):
         body (request.params strips routing args automatically).
         """
         settings = request.env['connect.settings'].sudo()
-        if not settings.get_param('twilio_verify_requests'):
-            if get_env_credential('account_sid') is not None:
-                logger.critical('SECURITY: Twilio webhook signature verification is DISABLED')
-                return True
-            logger.critical(
-                'SECURITY: twilio_verify_requests is disabled but no CONNECT_* '
-                'sandbox override is active (production context); refusing to '
-                'skip Twilio webhook signature verification.'
-            )
-        auth_token = settings.get_param('auth_token')
-        validator = RequestValidator(auth_token)
-        url = request.httprequest.url.replace('http:', 'https:')
-        signature = request.httprequest.headers.get('X-Twilio-Signature', '')
         # POST form body only — Twilio docs are explicit that query-string params
         # must not be in the params dict (they're already in the URL).
         body = dict(request.httprequest.form) if request.httprequest.method == 'POST' else {}
-        if not validator.validate(url, body, signature):
-            if request.httprequest.url.startswith('http:'):
-                logger.error('Twilio requires HTTPS for signature verification.')
-            else:
-                logger.error('Twilio signature invalid for %s', request.httprequest.path)
-            return False
-        return True
+        return validate_twilio_request(settings, request.httprequest, body)
 
     def _find_payment(self, session_id=None, call_sid=None, states=None):
         env = request.env

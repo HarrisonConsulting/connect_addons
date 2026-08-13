@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 """Tests for error handling across the connect module: credentials, transcription, webhooks, settings."""
 
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
+
+from twilio.request_validator import RequestValidator
 
 from odoo.tests import tagged
 from odoo.exceptions import ValidationError
+from odoo.addons.connect.tools import validate_twilio_request
+
 from .common import ConnectTestCase
 
 
@@ -47,6 +52,91 @@ class TestTwilioClientErrors(ConnectTestCase):
             with self.assertRaises(ValidationError) as cm:
                 self.env['connect.settings'].get_client()
             self.assertIn('Twilio API keys', str(cm.exception))
+
+
+@tagged('post_install', '-at_install')
+class TestTwilioRequestValidation(ConnectTestCase):
+    """Every public Twilio adapter delegates to one fail-closed policy."""
+
+    test_url = 'https://example.com/twilio/webhook/status'
+    test_data = {'CallSid': 'CA_test', 'CallStatus': 'completed'}
+
+    def _httprequest(self, signature='', *, url=None):
+        return SimpleNamespace(
+            url=url or self.test_url,
+            path='/twilio/webhook/status',
+            headers={'X-Twilio-Signature': signature},
+        )
+
+    def test_disabled_verification_fails_closed(self):
+        settings = self.env['connect.settings']
+        with patch.object(
+            settings.__class__, 'get_param', return_value=False,
+        ), patch.object(
+            settings.__class__, '_get_client_credentials',
+            side_effect=AssertionError('credentials must not be read'),
+        ):
+            self.assertFalse(validate_twilio_request(
+                settings, self._httprequest(), self.test_data,
+            ))
+
+    def test_missing_auth_token_fails_closed(self):
+        settings = self.env['connect.settings']
+        with patch.object(
+            settings.__class__, 'get_param', return_value=True,
+        ), patch.object(
+            settings.__class__, '_get_client_credentials',
+            return_value=('AC_test', False),
+        ):
+            self.assertFalse(validate_twilio_request(
+                settings, self._httprequest(), self.test_data,
+            ))
+
+    def test_valid_signature_is_accepted(self):
+        settings = self.env['connect.settings']
+        auth_token = 'test_auth_token'
+        signature = RequestValidator(auth_token).compute_signature(
+            self.test_url, self.test_data,
+        )
+        with patch.object(
+            settings.__class__, 'get_param', return_value=True,
+        ), patch.object(
+            settings.__class__, '_get_client_credentials',
+            return_value=('AC_test', auth_token),
+        ):
+            self.assertTrue(validate_twilio_request(
+                settings, self._httprequest(signature), self.test_data,
+            ))
+
+    def test_invalid_signature_is_rejected(self):
+        settings = self.env['connect.settings']
+        with patch.object(
+            settings.__class__, 'get_param', return_value=True,
+        ), patch.object(
+            settings.__class__, '_get_client_credentials',
+            return_value=('AC_test', 'test_auth_token'),
+        ):
+            self.assertFalse(validate_twilio_request(
+                settings, self._httprequest('invalid'), self.test_data,
+            ))
+
+    def test_http_proxy_url_is_validated_as_https(self):
+        settings = self.env['connect.settings']
+        auth_token = 'test_auth_token'
+        signature = RequestValidator(auth_token).compute_signature(
+            self.test_url, self.test_data,
+        )
+        with patch.object(
+            settings.__class__, 'get_param', return_value=True,
+        ), patch.object(
+            settings.__class__, '_get_client_credentials',
+            return_value=('AC_test', auth_token),
+        ):
+            self.assertTrue(validate_twilio_request(
+                settings,
+                self._httprequest(signature, url=self.test_url.replace('https:', 'http:')),
+                self.test_data,
+            ))
 
 
 @tagged('post_install', '-at_install')

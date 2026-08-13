@@ -341,7 +341,11 @@ class Settings(models.Model):
     api_url = fields.Char("API URL", compute="_get_instance_data")
     api_fallback_url = fields.Char("API Fallback URL")
     twilio_verify_requests = fields.Boolean(
-        default=True, string="Verify Twilio Requests"
+        default=True,
+        string="Verify Twilio Requests",
+        help='Validate every public Twilio callback using its request signature. '
+             'Disabling this setting rejects all Twilio callbacks; it never '
+             'permits unsigned requests.',
     )
     # Registration fields
     customer_code = fields.Char()

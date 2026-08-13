@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import uuid
+from unittest.mock import patch
 
 from odoo.tests import HttpCase, tagged
+from odoo.addons.connect_stripe.controllers.main import ConnectStripeController
 
 from .common import StripeTestCase
 
@@ -14,9 +16,13 @@ class TestStripeControllerHttp(StripeTestCase, HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Disable signature verification for the test suite — verification path
-        # is exercised in its own test below.
-        cls.env['connect.settings'].sudo().set_param('twilio_verify_requests', False)
+        # Controller behavior is exercised independently of Twilio's HMAC. The
+        # shared validator has dedicated fail-closed tests in connect.
+        cls.startClassPatcher(patch.object(
+            ConnectStripeController,
+            'check_signature',
+            return_value=True,
+        ))
 
     def _new_payment(self, **kw):
         vals = {
@@ -206,14 +212,14 @@ class TestStripeControllerHttp(StripeTestCase, HttpCase):
     def test_reject_returns_200_not_403(self):
         """Twilio L4: invalid-signature reject must be 200 (Twilio treats
         4xx as transport error and retries)."""
-        # Re-enable signature verification to trigger the reject path.
-        self.env['connect.settings'].sudo().set_param('twilio_verify_requests', True)
-        try:
+        with patch.object(
+            ConnectStripeController,
+            'check_signature',
+            return_value=False,
+        ):
             res = self.url_open(
                 '/connect/stripe/pay_webhook?session_id=any',
                 data={'CallSid': 'CAxxx'},
             )
             self.assertEqual(res.status_code, 200)
             self.assertIn('<Hangup', res.text)
-        finally:
-            self.env['connect.settings'].sudo().set_param('twilio_verify_requests', False)

@@ -4,8 +4,7 @@ import logging
 
 from odoo.http import request, Controller, route, Response
 from odoo.service.model import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
-from odoo.addons.connect.models.settings import get_env_credential
-from twilio.request_validator import RequestValidator
+from odoo.addons.connect.tools import validate_twilio_request
 
 logger = logging.getLogger(__name__)
 
@@ -19,37 +18,12 @@ class ConnectController(Controller):
     @staticmethod
     def check_signature(data, region=True):
         settings = request.env['connect.settings'].sudo()
-        if not settings.get_param('twilio_verify_requests'):
-            if get_env_credential('account_sid') is not None:
-                logger.critical('SECURITY: Twilio webhook signature verification is DISABLED')
-                return True
-            logger.critical(
-                'SECURITY: twilio_verify_requests is disabled but no CONNECT_* '
-                'sandbox override is active (production context); refusing to '
-                'skip Twilio webhook signature verification.'
-            )
-        _, auth_token = settings._get_client_credentials()
-        # region_auth_token is a Twilio-region concept with no VoiceTel
-        # equivalent; only apply the fallback on the Twilio path.
-        if region and settings.get_param('rest_provider') == 'twilio':
-            auth_token = settings.get_param('region_auth_token') or auth_token
-        validator = RequestValidator(auth_token)
-        url = request.httprequest.url.replace('http:', 'https:')
-        signature = request.httprequest.headers.get('X-Twilio-Signature', '')
-        request_valid = validator.validate(url, data, signature)
-        if not request_valid:
-            if request.httprequest.url.startswith('http:'):
-                logger.error('Twilio requires HTTPS to be setup!')
-            else:
-                # Distinguish the two failure classes for provider debugging:
-                # a missing header means the provider does not sign at all; a
-                # present-but-wrong one means a secret or URL-reconstruction
-                # mismatch (proxy headers, ports, trailing slashes).
-                logger.error(
-                    'Twilio request is not valid! signature_header_present=%s '
-                    'signature_len=%s validated_url=%s',
-                    bool(signature), len(signature), url)
-        return request_valid
+        return validate_twilio_request(
+            settings,
+            request.httprequest,
+            data,
+            region=region,
+        )
 
     @route('/twilio/webhook/domain', methods=['POST'], type='http', auth='public', csrf=False)
     def domain_webhook(self, **kw):

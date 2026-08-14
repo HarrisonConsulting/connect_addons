@@ -31,11 +31,13 @@ class TestCallflowCRUD(ConnectTestCase):
             'name': 'Gather prompt',
             'source': 'twilio_tts',
             'static_text': 'Press 1 for sales, 2 for support.',
+            'state': 'reviewed',
         })
         invalid = Audio.create({
             'name': 'Gather invalid',
             'source': 'twilio_tts',
             'static_text': 'Invalid selection. Try again.',
+            'state': 'reviewed',
         })
         callflow = self.env['connect.callflow'].create({
             'name': 'Gather Flow',
@@ -61,6 +63,7 @@ class TestCallflowCRUD(ConnectTestCase):
             'name': 'Voicemail greeting',
             'source': 'twilio_tts',
             'static_text': 'Leave a message after the tone.',
+            'state': 'reviewed',
         })
         callflow = self.env['connect.callflow'].create({
             'name': 'Voicemail Flow',
@@ -76,6 +79,7 @@ class TestCallflowCRUD(ConnectTestCase):
             'name': 'Business hours closed',
             'source': 'twilio_tts',
             'static_text': 'We are closed. Call back tomorrow.',
+            'state': 'reviewed',
         })
         callflow = self.env['connect.callflow'].create({
             'name': 'Business Hours Flow',
@@ -296,6 +300,8 @@ class TestCallflowAfterHoursRendering(ConnectTestCase):
             'name': f'After hours {text[:20]}',
             'source': 'twilio_tts',
             'static_text': text,
+            # Referrer invariant: only reviewed/live audio is selectable.
+            'state': 'reviewed',
         })
 
     def test_render_after_hours_with_message_and_voicemail(self):
@@ -629,6 +635,8 @@ class TestCallflowOnCallAction(ConnectTestCase):
             'name': name,
             'source': 'twilio_tts',
             'static_text': text,
+            # Referrer invariant: only reviewed/live audio is selectable.
+            'state': 'reviewed',
         })
 
     def test_on_call_action_completed_hangup(self):
@@ -651,6 +659,10 @@ class TestCallflowOnCallAction(ConnectTestCase):
         vm_audio = self._make_vm_audio('VM Test', 'Please leave your message.')
         callflow = self.env['connect.callflow'].create({
             'name': 'VM Action Test',
+            # on_call_action() routes to voicemail on operator intent
+            # (voicemail_enabled), not on the audio m2o being set. Without
+            # this the flow correctly falls through to "could not connect".
+            'voicemail_enabled': True,
             'voicemail_audio_id': vm_audio.id,
         })
         request = {'DialCallStatus': 'no-answer'}

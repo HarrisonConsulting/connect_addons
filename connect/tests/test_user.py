@@ -386,6 +386,8 @@ class TestUserRender(ConnectTestCase):
             'name': 'DND voicemail',
             'source': 'twilio_tts',
             'static_text': 'Leave a message for DND user.',
+            # Referrer invariant: only reviewed/live audio is selectable.
+            'state': 'reviewed',
         })
         user = self._create_user(
             username='dnduser',
@@ -758,3 +760,75 @@ class TestUserCallflowManagement(ConnectTestCase):
         types = callflows.mapped('callflow_type')
         self.assertEqual(types[0], 'client')
         self.assertEqual(types[1], 'sip')
+
+
+@tagged('post_install', '-at_install')
+class TestUserUriResolution(ConnectTestCase):
+    """get_user_by_uri must honour the domain half of a wire identity.
+
+    Every layer below Odoo is domain-qualified: SIP AORs are
+    username@domain_name and client identities are minted the same way by
+    get_client_identity(). The resolver used to discard the host before
+    searching, which is only safe while connect.user._username_uniq is
+    UNIQUE table-wide.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.twiml_app = cls.env['connect.twiml'].create({
+            'name': 'URI App',
+            'code_type': 'model_method',
+            'model': 'connect.domain',
+            'method': 'route_call',
+        })
+        cls.domain = cls.env['connect.domain'].with_context(
+            no_twilio_create=True,
+        ).create({
+            'friendly_name': 'URI Test Domain',
+            'subdomain': 'uritest',
+            'application': cls.twiml_app.id,
+        })
+        cls.other_domain = cls.env['connect.domain'].with_context(
+            no_twilio_create=True,
+        ).create({
+            'friendly_name': 'URI Other Domain',
+            'subdomain': 'uriother',
+            'application': cls.twiml_app.id,
+        })
+        cls.user = cls.env['connect.user'].with_context(
+            no_twilio_create=True, no_clear_cache=True,
+        ).create({'username': 'uriagent', 'domain': cls.domain.id})
+
+    def test_resolves_client_identity(self):
+        found = self.env['connect.user'].get_user_by_uri(
+            'client:{}'.format(self.user.get_client_identity()))
+        self.assertEqual(found, self.user)
+
+    def test_resolves_sip_uri(self):
+        found = self.env['connect.user'].get_user_by_uri(
+            'sip:uriagent@{}'.format(self.domain.domain_name))
+        self.assertEqual(found, self.user)
+
+    def test_unknown_username_returns_empty(self):
+        self.assertFalse(
+            self.env['connect.user'].get_user_by_uri('sip:nobody@example.com'))
+
+    def test_unparseable_uri_returns_empty(self):
+        self.assertFalse(self.env['connect.user'].get_user_by_uri('garbage'))
+        self.assertFalse(self.env['connect.user'].get_user_by_uri(False))
+
+    def test_matches_own_domain_and_edge_variants(self):
+        self.assertTrue(self.user._matches_sip_host(self.domain.domain_name))
+        self.assertTrue(
+            self.user._matches_sip_host(self.domain.domain_name.upper()))
+        for edge_host in self.domain.edge_domains.split('\n'):
+            self.assertTrue(
+                self.user._matches_sip_host(edge_host),
+                'edge host %s should match its own domain' % edge_host)
+
+    def test_rejects_foreign_and_empty_hosts(self):
+        self.assertFalse(
+            self.user._matches_sip_host(self.other_domain.domain_name))
+        self.assertFalse(self.user._matches_sip_host(''))
+        self.assertFalse(self.user._matches_sip_host(None))

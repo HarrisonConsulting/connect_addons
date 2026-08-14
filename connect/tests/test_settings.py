@@ -135,7 +135,11 @@ class TestVoiceMLCompatSettings(ConnectTestCase):
         settings.set_param('auth_token', 'primary_token')
         settings.set_param('region_auth_token', 'region_token')
         settings.set_param('rest_api_host', 'voiceml.example.com')
-        with patch('connect.models.settings.Client') as mock_client_cls:
+        # Must patch through the odoo.addons path: Odoo registers addon
+        # modules under odoo.addons.<module>, and patching 'connect.models…'
+        # imports a second copy of the module, which the framework rejects
+        # with "Invalid import of connect.models.http.IrHttp".
+        with patch('odoo.addons.connect.models.settings.Client') as mock_client_cls:
             settings.get_client()
             args, kwargs = mock_client_cls.call_args
             self.assertEqual(args[1], 'primary_token')

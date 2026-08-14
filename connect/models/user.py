@@ -223,9 +223,49 @@ class User(models.Model):
                         raise ValidationError(format_connect_response(e))
         for connect_user in recs:
             connect_user.manage_group()
+        recs._ensure_voicemail_box()
         if recs and not self.env.context.get('no_clear_cache'):
             self.env.registry.clear_cache()
         return recs
+
+    def _ensure_voicemail_box(self):
+        """Give every new user their own voicemail box.
+
+        Merged here from a second create() that used to sit lower in this
+        same class. Two `def create` in one class is not an override chain:
+        the later definition simply replaces the earlier one, so from
+        2026-05-13 (commit 2b46557) until this merge the SIP provisioning,
+        password masking and group assignment above never ran at all.
+        """
+        for pbx_user in self:
+            if pbx_user.voicemail_box_id:
+                continue
+            box = self.env['connect.voicemail_box'].sudo().create({
+                'name': (pbx_user.user.name if pbx_user.user else pbx_user.username) or 'Voicemail',
+                'member_ids': [Command.link(pbx_user.user.id)] if pbx_user.user else [],
+            })
+            pbx_user.sudo().voicemail_box_id = box.id
+
+    def _propagate_voicemail_box(self, vals):
+        """Re-point this user's existing voicemails at their new box.
+
+        Merged here from a second write() in this same class; see
+        _ensure_voicemail_box for why that shadowing mattered.
+        """
+        if 'voicemail_box_id' not in vals:
+            return
+        new_box_id = vals['voicemail_box_id'] or None
+        for pbx_user in self:
+            pbx_user.env.cr.execute("""
+                UPDATE connect_call
+                SET voicemail_box_id = %s
+                WHERE voicemail_url IS NOT NULL
+                AND id IN (
+                    SELECT connect_call_id
+                    FROM connect_call_connect_user_rel
+                    WHERE connect_user_id = %s
+                )
+            """, (new_box_id, pbx_user.id))
 
     def delete_sip_account(self):
         self.ensure_one()
@@ -322,6 +362,7 @@ class User(models.Model):
         if self.env.context.get('skip_sync'):
             res = super().write(vals)
             self.manage_group()
+            self._propagate_voicemail_box(vals)
             return res
         if 'username' in vals:
             raise ValidationError('Username cannot be changed!')
@@ -340,6 +381,7 @@ class User(models.Model):
                     vals['password'] = '*' * len(vals['password'])
         res = super().write(vals)
         self.manage_group()
+        self._propagate_voicemail_box(vals)
         if res and not self.env.context.get('no_clear_cache'):
             self.env.registry.clear_cache()
         return res
@@ -678,18 +720,52 @@ class User(models.Model):
 
     @api.model
     def get_user_by_uri(self, userinfo):
+        """Resolve a SIP or client URI to its connect.user.
+
+        The wire identity is always domain-qualified: SIP endpoints register
+        as username@domain_name, and Twilio/VoiceTel client identities are
+        minted in the same shape by get_client_identity(). username alone is
+        currently enough to resolve, because connect.user._username_uniq is
+        UNIQUE table-wide, but the host is honoured as a tie-breaker so this
+        keeps resolving to the right endpoint if that constraint is ever
+        scoped per domain. With today's constraint the host branch is
+        unreachable and the result is identical to a username-only lookup.
+        """
         if not userinfo:
             # Return empty set.
             return self.env['connect.user']
-        re_call_uri = re.compile(r'^(?:sip|client):([^@]+)@')
-        found_username = re_call_uri.search(userinfo)
-        if found_username:
-            user = self.env['connect.user'].search([
-                ('username', '=', found_username.group(1))])
-            debug(self, 'Found user: {} by {}.'.format(user.username, userinfo))
+        re_call_uri = re.compile(r'^(?:sip|client):([^@]+)@([^;>\s]*)')
+        found = re_call_uri.search(userinfo)
+        if found:
+            username, host = found.group(1), (found.group(2) or '').strip()
+            user = self.env['connect.user'].search([('username', '=', username)])
+            if len(user) > 1 and host:
+                scoped = user.filtered(lambda u: u._matches_sip_host(host))
+                if scoped:
+                    user = scoped
+            debug(self, 'Found user: {} by {}.'.format(user.mapped('username'), userinfo))
             return user
         # Return empty set.
         return self.env['connect.user']
+
+    def _matches_sip_host(self, host):
+        """Whether a SIP/client URI host belongs to this user's domain.
+
+        Accepts the domain's canonical name and its per-edge variants
+        (subdomain.sip.<edge>.twilio.com), since a Twilio media edge puts the
+        edge form in the URI while connect.user.uri carries the canonical one.
+        """
+        self.ensure_one()
+        domain = self.sudo().domain
+        host = (host or '').strip().lower()
+        if not (domain and host):
+            return False
+        candidates = {(domain.domain_name or '').strip().lower()}
+        candidates.update(
+            d.strip().lower()
+            for d in (domain.edge_domains or '').split('\n') if d.strip())
+        candidates.discard('')
+        return host in candidates
 
     def create_extension(self):
         self.ensure_one()
@@ -852,36 +928,6 @@ class User(models.Model):
             self._manage_channel_callflow('client', True)
         else:
             self._manage_channel_callflow('client', False)
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        users = super().create(vals_list)
-        for pbx_user in users:
-            if pbx_user.voicemail_box_id:
-                continue
-            box = self.env['connect.voicemail_box'].sudo().create({
-                'name': (pbx_user.user.name if pbx_user.user else pbx_user.username) or 'Voicemail',
-                'member_ids': [Command.link(pbx_user.user.id)] if pbx_user.user else [],
-            })
-            pbx_user.sudo().voicemail_box_id = box.id
-        return users
-
-    def write(self, vals):
-        res = super().write(vals)
-        if 'voicemail_box_id' in vals:
-            new_box_id = vals['voicemail_box_id'] or None
-            for pbx_user in self:
-                pbx_user.env.cr.execute("""
-                    UPDATE connect_call
-                    SET voicemail_box_id = %s
-                    WHERE voicemail_url IS NOT NULL
-                    AND id IN (
-                        SELECT connect_call_id
-                        FROM connect_call_connect_user_rel
-                        WHERE connect_user_id = %s
-                    )
-                """, (new_box_id, pbx_user.id))
-        return res
 
     @api.constrains('voicemail_enabled')
     def _manage_voicemail_enabled(self):

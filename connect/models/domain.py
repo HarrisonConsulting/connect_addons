@@ -314,32 +314,7 @@ class Domain(models.Model):
                     # person credentials but must not materialize as users.
                     debug(self, "Skipping non-person credential {}".format(credential.username))
                     continue
-                # Find matching user in Odoo by username
-                matching_user = domain_users.filtered(lambda u: u.username == credential.username)
-
-                if matching_user:
-                    # Update existing user with Twilio SID
-                    old_sid = matching_user.sid
-                    matching_user.with_context(skip_sync=True).write({
-                        'sid': credential.sid,
-                        'sip_enabled': True,
-                    })
-                    debug(self, "Updated user {} SID: {} -> {}".format(
-                        matching_user.username, old_sid, credential.sid))
-                else:
-                    # Create new user in Odoo for this credential (no Twilio sync)
-                    new_user = self.env['connect.user'].with_context(
-                        no_twilio_create=True,
-                        skip_sync=True
-                    ).create({
-                        'sid': credential.sid,
-                        'username': credential.username,
-                        'sip_enabled': True,
-                        'domain': self.id,
-                        'password': '*' * 12,  # Masked password
-                    })
-                    debug(self, "Created new user {} from Twilio credential".format(
-                        new_user.username))
+                self._import_one_sip_credential(credential)
 
             # Step 3: Create missing Twilio credentials for Odoo users
             missing_in_twilio = odoo_usernames - twilio_usernames
@@ -352,36 +327,106 @@ class Domain(models.Model):
                     odoo_user = sip_enabled_users.filtered(lambda u: u.username == username)
                     if odoo_user:
                         try:
-                            # Generate password for new Twilio credential
-                            password = self.env['connect.user'].generate_twilio_password()
+                            # Savepoint for the same reason as the import side
+                            # below: the write() here flushes inside it, so a
+                            # database error stays contained instead of
+                            # aborting the caller's whole transaction.
+                            with self.env.cr.savepoint():
+                                # Generate password for new Twilio credential
+                                password = self.env['connect.user'].generate_twilio_password()
 
-                            debug(self, "Creating missing Twilio credential for user {}".format(username))
-                            credential = client.sip.credential_lists(cred_list_sid).credentials.create(
-                                username=username,
-                                password=password
-                            )
+                                debug(self, "Creating missing Twilio credential for user {}".format(username))
+                                credential = client.sip.credential_lists(cred_list_sid).credentials.create(
+                                    username=username,
+                                    password=password
+                                )
 
-                            # Update Odoo user with new SID
-                            old_sid = odoo_user.sid
-                            odoo_user.with_context(skip_sync=True).write({
-                                'sid': credential.sid,
-                                'password': '*' * len(password)  # Mask password
-                            })
+                                # Update Odoo user with new SID
+                                old_sid = odoo_user.sid
+                                odoo_user.with_context(skip_sync=True).write({
+                                    'sid': credential.sid,
+                                    'password': '*' * len(password)  # Mask password
+                                })
 
                             debug(self, "Created Twilio credential for user {} - SID: {} -> {}".format(
                                 username, old_sid, credential.sid))
 
                         except Exception as e:
-                            debug(self, "Error creating Twilio credential for user {}: {}".format(
-                                username, str(e)), level="error")
+                            logger.warning(
+                                "Error creating provider credential for user %s on domain %s: %s",
+                                username, self.friendly_name, e)
             else:
                 debug(self, "All SIP-enabled Odoo users already have Twilio credentials")
 
         except Exception as e:
-            debug(self, "Error importing SIP credentials: {}".format(str(e)), level="error")
-            # Don't fail the whole process if credential import fails
+            # Don't fail the whole process if credential import fails.
+            # Deliberately logger, not debug(): debug() reads
+            # connect.settings.debug_mode from the database, which raises
+            # InFailedSqlTransaction if the exception being handled left the
+            # cursor in an aborted transaction — turning a contained failure
+            # into one that escapes this handler.
             logger.warning("Failed to import SIP credentials for domain %s: %s",
-                         self.friendly_name, str(e))
+                           self.friendly_name, e, exc_info=True)
+
+    def _import_one_sip_credential(self, credential):
+        """Reconcile a single provider SIP credential into a connect.user.
+
+        Runs in its own savepoint. connect.user.username is UNIQUE across the
+        whole table (connect.user._username_uniq) while a SIP username is only
+        unique within its domain, so the same extension can legitimately exist
+        on two domains provider-side and collide here. Unguarded that raises
+        psycopg2.UniqueViolation, which aborts the entire transaction —
+        including the domain SID/cred_list_sid rebinds the caller has already
+        made — and no ordinary `except` can recover it, because the cursor is
+        dead by the time the handler runs.
+        """
+        self.ensure_one()
+        try:
+            with self.env.cr.savepoint():
+                # active_test=False: an archived user still occupies the
+                # username as far as the unique constraint is concerned.
+                existing = self.env['connect.user'].with_context(
+                    active_test=False).search(
+                        [('username', '=', credential.username)], limit=1)
+                if existing and existing.domain != self:
+                    # Belongs to another domain. Do not steal it and do not
+                    # create a duplicate: two SIP domains legitimately both
+                    # host an extension "1000". connect.user.domain is
+                    # required, so there is no unassigned case to adopt.
+                    logger.warning(
+                        "SIP credential %s on domain %s already exists in Odoo under "
+                        "domain %s; skipping import to avoid a username collision.",
+                        credential.username, self.friendly_name,
+                        existing.domain.friendly_name)
+                    return
+                if existing:
+                    old_sid = existing.sid
+                    existing.with_context(skip_sync=True).write({
+                        'sid': credential.sid,
+                        'sip_enabled': True,
+                    })
+                    debug(self, "Updated user {} SID: {} -> {}".format(
+                        existing.username, old_sid, credential.sid))
+                    return
+                # Create new user in Odoo for this credential (no Twilio sync)
+                new_user = self.env['connect.user'].with_context(
+                    no_twilio_create=True,
+                    skip_sync=True
+                ).create({
+                    'sid': credential.sid,
+                    'username': credential.username,
+                    'sip_enabled': True,
+                    'domain': self.id,
+                    'password': '*' * 12,  # Masked password
+                })
+                debug(self, "Created new user {} from Twilio credential".format(
+                    new_user.username))
+        except Exception as e:
+            # logger, not debug(): see _import_sip_credentials_from_twilio.
+            logger.warning(
+                "Failed to import SIP credential %s on domain %s: %s",
+                getattr(credential, 'username', credential), self.friendly_name, e,
+                exc_info=True)
 
     @staticmethod
     def _is_twilio_domain_conflict(exc):

@@ -107,22 +107,25 @@ class TestAudioUuid(ConnectTestCase):
         # And it's still a valid v4.
         self.assertEqual(uuid_lib.UUID(dup.uuid).version, 4)
 
-    def test_uuid_immutable_null_to_set_blocked(self):
-        """NULL→set path is guarded too — only allow_uuid_write may mint
-        a uuid, otherwise a caller could pick a value that collides with a
-        baked system UUID (or any other existing reference key)."""
+    def test_uuid_column_forbids_null(self):
+        """The NULL→set path this used to guard is now unreachable.
+
+        connect.audio.uuid is required=True, so the column is NOT NULL and a
+        pre-backfill row cannot exist. The old test simulated one with a raw
+        UPDATE, which now dies on the constraint rather than exercising the
+        write guard. Assert the stronger schema-level guarantee instead; the
+        set→set immutability guard is covered by test_uuid_immutable.
+        """
         audio = self.Audio.create({
             'name': 'Null to set',
             'source': 'twilio_tts',
             'static_text': 'x',
         })
-        # Simulate a pre-backfill row with no uuid.
-        self.env.cr.execute(
-            'UPDATE connect_audio SET uuid = NULL WHERE id = %s',
-            (audio.id,))
-        audio.invalidate_recordset(['uuid'])
-        with self.assertRaises(ValidationError):
-            audio.write({'uuid': str(uuid_lib.uuid4())})
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'):
+            with self.env.cr.savepoint():
+                self.env.cr.execute(
+                    'UPDATE connect_audio SET uuid = NULL WHERE id = %s',
+                    (audio.id,))
 
 
 @tagged('post_install', '-at_install')

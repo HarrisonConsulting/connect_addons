@@ -17,17 +17,12 @@ class TestParkSlotComputed(ConnectTestCase):
     def test_is_occupied_with_call(self):
         """Slot linked to a call computes is_occupied = True."""
         call = self._create_test_call(direction='incoming', status='in-progress')
-        slot = self.env['connect.park_slot'].create({
-            'name': 1,
-            'call': call.id,
-        })
+        slot = self._ensure_park_slot(1, call=call.id)
         self.assertTrue(slot.is_occupied)
 
     def test_is_occupied_without_call(self):
         """Slot with no call computes is_occupied = False."""
-        slot = self.env['connect.park_slot'].create({
-            'name': 2,
-        })
+        slot = self._ensure_park_slot(2, call=False)
         self.assertFalse(slot.is_occupied)
 
     def test_caller_display_with_partner(self):
@@ -36,10 +31,7 @@ class TestParkSlotComputed(ConnectTestCase):
             direction='incoming', status='in-progress',
             partner=self.partner_1.id,
         )
-        slot = self.env['connect.park_slot'].create({
-            'name': 3,
-            'call': call.id,
-        })
+        slot = self._ensure_park_slot(3, call=call.id)
         self.assertEqual(slot.caller_display, 'Test Partner')
 
     def test_caller_display_without_partner(self):
@@ -48,34 +40,25 @@ class TestParkSlotComputed(ConnectTestCase):
             direction='incoming', status='in-progress',
             caller='+15551234567',
         )
-        slot = self.env['connect.park_slot'].create({
-            'name': 4,
-            'call': call.id,
-        })
+        slot = self._ensure_park_slot(4, call=call.id)
         self.assertEqual(slot.caller_display, '+15551234567')
 
     def test_caller_display_empty(self):
         """Caller display is empty string when no call linked."""
-        slot = self.env['connect.park_slot'].create({
-            'name': 5,
-        })
+        slot = self._ensure_park_slot(5, call=False)
         self.assertEqual(slot.caller_display, '')
 
     def test_park_duration_when_occupied(self):
         """Park duration computes elapsed seconds for occupied slot."""
         call = self._create_test_call(direction='incoming', status='in-progress')
-        slot = self.env['connect.park_slot'].create({
-            'name': 6,
-            'call': call.id,
-            'parked_at': fields.Datetime.now() - timedelta(seconds=120),
-        })
+        slot = self._ensure_park_slot(
+            6, call=call.id,
+            parked_at=fields.Datetime.now() - timedelta(seconds=120))
         self.assertGreaterEqual(slot.park_duration, 119)
 
     def test_park_duration_when_empty(self):
         """Park duration is 0 for empty slot."""
-        slot = self.env['connect.park_slot'].create({
-            'name': 7,
-        })
+        slot = self._ensure_park_slot(7, call=False)
         self.assertEqual(slot.park_duration, 0)
 
 
@@ -241,10 +224,7 @@ class TestParkCall(ConnectTestCase):
         """Returns error when target slot already has a parked call."""
         ParkSlot = self.env['connect.park_slot']
         existing_call = self._create_test_call(direction='incoming', status='in-progress')
-        ParkSlot.create({
-            'name': 3,
-            'call': existing_call.id,
-        })
+        self._ensure_park_slot(3, call=existing_call.id)
 
         new_call = self._create_test_call(direction='incoming', status='in-progress')
         user_ch, other_ch = self._make_channels(new_call)
@@ -285,16 +265,16 @@ class TestUnparkCall(ConnectTestCase):
     """Test unpark_call workflow."""
 
     def _park_slot(self, slot_number, call=None):
-        """Helper to create an occupied park slot."""
+        """Helper to occupy a park slot."""
         if not call:
             call = self._create_test_call(direction='incoming', status='in-progress')
-        return self.env['connect.park_slot'].create({
-            'name': slot_number,
-            'call': call.id,
-            'caller_channel_sid': 'CAparked' + 'p' * 26,
-            'conference_name': f'park-{slot_number}',
-            'parked_by': self.env.user.id,
-        }), call
+        return self._ensure_park_slot(
+            slot_number,
+            call=call.id,
+            caller_channel_sid='CAparked' + 'p' * 26,
+            conference_name=f'park-{slot_number}',
+            parked_by=self.env.user.id,
+        ), call
 
     def test_unpark_call_success(self):
         """Successfully unparking clears the slot and returns success."""
@@ -494,11 +474,7 @@ class TestGetParkedCalls(ConnectTestCase):
             partner=self.partner_1.id,
             caller='+15551234567',
         )
-        slot = ParkSlot.create({
-            'name': 7,
-            'call': call.id,
-            'parked_by': self.env.user.id,
-        })
+        slot = self._ensure_park_slot(7, call=call.id, parked_by=self.env.user.id)
 
         result = ParkSlot.get_parked_calls()
         self.assertEqual(len(result), 1)

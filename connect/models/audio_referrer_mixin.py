@@ -137,9 +137,14 @@ class AudioReferrerMixin(models.AbstractModel):
         offenders = []
         for rec in self:
             for field_name in self._audio_reference_fields:
-                audio = rec[field_name]
-                if audio and audio.state not in SELECTABLE_AUDIO_STATES:
-                    offenders.append((rec, field_name, audio))
+                # Iterate rather than reading .state off the field directly:
+                # referrers may declare an x2many here (connect.twiml uses
+                # referenced_audio_ids), and a plain rec[field].state raises
+                # "Expected singleton" as soon as a twiml cites two audios —
+                # a greeting plus a menu prompt is the ordinary IVR case.
+                for audio in rec[field_name]:
+                    if audio.state not in SELECTABLE_AUDIO_STATES:
+                        offenders.append((rec, field_name, audio))
         if not offenders:
             return
         lines = [

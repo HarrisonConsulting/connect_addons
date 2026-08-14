@@ -99,6 +99,15 @@ class ConnectTestCase(TransactionCase):
         if 'connect.settings' in cls.env:
             cls.env['connect.settings'].get_param('account_sid')
 
+        # connect.api_url backs every callback URL rendered into TwiML. A
+        # freshly built database leaves it unset or pointing at localhost,
+        # which connect.settings.check_api_url() rejects — so anything that
+        # renders TwiML comes back as "Invalid api url!" instead of the audio
+        # or dialplan under test. Pin a valid public URL so tests exercise
+        # the render path rather than the config validator.
+        cls.env['ir.config_parameter'].sudo().set_param(
+            'connect.api_url', 'https://test.example.com')
+
     @contextmanager
     def mockTwilioClient(self):
         """Context manager for mocking Twilio API calls."""
@@ -111,6 +120,56 @@ class ConnectTestCase(TransactionCase):
         ):
             self._mock_twilio_client = mock_client
             yield mock_client
+
+    @classmethod
+    def _connect_domain(cls):
+        """Get or create a connect.domain for tests that build a connect.user.
+
+        connect.user.domain is required and its default resolves whichever
+        connect.domain happens to exist, so on a freshly built database the
+        default returns empty and the create dies on the NOT NULL constraint.
+        Reuse an existing domain when the database already has one, so this
+        never perturbs tests that count or sync domains.
+        """
+        Domain = cls.env['connect.domain']
+        existing = Domain.search([('subdomain', 'not like', 'byoc')], limit=1)
+        if existing:
+            return existing
+        app = cls.env['connect.twiml'].search([
+            ('code_type', '=', 'model_method'),
+            ('model', '=', 'connect.domain'),
+            ('method', '=', 'route_call'),
+        ], limit=1)
+        if not app:
+            app = cls.env['connect.twiml'].create({
+                'name': 'Test Domain App',
+                'code_type': 'model_method',
+                'model': 'connect.domain',
+                'method': 'route_call',
+            })
+        return Domain.with_context(no_twilio_create=True).create({
+            'friendly_name': 'Test Base Domain',
+            'subdomain': 'testbase',
+            'application': app.id,
+        })
+
+    def _ensure_park_slot(self, number, **vals):
+        """Get or create the park slot with this number.
+
+        connect.park_slot.sync_slots() provisions slots 1..park_slot_count
+        (default 9) and connect.park_slot._name_unique makes `name` UNIQUE,
+        so a test that blindly creates slot 1 collides with the shipped one
+        and dies on a UniqueViolation. Reuse the existing slot when it is
+        already there, which keeps these tests independent of whether the
+        database was provisioned.
+        """
+        Slot = self.env['connect.park_slot']
+        slot = Slot.search([('name', '=', number)], limit=1)
+        if slot:
+            if vals:
+                slot.write(vals)
+            return slot
+        return Slot.create(dict(vals, name=number))
 
     def _create_test_call(self, direction='incoming', status='completed', **kwargs):
         """Helper to create a test call with channels."""

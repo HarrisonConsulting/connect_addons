@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 from .common import ConnectTestCase
 
 
@@ -139,7 +140,9 @@ class TestCreateTwilioSipDomain(ConnectTestCase):
         ):
             with self.assertRaises(ValidationError) as ctx:
                 domain.create_domain(mock_client)
-            self.assertIn('hostname is already used', str(ctx.exception))
+            # Wording changed in 4ec7648 when domain-conflict handling was
+            # reworked; the test was not updated. Assert the current contract.
+            self.assertIn('already registered in Twilio', str(ctx.exception))
 
     def test_create_domain_generic_error(self):
         """Generic Twilio error during domain creation raises ValidationError."""
@@ -521,3 +524,132 @@ class TestDomainGetDomainApp(ConnectTestCase):
         self.assertTrue(app)
         self.assertEqual(app.model, 'connect.domain')
         self.assertEqual(app.method, 'route_call')
+
+
+@tagged('post_install', '-at_install')
+class TestImportSipCredentials(ConnectTestCase):
+    """Reconciling a domain's provider credential list into connect.users.
+
+    Regression cover for the VoiceTel migration failure: connect.user.username
+    is UNIQUE table-wide (connect.user._username_uniq) while a SIP username is
+    only unique within its domain. Importing a second domain's "1000"
+    credential raised psycopg2.UniqueViolation, which aborted the whole
+    transaction and rolled back every domain SID rebind the sync had already
+    made, leaving cred_list_sid pointing at the old provider's account.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.twiml_app = cls.env['connect.twiml'].create({
+            'name': 'Cred Import App',
+            'code_type': 'model_method',
+            'model': 'connect.domain',
+            'method': 'route_call',
+        })
+        cls.domain_a = cls._make_domain('Domain A', 'credimporta')
+        cls.domain_b = cls._make_domain('Domain B', 'credimportb')
+
+    @classmethod
+    def _make_domain(cls, friendly_name, subdomain):
+        return cls.env['connect.domain'].with_context(
+            no_twilio_create=True,
+        ).create({
+            'friendly_name': friendly_name,
+            'subdomain': subdomain,
+            'application': cls.twiml_app.id,
+        })
+
+    def _make_user(self, domain, username, sid='CR_old'):
+        return self.env['connect.user'].with_context(
+            no_twilio_create=True, skip_sync=True,
+        ).create({
+            'username': username,
+            'domain': domain.id,
+            'sid': sid,
+            'sip_enabled': True,
+        })
+
+    def _client_returning(self, *credentials):
+        client = MagicMock()
+        client.sip.credential_lists.return_value.credentials.list.return_value = list(credentials)
+        return client
+
+    @staticmethod
+    def _credential(username, sid):
+        return MagicMock(username=username, sid=sid)
+
+    def _find_users(self, username):
+        return self.env['connect.user'].with_context(active_test=False).search(
+            [('username', '=', username)])
+
+    def test_credential_matching_this_domain_updates_sid(self):
+        """A credential whose username already exists here rebinds the SID."""
+        user = self._make_user(self.domain_b, 'ext2000', sid='CR_stale')
+        client = self._client_returning(self._credential('ext2000', 'CR_fresh'))
+
+        self.domain_b._import_sip_credentials_from_twilio(client, 'CL_b')
+
+        self.assertEqual(self._find_users('ext2000'), user)
+        self.assertEqual(user.sid, 'CR_fresh')
+
+    def test_unknown_credential_creates_user(self):
+        """A credential with no counterpart in Odoo materializes a user."""
+        client = self._client_returning(self._credential('ext3000', 'CR_new'))
+
+        self.domain_b._import_sip_credentials_from_twilio(client, 'CL_b')
+
+        created = self._find_users('ext3000')
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created.domain, self.domain_b)
+        self.assertEqual(created.sid, 'CR_new')
+        self.assertTrue(created.sip_enabled)
+
+    def test_username_owned_by_other_domain_is_skipped(self):
+        """The same extension on two domains must not duplicate the user."""
+        user = self._make_user(self.domain_a, 'ext1000', sid='CR_a')
+        client = self._client_returning(self._credential('ext1000', 'CR_b'))
+
+        with mute_logger('odoo.addons.connect.models.domain'):
+            self.domain_b._import_sip_credentials_from_twilio(client, 'CL_b')
+
+        found = self._find_users('ext1000')
+        self.assertEqual(found, user, "must not create a second ext1000")
+        self.assertEqual(found.domain, self.domain_a, "must not steal the user")
+        self.assertEqual(found.sid, 'CR_a', "must not rebind another domain's SID")
+
+    def test_collision_does_not_abort_the_transaction(self):
+        """The caller's earlier writes survive a colliding credential.
+
+        This is the failure that cost the dialer: the domain rebind that sync
+        performs immediately before the import was rolled back with the
+        constraint violation, so cred_list_sid stayed on the old account and
+        every later credential mint 404'd.
+        """
+        self._make_user(self.domain_a, 'ext1000', sid='CR_a')
+        # Stand in for the SID rebind _import_existing_domain_by_name does
+        # just before calling the credential import.
+        self.domain_b.write({'cred_list_sid': 'CL_rebound'})
+        client = self._client_returning(self._credential('ext1000', 'CR_b'))
+
+        with mute_logger('odoo.addons.connect.models.domain'):
+            self.domain_b._import_sip_credentials_from_twilio(client, 'CL_rebound')
+
+        # Both of these raise InFailedSqlTransaction on an aborted cursor.
+        self.env.flush_all()
+        self.env.cr.execute('SELECT 1')
+
+        self.domain_b.invalidate_recordset()
+        self.assertEqual(self.domain_b.cred_list_sid, 'CL_rebound')
+
+    def test_archived_user_holding_username_is_not_duplicated(self):
+        """An archived user still occupies the username table-wide."""
+        user = self._make_user(self.domain_b, 'ext4000', sid='CR_old')
+        user.active = False
+        client = self._client_returning(self._credential('ext4000', 'CR_new'))
+
+        self.domain_b._import_sip_credentials_from_twilio(client, 'CL_b')
+
+        found = self._find_users('ext4000')
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found.sid, 'CR_new')

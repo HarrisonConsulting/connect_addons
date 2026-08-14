@@ -128,6 +128,9 @@ class TestAudioReferrerSelectionInvariant(ConnectTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # connect.user.domain is required and resolves ambient data by
+        # default; pin one so these creates work on a fresh database.
+        cls.user_domain = cls._connect_domain()
         Audio = cls.env['connect.audio']
         cls.reviewed_audio = Audio.create({
             'name': 'Reviewed picker target',
@@ -153,31 +156,41 @@ class TestAudioReferrerSelectionInvariant(ConnectTestCase):
     def test_create_rejects_draft_audio_in_referrer_m2o(self):
         with self.assertRaisesRegex(ValidationError, r'draft or archived'):
             self.env['connect.user'].create({
-                'username': 'invariant_draft_create',
+                'username': 'invariantDraftCreate',
+                'domain': self.user_domain.id,
                 'greeting_audio_id': self.draft_audio.id,
             })
 
     def test_create_rejects_archived_audio_in_referrer_m2o(self):
         with self.assertRaisesRegex(ValidationError, r'draft or archived'):
             self.env['connect.user'].create({
-                'username': 'invariant_archived_create',
+                'username': 'invariantArchivedCreate',
+                'domain': self.user_domain.id,
                 'greeting_audio_id': self.archived_audio.id,
             })
 
     def test_create_accepts_reviewed_audio(self):
         user = self.env['connect.user'].create({
-            'username': 'invariant_reviewed_create',
+            'username': 'invariantReviewedCreate',
+            'domain': self.user_domain.id,
             'greeting_audio_id': self.reviewed_audio.id,
         })
         self.assertEqual(user.greeting_audio_id, self.reviewed_audio)
 
     def test_write_rejects_swapping_to_draft(self):
         user = self.env['connect.user'].create({
-            'username': 'invariant_swap_draft',
+            'username': 'invariantSwapDraft',
+            'domain': self.user_domain.id,
             'greeting_audio_id': self.reviewed_audio.id,
         })
+        # The savepoint is what makes the "post-rollback" assertion below
+        # meaningful. assertRaises alone swallows the ValidationError without
+        # unwinding anything, so the ORM cache keeps the rejected value and
+        # the record still reads as the draft audio. A real request rolls the
+        # transaction back on ValidationError; the savepoint reproduces that.
         with self.assertRaisesRegex(ValidationError, r'draft or archived'):
-            user.write({'greeting_audio_id': self.draft_audio.id})
+            with self.env.cr.savepoint():
+                user.write({'greeting_audio_id': self.draft_audio.id})
         # Post-rollback: original audio still wired.
         self.assertEqual(user.greeting_audio_id, self.reviewed_audio)
 
@@ -225,7 +238,8 @@ class TestAudioResetToDraft(ConnectTestCase):
     def test_reset_refuses_with_referrer(self):
         audio = self._make('reviewed')
         self.env['connect.user'].create({
-            'username': 'reset_with_ref',
+            'username': 'resetWithRef',
+            'domain': self._connect_domain().id,
             'greeting_audio_id': audio.id,
         })
         audio.invalidate_recordset(['reference_count'])
@@ -266,6 +280,10 @@ class TestAudioSourceSwitching(ConnectTestCase):
         audio = self.Audio.create({
             'name': 'Split write',
             'source': 'twilio_tts',
+            # Dynamic sources require static_text (connect.audio
+            # _check_source_requirements); the subject here is the switch to
+            # source=record below, not the tts payload.
+            'static_text': 'placeholder',
             'recording_file': wav_b64,
         })
 
@@ -279,6 +297,7 @@ class TestAudioSourceSwitching(ConnectTestCase):
         audio = self.Audio.create({
             'name': 'Split write bin size',
             'source': 'twilio_tts',
+            'static_text': 'placeholder',
             'recording_file': wav_b64,
         })
 
@@ -363,7 +382,8 @@ class TestAudioSourceSwitching(ConnectTestCase):
         utterance = audio.render()
 
         self.assertEqual(utterance.source_used, 'attachment')
-        self.assertEqual(utterance.file, wav_b64)
+        # Binary fields read back as bytes; wav_b64 is str.
+        self.assertEqual(utterance.file, wav_b64.encode())
         self.assertEqual(utterance.mimetype, 'audio/wav')
 
     def test_switch_to_attachment_invalidates_stale_tts_utterance(self):
@@ -386,7 +406,7 @@ class TestAudioSourceSwitching(ConnectTestCase):
 
         self.assertNotEqual(new_utterance.id, old_utterance.id)
         self.assertEqual(new_utterance.source_used, 'attachment')
-        self.assertEqual(new_utterance.file, wav_b64)
+        self.assertEqual(new_utterance.file, wav_b64.encode())
 
     def test_external_url_render_cleans_up_legacy_tts_utterance(self):
         audio = self.Audio.create({
@@ -498,6 +518,7 @@ class TestAudioSourceSwitching(ConnectTestCase):
         audio = self.Audio.create({
             'name': 'Invalid split write',
             'source': 'twilio_tts',
+            'static_text': 'placeholder',
             'recording_file': base64.b64encode(b'not-a-wave-file').decode('ascii'),
         })
 

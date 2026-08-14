@@ -418,17 +418,27 @@ class CallForwardHandler(models.TransientModel):
         """
         try:
             # Remove 'client:' prefix
-            identity = client_identity.replace('client:', '')
-            identity = identity.split('@')[0] if identity else identity
+            qualified = (client_identity or '').replace('client:', '').strip()
+            identity = qualified.split('@')[0] if qualified else qualified
 
             if not identity:
                 logger.warning('Client identity missing for extension lookup: %s', client_identity)
                 return None
 
+            # Resolve through the full identity first. get_client_identity()
+            # mints these as username@domain_name, and splitting the domain
+            # off before searching discards the only thing that
+            # disambiguates the username (see connect.user.get_user_by_uri).
+            user = self.env['connect.user']
+            if '@' in qualified:
+                user = self.env['connect.user'].get_user_by_uri(
+                    'client:{}'.format(qualified))[:1]
+
             # Look for user with matching username (stored field only).
-            user = self.env['connect.user'].search([
-                ('username', '=', identity)
-            ], limit=1)
+            if not user:
+                user = self.env['connect.user'].search([
+                    ('username', '=', identity)
+                ], limit=1)
 
             # Fallback: try extension number directly.
             if not user:

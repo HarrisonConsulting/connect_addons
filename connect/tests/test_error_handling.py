@@ -458,10 +458,7 @@ class TestParkSlotOccupied(ConnectTestCase):
 
         existing_call = self._create_test_call(
             direction='incoming', status='in-progress')
-        ParkSlot.create({
-            'name': 1,
-            'call': existing_call.id,
-        })
+        self._ensure_park_slot(1, call=existing_call.id)
 
         new_call = self._create_test_call(
             direction='incoming', status='in-progress')

@@ -22,6 +22,9 @@ class TestAudioReachability(ConnectTestCase):
             'name': 'Reachable Audio',
             'source': 'twilio_tts',
             'static_text': 'reachable',
+            # Only reviewed/live audio may be attached to a referrer
+            # (connect.audio.referrer.mixin._check_audio_selectable).
+            'state': 'reviewed',
         })
         cls.orphan_audio = cls.Audio.create({
             'name': 'Orphan Audio',

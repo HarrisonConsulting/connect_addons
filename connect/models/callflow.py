@@ -168,7 +168,20 @@ class CallFlow(models.Model):
             self._say_fallback(response, 'Please leave a message after the tone.')
             vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
             vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
-            response.record(maxLength=vm_max_length, finishOnKey=vm_finish_key, playBeep=True)
+            api_url = self.env['connect.settings'].sudo().get_param('api_url')
+            edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
+            response.record(
+                maxLength=vm_max_length,
+                finishOnKey=vm_finish_key,
+                playBeep=True,
+                # Without an explicit action, Twilio re-requests the URL that
+                # served this document once the recording ends; on_call_action
+                # is what recognizes that re-entry and hangs up instead of
+                # looping (see its docstring for the 2026-08-14 incident this
+                # closes). recordingStatusCallback was missing entirely here,
+                # so after-hours voicemails were never saved or emailed.
+                action=urljoin(api_url, 'twilio/webhook/connect.callflow/call_action/{}#e={}'.format(self.id, edge)),
+                recordingStatusCallback=urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge)))
         else:
             response.hangup()
 
@@ -278,6 +291,11 @@ class CallFlow(models.Model):
                     maxLength=vm_max_length,
                     finishOnKey=vm_finish_key,
                     playBeep=True,
+                    # Explicit action stops Twilio falling back to re-requesting
+                    # this document's own URL when the recording ends — see
+                    # on_call_action for why that fallback becomes an infinite
+                    # record loop.
+                    action=action_url,
                     recordingStatusCallback=voicemail_record_status_url)
             else:
                 # No voicemail, just say sorry and hangup.
@@ -364,8 +382,33 @@ class CallFlow(models.Model):
     @api.model
     def on_call_action(self, flow_id, request):
         response = VoiceResponse()
+        callflow = self.browse(flow_id)
+        # The <Record> below is given an explicit `action` pointing back at
+        # this same URL, so Twilio calls back here when a voicemail recording
+        # ends — that callback carries RecordingSid/RecordingUrl and no
+        # DialCallStatus. Recognize it and end the call here.
+        #
+        # Before the `action` was added (2026-08-14 incident), Record had no
+        # action at all: Twilio's documented fallback for that case is to
+        # re-request whatever URL served the current document, i.e. this
+        # same call_action endpoint. That re-entry has no DialCallStatus
+        # either, so `DialCallStatus != 'completed'` was always true and fell
+        # through to "not connected, go to voicemail" below — replaying the
+        # whole greeting+record cycle. On a call nobody hangs up (a misrouted
+        # outbound leg dialing back into our own DID) that loop never
+        # terminated on its own: one call produced 24+ separate recordings
+        # and voicemail notification emails over ~9 minutes before it was
+        # force-ended via the Twilio API. The voicemail itself was already
+        # saved by recordingStatusCallback -> on_vm_recording_status; this
+        # endpoint's only remaining job on a Record completion is to say
+        # goodbye and hang up, never to restart the greeting.
+        if request.get('RecordingSid'):
+            if callflow.exists():
+                callflow._say_fallback(response, 'Thank you, your message has been received. Goodbye.')
+            response.hangup()
+            debug(self, pretty_xml(str(response)))
+            return response
         if request.get('DialCallStatus') != 'completed':
-            callflow = self.browse(flow_id)
             # The call was not connected, point to voicemail when enabled.
             # Guard on voicemail_enabled (operator intent) rather than the
             # m2o — get_voicemail_prompt_message handles the missing-audio
@@ -375,6 +418,7 @@ class CallFlow(models.Model):
                 api_url = self.env['connect.settings'].sudo().get_param('api_url')
                 edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
+                action_url = urljoin(api_url, 'twilio/webhook/connect.callflow/call_action/{}#e={}'.format(flow_id, edge))
                 response.pause(length=1)
                 callflow.get_voicemail_prompt_message(response)
                 vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
@@ -383,6 +427,7 @@ class CallFlow(models.Model):
                     maxLength=vm_max_length,
                     finishOnKey=vm_finish_key,
                     playBeep=True,
+                    action=action_url,
                     recordingStatusCallback=record_status_url)
             else:
                 # No voicemail, just say sorry and hangup.

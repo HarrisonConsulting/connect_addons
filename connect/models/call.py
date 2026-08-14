@@ -1205,10 +1205,24 @@ class Call(models.Model):
         debug(self.sudo(), 'On recording status: %s' % json.dumps(params, indent=2))
         channel = self.sudo().env['connect.channel'].search([('sid', '=', params['CallSid'])])
         if channel and channel.call:
+            recording_sid = params.get('RecordingSid')
+            # Idempotency: Twilio may redeliver this webhook (retry after a
+            # slow/ambiguous response, or a duplicate delivery). A given
+            # RecordingSid identifies one physical voicemail — if we've
+            # already recorded and emailed this one, skip rather than
+            # re-writing and re-sending. This does NOT by itself stop a call
+            # that keeps producing distinct new recordings (each RecordingSid
+            # is still genuinely a different voicemail and gets its own
+            # email) — that loop is closed in connect.callflow.on_call_action.
+            if recording_sid and channel.call.voicemail_sid == recording_sid:
+                logger.info(
+                    'Duplicate vm_recordingstatus webhook ignored for RecordingSid=%s (call %s)',
+                    recording_sid, channel.call.id)
+                return True
             updates = {
                 'voicemail_url': params.get('RecordingUrl'),
                 'voicemail_duration': int(params.get('RecordingDuration')),
-                'voicemail_sid': params.get('RecordingSid'),
+                'voicemail_sid': recording_sid,
             }
             if channel.call.status != 'answered':
                 updates['status'] = 'voicemail'

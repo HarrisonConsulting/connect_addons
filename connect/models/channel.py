@@ -241,6 +241,30 @@ class Channel(models.Model):
                     (called_clean or '').startswith('+') and (caller_clean or '').startswith('+'):
                 debug(self, 'Incoming DID/WhatsApp call. Get the partner from caller number.')
                 data['partner'] = self.env['res.partner'].get_partner_by_number(caller_clean).id
+                if caller_clean == called_clean:
+                    # A call is arriving at one of our own DIDs FROM that
+                    # same number. The only way that happens is a call WE
+                    # placed (outbound-api) to that DID looping straight
+                    # back into our own inbound Voice URL — Twilio (and
+                    # most carriers) route a call dialled TO one of our own
+                    # numbers into that number's configured webhook instead
+                    # of completing it as an external call, no matter what
+                    # "From" was sent. This is the exact signature of the
+                    # outbound-callerid-equals-destination defect class
+                    # (.docs/260813-crib-service-auth/
+                    # outbound-callerid-defect.md): the intended callee
+                    # never rings, and whatever placed this call gets a
+                    # media stream bridged to our own IVR instead. Was
+                    # DEBUG-only; that is how six production incidents in a
+                    # row hid until traced by hand.
+                    logger.error(
+                        "Self-dial loop: inbound leg CallSid=%s has "
+                        "Caller == Called == %s. This DID is receiving a "
+                        "call FROM itself — almost certainly an outbound "
+                        "AI callout whose caller id was resolved to this "
+                        "same number. The callee was never reached.",
+                        params.get('CallSid'), called_clean,
+                    )
             else:
                 debug(self, 'Not setting channel partner without channel users.')
 

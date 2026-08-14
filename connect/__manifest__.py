@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.27.1',
+    'version': '1.27.3',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',

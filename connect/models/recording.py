@@ -440,27 +440,58 @@ class Recording(models.Model):
             self._notify_recording_started(params, channel)
             return True
 
-        # Fetch recording
-        client = self.env['connect.settings'].get_client()
-        try:
-            recording = client.recordings(data['sid']).fetch()
-            data.update(self.prepare_data(recording))
-        except Exception as e:
-            logger.exception(format_connect_response(e))
         # Idempotency: skip if this RecordingSid was already processed (Twilio may retry)
         existing = self.search([('sid', '=', data['sid'])], limit=1)
         if existing:
             logger.info('Duplicate recording webhook ignored for RecordingSid=%s', data['sid'])
             existing.write({'status': data.get('status', existing.status)})
             return True
-        recording = self.create(data)
+        # Fetching full metadata from Twilio's REST API, transcribing, and
+        # (with recording_storage != 'twilio') downloading + re-uploading the
+        # audio are all slow outbound calls. Doing them inline here pushed
+        # this webhook's response time to 20-60s in production — past
+        # Twilio's callback timeout, so Twilio retried from a different edge
+        # each time (multiple source IPs hitting this same route). The
+        # idempotency check above already makes a retry harmless, but
+        # there's no reason to hold Twilio's connection open for the
+        # enrichment work: create the bare row fast, ack, and defer the rest.
+        # skip_transcription bypasses create()'s own synchronous
+        # get_transcript() call; _enrich_from_provider does that (and the
+        # metadata fetch, and storage) out of line. Falls back to inline
+        # when queue_job is not installed.
+        recording = self.with_context(
+            skip_transcription=True, mail_create_nosubscribe=True, mail_create_nolog=True
+        ).create(data)
+        with_delay = getattr(recording, 'with_delay', None)
+        if with_delay:
+            with_delay()._enrich_from_provider()
+        else:
+            recording._enrich_from_provider()
+        return True
+
+    def _enrich_from_provider(self):
+        """Fetch full metadata from Twilio, transcribe, and store per
+        connect.settings' recording_storage — deferred out of the
+        recordingstatus webhook so Twilio gets a fast ack (see
+        on_recording_status)."""
+        self.ensure_one()
+        client = self.env['connect.settings'].get_client()
+        try:
+            provider_recording = client.recordings(self.sid).fetch()
+            self.write(self.prepare_data(provider_recording))
+        except Exception as e:
+            logger.exception(format_connect_response(e))
+        if self.env['connect.settings'].sudo().get_param('transcript_calls'):
+            try:
+                self.get_transcript(fail_silently=True)
+            except Exception as e:
+                logger.exception('Transcript error: %s', e)
         recording_storage = self.env['connect.settings'].sudo().get_param('recording_storage', 'twilio')
         if recording_storage and recording_storage != 'twilio':
             try:
-                recording._store_as_attachment()
+                self._store_as_attachment()
             except Exception as e:
-                logger.exception('Failed to store recording %s: %s', data.get('sid'), e)
-        return True
+                logger.exception('Failed to store recording %s: %s', self.sid, e)
 
     @api.depends('duration')
     def _get_duration_human(self):

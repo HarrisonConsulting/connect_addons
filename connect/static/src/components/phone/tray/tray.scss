@@ -1,10 +1,23 @@
 // =============================================================================
 // Phone Tray Component
 // =============================================================================
-// Systray toggle button for the Connect Phone
-// Uses CSS custom properties from phone.scss
+// Systray toggle button for the Connect Phone. This button carries the phone's
+// connection state (see PhoneSysTray.phoneState) — it replaces the toasts that
+// used to announce "connection lost" / "reconnecting" from off to the side.
+// Uses CSS custom properties from phone.scss.
+
+:root {
+  --Phone-tray-ok: #28a745;
+  --Phone-tray-busy: #0d6efd;
+  --Phone-tray-ring: #fd7e14;
+  --Phone-tray-warn: #e0a800;
+  --Phone-tray-down: #dc3545;
+  --Phone-tray-idle: #adb5bd;
+}
 
 .connect-tray {
+  position: relative;
+
   .hang-up-popup {
     height: 32px !important;
     position: absolute !important;
@@ -34,6 +47,7 @@
 
   .toggle-phone {
     padding: 0 6px !important;
+    position: relative;
 
     i {
       height: 24px;
@@ -50,11 +64,77 @@
         margin-top: 0;
         display: block;
       }
+    }
 
-      &:hover {
-        color: var(--Phone-accent);
-        background-color: var(--Phone-hover-bg);
-      }
+    &:hover i {
+      color: var(--Phone-accent);
+      background-color: var(--Phone-hover-bg);
+    }
+
+    // The dot, not the glyph, carries the colour: the icon stays legible at
+    // systray contrast while the state reads at a glance from across the bar.
+    .connect-tray-dot {
+      position: absolute;
+      right: 2px;
+      bottom: 2px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--Phone-tray-idle);
+      box-shadow: 0 0 0 1.5px var(--Phone-bg);
+      transition: background-color 0.15s ease;
+    }
+
+    &.available .connect-tray-dot { background: var(--Phone-tray-ok); }
+    &.busy .connect-tray-dot { background: var(--Phone-tray-busy); }
+    &.ringing .connect-tray-dot { background: var(--Phone-tray-ring); }
+    &.connecting .connect-tray-dot { background: var(--Phone-tray-warn); }
+    &.offline .connect-tray-dot,
+    &.error .connect-tray-dot { background: var(--Phone-tray-down); }
+    &.unavailable .connect-tray-dot { background: var(--Phone-tray-idle); }
+
+    // Only the states that need the user to act are allowed to move. A healthy
+    // or merely-busy phone stays still so motion in the systray always means
+    // "look at me".
+    &.busy i { color: var(--Phone-tray-busy); }
+    &.ringing i {
+      color: var(--Phone-tray-ring);
+      animation: connect-tray-ring 1s ease-in-out infinite;
+    }
+    &.error i,
+    &.offline i {
+      color: var(--Phone-tray-down);
+    }
+    &.error .connect-tray-dot {
+      animation: connect-tray-pulse 1.6s ease-in-out infinite;
+    }
+    &.unavailable i {
+      color: var(--Phone-tray-idle);
+      opacity: 0.65;
+    }
+    &.connecting i { color: var(--Phone-tray-warn); }
+  }
+}
+
+@keyframes connect-tray-ring {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+
+@keyframes connect-tray-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+// Respect the OS-level reduced-motion preference: the colour still carries the
+// state, so nothing is lost by holding the animations still.
+@media (prefers-reduced-motion: reduce) {
+  .connect-tray .toggle-phone {
+    &.ringing i,
+    &.error .connect-tray-dot,
+    i.fa-spin {
+      animation: none;
     }
   }
 }

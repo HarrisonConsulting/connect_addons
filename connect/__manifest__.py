@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.27.4',
+    'version': '1.29.2',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -98,6 +98,9 @@
             '/connect/static/src/components/chat/*',
             '/connect/static/src/widgets/phone_field/*',
             '/connect/static/src/widgets/audio_recorder/*',
+        ],
+        'web.assets_tests': [
+            '/connect/static/tests/tours/**/*.js',
         ],
         # Dark mode overrides - loaded when Odoo enables dark mode
         'web.assets_web_dark': [

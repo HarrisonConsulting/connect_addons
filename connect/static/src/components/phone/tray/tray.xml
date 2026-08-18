@@ -2,16 +2,23 @@
 <templates xml:space="preserve">
 
     <div t-name="connect.menu" class="connect-tray" owl="1">
-        <button type="button" t-attf-class="o-dropdown dropdown-toggle dropdown toggle-phone {{state.inCall ? 'busy' : 'available'}}" aria-expanded="false" title="Toggle Connect Phone" t-on-click="_onClick">
-            <i aria-label="Toggle Phone" class="fa fa-lg icon-call" role="img"/>
+        <!--The button is the phone's status light. Its modifier class, icon and
+            tooltip all come from PhoneSysTray.phoneState, so connection changes
+            are shown in place instead of interrupting the user with toasts.-->
+        <button type="button"
+                t-attf-class="o-dropdown dropdown-toggle dropdown toggle-phone {{phoneState}}"
+                aria-expanded="false"
+                t-att-title="buttonTitle"
+                t-on-click="_onClick">
+            <i t-attf-class="{{stateInfo.icon}}" t-att-aria-label="buttonTitle" role="img"/>
+            <span class="connect-tray-dot" aria-hidden="true"/>
         </button>
+
+        <!--Screen readers get the transition the toast used to give them.-->
+        <span class="visually-hidden" role="status" aria-live="polite" t-out="statusLabel"/>
 
         <button t-if="!state.isDisplay and state.inCall" class="hang-up-popup" title="HangUp" t-on-click="_onClickHangUp">
             <i aria-label="HangUp" class="icon-call_end reject-call"/>
-        </button>
-
-        <button t-if="state.exception" class="btn btn-sm btn-warning connect-reconnect-btn" t-on-click="_onClickReconnect" title="Reconnect phone">
-            <i class="fa fa-refresh"/> Reconnect
         </button>
     </div>
 

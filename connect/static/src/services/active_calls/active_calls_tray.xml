@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <div t-name="connect.active_calls_tray" owl="1">
-        <button type="button" class="o-dropdown dropdown-toggle dropdown" tabindex="0" aria-expanded="false" title="Toggle Calls" t-on-click="_onClick">
-            <i aria-label="Toggle Calls" class="fa fa-server" role="img"/>
-        </button>
-    </div>
+    <!--Nothing in progress means nothing to toggle, so the button is absent
+        rather than present-and-empty. It carries the live count, which is what
+        makes its appearance meaningful instead of merely noticeable.-->
+    <t t-name="connect.active_calls_tray" owl="1">
+        <div t-if="state.count > 0" class="connect-active-calls-tray">
+            <button type="button"
+                    t-attf-class="o-dropdown dropdown-toggle dropdown {{state.isDisplay ? 'active' : ''}}"
+                    tabindex="0"
+                    t-att-aria-expanded="state.isDisplay ? 'true' : 'false'"
+                    t-att-title="label"
+                    t-on-click="_onClick">
+                <i t-att-aria-label="label" class="fa fa-signal" role="img"/>
+                <span class="connect-active-calls-count" t-out="state.count"/>
+            </button>
+        </div>
+    </t>
 
 </templates>

@@ -223,9 +223,16 @@
     flex: 1 1 auto;
     min-height: 0;
 
-    // When keypad section only contains input (no keypad buttons), shrink to fit
+    // Panels without a keypad or contact list (notably the in-call dialing
+    // panel) size to their content rather than filling the phone — but they
+    // must still be ALLOWED to shrink. With `flex: 0 0 auto` they were rigid,
+    // and since every other child of .o_root_connect_phone sets
+    // `flex-shrink: 0`, the whole overflow of a tall in-call panel came out of
+    // .mt-auto — which holds the hang-up button, clipped away by the root's
+    // `overflow: hidden`. `0 1 auto` keeps "do not grow" while letting the
+    // panel scroll (it already has `overflow: auto`) when space runs out.
     &:not(:has(.o_keypad)):not(:has(.o_dial_contact_list)) {
-      flex: 0 0 auto;
+      flex: 0 1 auto;
     }
 
     .o_phone_number_content {
@@ -640,6 +647,12 @@
   // Call/Hangup Buttons
   // ==========================================================================
   .mt-auto {
+    // The call controls are the last thing that may be sacrificed for space:
+    // a clipped hang-up button leaves the user unable to end a call. Every
+    // other child of the fixed-height phone already pins `flex-shrink: 0`;
+    // this one was missed, so it absorbed the overflow and got cut off.
+    flex: 0 0 auto;
+
     .o_dial_panel {
       height: auto;
       min-height: 60px;

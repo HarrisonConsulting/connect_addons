@@ -11,18 +11,22 @@
                     <i class="fa fa-times"/>
                 </div>
             </div>
-            <!--Connection status banner-->
+            <!--Connection status banner. This is the phone's own surface, not a
+                toast: it appears only while the panel is open, stays put instead of
+                stacking, and carries the Retry affordance next to the explanation.-->
             <div t-if="state.connectionStatus === 'connecting'" class="connect-status-banner connecting" aria-live="polite" role="status">
                 <i class="fa fa-spinner fa-spin"/> Connecting...
             </div>
             <div t-if="state.connectionStatus === 'error'" class="connect-status-banner error" aria-live="assertive" role="alert">
-                <i class="fa fa-exclamation-triangle"/> Connection lost
+                <i class="fa fa-exclamation-triangle"/>
+                <span t-attf-title="{{state.connectionError}}"><t t-out="state.connectionError or 'Connection lost'"/></span>
                 <button class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
                     <i class="fa fa-refresh"/> Retry
                 </button>
             </div>
             <div t-if="state.connectionStatus === 'offline'" class="connect-status-banner offline" aria-live="assertive" role="alert">
-                <i class="fa fa-wifi"/> Offline - calls unavailable
+                <i class="fa fa-wifi"/>
+                <span t-attf-title="{{state.connectionError}}"><t t-out="state.connectionError or 'Offline - calls unavailable'"/></span>
                 <button class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
                     <i class="fa fa-refresh"/> Retry
                 </button>

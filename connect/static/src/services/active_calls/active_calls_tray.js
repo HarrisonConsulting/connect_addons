@@ -1,14 +1,22 @@
 /** @odoo-module **/
-import {Component} from "@odoo/owl"
+import {Component, useState} from "@odoo/owl"
 
 export class ConnectActiveCallsTray extends Component {
     static template = 'connect.active_calls_tray'
     static props = {
-        bus: Object,
+        controller: Object,
+    }
+
+    setup() {
+        this.state = useState(this.props.controller.state)
+    }
+
+    get label() {
+        const n = this.state.count
+        return n === 1 ? '1 call in progress' : `${n} calls in progress`
     }
 
     _onClick() {
-        this.props.bus.trigger('connect_active_calls_toggle_display')
+        this.props.controller.toggleDisplay()
     }
 }
-

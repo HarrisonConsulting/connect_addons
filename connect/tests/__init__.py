@@ -30,3 +30,4 @@ from . import test_live_messaging
 from . import test_live_sip
 from . import test_live_call_lifecycle
 from . import test_reload_broadcast
+from . import test_systray_tour

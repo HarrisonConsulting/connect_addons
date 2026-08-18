@@ -2,9 +2,18 @@
 <templates xml:space="preserve">
 
     <t t-name="connect.active_calls_popup" owl="1">
-        <div t-if="state.isDisplay" class="o_active_calls">
-            <div t-if="state.calls.length > 0" class="o_list_view" t-on-mouseover="_onMouseOver"
-                 t-on-mouseout="_onMouseOut">
+        <div t-if="state.isDisplay" class="o_active_calls" t-ref="root" role="dialog" aria-label="Active calls">
+            <div class="o_active_calls_header">
+                <span class="o_active_calls_title">
+                    <i class="fa fa-signal" title="Active calls"/>
+                    <t t-out="state.calls.length"/> active <t t-out="state.calls.length === 1 ? 'call' : 'calls'"/>
+                </span>
+                <i t-if="state.isLoading" class="fa fa-circle-o-notch fa-spin" title="Refreshing"/>
+                <button class="o_active_calls_close" title="Close" aria-label="Close" t-on-click="_onClickClose">
+                    <i class="fa fa-times"/>
+                </button>
+            </div>
+            <div t-if="state.calls.length > 0" class="o_list_view">
                 <div class="table-responsive">
                     <table class="o_list_table table table-sm table-hover table-striped o_list_table_ungrouped">
                         <thead>
@@ -40,7 +49,6 @@
                 <span>No active calls.</span>
             </div>
         </div>
-        <div t-else=""/>
     </t>
 
 </templates>

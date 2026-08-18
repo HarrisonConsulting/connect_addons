@@ -1,58 +1,50 @@
 /** @odoo-module **/
 import {useService} from "@web/core/utils/hooks"
 
-import {Component, useState} from "@odoo/owl"
+import {Component, useState, useExternalListener, useRef} from "@odoo/owl"
 
 export class ConnectActiveCallsPopup extends Component {
     static template = 'connect.active_calls_popup'
     static props = {
-        bus: Object,
-    }
-
-    constructor() {
-        super(...arguments)
-        this.state = useState({
-            isDisplay: false,
-            calls: [],
-        })
-        this.hideTimer = null
+        controller: Object,
     }
 
     setup() {
-        super.setup()
-        this.orm = useService('orm')
         this.action = useService('action')
-        this.props.bus.addEventListener('connect_active_calls_toggle_display', (ev) => this.toggleDisplay(ev))
+        this.state = useState(this.props.controller.state)
+        this.root = useRef('root')
+        // The panel used to hide itself on a timer — 3s with calls, 0.6s
+        // without — which meant it vanished mid-read and mid-click. It now
+        // stays until dismissed, the way a dropdown does.
+        useExternalListener(window, "click", this._onWindowClick, {capture: true})
+        useExternalListener(window, "keydown", this._onWindowKeydown)
     }
 
-    async getCalls() {
-        const domain = [["status", "=", "in-progress"]]
-        this.state.calls = await this.orm.call("connect.call", "get_widget_calls", [domain])
-        if (this.state.calls.length > 0) {
-            this.setTimer(3000)
-        } else {
-            this.setTimer(600)
+    _onWindowClick(ev) {
+        if (!this.state.isDisplay) {
+            return
+        }
+        // The systray button owns its own toggle; let it through.
+        if (ev.target.closest(".connect-active-calls-tray")) {
+            return
+        }
+        if (this.root.el && !this.root.el.contains(ev.target)) {
+            this.props.controller.close()
         }
     }
 
-    setTimer(seconds) {
-        const self = this
-        self.hideTimer = setTimeout(() => {
-            self.state.isDisplay = false
-        }, seconds)
-    }
-
-    async toggleDisplay() {
-        this.state.isDisplay = !this.state.isDisplay
-        if (this.state.isDisplay) {
-            await this.getCalls()
-        } else {
-            clearTimeout(this.hideTimer)
+    _onWindowKeydown(ev) {
+        if (ev.key === "Escape" && this.state.isDisplay) {
+            this.props.controller.close()
         }
     }
 
+    _onClickClose() {
+        this.props.controller.close()
+    }
 
     _OpenActiveCallForm(id) {
+        this.props.controller.close()
         this.action.doAction({
             res_id: id,
             res_model: 'connect.call',
@@ -65,6 +57,7 @@ export class ConnectActiveCallsPopup extends Component {
     _openPartnerForm(ev, partner) {
         if (partner) {
             ev.stopPropagation()
+            this.props.controller.close()
             this.action.doAction({
                 res_id: partner[0],
                 res_model: 'res.partner',
@@ -78,6 +71,7 @@ export class ConnectActiveCallsPopup extends Component {
     _openReferenceForm(ev, ref) {
         if (ref) {
             ev.stopPropagation()
+            this.props.controller.close()
             let [res_model, res_id] = ref.split(',')
             res_id = parseInt(res_id)
             this.action.doAction({
@@ -89,14 +83,4 @@ export class ConnectActiveCallsPopup extends Component {
             })
         }
     }
-
-    _onMouseOver(ev) {
-        clearTimeout(this.hideTimer)
-    }
-
-    _onMouseOut(ev) {
-        this.setTimer(1000)
-    }
-
 }
-

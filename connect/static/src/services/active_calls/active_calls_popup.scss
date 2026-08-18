@@ -1,15 +1,82 @@
+// =============================================================================
+// Active Calls — systray button and its panel
+// =============================================================================
+// The button exists only while calls are in progress (see
+// ConnectActiveCallsTray), so both surfaces here are transient by design.
+
+.connect-active-calls-tray {
+  button {
+    padding: 0 6px !important;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    i {
+      color: var(--Phone-call-active, #28a745);
+    }
+  }
+
+  .connect-active-calls-count {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 8px;
+    color: #ffffff;
+    background: var(--Phone-call-active, #28a745);
+  }
+}
+
 .o_active_calls {
   display: block;
   left: 0;
   right: 0;
   margin: 0 auto;
   width: 70vw;
+  max-width: 1100px;
+  max-height: 60vh;
+  overflow-y: auto;
   position: absolute;
   top: 47px;
-  background: white;
-  border: 1px solid $o-brand-odoo;
+  background: var(--Phone-bg, #ffffff);
+  color: var(--Phone-text, #495057);
+  border: 1px solid var(--Phone-accent, #875a7b);
   border-radius: 5px;
-  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 1100;
+
+  .o_active_calls_header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--Phone-accent, #875a7b);
+    color: #ffffff;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .o_active_calls_title {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .o_active_calls_close {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: #ffffff;
+    padding: 0 4px;
+    line-height: 1;
+
+    &:hover {
+      opacity: 0.75;
+      cursor: pointer;
+    }
+  }
 
   .row {
     margin-right: 0;
@@ -17,6 +84,7 @@
 
   table {
     width: 100%;
+    margin-bottom: 0;
 
     tr {
       &:hover {
@@ -24,10 +92,10 @@
       }
 
       th {
-        border-bottom: 1px solid #ced4da;
+        border-bottom: 1px solid var(--Phone-border, #ced4da);
         text-align: center;
-        background: $o-brand-odoo;
-        color: white;
+        background: var(--Phone-hover-bg, #f8f9fa);
+        color: var(--Phone-text, #495057);
         flex: 1;
       }
 
@@ -42,9 +110,7 @@
   }
 
   .no-active-calls {
-    font-size: 18px;
-    background: $o-brand-odoo;
-    color: white;
-    padding: 5px;
+    padding: 12px;
+    color: var(--Phone-muted, #6c757d);
   }
 }

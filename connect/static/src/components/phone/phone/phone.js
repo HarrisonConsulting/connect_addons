@@ -5,7 +5,7 @@ import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, setFocus} from "@connect/js/utils"
-import {Component, useState, useRef, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
+import {Component, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 import {useDebounced} from "@web/core/utils/timing"
 import {user} from "@web/core/user"
 import {ConfirmationDialog} from "@web/core/confirmation_dialog/confirmation_dialog"
@@ -155,6 +155,7 @@ export class Phone extends Component {
             phone_status: this.status.ended,
             calls: [],
             connectionStatus: 'connecting',  // 'connecting', 'ready', 'error', 'offline'
+            connectionError: '',  // Human-readable reason for the current error/offline status
             lastOperationError: false,
             // Call quality metrics (from Twilio RTCStats samples)
             callQuality: 'unknown',  // 'excellent', 'good', 'fair', 'poor', 'unknown'
@@ -193,7 +194,6 @@ export class Phone extends Component {
         this.heldCallerId = null
         this.transport = null
         this._reconnecting = false
-        this._reconnectToastClose = null
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
         this.recording_sid = null        // SID of the active recording
@@ -241,6 +241,25 @@ export class Phone extends Component {
         this.debounceEnterPhoneNumber = useDebounced((ev) => {
             this._onEnterPhoneNumber(ev)
         }, 400)
+
+        // The systray button IS the phone's status light: it renders connecting /
+        // offline / error / ringing / in-call, so the user never needs a toast to
+        // learn the phone's state. Pushing that from an effect (rather than a
+        // bus.trigger at each mutation site) means the tray cannot drift out of
+        // sync -- every state change that matters re-runs this by construction.
+        // Precedent for useEffect with an explicit dependency getter:
+        // /mnt/19/odoo/addons/mail/static/src/core/common/message.js
+        useEffect(
+            () => this._syncTray(),
+            () => [
+                this.state.isDisplay,
+                this.state.inCall,
+                this.state.inIncoming,
+                this.state.connectionStatus,
+                this.state.connectionError,
+                this.state.isActive,
+            ],
+        )
 
         onWillStart(async () => {
             await this._getTransportClass(this.provider).loadDependencies()
@@ -359,7 +378,7 @@ export class Phone extends Component {
                 }
             }
             this._offlineHandler = () => {
-                this.state.connectionStatus = 'offline'
+                this._setConnectionStatus('offline', 'This device has no network connection.')
             }
             window.addEventListener('online', this._onlineHandler)
             window.addEventListener('offline', this._offlineHandler)
@@ -566,7 +585,6 @@ export class Phone extends Component {
             if (this._tokenRefreshInterval) {
                 clearInterval(this._tokenRefreshInterval)
             }
-            this._clearReconnectToast()
             this.destroyCallCounter()
             this.bc.close()
         })
@@ -739,16 +757,8 @@ export class Phone extends Component {
             return
         }
         this._reconnecting = true
-        this.state.connectionStatus = 'connecting'
+        this._setConnectionStatus('connecting')
         this.bus.trigger('busTraySetException', {exception: null})
-
-        // One sticky toast for the entire cycle — cleared on 'registered' or replaced on failure.
-        if (!this._reconnectToastClose) {
-            this._reconnectToastClose = this.notification.add(
-                'Reconnecting to phone service...',
-                {title: 'Connect', type: 'info', sticky: true},
-            )
-        }
 
         // Destroy existing transport if present
         if (this.transport) {
@@ -768,27 +778,42 @@ export class Phone extends Component {
                 this._applyTokenData(token_data)
                 this.initTransport()
             } else {
-                this._failReconnect('Failed to obtain phone token. Please try again.', 'warning')
+                this._failReconnect('Could not obtain a phone token.')
             }
         } catch (e) {
             console.error('Connect: Reconnect failed:', e)
-            this._failReconnect('Reconnection failed: ' + (e.message || 'Unknown error'), 'danger')
+            this._failReconnect(e.message || 'Reconnection failed.')
         } finally {
             this._reconnecting = false
         }
     }
 
-    _clearReconnectToast() {
-        if (this._reconnectToastClose) {
-            this._reconnectToastClose()
-            this._reconnectToastClose = null
-        }
+    /**
+     * Single writer for the connection lifecycle. Connectivity is ambient state,
+     * not an event: it is rendered continuously by the systray button and the
+     * in-panel banner rather than announced by toasts, which pile up during a
+     * flapping network and obscure the very UI the user needs in order to click
+     * Retry.
+     */
+    _setConnectionStatus(status, error = '') {
+        this.state.connectionStatus = status
+        this.state.connectionError = status === 'ready' ? '' : error
     }
 
-    _failReconnect(message, type) {
-        this.state.connectionStatus = 'error'
-        this._clearReconnectToast()
-        this.notification.add(message, {title: 'Connect', type})
+    _failReconnect(message) {
+        this._setConnectionStatus('error', message)
+    }
+
+    /** Push the phone's user-visible state to the systray button. */
+    _syncTray() {
+        this.bus.trigger('busTraySetState', {
+            isDisplay: this.state.isDisplay,
+            inCall: this.state.inCall,
+            inIncoming: this.state.inIncoming,
+            connectionStatus: this.state.connectionStatus,
+            connectionError: this.state.connectionError,
+            isActive: this.state.isActive,
+        })
     }
 
     _onClickReconnect() {
@@ -915,6 +940,7 @@ export class Phone extends Component {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.error('Connect: WebRTC not supported in this browser')
             self.state.isActive = false
+            self._setConnectionStatus('error', 'This browser does not support WebRTC.')
             self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
             return
         }
@@ -926,6 +952,7 @@ export class Phone extends Component {
         } catch (error) {
             console.error('Connect: Failed to create transport:', error)
             self.state.isActive = false
+            self._setConnectionStatus('error', error.message || 'Phone service failed to start.')
             self.bus.trigger('busTraySetException', {exception: error.name || 'InitFailed'})
             return
         }
@@ -942,17 +969,16 @@ export class Phone extends Component {
         })
 
         self.transport.on('registered', () => {
-            self.state.connectionStatus = 'ready'
+            self._setConnectionStatus('ready')
             self.sipRegistered = true
             self._updatePresence('available')
-            self._clearReconnectToast()
         })
 
         self.transport.on('unregistered', () => {
             self.sipRegistered = false
             // If not in a call, attempt silent auto-recovery instead of staying offline
             if (!self.state.inCall && self.state.isActive) {
-                self.state.connectionStatus = 'connecting'
+                self._setConnectionStatus('connecting')
                 console.debug('Connect: Transport unregistered, attempting silent re-registration')
                 setTimeout(() => {
                     // Skip soft recovery if a transport error already triggered full reconnect
@@ -962,7 +988,7 @@ export class Phone extends Component {
                     }
                 }, 3000)
             } else {
-                self.state.connectionStatus = 'offline'
+                self._setConnectionStatus('offline', 'Lost the connection to the phone service.')
                 self._updatePresence('offline')
             }
         })
@@ -984,7 +1010,7 @@ export class Phone extends Component {
                 // (each new transport firing its own error before the prior reconnect completes).
                 if (errorRecoveryPending || self._reconnecting) return
                 errorRecoveryPending = true
-                self.state.connectionStatus = 'connecting'
+                self._setConnectionStatus('connecting')
                 self._updatePresence('offline')
                 setTimeout(() => {
                     errorRecoveryPending = false
@@ -993,11 +1019,11 @@ export class Phone extends Component {
             } else if (error.name === 'NotSupportedError') {
                 console.error('Connect: Browser does not support required features:', error.message)
                 self.state.isActive = false
-                self.state.connectionStatus = 'error'
+                self._setConnectionStatus('error', 'This browser is missing features the phone needs.')
                 self._updatePresence('offline')
                 self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
             } else {
-                self.state.connectionStatus = 'error'
+                self._setConnectionStatus('error', error.message || 'Phone service error.')
                 self._updatePresence('offline')
             }
         })
@@ -1176,8 +1202,7 @@ export class Phone extends Component {
                     setTimeout(() => registerWithRetry(attempt + 1), delay)
                 } else {
                     console.error('Connect: Registration failed after all retries')
-                    self.state.connectionStatus = 'error'
-                    self.notify('Phone registration failed. Click Retry to reconnect.', {type: 'warning', sticky: true})
+                    self._setConnectionStatus('error', 'Phone registration failed.')
                 }
             }
         }
@@ -1343,7 +1368,6 @@ export class Phone extends Component {
         this.state.isDisplay = true
         this.state.isCollapsed = false  // Expand if collapsed when call comes in
         this.state.isKeypad = false
-        this.bus.trigger('busTrayState', {isDisplay: this.state.isDisplay, inCall: this.state.inCall})
         // Ensure phone is visible within viewport (defer until DOM updates)
         requestAnimationFrame(() => this._ensureWithinViewport())
     }
@@ -1380,7 +1404,6 @@ export class Phone extends Component {
         this.state.phoneNumber = ''
         this.state.xPhoneInfoDisplay = ''
         this.phoneInput.el.value = this.state.phoneNumber
-        this.bus.trigger('busTrayState', {isDisplay: this.state.isDisplay, inCall: this.state.inCall})
         this.state.activeTab = this.lastActiveTab
         if (this.lastActiveTab === this.tabs.calls) {
             this.getCalls()
@@ -1503,7 +1526,6 @@ export class Phone extends Component {
                 this.state.isContacts = false
                 this.state.isCalls = false
                 this.state.activeTab = this.tabs.phone
-                this.bus.trigger('busTraySetState', {isDisplay: this.state.isDisplay, inCall: this.state.inCall})
             } else {
                 setFocus(this.phoneInput.el)
             }

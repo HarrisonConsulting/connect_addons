@@ -22,6 +22,15 @@
   // Input styling - Dark mode
   --Phone-input-bg: #1f2937;
   --Phone-input-border: #4b5563;
+
+  // Systray status light - Dark mode. The dot sits on the dark navbar, so the
+  // light-mode hues are lifted for contrast rather than reused as-is.
+  --Phone-tray-ok: #34d399;
+  --Phone-tray-busy: #60a5fa;
+  --Phone-tray-ring: #fbbf24;
+  --Phone-tray-warn: #fcd34d;
+  --Phone-tray-down: #f87171;
+  --Phone-tray-idle: #6b7280;
 }
 
 // Adjust box shadow for dark mode

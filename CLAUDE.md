@@ -8,7 +8,7 @@
 
 ## Context
 
-Connect Addons is a Twilio-based telephony integration suite for Odoo, originally developed by Oduist. The `connect` module is the core application providing full Twilio integration (calls, SMS, WhatsApp, recordings, callflows). Additional modules extend it for CRM, Helpdesk, Website, ElevenLabs AI, and BYOC (Bring Your Own Carrier) scenarios. This is the Community Edition repository; Enterprise-only modules live in `connect_addons_ee`.
+Connect Addons is a Twilio-based telephony integration suite for Odoo. The `connect` module is the core application providing full Twilio integration (calls, SMS, WhatsApp, recordings, callflows). Additional modules extend it for CRM, Helpdesk, Website, ElevenLabs AI, and BYOC (Bring Your Own Carrier) scenarios. This is the Community Edition repository; Enterprise-only modules live in `connect_addons_ee`.
 
 ## Module Inventory
 

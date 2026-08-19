@@ -329,7 +329,7 @@
       <ol class="hc-numbered">
         <li><div><div class="hc-step-title">Pick S3 in settings</div><div class="hc-step-body">Set <em>Recording storage</em> to <em>S3 / Object Storage</em>. Provide bucket, endpoint (blank for AWS, set for MinIO), region, and ERP-manager-protected keys.</div></div></li>
         <li><div><div class="hc-step-title">Verify the connection</div><div class="hc-step-body">A test button runs <span class="mono">head_bucket</span> and tells you exactly which credential or permission is wrong instead of failing silently at upload time.</div></div></li>
-        <li><div><div class="hc-step-title">New audio uploads on completion</div><div class="hc-step-body">Recordings and voicemails upload as <span class="mono">audio/mpeg</span> on the same hook that previously stored them as Odoo attachments — same trigger, different destination.</div></div></li>
+        <li><div><div class="hc-step-title">New audio uploads on completion</div><div class="hc-step-body">Recordings and voicemails upload as <span class="mono">audio/mpeg</span> on completion, going to the bucket instead of an Odoo attachment.</div></div></li>
         <li><div><div class="hc-step-title">Playback uses presigned URLs</div><div class="hc-step-body">Form widgets get 8-hour links; voicemail email notifications get 7-day links. Bucket can stay private.</div></div></li>
         <li><div><div class="hc-step-title">Migrate the backlog on your terms</div><div class="hc-step-body">A wizard counts what remains on Twilio and the filestore, then processes one batch per click — idempotent, so re-clicking resumes after any interruption.</div></div></li>
       </ol>

@@ -34,7 +34,6 @@ class HelpdeskCall(models.Model):
                 call.ticket = ticket
             else:
                 pass
-                # TODO: Auto create ticket
         except Exception:
             logger.exception('Update call ticket error:')
         return call_id

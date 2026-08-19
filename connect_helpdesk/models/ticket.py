@@ -61,8 +61,6 @@ class Ticket(models.Model):
         ))
         return found[:1]
 
-    # TODO: Test caching as we call it many times on call status.
-    # @tools.ormcache('number', 'country') psycopg2.InterfaceError: Cursor already closed
     def get_ticket_by_number(self, number, country=None):
         number = strip_number(number)
         if not number or len(number) < MAX_EXTEN_LEN:

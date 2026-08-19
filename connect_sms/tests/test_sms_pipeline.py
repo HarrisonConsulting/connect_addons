@@ -46,7 +46,7 @@ class TestSmsPipeline(TransactionCase):
         return results
 
     def test_sms_send_uses_standard_pipeline(self):
-        """sms.sms.send() goes through _split_by_api, not connect's old override."""
+        """sms.sms.send() goes through _split_by_api."""
         sms = self.env['sms.sms'].sudo().create({
             'number': '+15552223333',
             'body': 'Test bridge pipeline',

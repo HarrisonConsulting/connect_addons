@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for connect.voice.get_voices(): upstream sync + stale cleanup.
 
-Fix 2 (archive, not unlink): stale voices flip active=False so existing
+Archives, not unlinks: stale voices flip active=False so existing
 connect.audio.utterance rows (ondelete='restrict' on voice_id) survive a
 provider-side voice deletion.
 """

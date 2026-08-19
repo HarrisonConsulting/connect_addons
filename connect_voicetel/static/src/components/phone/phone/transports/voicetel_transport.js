@@ -379,9 +379,8 @@ export class VoiceTelTransport extends TelephonyTransport {
 
     setIncomingAudio(enabled) {
         // SIP.js has no built-in incoming-ring sound the way
-        // Twilio.Device.audio does. Stored for potential future use;
-        // currently a no-op — VoiceTel calls have no ring audio of their
-        // own yet.
+        // Twilio.Device.audio does. This is a no-op — VoiceTel calls have
+        // no ring audio of their own.
         this._incomingAudioEnabled = enabled
     }
 }

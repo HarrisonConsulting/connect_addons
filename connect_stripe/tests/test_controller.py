@@ -135,8 +135,7 @@ class TestStripeControllerHttp(StripeTestCase, HttpCase):
         self.assertIn('invalid', (payment.error_message or '').lower())
 
     def test_pay_webhook_malformed_does_not_burn_record(self):
-        """Twilio M3: a webhook missing StatusCallbackType must NOT mark
-        the record failed. Old code's `else` branch did exactly that."""
+        """A webhook missing StatusCallbackType must NOT mark the record failed."""
         payment = self._new_payment()
         res = self.url_open(
             f'/connect/stripe/pay_webhook?session_id={payment.twilio_session_id}',
@@ -185,7 +184,7 @@ class TestStripeControllerHttp(StripeTestCase, HttpCase):
         self.assertIn('unable', res.text.lower())
 
     def test_resume_marks_payment_failed_on_terminal_result(self):
-        """Twilio H2: /resume must own the call-leg routing AND defensively
+        """/resume must own the call-leg routing AND defensively
         mark the payment terminal if Twilio reports a non-success Result
         before the status_callback lands."""
         payment = self._new_payment()  # state=capturing
@@ -210,7 +209,7 @@ class TestStripeControllerHttp(StripeTestCase, HttpCase):
     # ----- Reject status code -------------------------------------------- #
 
     def test_reject_returns_200_not_403(self):
-        """Twilio L4: invalid-signature reject must be 200 (Twilio treats
+        """Invalid-signature reject must be 200 (Twilio treats
         4xx as transport error and retries)."""
         with patch.object(
             ConnectStripeController,

@@ -38,19 +38,18 @@ class ConnectStripeSettings(models.Model):
         (`connect.payment`) already raises a clear "provider must be installed and
         enabled" error, which is the right outcome — see below.
 
-        **Why there is no cross-company fallback any more (4859 GL-11 / GL-21).**
-        This previously fell back to a search with the `company_id` filter dropped,
-        documented as "companyless providers". No such thing exists: core declares
+        **Why there is no cross-company fallback.** Core declares
         `payment.provider.company_id` as `required=True`
-        (/mnt/19/odoo/addons/payment/models/payment_provider.py:53-55), so the fallback
-        could only ever return **another company's** provider — i.e. silently capture
-        and charge a DTMF card on the wrong legal entity's Stripe account. Each company
-        that takes DTMF payments has its own provider, so the fallback never fired on
-        the happy path; it only ever fired where it was wrong.
+        (/mnt/19/odoo/addons/payment/models/payment_provider.py:53-55), so a
+        company-less search could only ever return **another company's** provider —
+        i.e. silently capture and charge a DTMF card on the wrong legal entity's
+        Stripe account. Each company that takes DTMF payments has its own provider,
+        so a fallback would never fire on the happy path; it would only ever fire
+        where it was wrong.
 
-        **The mediated exclusion.** A Stripe Connect connect-mediated provider (4859)
+        **The mediated exclusion.** A Stripe Connect connect-mediated provider
         borrows the platform's key and targets a connected account. DTMF is explicitly
-        NOT part of the Connect rollout (DELIVERY.md §3c): the card is tokenized by the
+        NOT part of the Connect rollout: the card is tokenized by the
         Twilio `<Pay>` Stripe Pay Connector against whatever account the Twilio Console
         points at, which no Odoo change can control. Resolving a mediated provider here
         would send the charge to the connected account while the PM lives elsewhere.

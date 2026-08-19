@@ -3,8 +3,8 @@
 converts legacy `{{user.name}}` Jinja templates to the new `{name}` token
 form used by connect.audio.is_dynamic rendering.
 
-Exercised by the 1.14.0 pre-migrate when converting connect.user.
-voicemail_prompt (the only Jinja-carrying text field in the migration).
+Exercised by the pre-migrate that converts connect.user.voicemail_prompt
+(the only Jinja-carrying text field in the migration).
 """
 
 from odoo.tests import tagged

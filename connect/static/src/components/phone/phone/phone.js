@@ -520,9 +520,7 @@ export class Phone extends Component {
                 } else if (event === 'tbcMicrophoneMute') {
                     if (self.session) {
                         // Call.mute(bool) is the only mute primitive the transport interface
-                        // exposes. (Previously this branch called the Twilio-only .unmute(),
-                        // which Twilio's Call never actually defines and would throw — see
-                        // the phone.js transport-extraction notes.)
+                        // exposes; Twilio's Call never defines .unmute(), so calling it throws.
                         self.session.mute(params.mute === true)
                     }
                     self.state.isMicrophoneMute = params.mute

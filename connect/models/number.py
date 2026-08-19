@@ -24,7 +24,7 @@ class Number(models.Model):
 
     sid = fields.Char()
     is_ignored = fields.Boolean('Ignored')
-    is_default = fields.Boolean(string='Default') # TODO: Remove after version 1.0
+    is_default = fields.Boolean(string='Default')
     phone_number = fields.Char(required=True)
     friendly_name = fields.Char()
     description = fields.Text(

@@ -1193,9 +1193,9 @@ class Call(models.Model):
         # Reload call views only on the transitions a list/kanban actually
         # renders differently: the call appearing, the call settling, or the
         # call going into error. Intermediate child-leg webhooks move only
-        # `duration`, which is not worth a full view reload — and broadcasting
-        # on them is what let one looping call refresh every user's screen
-        # roughly once a second for four hours.
+        # `duration`, which is not worth a full view reload — broadcasting on
+        # every such event risks refreshing every user's screen roughly once
+        # a second for the life of a looping call.
         if call_created or call_finalized or call_errored:
             self.env['connect.settings'].connect_reload_view('connect.call')
         return channel.call.id

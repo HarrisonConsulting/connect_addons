@@ -19,7 +19,7 @@ route_type = "json" if release.version_info[0] < 19.0 else 'jsonrpc'
 
 class ConnectController(http.Controller):
 
-    # preflight-ignore-next-line: idor-sudo-write -- capability token (uuid4), not the URL id; generator removed in refactor so the field is now always False
+    # preflight-ignore-next-line: idor-sudo-write -- capability token (uuid4), not the URL id; the field is always False
     @http.route('/connect/transcript/<int:rec_id>', methods=['POST'], type=route_type,
                 auth='public', csrf=False)
     def upload_transcript(self, rec_id):

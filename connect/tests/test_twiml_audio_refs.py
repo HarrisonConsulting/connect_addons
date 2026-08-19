@@ -108,13 +108,12 @@ class TestAudioUuid(ConnectTestCase):
         self.assertEqual(uuid_lib.UUID(dup.uuid).version, 4)
 
     def test_uuid_column_forbids_null(self):
-        """The NULL→set path this used to guard is now unreachable.
+        """The NULL→set path is unreachable.
 
         connect.audio.uuid is required=True, so the column is NOT NULL and a
-        pre-backfill row cannot exist. The old test simulated one with a raw
-        UPDATE, which now dies on the constraint rather than exercising the
-        write guard. Assert the stronger schema-level guarantee instead; the
-        set→set immutability guard is covered by test_uuid_immutable.
+        pre-backfill row cannot exist. This asserts the schema-level
+        guarantee directly; the set→set immutability guard is covered by
+        test_uuid_immutable.
         """
         audio = self.Audio.create({
             'name': 'Null to set',

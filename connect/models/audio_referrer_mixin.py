@@ -52,8 +52,8 @@ class AudioReferrerMixin(models.AbstractModel):
     Every model with a Many2one('connect.audio') inherits this mixin and
     declares its field groups; create/write/unlink fan out to refresh the
     affected audios' reference rows (synchronously — per-audio refresh is
-    cheap, and the async path previously used here could silently lose
-    refreshes when queue_job wasn't running, producing stale Where-Used)
+    cheap, and an async path risks silently losing refreshes when
+    queue_job isn't running, producing stale Where-Used)
     and queue a global reachability recompute (async — BFS touches every
     audio and is deduped via with_delay(identity_key=...)).
 
@@ -172,10 +172,10 @@ class AudioReferrerMixin(models.AbstractModel):
         """Refresh connect.audio.reference rows for audios referenced by self.
 
         Runs synchronously: per-audio refresh is O(refs), small and fast.
-        The async path previously used here (with_delay) could silently
-        lose refreshes if queue_job wasn't running — stale Where-Used is
-        observable in the UI and confuses operators. Global reachability
-        stays async because the BFS touches every audio in the graph.
+        An async path (with_delay) risks silently losing refreshes if
+        queue_job isn't running — stale Where-Used is observable in the
+        UI and confuses operators. Global reachability stays async
+        because the BFS touches every audio in the graph.
         """
         if not self._audio_reference_fields:
             return

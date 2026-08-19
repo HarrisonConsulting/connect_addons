@@ -91,7 +91,7 @@ class User(models.Model):
     application = fields.Many2one('connect.twiml')
     sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
     client_ring_timeout = fields.Integer(required=True, default=20, string='Web client ring timeout')
-    callerid_number = fields.Many2one('connect.number', ondelete='restrict') # TODO: Remove after 1.0
+    callerid_number = fields.Many2one('connect.number', ondelete='restrict')
     outgoing_callerid = fields.Many2one('connect.outgoing_callerid', ondelete='set null',
         domain=['|',('status', '=', 'validated'),('callerid_type', '=', 'number')])
     whatsapp_sender_id = fields.Many2one('connect.whatsapp_sender', string='WhatsApp Sender', ondelete='set null',

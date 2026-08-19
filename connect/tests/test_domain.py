@@ -530,12 +530,12 @@ class TestDomainGetDomainApp(ConnectTestCase):
 class TestImportSipCredentials(ConnectTestCase):
     """Reconciling a domain's provider credential list into connect.users.
 
-    Regression cover for the VoiceTel migration failure: connect.user.username
-    is UNIQUE table-wide (connect.user._username_uniq) while a SIP username is
-    only unique within its domain. Importing a second domain's "1000"
-    credential raised psycopg2.UniqueViolation, which aborted the whole
-    transaction and rolled back every domain SID rebind the sync had already
-    made, leaving cred_list_sid pointing at the old provider's account.
+    Regression cover: connect.user.username is UNIQUE table-wide
+    (connect.user._username_uniq) while a SIP username is only unique within
+    its domain. Importing a second domain's "1000" credential raises
+    psycopg2.UniqueViolation; that must not abort the whole transaction or
+    roll back domain SID rebinds the sync already made, and cred_list_sid
+    must not end up pointing at a stale provider account.
     """
 
     @classmethod
@@ -621,10 +621,10 @@ class TestImportSipCredentials(ConnectTestCase):
     def test_collision_does_not_abort_the_transaction(self):
         """The caller's earlier writes survive a colliding credential.
 
-        This is the failure that cost the dialer: the domain rebind that sync
-        performs immediately before the import was rolled back with the
-        constraint violation, so cred_list_sid stayed on the old account and
-        every later credential mint 404'd.
+        The domain rebind that sync performs immediately before the import
+        must survive a colliding-credential constraint violation: it must not
+        be rolled back, and cred_list_sid must not end up pointing at a stale
+        account (which would 404 every later credential mint).
         """
         self._make_user(self.domain_a, 'ext1000', sid='CR_a')
         # Stand in for the SID rebind _import_existing_domain_by_name does

@@ -396,7 +396,6 @@ class Recording(models.Model):
     def on_recording_status(self, params):
         self = self.sudo()
         debug(self, 'On recording status: %s' % json.dumps(params, indent=2))
-        # Todo: RecordingChannels
         data = {
             'sid': params['RecordingSid'],
             'call_sid': params['CallSid'],

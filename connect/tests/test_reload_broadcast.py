@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """connect.call.on_call_status reload_view broadcast gating.
 
-Regression cover for the incident where one inbound call that hunted a
-non-answering agent for four hours emitted a reload_view on the shared,
-org-wide ``connect_actions`` bus channel for every channel-leg status event
-— roughly one per second — refreshing every open connect.call view in the
-company and making the voicemail pages unusable.
+Regression cover: per-leg webhook status events must not each broadcast a
+reload_view on the shared, org-wide ``connect_actions`` bus channel. An
+unthrottled call can hunt a non-answering agent for hours, emitting one
+status event per second — broadcasting unthrottled would refresh every
+open connect.call view in the company and make the voicemail pages
+unusable.
 
 Only three transitions render differently in a call list/kanban: the call
 appearing, the call settling at finalization, and the call going into error.

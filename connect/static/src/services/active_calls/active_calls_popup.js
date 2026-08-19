@@ -13,9 +13,9 @@ export class ConnectActiveCallsPopup extends Component {
         this.action = useService('action')
         this.state = useState(this.props.controller.state)
         this.root = useRef('root')
-        // The panel used to hide itself on a timer — 3s with calls, 0.6s
-        // without — which meant it vanished mid-read and mid-click. It now
-        // stays until dismissed, the way a dropdown does.
+        // The panel stays until dismissed, the way a dropdown does, rather
+        // than hiding on a timer — a timer risks vanishing it mid-read or
+        // mid-click.
         useExternalListener(window, "click", this._onWindowClick, {capture: true})
         useExternalListener(window, "keydown", this._onWindowKeydown)
     }

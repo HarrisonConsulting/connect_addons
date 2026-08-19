@@ -493,7 +493,7 @@
   <!-- Audio Usage Overview is reached via the Where Used smart button on the
        audio form (connect.audio.action_open_references). The global
        connect_audio_reference_action definition is retained for programmatic
-       access but no longer exposed as a menu. -->
+       access; it is not exposed as a menu. -->
 
   <menuitem id="connect_audio_utterance_menu" name="Utterances"
       parent="connect_settings_menu" sequence="51"

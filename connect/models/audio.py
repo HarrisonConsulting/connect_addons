@@ -961,9 +961,9 @@ class Audio(models.Model):
 
         Accepts base64 str or raw bytes, returns base64. Idempotent — input
         already in target format round-trips unchanged. Raises ValidationError
-        on unparseable input. This is NO LONGER called from create/write on
-        the audio row (masters are preserved there); it's the derivation used
-        by _get_or_create_record_utterance to produce cached μ-law utterances
+        on unparseable input. Not called from create/write on the audio row
+        (masters are preserved there); it's the derivation used by
+        _get_or_create_record_utterance to produce cached μ-law utterances
         on demand.
         """
         if not recording_value:
@@ -1131,9 +1131,8 @@ class Audio(models.Model):
     def action_open_references(self):
         """Smart-button action: open the Where-Used list filtered to this audio.
 
-        Replaces the old global 'Audio Usage Overview' menu with a per-record
-        entry point — operators look at where a single audio is used far more
-        often than they browse the cross-audio BoM view.
+        A per-record entry point — operators look at where a single audio is
+        used far more often than they browse the cross-audio BoM view.
         """
         self.ensure_one()
         return {

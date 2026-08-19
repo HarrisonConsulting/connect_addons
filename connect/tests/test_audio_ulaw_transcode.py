@@ -3,9 +3,8 @@
 
 These test the stable public contract of transcode_to_ulaw_wav(): the
 header shape, idempotency, stereo downmix, and companding parity between
-the audioop fast path and the lookup-table fallback. Designed to survive
-the resampler rework (quality thresholds are NOT asserted here; a separate
-SNR test lands once the samplerate library is wired in).
+the audioop fast path and the lookup-table fallback. Quality thresholds
+(SNR) are not asserted here.
 """
 
 import math

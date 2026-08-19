@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for connect.audio voice resolution — the use_default_voice knob,
-_resolve_voice fallback chain, resolved_voice_id compute, and settings.
-default_twilio_voice wiring introduced in connect 1.14.0.
+_resolve_voice fallback chain, resolved_voice_id compute, and settings
+default_twilio_voice wiring.
 """
 
 from odoo.tests import tagged

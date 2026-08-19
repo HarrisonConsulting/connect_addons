@@ -120,10 +120,10 @@ class AudioUtterance(models.Model):
         We sign with an HMAC of (id, create_date) so the URL is unguessable
         AND stable across regenerations. Stability matters because Twilio's
         media edge can fetch the URL mid-call after a queue_job regenerates
-        the utterance; signing over write_date previously invalidated the
-        URL the edge was currently pulling, causing 403 mid-call. Replay
-        risk from the stable token is mitigated by Cache-Control:
-        private, no-store on dynamic utterances (see controllers/audio.py).
+        the utterance; signing over write_date would invalidate the URL an
+        edge is currently pulling, causing 403 mid-call. Replay risk from
+        the stable token is mitigated by Cache-Control: private, no-store
+        on dynamic utterances (see controllers/audio.py).
         """
         self.ensure_one()
         return f'/connect/audio/utterance/{self.id}?t={self._sign_token()}'

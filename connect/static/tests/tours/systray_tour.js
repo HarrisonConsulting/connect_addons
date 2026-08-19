@@ -6,8 +6,8 @@
  *       The phone button carries its connection state as a class + status dot
  *       instead of raising toasts. Asserts the state markup renders and that no
  *       connection toast is raised while the transport is coming up (in a
- *       headless test it never registers, which is exactly the path that used
- *       to spray "Reconnecting to phone service..." across the screen).
+ *       headless test it never registers — the path that would otherwise
+ *       spray "Reconnecting to phone service..." across the screen).
  *
  *   connect_active_calls_absent_tour / connect_active_calls_present_tour
  *       The active-calls button exists only while calls are in progress, and

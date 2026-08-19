@@ -182,8 +182,7 @@ class Channel(models.Model):
             if params['CallStatus'] in CALL_END_STATUSES and channel.call:
                 self._handle_external_call_termination_on_hangup(channel, params)
 
-            # Note: Outgoing transfer failures now handled by direct extension redirect
-            # No longer need complex failure detection logic
+            # Outgoing transfer failures are handled by direct extension redirect.
         # Channel not found by sid, create it.
         else:
             data = {
@@ -249,14 +248,10 @@ class Channel(models.Model):
                     # most carriers) route a call dialled TO one of our own
                     # numbers into that number's configured webhook instead
                     # of completing it as an external call, no matter what
-                    # "From" was sent. This is the exact signature of the
-                    # outbound-callerid-equals-destination defect class
-                    # (.docs/260813-crib-service-auth/
-                    # outbound-callerid-defect.md): the intended callee
-                    # never rings, and whatever placed this call gets a
-                    # media stream bridged to our own IVR instead. Was
-                    # DEBUG-only; that is how six production incidents in a
-                    # row hid until traced by hand.
+                    # "From" was sent. This is the outbound-callerid-equals-
+                    # destination defect class: the intended callee never
+                    # rings, and whatever placed this call gets a media
+                    # stream bridged to our own IVR instead.
                     logger.error(
                         "Self-dial loop: inbound leg CallSid=%s has "
                         "Caller == Called == %s. This DID is receiving a "

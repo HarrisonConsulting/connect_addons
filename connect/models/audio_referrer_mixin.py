@@ -137,6 +137,14 @@ class AudioReferrerMixin(models.AbstractModel):
         offenders = []
         for rec in self:
             for field_name in self._audio_reference_fields:
+                field = rec._fields[field_name]
+                if field.compute and not field.inverse:
+                    # A derived set — connect.twiml scans its body for
+                    # audio("<uuid>") calls — reports what the record already
+                    # says; nobody picked it, so there is nothing to reject.
+                    # Retiring an audio a live TwiML still cites is handled at
+                    # render time by the fallback.archived routing.
+                    continue
                 # Iterate rather than reading .state off the field directly:
                 # referrers may declare an x2many here (connect.twiml uses
                 # referenced_audio_ids), and a plain rec[field].state raises

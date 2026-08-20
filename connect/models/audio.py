@@ -137,15 +137,15 @@ class Audio(models.Model):
         string='Attachments',
         help='Count of ir.attachment rows associated with this audio.')
     recording_file = fields.Binary(attachment=True,
-        help='Browser-recorded audio bytes (source=record). Transcoded to '
-              '8 kHz mono μ-law WAV on save so Twilio can stream it to the '
-              'PSTN without live resampling.')
+        help='Browser-recorded audio bytes (source=record). Kept verbatim as '
+              'the master; the 8 kHz mono μ-law WAV Twilio streams to the '
+              'PSTN is derived from it on first render.')
     recording_filename = fields.Char(
         help='Browser-supplied filename for the recorded audio. Used as the '
              'Content-Disposition filename when serving to Twilio.')
     recording_mimetype = fields.Char(default='audio/wav',
-        help='MIME type of the transcoded recording. Always an entry from '
-             'TWILIO_PLAYABLE_MIMETYPES after the transcoder has run.')
+        help='MIME type of the recording master. Always an entry from '
+             'TWILIO_PLAYABLE_MIMETYPES.')
     model_id = fields.Many2one('ir.model',
         help='Model whose fields can be referenced in {token} substitutions when is_dynamic.')
     model_name = fields.Char(related='model_id.model', string='Model Name',
@@ -262,9 +262,14 @@ class Audio(models.Model):
         audio_ids = self.ids
         grouped = {audio_id: Attachment.browse() for audio_id in audio_ids}
         if audio_ids:
+            # The res_field clause is load-bearing: ir.attachment._search
+            # silently appends res_field = False to any domain that doesn't
+            # mention it, which would hide the recording_file attachment —
+            # the one attachment an operator most wants to see here.
             linked = Attachment.search([
                 ('res_model', '=', self._name),
                 ('res_id', 'in', audio_ids),
+                '|', ('res_field', '=', False), ('res_field', '!=', False),
             ])
             for attachment in linked:
                 grouped[attachment.res_id] |= attachment
@@ -914,32 +919,48 @@ class Audio(models.Model):
                     param)
         return DEFAULT_MAX_EXTERNAL_AUDIO_BYTES
 
-    def _get_recording_master_value(self):
-        """Read recording_file as the newest attachment-backed value that parses as WAV."""
+    def _recording_master_candidates(self):
+        """Yield stored recording_file values as base64 str, newest first.
+
+        Everything here runs in an env with bin_size cleared. Under bin_size
+        the ORM hands back a human-readable size for *every* binary it
+        touches — the field itself and ir_attachment.raw alike — so a caller
+        that reached us from a bin_size read (the form view's own read) would
+        otherwise be handed '4.00 Kb' where the WAV should be, and conclude
+        the audio has no recording at all.
+        """
         self.ensure_one()
-        fresh_env = api.Environment(
-            self.env.cr, self.env.uid, dict(self.env.context, bin_size=False)
-        )
-        fresh_self = fresh_env[self._name].browse(self.id)
-        value = fresh_self.read(['recording_file'])[0].get('recording_file')
+        fresh = self.with_context(bin_size=False, bin_size_recording_file=False)
+        value = fresh.read(['recording_file'])[0].get('recording_file')
+        if isinstance(value, bytes):
+            value = value.decode('ascii')
         if value and not self._is_bin_size_token(value):
-            valid = self._validated_recording_b64_or_false(value)
-            if valid:
-                return valid
-        attachments = self.env['ir.attachment'].sudo().search([
+            yield value
+        attachments = fresh.env['ir.attachment'].sudo().search([
             ('res_model', '=', self._name),
             ('res_id', '=', self.id),
             ('res_field', '=', 'recording_file'),
         ], order='id desc')
         for attachment in attachments:
             raw = attachment.raw
-            if not raw:
-                continue
-            candidate = base64.b64encode(raw).decode('ascii')
+            if raw:
+                yield base64.b64encode(raw).decode('ascii')
+
+    def _get_recording_master_value(self):
+        """Newest stored recording that parses as WAV, or False."""
+        for candidate in self._recording_master_candidates():
             valid = self._validated_recording_b64_or_false(candidate)
             if valid:
                 return valid
         return False
+
+    def _get_stored_recording_value(self):
+        """Newest stored recording, whether or not it parses as WAV.
+
+        Lets a switch to source='record' fail with the reason the recording
+        is unusable instead of behaving as if nothing had ever been recorded.
+        """
+        return next(self._recording_master_candidates(), False)
 
     @api.model
     def _is_bin_size_token(self, value):
@@ -995,9 +1016,12 @@ class Audio(models.Model):
         if source == 'record':
             if self._is_bin_size_token(recording_value):
                 recording_value = False
-            recording_value = recording_value or (
-                record._get_recording_master_value() if record else False
-            )
+            if not recording_value and record:
+                # Falling back to the stored master when it does not parse is
+                # what makes the switch fail loudly: source='record' on top of
+                # a corrupt recording is a call that plays silence.
+                recording_value = (record._get_recording_master_value()
+                                   or record._get_stored_recording_value())
             should_validate_recording = bool(recording_value)
         elif recording_value:
             if self._is_bin_size_token(recording_value):

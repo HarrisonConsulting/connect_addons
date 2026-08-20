@@ -58,25 +58,40 @@ class Exten(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # Extension numbers are unique: an unrouted number already on file
+        # is adopted rather than duplicated.
+        adopted = self.browse()
+        to_create = []
         for vals in vals_list:
-            exten = self.search([('number', '=', vals['number'])])
+            exten = self.search(
+                [('number', '=', vals['number'])], limit=1
+            ) if vals.get('number') else self.browse()
             if exten and not exten.dst:
                 exten.write(vals)
-                return exten
-        res = super().create(vals_list)
+                adopted |= exten
+            else:
+                to_create.append(vals)
+        res = adopted | super().create(to_create)
         for record in res:
             if hasattr(record.dst, 'exten'):
                 record.dst.exten = record
         return res
 
     def write(self, vals):
-        if (self.model is not False) and ('model' in vals) and ('res_id' in vals):
-            self.env[self.model].search([('exten', '=', self.id)]).update({'exten': False})
+        if 'model' in vals and 'res_id' in vals:
+            for rec in self:
+                # A destination model retired by a later version leaves rows
+                # behind; they stay editable, they just have nothing to clear.
+                if (rec.model and rec.model in self.env
+                        and 'exten' in self.env[rec.model]._fields):
+                    self.env[rec.model].search(
+                        [('exten', '=', rec.id)]).update({'exten': False})
             self.env['connect.exten'].search([
                 ('res_id', '=', vals['res_id']), ('model', '=', vals['model'])]).update({'res_id': False})
         res = super().write(vals)
-        if hasattr(self.dst, 'exten'):
-            self.dst.exten = self
+        for rec in self:
+            if hasattr(rec.dst, 'exten'):
+                rec.dst.exten = rec
         return res
 
     def unlink(self):

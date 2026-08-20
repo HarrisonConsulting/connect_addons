@@ -103,12 +103,16 @@ class TwiML(models.Model):
         'connect.audio',
         compute='_compute_referenced_audio_ids',
         store=True,
+        context={'active_test': False},
         string='Referenced Audio',
         help='Audios invoked by this TwiML via audio("<uuid>") tokens. '
              'Populated by scanning the template source on save; keeps the '
-             'routing graph and Where-Used reflecting reality. For '
-             'code_type=model_method the set is always empty — model.method '
-             'dispatch is ungoverned by the audio library.',
+             'routing graph and Where-Used reflecting reality. Archived '
+             'audios stay in the set (active_test off) — a body citing a '
+             'retired audio is exactly what the "References Archived Audio" '
+             'filter has to find. For code_type=model_method the set is '
+             'always empty — model.method dispatch is ungoverned by the '
+             'audio library.',
     )
     last_unresolved_logged_on = fields.Datetime(
         readonly=True,
@@ -341,6 +345,12 @@ class TwiML(models.Model):
             return super().unlink()
 
         client = self.env['connect.settings'].get_client()
+        if not client:
+            logger.warning(
+                'Twilio credentials are not configured; deleting %s locally '
+                'only, the provider-side apps are left in place.',
+                ', '.join(self.mapped('name')))
+            return super().unlink()
         for rec in self:
             if rec.sid:
                 try:

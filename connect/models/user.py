@@ -896,6 +896,7 @@ class User(models.Model):
             self.password = ''
 
     def _manage_channel_callflow(self, channel, enable):
+        self.ensure_one()
         if enable:
             callflow = self.env['connect.user_callflow'].search(
                     [('user', '=', self.id), ('callflow_type', '=', channel)])
@@ -917,29 +918,26 @@ class User(models.Model):
 
     @api.constrains('sip_enabled', 'sip_priority')
     def _manage_sip_callflow(self):
-        if self.sip_enabled:
-            self._manage_channel_callflow('sip', True)
-        else:
-            self._manage_channel_callflow('sip', False)
+        for rec in self:
+            rec._manage_channel_callflow('sip', rec.sip_enabled)
 
     @api.constrains('client_enabled', 'client_priority')
     def _manage_client_callflow(self):
-        if self.client_enabled:
-            self._manage_channel_callflow('client', True)
-        else:
-            self._manage_channel_callflow('client', False)
+        for rec in self:
+            rec._manage_channel_callflow('client', rec.client_enabled)
 
     @api.constrains('voicemail_enabled')
     def _manage_voicemail_enabled(self):
-        if self.voicemail_enabled:
-            if not self.env['connect.user_callflow'].search(
-                    [('user', '=', self.id), ('callflow_type', '=', 'voicemail')]):
-                self.env['connect.user_callflow'].create({
-                    'user': self.id,
+        Callflow = self.env['connect.user_callflow']
+        for rec in self:
+            existing = Callflow.search(
+                [('user', '=', rec.id), ('callflow_type', '=', 'voicemail')])
+            if not rec.voicemail_enabled:
+                existing.unlink()
+            elif not existing:
+                Callflow.create({
+                    'user': rec.id,
                     'prio': 10,
                     'callflow_type': 'voicemail',
                     'method': 'render_voicemail'
                 })
-        else:
-            self.env['connect.user_callflow'].search(
-                [('user', '=', self.id), ('callflow_type', '=', 'voicemail')]).unlink()

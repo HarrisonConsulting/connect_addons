@@ -65,7 +65,7 @@ Uses the connect base groups:
 
 ```bash
 # Run module tests
-gdo test -d 005 -i connect_stripe --simple-output
+gdo test 005 -i connect_stripe --simple-output
 
 # Open shell
 gdo shell -d 005

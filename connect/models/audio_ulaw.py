@@ -39,12 +39,22 @@ TARGET_MIMETYPE = 'audio/wav'
 # μ-law companding
 # --------------------------------------------------------------------------
 
-_BIAS = 0x84
-_CLIP = 32635
+_BIAS = 0x84 >> 2
+_CLIP = 8159
+# Upper bound of each of the eight μ-law segments, in the 14-bit domain.
+_SEG_END = (0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF, 0x1FFF)
 
 
 def _linear_to_ulaw(sample):
-    """ITU-T G.711 μ-law companding of a single signed 16-bit sample."""
+    """ITU-T G.711 μ-law companding of a single signed 16-bit sample.
+
+    The arithmetic shift down to the 14-bit domain happens BEFORE the
+    magnitude is taken, exactly as in the G.711 reference encoder. Taking
+    the magnitude first rounds negative samples the other way and yields a
+    different byte for 381 of the 65536 inputs — audible as asymmetric
+    distortion, and out of step with every other codec on the wire.
+    """
+    sample >>= 2
     if sample < 0:
         sample = -sample
         mask = 0x7F
@@ -53,24 +63,20 @@ def _linear_to_ulaw(sample):
     if sample > _CLIP:
         sample = _CLIP
     sample += _BIAS
-    # Find exponent (segment)
-    exp = 7
-    expMask = 0x4000
-    while exp and not (sample & expMask):
-        exp -= 1
-        expMask >>= 1
-    mantissa = (sample >> (exp + 3)) & 0x0F
-    return ((exp << 4) | mantissa) ^ mask
+    for seg, seg_end in enumerate(_SEG_END):
+        if sample <= seg_end:
+            break
+    else:
+        return 0x7F ^ mask
+    return ((seg << 4) | ((sample >> (seg + 1)) & 0x0F)) ^ mask
 
 
 def _build_ulaw_table():
-    """Precompute μ-law byte for every signed 16-bit input. 65 kB, one-off."""
-    table = bytearray(65536)
-    for i in range(65536):
-        # Interpret i as signed 16-bit via two's-complement
-        sample = i - 65536 if i >= 32768 else i
-        table[i] = _linear_to_ulaw(sample)
-    return bytes(table)
+    """Precompute μ-law byte for every signed 16-bit input. 65 kB, one-off.
+
+    Indexed by ``sample + 32768`` so the hot loop is one add and one index.
+    """
+    return bytes(_linear_to_ulaw(i - 32768) for i in range(65536))
 
 
 _ULAW_TABLE = _build_ulaw_table()

@@ -6,7 +6,7 @@ import logging
 from markupsafe import escape
 from odoo import fields, models, api
 from odoo.exceptions import ValidationError
-from odoo.models import Constraint
+from odoo.models import UniqueIndex
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,16 @@ class AudioUtterance(models.Model):
     preview_audio = fields.Html(compute='_compute_preview_audio',
         string='Preview', sanitize=False)
 
-    _unique_audio_voice_hash = Constraint(
-        'UNIQUE(audio_id, voice_id, text_hash, params_hash)',
+    # Two partial indexes rather than one UNIQUE(...): voice_id is NULL for
+    # every record-source utterance, and PostgreSQL lets NULLs collide freely
+    # in a plain UNIQUE, so the cache key that matters most went unguarded.
+    _unique_audio_voice_text_params = UniqueIndex(
+        '(audio_id, voice_id, text_hash, params_hash) WHERE voice_id IS NOT NULL',
         'An utterance with this audio/voice/text/params already exists.',
+    )
+    _unique_audio_text_params_no_voice = UniqueIndex(
+        '(audio_id, text_hash, params_hash) WHERE voice_id IS NULL',
+        'An utterance with this audio/text/params already exists.',
     )
 
     @api.model_create_multi

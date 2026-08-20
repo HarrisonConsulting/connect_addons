@@ -209,11 +209,13 @@ class TestConnectCallFlowTwiML(TwilioLiveTestCase):
             'name': 'Live twilio prompt',
             'source': 'twilio_tts',
             'static_text': 'Press 1 for sales, press 2 for support.',
+            'state': 'reviewed',
         })
         cls.invalid_audio = Audio.create({
             'name': 'Live twilio invalid',
             'source': 'twilio_tts',
             'static_text': 'Invalid selection.',
+            'state': 'reviewed',
         })
         cls.callflow = cls.env['connect.callflow'].create({
             'name': 'Test IVR',
@@ -250,6 +252,7 @@ class TestConnectCallFlowTwiML(TwilioLiveTestCase):
             'name': 'Live twilio after-hours',
             'source': 'twilio_tts',
             'static_text': 'We are currently closed.',
+            'state': 'reviewed',
         })
 
         twiml_response = self.callflow._render_after_hours()

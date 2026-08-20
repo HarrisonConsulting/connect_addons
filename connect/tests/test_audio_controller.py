@@ -24,7 +24,7 @@ class TestAudioController(HttpCase):
         cls.dynamic_audio = cls.Audio.create({
             'name': 'Ctl Dyn Test',
             'source': 'twilio_tts',
-            'static_text': 'hello {partner_id.name}',
+            'static_text': 'hello {parent_id.name}',
             'is_dynamic': True,
             'model_id': cls.env['ir.model']._get('res.partner').id,
         })

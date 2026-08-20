@@ -210,6 +210,37 @@ try:
             super().setUpClass()
             cls.us_country = cls.env['res.country'].search([('code', '=', 'US')], limit=1)
 
+        def _pin_magic_from_number(self):
+            """Make the Twilio magic number the company's chosen 'From'.
+
+            Twilio test credentials accept ONLY the magic numbers as a
+            sender; anything else comes back 21606. ``get_twilio_from_number``
+            picks the first ``sms.twilio.number`` whose country matches the
+            destination, in ``sequence, id`` order — and a production-faithful
+            database already carries our real DIDs on that company, so merely
+            adding the magic number leaves a real DID in front of it. Sort it
+            to the front instead of deleting the company's real numbers.
+            """
+            Number = self.env['sms.twilio.number'].sudo()
+            magic = Number.search([
+                ('company_id', '=', self.env.company.id),
+                ('number', '=', self.VALID_NUMBER),
+            ], limit=1)
+            if magic:
+                magic.sequence = -1
+            else:
+                magic = Number.create({
+                    'company_id': self.env.company.id,
+                    'number': self.VALID_NUMBER,
+                    'country_id': self.us_country.id,
+                    'sequence': -1,
+                })
+            # sms_twilio_number_ids is ordered by 'sequence, id'; drop any
+            # cached ordering so the send re-reads it with the magic number
+            # in front.
+            self.env.company.sudo().invalidate_recordset(['sms_twilio_number_ids'])
+            return magic
+
         def _setup_sms_twilio_for_test_creds(self):
             """Configure sms_twilio with the Twilio test credentials."""
             self.env.company.sudo().write({
@@ -217,17 +248,7 @@ try:
                 'sms_twilio_account_sid': self.twilio_test_sid,
                 'sms_twilio_auth_token': self.twilio_test_token,
             })
-            # Ensure a from-number exists
-            existing = self.env['sms.twilio.number'].sudo().search([
-                ('company_id', '=', self.env.company.id),
-                ('number', '=', self.VALID_NUMBER),
-            ])
-            if not existing:
-                self.env['sms.twilio.number'].sudo().create({
-                    'company_id': self.env.company.id,
-                    'number': self.VALID_NUMBER,
-                    'country_id': self.us_country.id,
-                })
+            self._pin_magic_from_number()
 
         def test_live_sms_through_pipeline(self):
             """SMS sent via sms.sms.send() reaches Twilio test API.
@@ -288,17 +309,7 @@ try:
             from odoo.addons.connect_sms.hooks import _post_init_hook
             _post_init_hook(self.env)
 
-            # Ensure from-number exists
-            existing = self.env['sms.twilio.number'].sudo().search([
-                ('company_id', '=', self.env.company.id),
-                ('number', '=', self.VALID_NUMBER),
-            ])
-            if not existing:
-                self.env['sms.twilio.number'].sudo().create({
-                    'company_id': self.env.company.id,
-                    'number': self.VALID_NUMBER,
-                    'country_id': self.us_country.id,
-                })
+            self._pin_magic_from_number()
 
             sms = self.env['sms.sms'].sudo().create({
                 'number': self.VALID_NUMBER,

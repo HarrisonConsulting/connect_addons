@@ -192,8 +192,10 @@ class TestDomainRouteCall(ConnectTestCase):
             'client_enabled': True,
         })
         # Create extension pointing to the user
+        # Extension numbers are globally unique and a production-faithful
+        # database already uses the short ones.
         cls.exten = cls.env['connect.exten'].create({
-            'number': '100',
+            'number': '8100',
             'model': 'connect.user',
             'res_id': cls.connect_user.id,
         })
@@ -215,7 +217,7 @@ class TestDomainRouteCall(ConnectTestCase):
     def test_route_call_to_user_extension(self):
         """Incoming SIP call to a valid extension routes to the user."""
         request = self._make_sip_request(
-            'sip:100@routetest.sip.twilio.com')
+            'sip:8100@routetest.sip.twilio.com')
 
         with self.mockTwilioClient():
             with patch.object(

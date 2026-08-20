@@ -323,6 +323,24 @@ class TestUserRender(ConnectTestCase):
             no_clear_cache=True,
         ).create(defaults)
 
+    def _enable_dnd(self, user):
+        """Put ``user`` into Do Not Disturb through the module that owns it.
+
+        connect stores ``dnd_enabled`` on connect.user. connect_enqueue
+        replaces it with a non-stored compute derived from the linked
+        agent's activity, where a direct write is dropped — there the agent
+        must be moved into an unavailable activity instead.
+        """
+        if self.env['connect.user']._fields['dnd_enabled'].store:
+            user.dnd_enabled = True
+        else:
+            agent = self.env['connect.agent'].create(
+                {'connect_user_id': user.id})
+            agent.set_activity(
+                self.env.ref('connect_enqueue.activity_lunch').id)
+            user.invalidate_recordset(['dnd_enabled'])
+        self.assertTrue(user.dnd_enabled, 'DND did not take effect')
+
     def test_render_client_twiml(self):
         """Client TwiML renders with correct timeout in Dial."""
         user = self._create_user(username='clientrender', client_ring_timeout=25)
@@ -391,10 +409,10 @@ class TestUserRender(ConnectTestCase):
         })
         user = self._create_user(
             username='dnduser',
-            dnd_enabled=True,
             voicemail_enabled=True,
             voicemail_audio_id=voicemail_audio.id,
         )
+        self._enable_dnd(user)
         with patch.object(
             self.env['connect.settings'].__class__, 'get_param',
             side_effect=lambda param, *a, **kw: {
@@ -419,9 +437,9 @@ class TestUserRender(ConnectTestCase):
         """User with DND but no voicemail hangs up with system message."""
         user = self._create_user(
             username='dndnovm',
-            dnd_enabled=True,
             voicemail_enabled=False,
         )
+        self._enable_dnd(user)
         with patch.object(
             user.__class__, 'tts_system_message',
         ) as mock_tts:
@@ -459,14 +477,28 @@ class TestUserPresence(ConnectTestCase):
             'user': cls.env.user.id,
         })
 
+    def _assert_presence(self, status):
+        """Assert the stored presence_status this module owns.
+
+        connect_enqueue replaces presence_status with a non-stored compute
+        derived from the linked agent's activity, which update_presence
+        cannot reach — that layer's behaviour is covered by
+        connect_enqueue/tests/test_presence_bridge.py.
+        """
+        if not self.env['connect.user']._fields['presence_status'].store:
+            self.skipTest(
+                'presence_status is agent-derived when connect_enqueue is '
+                'installed; see connect_enqueue test_presence_bridge')
+        self.connect_user.invalidate_recordset(['presence_status'])
+        self.assertEqual(self.connect_user.presence_status, status)
+
     def test_update_presence_available(self):
         """Presence updates to available."""
         with patch.object(
             self.env['bus.bus'].__class__, '_sendone',
         ):
             self.env['connect.user'].update_presence('available')
-            self.connect_user.invalidate_recordset(['presence_status'])
-            self.assertEqual(self.connect_user.presence_status, 'available')
+        self._assert_presence('available')
 
     def test_update_presence_on_call(self):
         """Presence updates to on_call."""
@@ -474,8 +506,7 @@ class TestUserPresence(ConnectTestCase):
             self.env['bus.bus'].__class__, '_sendone',
         ):
             self.env['connect.user'].update_presence('on_call')
-            self.connect_user.invalidate_recordset(['presence_status'])
-            self.assertEqual(self.connect_user.presence_status, 'on_call')
+        self._assert_presence('on_call')
 
     def test_update_presence_on_hold(self):
         """Presence updates to on_hold."""
@@ -483,8 +514,7 @@ class TestUserPresence(ConnectTestCase):
             self.env['bus.bus'].__class__, '_sendone',
         ):
             self.env['connect.user'].update_presence('on_hold')
-            self.connect_user.invalidate_recordset(['presence_status'])
-            self.assertEqual(self.connect_user.presence_status, 'on_hold')
+        self._assert_presence('on_hold')
 
     def test_update_presence_offline(self):
         """Presence updates to offline."""
@@ -492,8 +522,7 @@ class TestUserPresence(ConnectTestCase):
             self.env['bus.bus'].__class__, '_sendone',
         ):
             self.env['connect.user'].update_presence('offline')
-            self.connect_user.invalidate_recordset(['presence_status'])
-            self.assertEqual(self.connect_user.presence_status, 'offline')
+        self._assert_presence('offline')
 
     def test_update_presence_sets_timestamp(self):
         """Presence update sets presence_updated timestamp."""

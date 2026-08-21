@@ -331,6 +331,10 @@ class TestRecordingTranscription(ConnectTestCase):
 
     def test_transcribe_recording_file_too_large(self):
         """Transcription sets error when downloaded file exceeds 26MB."""
+        if 'chunked_job_id' in self.env['connect.recording']._fields:
+            self.skipTest(
+                'modelnexus_connect splits oversize audio at silences instead '
+                'of rejecting it; see its chunked-transcription tests')
         rec = self._create_recording(media_url='https://example.com/large.mp3')
 
         # Mock _download_recording_audio to return a temp file path

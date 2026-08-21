@@ -513,12 +513,25 @@ class TestDomainGetDomainApp(ConnectTestCase):
 
     def test_get_domain_app_creates_if_missing(self):
         """get_domain_app creates new TwiML app if none exists."""
-        # Remove all domain route_call apps
+        # Remove all domain route_call apps. A production-faithful database
+        # has SIP domains whose ``application`` column (ON DELETE RESTRICT)
+        # still points at them — repoint those domains to a placeholder app
+        # first so the route_call apps can actually go away.
         existing = self.env['connect.twiml'].search([
             ('code_type', '=', 'model_method'),
             ('model', '=', 'connect.domain'),
             ('method', '=', 'route_call'),
         ])
+        referencing = self.env['connect.domain'].search(
+            [('application', 'in', existing.ids)])
+        if referencing:
+            placeholder = self.env['connect.twiml'].create({
+                'name': 'Placeholder while route_call is absent',
+                'code_type': 'model_method',
+                'model': 'connect.domain',
+                'method': 'route_call_placeholder',
+            })
+            referencing.write({'application': placeholder.id})
         existing.unlink()
 
         domain = self.env['connect.domain']

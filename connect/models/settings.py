@@ -672,12 +672,18 @@ class Settings(models.Model):
         if not data:
             return findings  # nothing configured yet -- nothing to warn about
 
-        # Not-production signals: a CONNECT_* sandbox override, OR the standard
-        # Odoo neutralization flag (odoo/addons/base/data/neutralize.sql sets
-        # ir_config_parameter['database.is_neutralized'] on every neutralize run,
-        # including odoo.sh staging). Either means missing/disabled Twilio
-        # verification is expected, not an incident.
-        sandboxed = get_env_credential('account_sid') is not None or self._is_neutralized()
+        # Not-production signals: a test run, a CONNECT_* sandbox override, OR the
+        # standard Odoo neutralization flag (odoo/addons/base/data/neutralize.sql
+        # sets ir_config_parameter['database.is_neutralized'] on every neutralize
+        # run, including odoo.sh staging). Any of them means missing/disabled Twilio
+        # verification is expected, not an incident. A test run has to be named
+        # explicitly: get_env_credential stands down under test_enable, so relying on
+        # it alone would report the most sandboxed context there is as production.
+        sandboxed = (
+            config['test_enable']
+            or get_env_credential('account_sid') is not None
+            or self._is_neutralized()
+        )
 
         if not data.twilio_verify_requests:
             findings.append({

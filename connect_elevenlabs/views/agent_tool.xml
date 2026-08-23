@@ -66,7 +66,7 @@
                                invisible="param_type != 'body'"
                                string="Body Parameters Description"/>
                         <field name="params" nolabel="1"
-                               invisible="tool_type == 'system'"/>
+                               invisible="tool_type == 'system'" colspan="2"/>
                     </group>
                 </sheet>
             </form>

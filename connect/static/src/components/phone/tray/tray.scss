@@ -111,10 +111,17 @@
 
     // Corner badge. With nothing else to say it is the state dot, doubling the
     // glyph's colour where a glance lands first.
+    //
+    // Top right, because that is the corner all three glyphs leave empty: the
+    // handset runs on the other diagonal, and the bell and the triangle are
+    // both widest at the bottom — so the corner a badge instinctively wants is
+    // the one every shape is using. Up here it clears the artwork without
+    // leaving the button, and the pair reads as one mark rather than a mark
+    // with something stuck to it.
     .connect-tray-badge {
       position: absolute;
-      right: 2px;
-      bottom: 1px;
+      right: 4px;
+      top: 0;
       width: 7px;
       height: 7px;
       border-radius: 50%;
@@ -126,9 +133,13 @@
       // glyph in the colour its catalog entry carries. The handset keeps the
       // transport state; the badge stops repeating it and starts saying what
       // the agent is actually doing.
+      // The icon is half again the dot's width, so it needs its own offsets to
+      // sit in the same corner: tucked against the glyph, clear of the bell's
+      // shoulder and of the slash's upper tip, which are what a tighter fit
+      // runs into first.
       &.has-icon {
-        right: -1px;
-        bottom: -2px;
+        right: 5px;
+        top: -2px;
         width: auto;
         height: auto;
         background: transparent;
@@ -137,11 +148,11 @@
         line-height: 1;
         color: var(--Connect-status-color, var(--Phone-muted));
 
+        // No halo behind it: the corner it sits in is empty, so the only
+        // thing a plate would separate it from is the navbar — which paints
+        // its own colour, not the phone's, and shows the difference.
         .fa {
           font-size: 11px;
-          // Reads over the handset it overlaps without a plate behind it.
-          text-shadow: 0 0 2px var(--Phone-bg), 0 0 2px var(--Phone-bg),
-                       0 0 3px var(--Phone-bg);
         }
       }
     }

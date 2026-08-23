@@ -26,7 +26,8 @@
         <field name="name">Connect Documentation</field>
         <field name="path">connect-docs</field>
         <field name="res_model">connect.documentation</field>
-        <field name="res_id">1</field>
+        <field name="context">{'documentation_module': 'connect'}</field>
+        <field name="res_id" eval="False"/>
         <field name="view_mode">form</field>
         <field name="target">current</field>
         <field name="view_id" ref="connect.view_connect_documentation_form"/>

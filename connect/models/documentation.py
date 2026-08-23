@@ -3,37 +3,34 @@ import os
 import re
 from odoo import models, fields, api, modules
 
-PAGE_MAP = {
-    1: ['Connect Module Documentation', 'connect']
-}
+DEFAULT_MODULE = 'connect'
 
 
 class ConnectDocumentation(models.TransientModel):
     _name = 'connect.documentation'
     _description = 'Connect Documentation'
 
+    module = fields.Char(
+        default=lambda self: self.env.context.get('documentation_module', DEFAULT_MODULE),
+        help='Technical name of the module whose doc/index.rst is rendered.')
     name = fields.Char(compute='_compute_content')
     content = fields.Html(compute='_compute_content')
 
-
-    @api.depends()
+    @api.depends('module')
     def _compute_content(self):
         for record in self:
-            try:
-                # Get page.
-                page = PAGE_MAP.get(record.id)
-                record.name = page[0]
-                # Get the module path
-                module_path = modules.get_module_path(page[1])
-                rst_file_path = os.path.join(module_path, 'doc', 'index.rst')
-                if os.path.exists(rst_file_path):
-                    with open(rst_file_path, 'r', encoding='utf-8') as file:
-                        rst_content = file.read()
-                    record.content = self._rst_to_html(rst_content)
-                else:
-                    record.content = '<div class="alert alert-warning">Documentation file not found</div>'
-            except Exception as e:
-                record.content = f'<div class="alert alert-danger">Error loading documentation: {str(e)}</div>'
+            module = record.module or DEFAULT_MODULE
+            title = self.env['ir.module.module'].sudo().search(
+                [('name', '=', module)], limit=1).shortdesc
+            record.name = '{} Documentation'.format(title or module)
+            module_path = modules.get_module_path(module)
+            rst_file_path = os.path.join(module_path, 'doc', 'index.rst') if module_path else ''
+            if rst_file_path and os.path.exists(rst_file_path):
+                with open(rst_file_path, 'r', encoding='utf-8') as file:
+                    rst_content = file.read()
+                record.content = record._rst_to_html(rst_content)
+            else:
+                record.content = '<div class="alert alert-warning">Documentation file not found</div>'
 
     def _rst_to_html(self, rst_content):
         """Convert RST content to HTML"""

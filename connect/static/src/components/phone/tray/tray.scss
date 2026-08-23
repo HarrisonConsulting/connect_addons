@@ -48,71 +48,103 @@
   .toggle-phone {
     padding: 0 6px !important;
     position: relative;
+    // The glyph and the badge both inherit this, so one declaration paints
+    // the whole light.
+    color: var(--Phone-tray-idle);
+    transition: color 0.15s ease;
 
-    i {
-      height: 24px;
+    // Drawn, not set in an icon font: sized past what the font's own metrics
+    // allowed, so the colour reads from across the navbar.
+    .connect-tray-glyph {
+      display: block;
       width: 24px;
-      font-size: 14px;
+      height: 24px;
+      padding: 2px;
+      box-sizing: border-box;
       border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--Phone-muted);
-      transition: color 0.15s ease, background-color 0.15s ease;
-
-      &::before {
-        margin-top: 0;
-        display: block;
-      }
-    }
-
-    &:hover i {
-      color: var(--Phone-accent);
-      background-color: var(--Phone-hover-bg);
-    }
-
-    // The dot, not the glyph, carries the colour: the icon stays legible at
-    // systray contrast while the state reads at a glance from across the bar.
-    .connect-tray-dot {
-      position: absolute;
-      right: 2px;
-      bottom: 2px;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--Phone-tray-idle);
-      box-shadow: 0 0 0 1.5px var(--Phone-bg);
+      fill: currentColor;
       transition: background-color 0.15s ease;
     }
 
-    &.available .connect-tray-dot { background: var(--Phone-tray-ok); }
-    &.busy .connect-tray-dot { background: var(--Phone-tray-busy); }
-    &.ringing .connect-tray-dot { background: var(--Phone-tray-ring); }
-    &.connecting .connect-tray-dot { background: var(--Phone-tray-warn); }
-    &.offline .connect-tray-dot,
-    &.error .connect-tray-dot { background: var(--Phone-tray-down); }
-    &.unavailable .connect-tray-dot { background: var(--Phone-tray-idle); }
+    // The slash is cut out of the handset first, so it stays legible over the
+    // filled shape instead of disappearing into it.
+    .connect-tray-glyph-cut {
+      fill: none;
+      stroke: var(--Phone-bg);
+      stroke-width: 3.4;
+      stroke-linecap: round;
+    }
+
+    .connect-tray-glyph-slash {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+    }
+
+    &:hover .connect-tray-glyph {
+      background-color: var(--Phone-hover-bg);
+    }
+
+    &.available { color: var(--Phone-tray-ok); }
+    &.busy { color: var(--Phone-tray-busy); }
+    &.ringing { color: var(--Phone-tray-ring); }
+    &.connecting { color: var(--Phone-tray-warn); }
+    &.offline,
+    &.error { color: var(--Phone-tray-down); }
+    &.unavailable {
+      color: var(--Phone-tray-idle);
+      opacity: 0.65;
+    }
 
     // Only the states that need the user to act are allowed to move. A healthy
     // or merely-busy phone stays still so motion in the systray always means
     // "look at me".
-    &.busy i { color: var(--Phone-tray-busy); }
-    &.ringing i {
-      color: var(--Phone-tray-ring);
+    &.ringing .connect-tray-glyph {
       animation: connect-tray-ring 1s ease-in-out infinite;
+      transform-origin: 50% 30%;
     }
-    &.error i,
-    &.offline i {
-      color: var(--Phone-tray-down);
-    }
-    &.error .connect-tray-dot {
+    &.connecting .connect-tray-glyph,
+    &.error .connect-tray-glyph {
       animation: connect-tray-pulse 1.6s ease-in-out infinite;
     }
-    &.unavailable i {
-      color: var(--Phone-tray-idle);
-      opacity: 0.65;
+
+    // Corner badge. With nothing else to say it is the state dot, doubling the
+    // glyph's colour where a glance lands first.
+    .connect-tray-badge {
+      position: absolute;
+      right: 2px;
+      bottom: 1px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 1.5px var(--Phone-bg);
+      transition: color 0.15s ease;
+
+      // Given an activity to show, the dot gives way to that activity's own
+      // glyph in the colour its catalog entry carries. The handset keeps the
+      // transport state; the badge stops repeating it and starts saying what
+      // the agent is actually doing.
+      &.has-icon {
+        right: -1px;
+        bottom: -2px;
+        width: auto;
+        height: auto;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        line-height: 1;
+        color: var(--Connect-status-color, var(--Phone-muted));
+
+        .fa {
+          font-size: 11px;
+          // Reads over the handset it overlaps without a plate behind it.
+          text-shadow: 0 0 2px var(--Phone-bg), 0 0 2px var(--Phone-bg),
+                       0 0 3px var(--Phone-bg);
+        }
+      }
     }
-    &.connecting i { color: var(--Phone-tray-warn); }
   }
 }
 
@@ -124,17 +156,13 @@
 
 @keyframes connect-tray-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
+  50% { opacity: 0.35; }
 }
 
 // Respect the OS-level reduced-motion preference: the colour still carries the
 // state, so nothing is lost by holding the animations still.
 @media (prefers-reduced-motion: reduce) {
-  .connect-tray .toggle-phone {
-    &.ringing i,
-    &.error .connect-tray-dot,
-    i.fa-spin {
-      animation: none;
-    }
+  .connect-tray .toggle-phone .connect-tray-glyph {
+    animation: none;
   }
 }

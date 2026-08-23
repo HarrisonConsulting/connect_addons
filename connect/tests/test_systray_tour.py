@@ -36,21 +36,13 @@ class TestSystrayTour(HttpCase):
         """Make get_client_token() mint a credential so the phone mounts.
 
         Only the tours that need the phone's own DOM call this. The values are
-        throwaway: the token is well-formed enough for the SDK to load and for
-        the tray to render its state, and the provider rejecting it a few
-        seconds later is precisely the 'connection went bad' path the tray is
-        supposed to show silently.
-
-        KNOWN LIMITATION — a mounted softphone is not hermetic. The Twilio SDK
-        reaches https://sdk.twilio.com for its sound files and the signalling
-        endpoint for registration; both fail in a sandboxed CI run, and
-        HttpCase counts ANY browser console error as a failure (common.py sets
-        had_failure BEFORE consulting error_checker, then requires it clear to
-        pass). The error_checker below keeps the tour itself running to
-        completion — check the chrome log for "TOUR ... SUCCEEDED" to see the
-        real verdict — but the Python result can still go red for reasons that
-        have nothing to do with the UI under test. The two active-calls tours
-        deliberately do NOT mount the phone and stay fully hermetic.
+        throwaway, and cost nothing: web.assets_tests swaps the provider
+        transport for a loopback one that registers without a network, so the
+        credential is never presented to anyone who could reject it. That is
+        what makes a mounted softphone hermetic — HttpCase counts ANY browser
+        console error as a failure (common.py sets had_failure BEFORE
+        consulting error_checker), so a tour that provokes even a filtered
+        error cannot pass however far it gets.
         """
         Settings = cls.env['connect.settings'].sudo()
         Settings.set_param('webrtc_provider', 'twilio')
@@ -78,28 +70,10 @@ class TestSystrayTour(HttpCase):
             'user': cls.admin.id,
         })
 
-    @staticmethod
-    def _ignore_twilio_token_rejection(message):
-        """Fail on browser errors EXCEPT Twilio refusing the throwaway token.
-
-        Returning False keeps the tour running. The rejection is the expected
-        consequence of _enable_softphone's fake credential, not a defect — and
-        the point of this tour is that it produces no toast.
-        """
-        text = str(message)
-        return not (
-            'AccessTokenInvalid' in text
-            or 'Registration attempt' in text
-            or 'Connect: Transport error' in text
-        )
-
     def test_phone_tray_renders_state_not_toasts(self):
         self._enable_softphone()
-        self.start_tour(
-            '/odoo', 'connect_phone_tray_state_tour',
-            login=self.admin.login,
-            error_checker=self._ignore_twilio_token_rejection,
-        )
+        self.start_tour('/odoo', 'connect_phone_tray_state_tour',
+                        login=self.admin.login)
 
     def test_dialer_keeps_hangup_button_visible(self):
         """The in-call dialer must never clip its own hang-up button.
@@ -108,15 +82,12 @@ class TestSystrayTour(HttpCase):
         in-call body panel used to push the call controls off the bottom edge.
         """
         self._enable_softphone()
-        self.start_tour(
-            '/odoo', 'connect_dialer_layout_tour',
-            login=self.admin.login,
-            error_checker=self._ignore_twilio_token_rejection,
-        )
+        self.start_tour('/odoo', 'connect_dialer_layout_tour',
+                        login=self.admin.login)
 
     def test_active_calls_tray_hidden_without_calls(self):
-        # No softphone here: the active-calls button is a separate service, and
-        # leaving the phone unmounted keeps this tour free of Twilio traffic.
+        # No softphone here: the active-calls button is a separate service and
+        # renders without one.
         self.env['connect.call'].search([('status', '=', 'in-progress')]).unlink()
         self.start_tour(
             '/odoo', 'connect_active_calls_absent_tour', login=self.admin.login)

@@ -24,8 +24,12 @@ registry.category("web_tour.tours").add("connect_phone_tray_state_tour", {
             trigger: ".connect-tray .toggle-phone",
         },
         {
-            content: "It carries a status dot (the state indicator)",
-            trigger: ".connect-tray .toggle-phone .connect-tray-dot",
+            content: "It draws the handset glyph that carries the state colour",
+            trigger: ".connect-tray .toggle-phone .connect-tray-glyph",
+        },
+        {
+            content: "It carries a corner badge (the state indicator)",
+            trigger: ".connect-tray .toggle-phone .connect-tray-badge",
         },
         {
             content: "Its state is one of the known lifecycle classes",

@@ -6,19 +6,24 @@ import {Component, useState, onMounted, onWillStart, markup} from "@odoo/owl"
 
 // Connection state is ambient, so it is rendered by the systray button itself
 // rather than announced with toasts. Each entry drives the button's modifier
-// class, its icon, and the text used for both the tooltip and the screen-reader
-// live region -- one table so the three can never disagree.
+// class, its glyph, and the text used for both the tooltip and the
+// screen-reader live region -- one table so the three can never disagree.
+//
+// The handset is the button's identity, so most states keep it and change only
+// its colour; a state earns its own shape only where the shape is the message
+// (a bell for a call waiting to be answered, a triangle for a fault, a slash
+// for a transport that is simply not there).
 //
 // Order matters where states overlap: a live call outranks a stale
 // 'connecting', and a hard fault outranks everything.
 const PHONE_STATES = {
-    unavailable: {icon: 'fa fa-lg fa-phone-square', label: 'Phone unavailable'},
-    error: {icon: 'fa fa-lg fa-exclamation-triangle', label: 'Phone disconnected'},
-    offline: {icon: 'fa fa-lg fa-plug', label: 'Phone offline'},
-    connecting: {icon: 'fa fa-lg fa-circle-o-notch fa-spin', label: 'Connecting phone'},
-    ringing: {icon: 'fa fa-lg fa-bell', label: 'Incoming call'},
-    busy: {icon: 'fa fa-lg icon-call', label: 'On a call'},
-    available: {icon: 'fa fa-lg icon-call', label: 'Phone ready'},
+    unavailable: {glyph: 'phone', slashed: true, label: 'Phone unavailable'},
+    error: {glyph: 'warning', label: 'Phone disconnected'},
+    offline: {glyph: 'phone', slashed: true, label: 'Phone offline'},
+    connecting: {glyph: 'phone', label: 'Connecting phone'},
+    ringing: {glyph: 'bell', label: 'Incoming call'},
+    busy: {glyph: 'phone', label: 'On a call'},
+    available: {glyph: 'phone', label: 'Phone ready'},
 }
 
 export class PhoneSysTray extends Component {
@@ -141,6 +146,22 @@ export class PhoneSysTray extends Component {
         return this.isRecoverable
             ? `${this.statusLabel}. Click to reconnect.`
             : `${this.title} — ${this.statusLabel}`
+    }
+
+    /**
+     * The corner badge. Plain Connect knows the phone's state and nothing
+     * else, so it leaves the badge as the state dot. An addon that also knows
+     * what the user is *doing* overrides these two to put that status's own
+     * glyph and colour there instead — the handset keeps the transport state,
+     * the badge stops repeating it and starts adding to it.
+     */
+    get badgeIcon() {
+        return null
+    }
+
+    /** Odoo colour index for the badge, resolved to a hue by CSS. */
+    get badgeColor() {
+        return null
     }
 
     /** Overridden by connect_enqueue, which opens the Work Console from here. */

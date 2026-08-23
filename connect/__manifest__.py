@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.29.4',
+    'version': '1.30.1',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -100,6 +100,10 @@
             '/connect/static/src/widgets/audio_recorder/*',
         ],
         'web.assets_tests': [
+            # Loaded before the tours: it replaces the provider transport with
+            # one that registers without touching the network, so a tour that
+            # mounts the phone stays hermetic.
+            '/connect/static/tests/helpers/loopback_transport.js',
             '/connect/static/tests/tours/**/*.js',
         ],
         # Dark mode overrides - loaded when Odoo enables dark mode

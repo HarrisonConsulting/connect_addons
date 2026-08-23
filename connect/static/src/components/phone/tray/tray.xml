@@ -1,8 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
+    <!--The status light itself. It is drawn rather than set in an icon font so
+        it can be sized past the font's own metrics and painted from the button's
+        `color` — one glyph, coloured by whatever state the button is in.
+        Glyph outlines: Bootstrap Icons (MIT).-->
+    <t t-name="connect.tray.glyph">
+        <svg class="connect-tray-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+            <path t-if="stateInfo.glyph === 'bell'"
+                  d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zm.995-14.901a1 1 0 1 0-1.99 0A5.002 5.002 0 0 0 3 6c0 1.098-.5 6-2 7h14c-1.5-1-2-5.902-2-7 0-2.42-1.72-4.44-4.005-4.901z"/>
+            <path t-elif="stateInfo.glyph === 'warning'"
+                  d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+            <path t-else=""
+                  d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.567 17.567 0 0 0 4.168 6.608 17.569 17.569 0 0 0 6.608 4.168c.601.213 1.286.035 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.678.678 0 0 0-.58-.122l-2.19.547a1.745 1.745 0 0 1-1.657-.459L5.482 8.062a1.745 1.745 0 0 1-.46-1.657l.548-2.19a.678.678 0 0 0-.122-.58L3.654 1.328z"/>
+            <!--A struck-through handset says "no transport" in the shape, so the
+                state still reads without relying on the colour.-->
+            <t t-if="stateInfo.slashed">
+                <path class="connect-tray-glyph-cut" d="M2.4 13.6 13.6 2.4"/>
+                <path class="connect-tray-glyph-slash" d="M2.4 13.6 13.6 2.4"/>
+            </t>
+        </svg>
+    </t>
+
     <div t-name="connect.menu" class="connect-tray" owl="1">
-        <!--The button is the phone's status light. Its modifier class, icon and
+        <!--The button is the phone's status light. Its modifier class, glyph and
             tooltip all come from PhoneSysTray.phoneState, so connection changes
             are shown in place instead of interrupting the user with toasts.-->
         <button type="button"
@@ -10,8 +31,16 @@
                 aria-expanded="false"
                 t-att-title="buttonTitle"
                 t-on-click="_onClick">
-            <i t-attf-class="{{stateInfo.icon}}" t-att-aria-label="buttonTitle" role="img"/>
-            <span class="connect-tray-dot" aria-hidden="true"/>
+            <t t-call="connect.tray.glyph"/>
+            <!--The corner badge. Plain Connect has nothing to put there, so it
+                stays the state dot; an addon that knows what the user is
+                *doing* (connect_enqueue's agent activity) fills badgeIcon and
+                the dot gives way to that glyph in that status's own colour.-->
+            <span t-attf-class="connect-tray-badge{{badgeIcon ? ' has-icon' : ''}}"
+                  t-att-data-connect-status-color="badgeColor"
+                  aria-hidden="true">
+                <i t-if="badgeIcon" t-attf-class="fa {{badgeIcon}}"/>
+            </span>
         </button>
 
         <!--Screen readers get the transition the toast used to give them.-->

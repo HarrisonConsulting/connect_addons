@@ -14,7 +14,7 @@ route_type = "json" if release.version_info[0] < 19.0 else 'jsonrpc'
 class ConnectElevenlabsSaleController(ConnectElevenlabsController):
 
     @http.route('/connect_elevenlabs_sale/create_partner', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def create_partner(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -40,7 +40,7 @@ class ConnectElevenlabsSaleController(ConnectElevenlabsController):
 
 
     @http.route('/connect_elevenlabs_sale/get_products', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def get_products(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -60,7 +60,7 @@ class ConnectElevenlabsSaleController(ConnectElevenlabsController):
         return res
 
     @http.route('/connect_elevenlabs_sale/create_order', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def create_order(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -93,7 +93,7 @@ class ConnectElevenlabsSaleController(ConnectElevenlabsController):
 
 
     @http.route('/connect_elevenlabs_sale/get_order', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def get_order(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -138,7 +138,7 @@ class ConnectElevenlabsSaleController(ConnectElevenlabsController):
         return json.dumps(orders)
 
     @http.route('/connect_elevenlabs_sale/get_orders', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def get_orders(self):
         if not self.check_tool_token():
             raise Unauthorized()

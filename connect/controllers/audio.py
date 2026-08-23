@@ -2,12 +2,11 @@
 
 import base64
 import hashlib
-import hmac
 import logging
 
 from odoo import http
 from odoo.http import request, Response
-from werkzeug.exceptions import NotFound, Forbidden
+from werkzeug.exceptions import NotFound
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +23,9 @@ class AudioController(http.Controller):
     """
 
     @http.route('/connect/audio/utterance/<int:utterance_id>',
-                type='http', auth='public', methods=['GET'], csrf=False)
+                type='http', auth='connect_audio', methods=['GET'], csrf=False)
     def serve_utterance(self, utterance_id, t=None, **kwargs):
-        if not t:
-            raise Forbidden('missing token')
-
-        utterance = request.env['connect.audio.utterance'].sudo().browse(utterance_id).exists()
-        if not utterance:
-            raise NotFound()
-
-        expected = utterance._sign_token()
-        if not hmac.compare_digest(t, expected):
-            raise Forbidden('bad token')
+        utterance = request.connect_audio_utterance
 
         if not utterance.file:
             raise NotFound('no binary; this utterance is text-only (Twilio <Say>)')

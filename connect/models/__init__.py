@@ -1,3 +1,4 @@
+from . import ir_http
 from . import http
 from . import voice
 from . import audio_utterance

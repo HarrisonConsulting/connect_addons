@@ -15,7 +15,7 @@ route_type = "json" if release.version_info[0] < 19.0 else 'jsonrpc'
 class ConnectElevenlabsHelpdeskController(ConnectElevenlabsController):
 
     @http.route('/connect_elevenlabs_helpdesk/create_ticket', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def helpdesk_create_ticket(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -55,7 +55,7 @@ class ConnectElevenlabsHelpdeskController(ConnectElevenlabsController):
         }
 
     @http.route('/connect_elevenlabs_helpdesk/search_tickets', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def helpdesk_search_tickets(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -84,7 +84,7 @@ class ConnectElevenlabsHelpdeskController(ConnectElevenlabsController):
         return {'tickets': result}
 
     @http.route('/connect_elevenlabs_helpdesk/fetch_ticket', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def helpdesk_fetch_ticket(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -113,7 +113,7 @@ class ConnectElevenlabsHelpdeskController(ConnectElevenlabsController):
         return result
 
     @http.route('/connect_elevenlabs_helpdesk/update_ticket', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def helpdesk_update_ticket(self):
         if not self.check_tool_token():
             raise Unauthorized()
@@ -144,7 +144,7 @@ class ConnectElevenlabsHelpdeskController(ConnectElevenlabsController):
         return {'message': 'No updates provided', 'ticket_id': ticket.id}
 
     @http.route('/connect_elevenlabs_helpdesk/ticket_activity', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_elevenlabs_tool', csrf=False)
     def helpdesk_ticket_activity(self):
         if not self.check_tool_token():
             raise Unauthorized()

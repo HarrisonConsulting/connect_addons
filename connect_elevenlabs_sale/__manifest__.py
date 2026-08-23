@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect Elevenlabs Sale',
-    'version': '1.0.2',
+    'version': '1.0.3',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'live_test_url': 'https://connect-demo-18.oduist.com/',
@@ -24,4 +24,3 @@
     'auto_install': False,
     'images': ['static/description/logo.png'],
 }
-

@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 class ConnectElevenlabsController(http.Controller):
 
     def check_tool_token(self):
+        if getattr(http.request, 'connect_elevenlabs_authenticated', False):
+            return True
+
         token = http.request.httprequest.headers.get('x-elevenlabs-agent-token')
         if not token:
             logger.warning('Tool token check failed: no x-elevenlabs-agent-token header in request')

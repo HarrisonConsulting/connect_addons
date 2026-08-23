@@ -5,7 +5,6 @@ import logging
 from datetime import timedelta
 
 import requests
-from werkzeug.exceptions import NotFound
 
 from odoo import fields, http, release
 from odoo.api import SUPERUSER_ID
@@ -19,20 +18,12 @@ route_type = "json" if release.version_info[0] < 19.0 else 'jsonrpc'
 
 class ConnectController(http.Controller):
 
-    # preflight-ignore-next-line: idor-sudo-write -- capability token (uuid4), not the URL id; the field is always False
     @http.route('/connect/transcript/<int:rec_id>', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+                auth='connect_transcript', csrf=False)
     def upload_transcript(self, rec_id):
         # Public method protected by the one-time transcription token.
         data = json.loads(http.request.httprequest.get_data(as_text=True))
-        rec = http.request.env['connect.recording'].sudo().search([
-            ('id', '=', rec_id), ('transcription_token', '!=', False),
-            ('transcription_token', '=', data['transcription_token'])
-        ])
-        if not rec:
-            logger.warning('Transcription token %s not found for recording %s',
-                data['transcription_token'], rec_id)
-            raise NotFound()
+        rec = http.request.connect_recording
         rec.with_user(SUPERUSER_ID).update_transcript(data)
         logger.info('Transcript for recording %s saved.', rec_id)
         return True
@@ -71,7 +62,7 @@ class ConnectController(http.Controller):
         else:
             raise UserError("Failed to download the media. Status code: %s" % response.status_code)
 
-    @http.route('/connect/<string:extension_number>', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
+    @http.route('/connect/<string:extension_number>', methods=['GET', 'POST'], type='http', auth='connect_twilio_voice', csrf=False)
     def extension_handler(self, extension_number, **kw):
         """Handle extension calls via direct URL"""
         if not TwilioWebhooksController.check_signature(kw):
@@ -92,7 +83,7 @@ class ConnectController(http.Controller):
                 content_type='text/xml',
             )
 
-    @http.route('/connect/dial_complete', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
+    @http.route('/connect/dial_complete', methods=['GET', 'POST'], type='http', auth='connect_twilio_voice', csrf=False)
     def dial_complete_handler(self, **kw):
         """Handle Dial action completion for transfer redirects and update call completion fields"""
         if not TwilioWebhooksController.check_signature(kw):
@@ -426,11 +417,6 @@ class ConnectController(http.Controller):
             content_type='application/json',
         )
 
-    # preflight-ignore-next-line: idor-sudo-write -- health check compares a config UID and returns text only; handler contains no write despite POST+sudo
-    @http.route('/connect/health/<string:uid>/', methods=['GET', 'POST'], type='http', auth='public', csrf=False)
+    @http.route('/connect/health/<string:uid>/', methods=['GET'], type='http', auth='connect_health', csrf=False)
     def health_check(self, uid):
-        instance_uid = http.request.env['connect.settings'].sudo().get_param('instance_uid')
-        if uid == instance_uid:
-            return "True"
-        else:
-            return "False"
+        return "True"

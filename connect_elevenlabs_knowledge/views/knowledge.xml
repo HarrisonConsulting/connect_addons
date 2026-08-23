@@ -73,7 +73,7 @@
                     </group>
                     <group name="error_info" string="Error Information" 
                            invisible="not error_message">
-                        <field name="error_message" readonly="1" nolabel="1"/>
+                        <field name="error_message" readonly="1" nolabel="1" colspan="2"/>
                     </group>
                     <notebook>
                         <page name="agents" string="Used by Agents">

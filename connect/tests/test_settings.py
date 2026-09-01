@@ -110,6 +110,66 @@ class TestEnvCredentialOverride(ConnectTestCase):
 
 
 @tagged('post_install', '-at_install')
+class TestSecurityPreflight(ConnectTestCase):
+    """Connect configuration is audited once activation intent exists."""
+
+    def _check(self, **values):
+        settings = self.env['connect.settings'].sudo().search([], limit=1)
+        settings.write({
+            'is_registered': False,
+            'rest_provider': 'twilio',
+            'twilio_verify_requests': True,
+            'account_sid': False,
+            'auth_token': False,
+            **values,
+        })
+        with patch.dict(config.options, {
+                'test_enable': False,
+                'proxy_mode': True,
+        }), patch.object(
+            settings_module, 'get_env_credential', return_value=None,
+        ), patch.object(
+            settings_module.Settings, '_is_neutralized', return_value=False,
+        ):
+            return settings.check_security_preflight()
+
+    def test_virgin_default_configuration_has_no_findings(self):
+        self.assertEqual(self._check(), [])
+
+    def test_virgin_disabled_verification_has_no_findings(self):
+        self.assertEqual(self._check(twilio_verify_requests=False), [])
+
+    def test_registered_instance_requires_credentials(self):
+        with self.assertLogs(settings_module.logger, level='CRITICAL'):
+            findings = self._check(is_registered=True)
+        self.assertEqual(
+            [(finding['code'], finding['level']) for finding in findings],
+            [('twilio_credentials_missing', 'critical')],
+        )
+
+    def test_partial_credentials_activate_the_preflight(self):
+        with self.assertLogs(settings_module.logger, level='CRITICAL'):
+            findings = self._check(account_sid='ACpartial')
+        self.assertEqual(
+            [(finding['code'], finding['level']) for finding in findings],
+            [('twilio_credentials_missing', 'critical')],
+        )
+
+    def test_registered_instance_requires_verification(self):
+        with self.assertLogs(settings_module.logger, level='CRITICAL'):
+            findings = self._check(
+                is_registered=True,
+                account_sid='ACconfigured',
+                auth_token='configured-token',
+                twilio_verify_requests=False,
+            )
+        self.assertEqual(
+            [(finding['code'], finding['level']) for finding in findings],
+            [('twilio_verify_requests_disabled', 'critical')],
+        )
+
+
+@tagged('post_install', '-at_install')
 class TestSettingsTwilioClient(ConnectTestCase):
     """Test Twilio client creation."""
 

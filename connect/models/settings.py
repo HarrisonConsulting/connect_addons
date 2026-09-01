@@ -672,6 +672,12 @@ class Settings(models.Model):
         if not data:
             return findings  # nothing configured yet -- nothing to warn about
 
+        account_sid = data.get_param('account_sid')
+        auth_token = data.get_param('auth_token')
+        activated = bool(data.is_registered or account_sid or auth_token)
+        if not activated:
+            return findings
+
         # Not-production signals: a test run, a CONNECT_* sandbox override, OR the
         # standard Odoo neutralization flag (odoo/addons/base/data/neutralize.sql
         # sets ir_config_parameter['database.is_neutralized'] on every neutralize
@@ -703,8 +709,7 @@ class Settings(models.Model):
                 ),
             })
 
-        if data.rest_provider == 'twilio' and (
-                not data.get_param('account_sid') or not data.get_param('auth_token')):
+        if data.rest_provider == 'twilio' and (not account_sid or not auth_token):
             findings.append({
                 'code': 'twilio_credentials_missing',
                 'level': 'info' if sandboxed else 'critical',

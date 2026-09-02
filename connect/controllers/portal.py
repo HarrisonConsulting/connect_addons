@@ -50,11 +50,21 @@ class ConnectCustomerPortal(CustomerPortal):
             raise NotFound()
         return call
 
+    def _prepare_portal_layout_values(self):
+        values = super()._prepare_portal_layout_values()
+        values['connect_customer_call_portal_enabled'] = (
+            self._customer_call_portal_enabled()
+        )
+        return values
+
     def _prepare_home_portal_values(self, counters):
+        # Every key returned here is echoed by /my/counters, and the portal's
+        # counter interaction writes each one into a matching
+        # [data-placeholder_count] element. A key without such an element is a
+        # TypeError that aborts the batch and strands the loading spinner, so
+        # only genuine counters belong in these values.
         values = super()._prepare_home_portal_values(counters)
-        enabled = self._customer_call_portal_enabled()
-        values['connect_customer_call_portal_enabled'] = enabled
-        if enabled and 'connect_call_count' in counters:
+        if 'connect_call_count' in counters and self._customer_call_portal_enabled():
             values['connect_call_count'] = request.env[
                 'connect.call'
             ].sudo().search_count(self._customer_call_domain())

@@ -109,6 +109,22 @@ class TestCustomerCallPortal(HttpCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Listen to your recordings', response.content)
 
+    def test_counters_endpoint_returns_only_placeholder_keys(self):
+        """/my/counters keys must all address a [data-placeholder_count] node.
+
+        The portal counter interaction writes every returned key into the
+        element carrying that placeholder name; a key with no such element
+        throws and leaves the home page spinner turning forever.
+        """
+        counters = self.make_jsonrpc_request(
+            '/my/counters', {'counters': ['connect_call_count']})
+
+        self.assertEqual(counters.get('connect_call_count'), 2)
+        self.assertEqual(
+            [key for key in counters if not key.endswith('_count')], [],
+            'Only counters may be returned from /my/counters.',
+        )
+
     def test_list_contains_exact_contact_calls_only(self):
         response = self.url_open('/my/calls')
         self.assertEqual(response.status_code, 200)

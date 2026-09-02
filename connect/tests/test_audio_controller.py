@@ -58,19 +58,25 @@ class TestAudioController(HttpCase):
         self.assertEqual(resp.headers.get('Content-Type'), 'audio/mpeg')
         self.assertEqual(resp.content, self.mp3_bytes)
 
-    def test_missing_token_returns_403(self):
+    def test_missing_token_returns_401(self):
         resp = self.url_open(
             f'/connect/audio/utterance/{self.static_utterance.id}')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 401)
 
-    def test_bad_token_returns_403(self):
+    def test_bad_token_returns_401(self):
         resp = self.url_open(
             f'/connect/audio/utterance/{self.static_utterance.id}?t=deadbeef')
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 401)
 
-    def test_unknown_utterance_returns_404(self):
+    def test_unknown_utterance_returns_401(self):
+        """An unsigned request is rejected before the id is ever resolved.
+
+        No token can be signed for an utterance that does not exist, so the
+        caller is turned away at the auth boundary and learns nothing about
+        which ids are real.
+        """
         resp = self.url_open('/connect/audio/utterance/99999999?t=whatever')
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 401)
 
     def test_utterance_without_file_returns_404(self):
         text_only = self.Utterance.create({

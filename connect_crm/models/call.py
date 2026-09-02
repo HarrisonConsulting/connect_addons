@@ -37,21 +37,29 @@ class CrmCall(models.Model):
             call.source = self.env['utm.source'].sudo().search(
                 [('phone', '=', call.called)], limit=1)
             # Update reference if not set.
+        # Lead assignment is best-effort: a call must still be recorded when
+        # CRM cannot place it. The savepoints matter as much as the handlers —
+        # a database-level failure (a stale user_id on the lead, say) aborts
+        # the transaction, and without one every later statement in the
+        # webhook dies with InFailedSqlTransaction instead of the call saving.
+        # Precedent: /mnt/19/odoo/addons/account/models/chart_template.py
         try:
-            lead = None
-            # No reference was set, so we have a change to set it to a lead
-            if call.direction == 'incoming':
-                lead = self.env['crm.lead'].get_lead_by_number(call.caller)
-            else:
-                lead = self.env['crm.lead'].get_lead_by_number(call.called)
-            if lead:
-                debug(self, 'Call {} assign <{}> "{}"'.format(call.id, lead.id, lead.name))
-                call.lead = lead
-            else:
-                try:
-                    call.sudo()._auto_create_lead()
-                except Exception as e:
-                    logger.exception('Auto create lead error: (handled):')
+            with self.env.cr.savepoint():
+                lead = None
+                # No reference was set, so we have a change to set it to a lead
+                if call.direction == 'incoming':
+                    lead = self.env['crm.lead'].get_lead_by_number(call.caller)
+                else:
+                    lead = self.env['crm.lead'].get_lead_by_number(call.called)
+                if lead:
+                    debug(self, 'Call {} assign <{}> "{}"'.format(call.id, lead.id, lead.name))
+                    call.lead = lead
+                else:
+                    try:
+                        with self.env.cr.savepoint():
+                            call.sudo()._auto_create_lead()
+                    except Exception:
+                        logger.exception('Auto create lead error: (handled):')
         except Exception:
             logger.exception('Update call lead error:')
         return call_id

@@ -10,7 +10,3 @@ from . import phone_registration
 from . import number
 from . import settings
 from . import recording
-
-# Inject documentation page.
-from odoo.addons.connect.models.documentation import PAGE_MAP
-PAGE_MAP[2] = ['Connect Elevenlabs', 'connect_elevenlabs']

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="twiml_search_audio" model="ir.ui.view">
+        <field name="name">connect.twiml.search.audio</field>
+        <field name="model">connect.twiml</field>
+        <field name="inherit_id" ref="connect.connect_twiml_search"/>
+        <field name="arch" type="xml">
+            <filter name="by_type" position="before">
+                <!-- Finds TwiMLs whose bodies cite an audio that has since
+                     been archived. Render-time fallback routing will play
+                     fallback.archived in place of the original; this filter
+                     surfaces the cleanup backlog for operators. -->
+                <filter name="references_archived_audio"
+                        string="References Archived Audio"
+                        domain="[('referenced_audio_ids.state', '=', 'archived')]"/>
+            </filter>
+        </field>
+    </record>
+
+</odoo>

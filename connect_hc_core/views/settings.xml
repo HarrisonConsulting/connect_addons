@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="settings_form_audio" model="ir.ui.view">
+        <field name="name">connect.settings.form.audio</field>
+        <field name="model">connect.settings</field>
+        <field name="inherit_id" ref="connect.connect_settings_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@string='Voicemail']" position="before">
+                <group string="Voice">
+                    <field name="default_twilio_voice"
+                           options="{'no_create': True}"/>
+                </group>
+            </xpath>
+            <xpath expr="//group[@string='Announcements']" position="before">
+                <group string="Hold Music">
+                    <field name="park_hold_music_audio_id"
+                           domain="[('state', 'in', ('reviewed', 'live')), ('source', 'in', ('external_url', 'attachment', 'record'))]"
+                           options="{'no_create': True}"/>
+                    <small colspan="2">Audio played to parked callers. Leave empty for default Twilio classical music.</small>
+                    <div class="alert alert-warning" colspan="2" role="alert"
+                         invisible="park_hold_music_audio_id_source != 'twilio_tts'">
+                        <strong>TTS can't be used as hold music.</strong>
+                        Twilio's conference waitUrl requires a media URL, not a
+                        live <code>&lt;Say&gt;</code>. Parked callers will hear
+                        the default classical hold loop instead. Switch to a
+                        Browser Recording, Internal Attachment, or External URL
+                        to take effect.
+                    </div>
+                    <field name="park_hold_music_audio_id_source" invisible="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

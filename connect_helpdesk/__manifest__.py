@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 {
     'name': 'Connect Odoo Helpdesk module',
-    'version': '1.0.4',
+    'version': '1.0.5',
     'author': 'Oduist',
     'price': 0,
     'currency': 'EUR',
@@ -12,7 +12,7 @@
     'category': 'Phone',
     'summary': 'Connect Odoo Helpdesk module',
     'description': "",
-    'depends': ['helpdesk', 'connect'],
+    'depends': ['helpdesk', 'connect', 'connect_hc_core'],
     'data': [
         'views/ticket.xml',
         'views/call.xml',

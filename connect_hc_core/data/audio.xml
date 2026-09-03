@@ -1,0 +1,199 @@
+<odoo noupdate="1">
+
+  <!-- Twilio voices. Polly.* are recommended over the legacy alice/man/woman
+       set, which Twilio treats as deprecated and may not be available on new
+       sub-accounts. Both are seeded so existing data referencing 'alice'
+       still resolves; new audios should default to Polly. -->
+  <record id="voice_twilio_polly_joanna" model="connect.voice">
+    <field name="name">Joanna (Polly Standard)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Joanna</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_matthew" model="connect.voice">
+    <field name="name">Matthew (Polly Standard)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Matthew</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+  </record>
+  <!-- Polly Generative voices — higher quality than Standard, billed per
+       character. These are the five offered as system_voice options prior to
+       1.14.0 and must exist as connect.voice records so the new
+       settings.default_twilio_voice M2o can point at them. -->
+  <record id="voice_twilio_polly_danielle_generative" model="connect.voice">
+    <field name="name">Danielle (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Danielle-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_joanna_generative" model="connect.voice">
+    <field name="name">Joanna (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Joanna-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_matthew_generative" model="connect.voice">
+    <field name="name">Matthew (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Matthew-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+  </record>
+  <record id="voice_twilio_polly_ruth_generative" model="connect.voice">
+    <field name="name">Ruth (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Ruth-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+  </record>
+  <record id="voice_twilio_polly_stephen_generative" model="connect.voice">
+    <field name="name">Stephen (Polly Generative)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">Polly.Stephen-Generative</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+  </record>
+  <record id="voice_twilio_alice" model="connect.voice">
+    <field name="name">Alice (Twilio legacy)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">alice</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+    <field name="description">Legacy Twilio voice. Prefer Polly.* on new sub-accounts.</field>
+  </record>
+  <record id="voice_twilio_man" model="connect.voice">
+    <field name="name">Man (Twilio legacy)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">man</field>
+    <field name="language">en-US</field>
+    <field name="gender">male</field>
+    <field name="description">Legacy Twilio voice. Prefer Polly.* on new sub-accounts.</field>
+  </record>
+  <record id="voice_twilio_woman" model="connect.voice">
+    <field name="name">Woman (Twilio legacy)</field>
+    <field name="provider">twilio</field>
+    <field name="external_id">woman</field>
+    <field name="language">en-US</field>
+    <field name="gender">female</field>
+    <field name="description">Legacy Twilio voice. Prefer Polly.* on new sub-accounts.</field>
+  </record>
+
+  <!-- System message audios. Source defaults to twilio_tts so <Say> is used
+       until ElevenLabs (or another provider) is wired up. No voice_id is
+       pinned: use_default_voice defaults True so these follow
+       settings.default_twilio_voice. Operators who change the default in
+       settings see ALL system messages switch in one place. When the
+       default is unset, tts_mixin falls back to DEFAULT_TWILIO_VOICE
+       (Polly.Joanna Standard, free on every sub-account). -->
+
+  <record id="audio_system_transfer" model="connect.audio">
+    <field name="name">System: Transfer</field>
+    <field name="system_key">system.transfer</field>
+    <field name="uuid">a7f3e4b2-8c1d-4e9a-b5f7-2d6a8e4c9b1f</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">Transfer</field>
+  </record>
+  <record id="audio_system_connecting" model="connect.audio">
+    <field name="name">System: Connecting</field>
+    <field name="system_key">system.connecting</field>
+    <field name="uuid">c5d2b1e9-3a74-4f68-9c8d-1b7e5f2a9d6c</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">Connecting...</field>
+  </record>
+  <record id="audio_system_dnd" model="connect.audio">
+    <field name="name">System: Do Not Disturb</field>
+    <field name="system_key">system.dnd</field>
+    <field name="uuid">e8b4a7c3-6d59-4e21-8f7a-3c9b2d5e1a8f</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">Do not disturb is enabled. Please leave a message.</field>
+  </record>
+  <record id="audio_error_no_callerid" model="connect.audio">
+    <field name="name">Error: No CallerID</field>
+    <field name="system_key">error.no_callerid</field>
+    <field name="uuid">4f2a9b67-1c38-4d5e-a6b2-8e7d3f1c9a54</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">You must configure a default number for caller ID!</field>
+  </record>
+  <record id="audio_error_callflow_empty" model="connect.audio">
+    <field name="name">Error: Callflow Empty</field>
+    <field name="system_key">error.callflow_empty</field>
+    <field name="uuid">b1e5d8f4-2a97-4c63-9b1d-5e8a2f7c4d63</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">This callflow has no actions! Goodbye!</field>
+  </record>
+  <record id="audio_error_call_failed" model="connect.audio">
+    <field name="name">Error: Call Failed</field>
+    <field name="system_key">error.call_failed</field>
+    <field name="uuid">7d3c8e1b-4f96-4a52-b8e7-6c9a1d4f2b83</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">Sorry, I could not connect your call. Goodbye!</field>
+  </record>
+  <record id="audio_error_no_extension" model="connect.audio">
+    <field name="name">Error: No Extension</field>
+    <field name="system_key">error.no_extension</field>
+    <field name="uuid">9a5f6c2d-8b47-4e31-a7c9-2d1b8f4e6c95</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">Extension not configured!</field>
+  </record>
+  <record id="audio_error_choice_error" model="connect.audio">
+    <field name="name">Error: Choice Error</field>
+    <field name="system_key">error.choice_error</field>
+    <field name="uuid">2e6b4a1c-7f58-4d92-8a3e-5c9d1b6f8a47</field>
+    <field name="source">twilio_tts</field>
+    <field name="static_text">Choice application error, please contact technical support!</field>
+  </record>
+
+  <!-- Fallback audios played by the TwiML audio('<uuid>') helper when a
+       reference can't be served normally. state=live so they actually play;
+       ops can rebrand the wording by editing static_text on the record.
+       Renaming the system_key would break the helper's lookup — treat the
+       key as code. See connect/models/twiml.py _render_fallback(). -->
+  <record id="audio_fallback_archived" model="connect.audio">
+    <field name="name">Fallback: Archived Audio</field>
+    <field name="system_key">fallback.archived</field>
+    <field name="uuid">32e25059-4874-4ffd-be2a-1ab914e75271</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">This message is temporarily unavailable. Please hold.</field>
+  </record>
+  <record id="audio_fallback_unresolved" model="connect.audio">
+    <field name="name">Fallback: Unresolved Audio Reference</field>
+    <field name="system_key">fallback.unresolved</field>
+    <field name="uuid">9d9be4e7-a64a-4649-afd3-3665f43fb9a9</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">A configuration error occurred. Please contact support.</field>
+  </record>
+
+  <!-- Uniform "recording for quality assurance" notice. Played deterministically
+       to the callee BEFORE either outbound experience connects: the realtime
+       voice-agent origination (voice_connect) and connect_callout campaigns.
+       A fixed notice that ends "…we'll connect you now" makes the two-speaker
+       transition credible without depending on an LLM/human to remember.
+       state=live so it plays immediately; system_key keeps it pinned live and
+       reachable. Both consumers resolve it via connect.audio
+       resolve_qa_recording_notice(), keyed off the config param below — so the
+       text (or a recorded brand-voice file) is swappable with no code change. -->
+  <record id="audio_qa_recording_notice" model="connect.audio">
+    <field name="name">System: QA Recording Notice</field>
+    <field name="system_key">system.qa_recording_notice</field>
+    <field name="uuid">ee95d265-80c7-4c1e-94f2-c6ab30993353</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">This call will be recorded for quality assurance. We'll connect you now.</field>
+  </record>
+
+  <!-- Indirection so the notice is swappable (e.g. to a recorded brand-voice
+       file) without touching either consumer. Value is the xmlid both paths
+       resolve via env.ref; resolve_qa_recording_notice() also accepts a bare
+       database id or a system_key. -->
+  <record id="qa_recording_notice_audio_param" model="ir.config_parameter">
+    <field name="key">connect.qa_recording_notice_audio</field>
+    <field name="value">connect_hc_core.audio_qa_recording_notice</field>
+  </record>
+
+</odoo>

@@ -7,7 +7,7 @@
   <record id="connect_audio_form_elevenlabs" model="ir.ui.view">
     <field name="name">connect.audio.form.elevenlabs</field>
     <field name="model">connect.audio</field>
-    <field name="inherit_id" ref="connect.connect_audio_form"/>
+    <field name="inherit_id" ref="connect_hc_core.connect_audio_form"/>
     <field name="arch" type="xml">
       <xpath expr="//field[@name='use_default_voice']" position="attributes">
         <attribute name="invisible">source not in ('twilio_tts', 'elevenlabs_tts')</attribute>

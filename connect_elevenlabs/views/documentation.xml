@@ -10,7 +10,7 @@
         <field name="res_id" eval="False"/>
         <field name="view_mode">form</field>
         <field name="target">current</field>
-        <field name="view_id" ref="connect.view_connect_documentation_form"/>
+        <field name="view_id" ref="connect_hc_core.view_connect_documentation_form"/>
     </record>
 
     <!-- Menu item -->

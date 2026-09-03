@@ -13,14 +13,9 @@ logger = logging.getLogger(__name__)
 
 class Number(models.Model):
     _name = 'connect.number'
-    _inherit = ['connect.audio.referrer.mixin']
     _description = 'Phone Number'
     _rec_name = 'phone_number'
     _order = 'phone_number'
-
-    # Inbound DIDs are entry points for the reachability BFS. Any change to
-    # the destination polymorphism flips what's reachable.
-    _audio_reachability_fields = ('destination', 'user', 'callflow', 'twiml')
 
     sid = fields.Char()
     is_ignored = fields.Boolean('Ignored')

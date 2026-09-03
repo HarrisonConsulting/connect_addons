@@ -54,8 +54,6 @@ class ConnectMessage(models.Model):
     res_model = fields.Char()
     res_id = fields.Integer()
     ref = fields.Reference(selection='_reference_models', string="Reference", compute='_compute_ref', store=True)
-    conversation_id = fields.Many2one(
-        'connect.conversation', string='Conversation', index=True, ondelete='set null')
     parent_message = fields.Many2one('connect.message', string='In Reply To', readonly=True)
     media_url = fields.Char()
     media_content_type = fields.Char()

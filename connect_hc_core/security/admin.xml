@@ -1,0 +1,121 @@
+<odoo>
+
+  <record id="connect_conversation_wizard_admin" model="ir.model.access">
+    <field name="name">connect_conversation_wizard_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_conversation_wizard"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+<!-- Voicemail Stage -->
+  <record id="connect_voicemail_stage_admin" model="ir.model.access">
+    <field name="name">connect_voicemail_stage_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_voicemail_stage"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+<!-- Voicemail Box -->
+  <record id="connect_voicemail_box_admin" model="ir.model.access">
+    <field name="name">connect_voicemail_box_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_voicemail_box"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <!-- Conversation -->
+  <record id="connect_conversation_admin" model="ir.model.access">
+    <field name="name">connect_conversation_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_conversation"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <!-- Schedule Line -->
+  <record id="connect_schedule_line_admin" model="ir.model.access">
+    <field name="name">connect_schedule_line_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_schedule_line"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <!-- Schedule Holiday -->
+  <record id="connect_schedule_holiday_admin" model="ir.model.access">
+    <field name="name">connect_schedule_holiday_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_schedule_holiday"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <!-- Audio -->
+  <record id="connect_audio_admin" model="ir.model.access">
+    <field name="name">connect_audio_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_audio"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <record id="connect_audio_utterance_admin" model="ir.model.access">
+    <field name="name">connect_audio_utterance_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_audio_utterance"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <record id="connect_audio_reference_admin" model="ir.model.access">
+    <field name="name">connect_audio_reference_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_audio_reference"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <record id="connect_voice_admin" model="ir.model.access">
+    <field name="name">connect_voice_admin</field>
+    <field name="model_id" ref="connect_hc_core.model_connect_voice"/>
+    <field name="group_id" ref="connect.group_connect_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
+  <!-- Documentation access -->
+  <record model="ir.model.access" id="access_connect_documentation">
+      <field name="name">connect.documentation</field>
+      <field name="model_id" ref="connect_hc_core.model_connect_documentation"/>
+      <field name="perm_read" eval="True"/>
+      <field name="perm_write" eval="False"/>
+      <field name="perm_create" eval="True"/>
+      <field name="perm_unlink" eval="False"/>
+  </record>
+
+
+
+</odoo>

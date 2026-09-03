@@ -27,7 +27,7 @@ IGNORE_ERROR_CODES = ['32009']
 
 class Call(models.Model):
     _name = 'connect.call'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'connect.tts.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Call'
     _order = 'id desc'
 
@@ -93,20 +93,12 @@ class Call(models.Model):
     voicemail_attachment_id = fields.Many2one('ir.attachment', string='Voicemail File', ondelete='set null', readonly=True, copy=False)
     voicemail_sid = fields.Char(string='Voicemail SID', readonly=True, copy=False)
     # Voicemail management fields
-    voicemail_stage_id = fields.Many2one(
-        'connect.voicemail_stage', string='Stage', index=True, tracking=True,
-        group_expand='_group_expand_voicemail_stage', help="",
-    )
     voicemail_assignee_ids = fields.Many2many(
         'res.users', 'connect_call_voicemail_assignee_rel', 'call_id', 'user_id',
         string='Assignees', domain="[('share', '=', False)]",
         help="Internal users responsible for handling this voicemail"
     )
     voicemail_transcript = fields.Text(string='Voicemail Transcript', help="")
-    voicemail_box_id = fields.Many2one(
-        'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
-        index=True, tracking=True, readonly=True,
-        help='Shared box this call belongs to. Set via the user or callflow that received the voicemail.')
     callflow_id = fields.Many2one(
         'connect.callflow', ondelete='set null', string='Callflow',
         index=True, readonly=True,
@@ -1283,9 +1275,6 @@ class Call(models.Model):
         return res
 
     @api.model
-    def _group_expand_voicemail_stage(self, stages, domain):
-        return stages.search([])
-
     def action_assign_to_me(self):
         self.ensure_one()
         if self.env.user not in self.voicemail_assignee_ids:

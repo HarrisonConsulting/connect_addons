@@ -39,7 +39,7 @@
     <record id="view_ticket_voicemail_form" model="ir.ui.view">
         <field name="name">view_ticket_voicemail_form</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.voicemail_form"/>
+        <field name="inherit_id" ref="connect_hc_core.voicemail_form"/>
         <field name="arch" type="xml">
             <button name="action_assign_to_me" position="after">
                 <button string="Ticket" name="create_ticket_button" type="object"

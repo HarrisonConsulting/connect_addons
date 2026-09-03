@@ -19,10 +19,6 @@ from odoo.exceptions import ValidationError
 from odoo.tools import config
 from twilio.rest import Client
 from twilio.http.http_client import TwilioHttpClient
-from .audio_referrer_mixin import (
-    SELECTABLE_AUDIO_STATES,
-    URL_PLAYABLE_AUDIO_SOURCES,
-)
 from ..migrators import DomainMigrator, NumberMigrator, TwimlMigrator
 
 logger = logging.getLogger(__name__)
@@ -200,10 +196,7 @@ class Settings(models.Model):
     """
 
     _name = "connect.settings"
-    _inherit = ['connect.audio.referrer.mixin']
     _description = "Settings"
-
-    _audio_reference_fields = ('park_hold_music_audio_id',)
 
     name = fields.Char(compute="_get_name")
     debug_mode = fields.Boolean()
@@ -214,14 +207,6 @@ class Settings(models.Model):
     last_reachability_refresh_on = fields.Datetime(readonly=True,
         string='Reachability Last Refreshed')
 
-    def get_default_audio_source(self):
-        """Return (source, voice) tuple for newly-created connect.audio rows.
-
-        Override in provider extensions (e.g. connect_elevenlabs) to switch the
-        default to that provider when enabled. Base default is twilio_tts with
-        no explicit voice (caller falls back to play_on()'s default).
-        """
-        return 'twilio_tts', self.env['connect.voice']
     twilio_auto_sync = fields.Boolean(default=True)
     rest_provider = fields.Selection(
         [('twilio', 'Twilio')],
@@ -369,16 +354,6 @@ class Settings(models.Model):
     web_base_url = fields.Char(compute="_get_instance_data", string="Odoo URL")
     call_duration_limit = fields.Integer(compute="_get_instance_data", string="Call Duration Limit (seconds)")
     latest_versions = fields.Html(readonly=True)
-    # Voice settings. default_twilio_voice is the DB-wide default for any
-    # connect.audio with source=twilio_tts and use_default_voice=True. Kept as
-    # a Many2one on connect.voice so the set of valid voices is data-driven
-    # (see connect/data/audio.xml) rather than hardcoded in a Selection.
-    default_twilio_voice = fields.Many2one(
-        'connect.voice', string='Default Twilio Voice',
-        domain=[('provider', '=', 'twilio'), ('active', '=', True)],
-        help='Default voice for Twilio <Say> output. Used by connect.audio '
-             'rows with use_default_voice=True and by tts_mixin fallback '
-             'system messages.')
     pronunciation_rules = fields.Text(
         string='Pronunciation Rules',
         help='JSON map of text to pronunciation substitutions (e.g., {"3CHI": "3-chee", "CEO": "C-E-O"})'
@@ -408,23 +383,6 @@ class Settings(models.Model):
         default=300,
         help="Seconds before a parked call times out and rings back the parker (0 = no timeout)"
     )
-    park_hold_music_audio_id = fields.Many2one(
-        'connect.audio', ondelete='set null',
-        domain=[
-            ('state', 'in', SELECTABLE_AUDIO_STATES),
-            ('source', 'in', URL_PLAYABLE_AUDIO_SOURCES),
-        ],
-        string='Park Hold Music',
-        help="Audio played to parked callers. Leave empty for default classical "
-             "music. Twilio's waitUrl only accepts a media URL, so TTS sources "
-             "can't be used here — pick a Browser Recording, Internal "
-             "Attachment, or External URL."
-    )
-    # Related surfacing of the picked audio's source so the settings form can
-    # show a warning banner when an operator picks a TTS audio (which can't
-    # play via waitUrl and will silently fall back to the default loop).
-    park_hold_music_audio_id_source = fields.Selection(
-        related='park_hold_music_audio_id.source', readonly=True)
     park_announcement_enabled = fields.Boolean(
         string='Park Announcement',
         default=False,
@@ -855,44 +813,6 @@ class Settings(models.Model):
             "customer_code": self.get_param("customer_code"),
         }
 
-    def get_usage_model_list(self):
-        return [
-            "call",
-            "callflow",
-            "domain",
-            "exten",
-            "message",
-            "number",
-            "outgoing_callerid",
-            "recording",
-            "twiml",
-            "user",
-        ]
-
-    @api.model
-    def update_usage(self):
-        res = {
-            "usage": {},
-            "usage_errors": {},
-        }
-        for model in self.get_usage_model_list():
-            try:
-                res["usage"][model] = {
-                    "count": self.env["connect.{}".format(model)].search_count([]),
-                }
-                if model == "call":
-                    self.env.cr.execute("SELECT SUM(duration)/60 FROM connect_call")
-                    call_minutes = self.env.cr.fetchall()[0][0]
-                    res["usage"][model]["minutes"] = call_minutes
-            except Exception as e:
-                res["usage_errors"][model] = str(e)
-        data = self.prepare_registration_data()
-        data.update(res)
-        try:
-            self.make_usage_request("usage", requests.post, data)
-        except Exception as e:
-            logger.exception("Usage error:")
-
     def make_usage_request(
         self, path, method, data={}, headers={}, raise_on_error=False
     ):
@@ -1044,18 +964,6 @@ class Settings(models.Model):
         return None
 
     @api.model
-    def get_system_voice(self):
-        """Return the Twilio voice external_id for <Say> fallbacks.
-
-        Resolves settings.default_twilio_voice → external_id. Falls back to
-        DEFAULT_TWILIO_VOICE (Polly.Joanna Standard) when unset so <Say>
-        always has a concrete voice to render even on a fresh install before
-        the operator picks one.
-        """
-        from .tts_mixin import DEFAULT_TWILIO_VOICE
-        voice = self.sudo().search([], limit=1).default_twilio_voice
-        return voice.external_id if voice else DEFAULT_TWILIO_VOICE
-
     @api.model
     def process_pronunciation(self, text):
         """Process text to apply SSML pronunciation substitutions"""

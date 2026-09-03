@@ -93,10 +93,6 @@
                         Customers can view only calls linked directly to their portal contact. Access is read-only.
                       </small>
                     </group>
-                    <group string="Voice">
-                      <field name="default_twilio_voice"
-                             options="{'no_create': True}"/>
-                    </group>
                     <group string="Voicemail">
                       <field name="voicemail_max_length"/>
                       <field name="voicemail_finish_key"/>
@@ -146,22 +142,6 @@
                     </group>
                   </group>
                   <group>
-                    <group string="Hold Music">
-                      <field name="park_hold_music_audio_id"
-                             domain="[('state', 'in', ('reviewed', 'live')), ('source', 'in', ('external_url', 'attachment', 'record'))]"
-                             options="{'no_create': True}"/>
-                      <small colspan="2">Audio played to parked callers. Leave empty for default Twilio classical music.</small>
-                      <div class="alert alert-warning" colspan="2" role="alert"
-                           invisible="park_hold_music_audio_id_source != 'twilio_tts'">
-                        <strong>TTS can't be used as hold music.</strong>
-                        Twilio's conference waitUrl requires a media URL, not a
-                        live <code>&lt;Say&gt;</code>. Parked callers will hear
-                        the default classical hold loop instead. Switch to a
-                        Browser Recording, Internal Attachment, or External URL
-                        to take effect.
-                      </div>
-                      <field name="park_hold_music_audio_id_source" invisible="1"/>
-                    </group>
                     <group string="Announcements">
                       <field name="park_announcement_enabled"/>
                       <small colspan="2">When enabled, callers hear "Your call has been parked at slot N" before hold music.</small>
@@ -259,17 +239,11 @@
       </field>
   </record>
 
-  <record id="update_usage" model="ir.cron">
-      <field name="name">Update</field>
-      <field name="interval_number">1</field>
-      <field name="interval_type">days</field>
-      <field name="model_id" ref="model_connect_settings"/>
-      <field name="code">model.update_usage()</field>
-      <field name="state">code</field>
-  </record>
-
+  <!-- Restore Scheduled Actions to its unfiltered core behaviour. A previous
+       revision narrowed this action's domain so that crons were hidden from the
+       list an administrator uses to audit them. base defines no domain here. -->
   <record id="base.ir_cron_act" model="ir.actions.act_window">
-            <field name="domain" eval="[('id','not in', [ref('mail.ir_cron_module_update_notification'), ref('connect.update_usage')])]"/>
+      <field name="domain" eval="False"/>
   </record>
 
 </odoo>

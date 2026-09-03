@@ -59,7 +59,7 @@ class ConnectController(Controller):
         # below stops the exception ever reaching Odoo's own
         # `service.model.retrying`, so whatever is not caught here is dropped.
         # connect_enqueue's reservation teardown re-raises through
-        # `connect.tools.reraise_if_concurrency_retry`, which propagates all
+        # `connect_hc_core.tools.reraise_if_concurrency_retry`, which propagates all
         # three of PG_CONCURRENCY_EXCEPTIONS_TO_RETRY; deadlock_detected
         # (40P01) in particular is what the abandon-vs-close lock inversion
         # produces, and catching only 40001 left it in the drop path.

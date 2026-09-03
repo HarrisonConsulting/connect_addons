@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.30.10',
+    'version': '1.32.0',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -35,8 +35,6 @@
         'security/admin_record_rules.xml',
         # Data (post-security)
         'data/schedule_data.xml',
-        'data/audio.xml',
-        'data/voicemail_stage_data.xml',
         # Views
         'views/menu.xml',
         # Before settings.xml: its MIGRATE ACCOUNT button references this action.
@@ -49,15 +47,11 @@
         'views/exten.xml',
         'views/call_analytics.xml',
         'views/call.xml',
-        'views/voicemail_box.xml',
-        'views/voicemail.xml',
-        'views/park_slot.xml',
         'views/schedule.xml',
         'views/callflow.xml',
         'views/channel.xml',
         'views/outgoing_callerid.xml',
         'views/recording.xml',
-        'views/audio.xml',
         'views/number.xml',
         'views/favorite.xml',
         'views/res_partner.xml',
@@ -67,22 +61,16 @@
         'views/whatsapp_sender.xml',
         'views/portal_templates.xml',
         'views/versions.xml',
-        'views/documentation.xml',
         # Wizard
         'wizard/transfer.xml',
         'wizard/sms_composer_views.xml',
         'wizard/whatsapp_composer_views.xml',
         'wizard/originate_to_wizard_views.xml',
-        'wizard/conversation_wizard_views.xml',
-        'wizard/audio_archive_wizard_views.xml',
-        # Conversation views (after wizard, references wizard action)
-        'views/conversation.xml',
     ],
     'demo': [],
     'installable': True,
     'application': True,
     'auto_install': False,
-    'post_init_hook': 'post_init_hook',
     'images': ['static/description/logo.png'],
     'assets': {
         'web.assets_backend': [
@@ -98,7 +86,6 @@
             '/connect/static/src/js/utils.js',
             '/connect/static/src/components/chat/*',
             '/connect/static/src/widgets/phone_field/*',
-            '/connect/static/src/widgets/audio_recorder/*',
         ],
         'web.assets_tests': [
             # Loaded before the tours: it replaces the provider transport with

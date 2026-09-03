@@ -364,6 +364,11 @@ class Channel(models.Model):
         Handle external call termination when transfer recipients hang up completed calls.
         This prevents external callers from going to voicemail when internal users end calls.
         """
+        # Imported here rather than at module scope: connect_hc_core layers on
+        # top of connect, so a top-level import would run its package body
+        # while this one is still initialising.
+        from odoo.addons.connect_hc_core.tools import reraise_if_concurrency_retry
+
         try:
             call = channel.call
             call_sid = params.get('CallSid')

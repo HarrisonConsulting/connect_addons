@@ -44,7 +44,7 @@
     <record id="view_lead_voicemail_form" model="ir.ui.view">
         <field name="name">view_lead_voicemail_form</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.voicemail_form"/>
+        <field name="inherit_id" ref="connect_hc_core.voicemail_form"/>
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button class="oe_stat_button" name="create_lead_button" type="object"

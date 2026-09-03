@@ -12,12 +12,6 @@ class Settings(models.Model):
         # credential list, which exist on the target only once domains migrated.
         return super()._get_account_migrators() + [BYOCMigrator]
 
-    def get_usage_model_list(self):
-        res = super(Settings, self).get_usage_model_list()
-        res.extend(["byoc", "outgoing_rule"])
-        res.sort()
-        return res
-
     def sync(self):
         super().sync()
         self.env["connect.byoc"].sync()

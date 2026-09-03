@@ -4,7 +4,6 @@ import logging
 from urllib.parse import urljoin
 from odoo import fields, models, api, release
 from twilio.twiml.voice_response import Gather, VoiceResponse, Say, Client, Sip, Dial
-from .audio_referrer_mixin import SELECTABLE_AUDIO_STATES
 from .twiml import pretty_xml
 from .settings import debug
 
@@ -12,10 +11,7 @@ logger = logging.getLogger(__name__)
 
 class CallflowChoice(models.Model):
     _name = 'connect.callflow_choice'
-    _inherit = ['connect.audio.referrer.mixin']
     _description = 'Callflow Choice'
-
-    _audio_reachability_fields = ('exten', 'callflow')
 
     callflow = fields.Many2one('connect.callflow', required=True, ondelete='cascade')
     choice_digits = fields.Char(required=True)
@@ -25,20 +21,8 @@ class CallflowChoice(models.Model):
 
 class CallFlow(models.Model):
     _name = 'connect.callflow'
-    _inherit = ['connect.tts.mixin', 'connect.audio.referrer.mixin']
     _description = 'Call Flow'
     _order = 'name asc'
-
-    _audio_reference_fields = (
-        'prompt_audio_id', 'invalid_input_audio_id', 'voicemail_audio_id',
-        'after_hours_audio_id',
-    )
-    _audio_reference_trigger_fields = ('active',)
-    _audio_reachability_fields = (
-        'active', 'ring_users', 'voicemail_enabled', 'schedule_id', 'choices',
-        'prompt_audio_id', 'invalid_input_audio_id', 'voicemail_audio_id',
-        'after_hours_audio_id', 'business_hours_enabled',
-    )
 
     name = fields.Char(required=True)
     exten = fields.Many2one('connect.exten', ondelete='set null', readonly=True)
@@ -53,37 +37,12 @@ class CallFlow(models.Model):
         ], required=True, default='dtmf speech')
     gather_timeout = fields.Integer(string='Timeout', default=5)
     gather_hints = fields.Char('Hints', default='This is a phrase I expect to hear, department name or extension number')
-    prompt_audio_id = fields.Many2one('connect.audio', ondelete='set null',
-        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
-        string='Prompt Audio',
-        help='Audio played when the callflow opens.')
-    prompt_preview = fields.Html(
-        related='prompt_audio_id.latest_utterance_id.preview_audio',
-        string='Prompt Preview', sanitize=False)
-    invalid_input_audio_id = fields.Many2one('connect.audio', ondelete='set null',
-        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
-        string='Invalid Input Audio',
-        help='Audio played when the caller\'s DTMF/speech input does not match '
-             'any configured choice.')
-    invalid_input_preview = fields.Html(
-        related='invalid_input_audio_id.latest_utterance_id.preview_audio',
-        string='Invalid Input Preview', sanitize=False)
     gather_digits = fields.Integer(required=True, default=1)
     choices = fields.One2many('connect.callflow_choice', 'callflow')
     gather_action_url = fields.Char(compute='_get_gather_action_url')
     ring_users = fields.Many2many('connect.user')
     record_calls = fields.Boolean()
-    voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
-        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
-        string='Voicemail Prompt Audio',
-        help='Audio played before voicemail recording on this callflow.')
-    voicemail_preview = fields.Html(
-        related='voicemail_audio_id.latest_utterance_id.preview_audio',
-        string='Voicemail Preview', sanitize=False)
     voicemail_enabled = fields.Boolean()
-    voicemail_box_id = fields.Many2one(
-        'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
-        help='Shared box for voicemails landing on this callflow. All box members gain access to its calls and voicemails.')
     # fallback_extension
     schedule_id = fields.Many2one(
         'connect.schedule', string='Schedule',
@@ -100,13 +59,6 @@ class CallFlow(models.Model):
     business_hours_timezone = fields.Selection(
         '_tz_get', string='Timezone', default='US/Eastern',
         help='Timezone for business hours calculation')
-    after_hours_audio_id = fields.Many2one('connect.audio', ondelete='set null',
-        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
-        string='After Hours Audio',
-        help='Audio played to callers outside of configured business hours.')
-    after_hours_preview = fields.Html(
-        related='after_hours_audio_id.latest_utterance_id.preview_audio',
-        string='After Hours Preview', sanitize=False)
     after_hours_voicemail = fields.Boolean(
         string='After Hours Voicemail', default=True,
         help='Allow voicemail after hours message')

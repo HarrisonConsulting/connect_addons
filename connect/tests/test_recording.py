@@ -5,6 +5,7 @@ import os
 from unittest.mock import patch, MagicMock, PropertyMock
 
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 from .common import ConnectTestCase
 
 
@@ -390,6 +391,8 @@ class TestRecordingTranscription(ConnectTestCase):
         self.assertIn('Test call summary.', str(rec.summary))
         self.assertFalse(rec.transcription_error)
 
+    @mute_logger('odoo.addons.connect.models.recording',
+                 'odoo.addons.modelnexus_connect.models.recording')
     def test_transcribe_recording_api_error(self):
         """Transcription error from OpenAI is captured, not raised."""
         rec = self._create_recording(media_url='https://example.com/audio.mp3')

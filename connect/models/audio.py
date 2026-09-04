@@ -9,7 +9,7 @@ import uuid as uuid_lib
 from urllib.parse import urlsplit, quote
 from markupsafe import escape
 from psycopg2 import IntegrityError
-from odoo import fields, models, api
+from odoo import fields, models, api, Command
 from odoo.exceptions import ValidationError
 from odoo.models import Constraint
 
@@ -799,6 +799,45 @@ class Audio(models.Model):
                 raise ValidationError(
                     f'Audio {rec.name!r} is archived; unarchive first.')
             rec.state = 'live' if rec.has_active_reference else 'reviewed'
+
+    def action_archive_audio(self):
+        """Archive this audio, confronting every active reference first.
+
+        With no active reference the transition is unambiguous and happens
+        immediately. With one or more, archiving would silently route a live
+        call through a null audio, so the caller gets the resolution wizard
+        with one line per active reference instead.
+
+        :return: ``True`` when archived outright, otherwise an act_window
+                 opening ``connect.audio.archive.wizard``.
+        """
+        self.ensure_one()
+        if self.state == 'archived':
+            raise ValidationError(f'Audio {self.name!r} is already archived.')
+        if self.system_key:
+            raise ValidationError(
+                f'Audio {self.name!r} is a system audio '
+                f'(system_key={self.system_key!r}) — it is pinned live by code '
+                f'dispatch and cannot be archived.')
+        active = self.reference_ids.filtered('is_active')
+        if not active:
+            self.state = 'archived'
+            return True
+        wizard = self.env['connect.audio.archive.wizard'].create({
+            'audio_id': self.id,
+            'line_ids': [
+                Command.create({'reference_id': reference.id})
+                for reference in active
+            ],
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Archive {self.name}',
+            'res_model': 'connect.audio.archive.wizard',
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
 
     def action_reset_to_draft(self):
         """Return a reviewed/live audio to draft. Only valid when the audio

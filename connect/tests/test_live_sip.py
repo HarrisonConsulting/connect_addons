@@ -22,6 +22,7 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Dial
 
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 
 from .live_common import TwilioLiveTestCase, MAGIC_NUMBERS
 
@@ -139,6 +140,7 @@ class TestPhoneNumberOperations(TwilioLiveTestCase):
         # Cleanup
         number.unlink()
 
+    @mute_logger('odoo.addons.connect.models.number')
     def test_number_update_twilio_not_found_error(self):
         """Updating a number with a fake SID in Twilio raises ValidationError."""
         self._configure_test_credentials()

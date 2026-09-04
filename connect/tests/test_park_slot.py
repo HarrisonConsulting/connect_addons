@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 from .common import ConnectTestCase
 
 
@@ -238,6 +239,7 @@ class TestParkCall(ConnectTestCase):
         self.assertFalse(result['success'])
         self.assertIn('Slot 3 is occupied', result['error'])
 
+    @mute_logger('odoo.addons.connect.models.park_slot')
     def test_park_call_twilio_error(self):
         """Returns error when Twilio API call raises an exception."""
         ParkSlot = self.env['connect.park_slot']

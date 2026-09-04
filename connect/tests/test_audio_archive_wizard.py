@@ -21,6 +21,9 @@ class TestAudioArchiveWizard(ConnectTestCase):
             'source': 'twilio_tts',
             'static_text': 'bye',
         })
+        # Only reviewed/live audios are selectable as a referrer, so a draft
+        # fixture cannot be attached to the callflows these tests need.
+        cls.audio.action_mark_reviewed()
 
     def _make_callflow_using(self, audio):
         return self.env['connect.callflow'].create({
@@ -66,6 +69,9 @@ class TestAudioArchiveWizard(ConnectTestCase):
             'source': 'twilio_tts',
             'static_text': 'new',
         })
+        # The swap writes this audio onto the callflow, so it has to be
+        # selectable too — a draft replacement trips the same referrer guard.
+        replacement.action_mark_reviewed()
         cf = self._make_callflow_using(self.audio)
         self.audio._refresh_references()
         action = self.audio.action_archive_audio()

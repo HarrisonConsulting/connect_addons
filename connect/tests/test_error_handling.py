@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from twilio.request_validator import RequestValidator
 
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 from odoo.exceptions import ValidationError
 from odoo.addons.connect.tools import validate_twilio_request
 
@@ -76,9 +77,11 @@ class TestTwilioRequestValidation(ConnectTestCase):
             settings.__class__, '_get_client_credentials',
             side_effect=AssertionError('credentials must not be read'),
         ):
-            self.assertFalse(validate_twilio_request(
-                settings, self._httprequest(), self.test_data,
-            ))
+            # Refusing is the contract, and the CRITICAL line IS the refusal.
+            with self.assertLogs('odoo.addons.connect.tools', level='CRITICAL'):
+                self.assertFalse(validate_twilio_request(
+                    settings, self._httprequest(), self.test_data,
+                ))
 
     def test_missing_auth_token_fails_closed(self):
         settings = self.env['connect.settings']
@@ -88,9 +91,10 @@ class TestTwilioRequestValidation(ConnectTestCase):
             settings.__class__, '_get_client_credentials',
             return_value=('AC_test', False),
         ):
-            self.assertFalse(validate_twilio_request(
-                settings, self._httprequest(), self.test_data,
-            ))
+            with self.assertLogs('odoo.addons.connect.tools', level='CRITICAL'):
+                self.assertFalse(validate_twilio_request(
+                    settings, self._httprequest(), self.test_data,
+                ))
 
     def test_valid_signature_is_accepted(self):
         settings = self.env['connect.settings']
@@ -116,9 +120,10 @@ class TestTwilioRequestValidation(ConnectTestCase):
             settings.__class__, '_get_client_credentials',
             return_value=('AC_test', 'test_auth_token'),
         ):
-            self.assertFalse(validate_twilio_request(
-                settings, self._httprequest('invalid'), self.test_data,
-            ))
+            with self.assertLogs('odoo.addons.connect.tools', level='ERROR'):
+                self.assertFalse(validate_twilio_request(
+                    settings, self._httprequest('invalid'), self.test_data,
+                ))
 
     def test_http_proxy_url_is_validated_as_https(self):
         settings = self.env['connect.settings']
@@ -156,6 +161,8 @@ class TestRecordingTranscriptionErrors(ConnectTestCase):
         vals.update(kwargs)
         return self.Recording.with_context(skip_transcription=True).create(vals)
 
+    @mute_logger('odoo.addons.connect.models.recording',
+                 'odoo.addons.modelnexus_connect.models.recording')
     def test_transcription_api_timeout(self):
         """Transcription handles API timeout gracefully -- error captured, not raised."""
         rec = self._create_recording(
@@ -205,6 +212,11 @@ class TestRecordingTranscriptionErrors(ConnectTestCase):
         self.assertIn('size limit', rec.transcription_error)
         self.assertFalse(rec.transcript)
 
+    # modelnexus_connect layers its own dispatch on transcribe_recording and logs
+    # the failure. connect does not depend on it, so the line is not guaranteed
+    # to exist -- assertLogs would fail where that module is absent.
+    @mute_logger('odoo.addons.connect.models.recording',
+                 'odoo.addons.modelnexus_connect.models.recording')
     def test_recording_download_network_error(self):
         """Recording download handles network failures -- error captured on record."""
         rec = self._create_recording(

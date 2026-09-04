@@ -279,6 +279,7 @@ class TestDomainRouteCall(ConnectTestCase):
                 result = self.env['connect.domain'].route_call(request)
                 self.assertIn('Extension not found', result)
 
+    @mute_logger('odoo.addons.connect.models.domain')
     def test_route_call_multiple_extensions_error(self):
         """Multiple matching extensions produces an error response."""
         # Create two extensions with overlapping regex patterns

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.30.7',
+    'version': '1.30.10',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -74,6 +74,7 @@
         'wizard/whatsapp_composer_views.xml',
         'wizard/originate_to_wizard_views.xml',
         'wizard/conversation_wizard_views.xml',
+        'wizard/audio_archive_wizard_views.xml',
         # Conversation views (after wizard, references wizard action)
         'views/conversation.xml',
     ],

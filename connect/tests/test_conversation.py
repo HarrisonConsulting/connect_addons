@@ -4,6 +4,7 @@
 from unittest.mock import patch, MagicMock
 
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 from odoo.exceptions import ValidationError
 from .common import ConnectTestCase
 
@@ -80,6 +81,7 @@ class TestConversation(ConnectTestCase):
         conv = self.Conversation.get_or_create('sms', '+15559999999', '+15550000000')
         self.assertEqual(conv.conversation_key, 'sms:+15550000000|+15559999999')
 
+    @mute_logger('odoo.sql_db')
     def test_conversation_key_unique_constraint(self):
         """Cannot create two conversations with the same key."""
         self.Conversation.create({
@@ -184,6 +186,7 @@ class TestConversation(ConnectTestCase):
         with self.assertRaises(ValidationError):
             conv.send_message('')
 
+    @mute_logger('odoo.addons.connect.models.message')
     def test_send_message_whitespace_body_raises(self):
         """send_message raises on whitespace-only body."""
         conv = self.Conversation.get_or_create('sms', self.phone_ours, self.phone_theirs)

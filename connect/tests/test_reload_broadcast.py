@@ -16,6 +16,7 @@ Everything else the per-leg webhooks touch is churn.
 from unittest.mock import patch
 
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 from .common import ConnectTestCase
 
 
@@ -66,6 +67,7 @@ class TestReloadBroadcast(ConnectTestCase):
         )
         self.assertEqual(self._reload_calls(child), [])
 
+    @mute_logger('odoo.addons.connect.models.call')
     def test_error_webhook_broadcasts_once(self):
         """The first error stamps has_error and reloads; a repeat of the same
         error does not re-broadcast."""

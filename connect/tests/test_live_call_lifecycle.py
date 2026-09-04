@@ -13,6 +13,7 @@ import logging
 from twilio.base.exceptions import TwilioRestException
 from twilio.request_validator import RequestValidator
 from odoo.tests import tagged
+from odoo.tools import mute_logger
 
 from .live_common import TwilioLiveTestCase, MAGIC_NUMBERS
 
@@ -24,7 +25,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _make_channel_params(account_sid, call_sid, status, direction='inbound',
-                         caller='+15005550006', called='+15005550006',
+                         # Caller must not be our own DID: an inbound leg whose
+                         # Caller equals its Called is a self-dial loop, and the
+                         # production detector rightly logs one at ERROR.
+                         caller='+15005550009', called='+15005550006',
                          parent_call_sid=None, duration=0,
                          sequence_number=0, error_code=None,
                          error_message=None):
@@ -82,7 +86,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_call.sid,
             status='initiated',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
 
@@ -119,7 +123,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='inbound',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 duration=45 if status == 'completed' else 0,
                 sequence_number=seq,
@@ -151,7 +155,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_parent.sid,
             status='initiated',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id = self._simulate_webhook(parent_params)
@@ -162,7 +166,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_child.sid,
             status='ringing',
             direction='outbound-dial',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             parent_call_sid=twilio_parent.sid,
             sequence_number=1,
@@ -188,7 +192,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_parent.sid,
             status='initiated',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id = self._simulate_webhook(parent_params)
@@ -199,7 +203,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_child.sid,
             status='initiated',
             direction='outbound-dial',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             parent_call_sid=twilio_parent.sid,
             sequence_number=1,
@@ -212,7 +216,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_parent.sid,
             status='completed',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             duration=30,
             sequence_number=2,
@@ -225,7 +229,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_child.sid,
             status='completed',
             direction='outbound-dial',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             parent_call_sid=twilio_parent.sid,
             duration=60,
@@ -246,7 +250,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_in.sid,
             status='initiated',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id = self._simulate_webhook(in_params)
@@ -260,7 +264,7 @@ class TestCallCreationAndStatusTracking(TwilioLiveTestCase):
             call_sid=twilio_out.sid,
             status='initiated',
             direction='outbound-api',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id_out = self._simulate_webhook(out_params)
@@ -300,7 +304,7 @@ class TestCallErrorHandling(TwilioLiveTestCase):
             call_sid=twilio_call.sid,
             status='failed',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             error_code='21215',
             error_message='Account not authorized to call that number',
@@ -321,7 +325,7 @@ class TestCallErrorHandling(TwilioLiveTestCase):
             call_sid=twilio_call.sid,
             status='completed',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             error_code='32009',
             error_message='Ignored error',
@@ -331,6 +335,7 @@ class TestCallErrorHandling(TwilioLiveTestCase):
         self.assertFalse(call.has_error,
                          "Error code 32009 is in IGNORE_ERROR_CODES and should be ignored")
 
+    @mute_logger('odoo.addons.connect.models.call')
     def test_duplicate_webhook_filtered_by_sequence(self):
         """Exact duplicate webhooks (same CallSid, SequenceNumber, CallStatus)
         should be idempotent — the channel is not updated twice."""
@@ -340,7 +345,7 @@ class TestCallErrorHandling(TwilioLiveTestCase):
             call_sid=twilio_call.sid,
             status='ringing',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
             sequence_number=1,
         )
@@ -479,7 +484,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='inbound',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 duration=30 if status == 'completed' else 0,
                 sequence_number=seq,
@@ -502,7 +507,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='outbound-api',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 duration=120 if status == 'completed' else 0,
                 sequence_number=seq,
@@ -527,7 +532,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='inbound',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 sequence_number=seq,
             )
@@ -551,7 +556,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='inbound',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 sequence_number=seq,
             )
@@ -572,7 +577,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='inbound',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 sequence_number=seq,
             )
@@ -595,7 +600,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='outbound-api',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 duration=10 if status == 'completed' else 0,
                 sequence_number=seq,
@@ -623,7 +628,7 @@ class TestCallFinalization(TwilioLiveTestCase):
                 call_sid=sid,
                 status=status,
                 direction='outbound-api',
-                caller='+15005550006',
+                caller='+15005550009',
                 called='+15005550006',
                 duration=15 if status == 'completed' else 0,
                 sequence_number=seq,
@@ -645,7 +650,7 @@ class TestCallFinalization(TwilioLiveTestCase):
             call_sid=sid,
             status='initiated',
             direction='outbound-api',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id = self._simulate_webhook(params)
@@ -662,7 +667,7 @@ class TestCallFinalization(TwilioLiveTestCase):
             call_sid=twilio_call.sid,
             status='initiated',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id = self._simulate_webhook(params)
@@ -681,7 +686,7 @@ class TestCallFinalization(TwilioLiveTestCase):
             call_sid=twilio_call.sid,
             status='initiated',
             direction='inbound',
-            caller='+15005550006',
+            caller='+15005550009',
             called='+15005550006',
         )
         call_id = self._simulate_webhook(params)

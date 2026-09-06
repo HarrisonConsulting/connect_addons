@@ -34,6 +34,8 @@ MOVED_MODELS = [
     'connect.park_slot',
     'connect.conversation',
     'connect.conversation_wizard',
+    'connect.audio.archive.wizard',
+    'connect.audio.archive.wizard.line',
     'connect.documentation',
     'connect.scheduled_call',
     'connect.schedule.line',
@@ -120,6 +122,8 @@ MOVED_XMLIDS = [
     'voicemail_stage_completed',
     # security/admin.xml
     'connect_conversation_wizard_admin',
+    'connect_audio_archive_wizard_admin',
+    'connect_audio_archive_wizard_line_admin',
     'connect_voicemail_stage_admin',
     'connect_voicemail_box_admin',
     'connect_conversation_admin',
@@ -209,6 +213,8 @@ MOVED_XMLIDS = [
     'voicemail_box_search',
     'voicemail_box_action',
     'connect_voicemail_box_menu',
+    # wizard/audio_archive_wizard_views.xml
+    'connect_audio_archive_wizard_form',
     # wizard/conversation_wizard_views.xml
     'view_connect_conversation_wizard_form',
     'action_connect_conversation_wizard',

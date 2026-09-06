@@ -6,13 +6,13 @@
         <field name="model">connect.settings</field>
         <field name="inherit_id" ref="connect.connect_settings_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//group[@string='Voicemail']" position="before">
+            <xpath expr="//field[@name='voicemail_max_length']/.." position="before">
                 <group string="Voice">
                     <field name="default_twilio_voice"
                            options="{'no_create': True}"/>
                 </group>
             </xpath>
-            <xpath expr="//group[@string='Announcements']" position="before">
+            <xpath expr="//field[@name='park_announcement_enabled']/.." position="before">
                 <group string="Hold Music">
                     <field name="park_hold_music_audio_id"
                            domain="[('state', 'in', ('reviewed', 'live')), ('source', 'in', ('external_url', 'attachment', 'record'))]"

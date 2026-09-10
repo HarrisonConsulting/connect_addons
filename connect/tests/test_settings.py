@@ -227,8 +227,10 @@ class TestUsageRetirement(ConnectTestCase):
         if metadata:
             metadata.write(values)
         else:
-            self.env['ir.model.data'].create({'module': module, 'name': name, **values})
+            metadata = self.env['ir.model.data'].create({'module': module, 'name': name, **values})
+        metadata.flush_recordset(['model', 'res_id'])
         self.env.registry.clear_cache()
+        self.assertEqual(self.env.ref(xmlid), record)
 
     def _cron(self, name):
         return self.env['ir.cron'].create({

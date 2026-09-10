@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '1.30.10',
+    'version': '1.30.11',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -66,7 +66,6 @@
         'views/message_content_template.xml',
         'views/whatsapp_sender.xml',
         'views/portal_templates.xml',
-        'views/versions.xml',
         'views/documentation.xml',
         # Wizard
         'wizard/transfer.xml',

@@ -8,13 +8,12 @@ import secrets
 import httpx
 import openai
 import phonenumbers
-import requests
 import random
 import re
 import string
 from urllib.parse import urljoin, urlsplit, urlunsplit
 import uuid
-from odoo import fields, models, api, release
+from odoo import fields, models, api
 from odoo.exceptions import ValidationError
 from odoo.tools import config
 from twilio.rest import Client
@@ -91,7 +90,6 @@ HTTP_DOWNLOAD_TIMEOUT = (10, 60)   # For media downloads (audio files)
 HTTP_API_TIMEOUT = (10, 30)        # For API calls (JSON responses)
 
 ############### SETTINGS #####################################
-MODULE_NAME = "connect"
 MAX_EXTEN_LEN = 4
 PROTECTED_FIELDS = [
     "display_auth_token",
@@ -347,28 +345,8 @@ class Settings(models.Model):
              'Disabling this setting rejects all Twilio callbacks; it never '
              'permits unsigned requests.',
     )
-    # Registration fields
-    customer_code = fields.Char()
-    registration_number = fields.Char(compute="_get_instance_data")
-    registration_key = fields.Char("API Key", compute="_get_instance_data")
-    is_registered = fields.Boolean()
-    i_agree_to_register = fields.Boolean()
-    i_agree_to_contact = fields.Boolean()
-    i_agree_to_receive = fields.Boolean()
-    installation_date = fields.Datetime(compute="_get_instance_data")
-    module_version = fields.Char(compute="_get_instance_data")
-    odoo_version = fields.Char(compute="_get_instance_data")
-    admin_name = fields.Char()
-    admin_phone = fields.Char(
-        help='It is required to contact this instance\u2019s administrator in case any critical vulnerabilities are found in the application.')
-    admin_email = fields.Char(
-        help='It is required to contact this instance administrator by email in case any non-critical vulnerabilities are found in the application.')
-    company_name = fields.Char(help='Company name of this instance.')
-    company_country = fields.Many2one('res.country',
-                                      help='We use the company\u2019s country information for statistical tracking of our product installations by country.')
     web_base_url = fields.Char(compute="_get_instance_data", string="Odoo URL")
     call_duration_limit = fields.Integer(compute="_get_instance_data", string="Call Duration Limit (seconds)")
-    latest_versions = fields.Html(readonly=True)
     # Voice settings. default_twilio_voice is the DB-wide default for any
     # connect.audio with source=twilio_tts and use_default_voice=True. Kept as
     # a Many2one on connect.voice so the set of valid voices is data-driven
@@ -444,95 +422,14 @@ class Settings(models.Model):
              'Numbers dialed without a + prefix will be interpreted as belonging to this country.'
     )
 
-    def get_module_version(self, module_name):
-        module = (
-            self.env["ir.module.module"].sudo().search([("name", "=", module_name)])
-        )
-        module_version = (
-            re.sub(r"^(\d+\.\d+\.)", "", module.installed_version) if module else ""
-        )
-        return module_version
-
-    @staticmethod
-    def get_module_list():
-        return ["connect"]
-
-    def check_latest_versions(self):
-        module_list = self.get_module_list()
-        request_data = {
-            "instance_uid": self.get_param("instance_uid"),
-            "odoo_version": release.major_version,
-            "module_list": module_list,
-        }
-        response = self.make_usage_request(
-            "check_versions", requests.post, data=request_data, raise_on_error=True
-        )
-        data = []
-        for module in module_list:
-            current_version = self.get_module_version(module)
-            latest_version = response.get(module, "")
-            data.append(
-                {
-                    "name": module,
-                    "current_version": current_version,
-                    "latest_version": latest_version,
-                }
-            )
-
-        html = self.env["ir.ui.view"]._render_template(
-            "connect.module_version_template", {"data": data}
-        )
-        self.set_param("latest_versions", html)
-
-    def set_default_admin_and_company(self):
-        self.company_name = self.env.user.company_id.name
-        self.company_country = self.env.user.company_id.country_id
-        self.admin_name = self.env.user.partner_id.name
-        self.admin_email = self.env.user.partner_id.email
-        self.admin_phone = self.env.user.partner_id.phone
-
-    def read(self, fields_to_read, load='_classic_read'):
-        if not self.admin_name:
-            self.set_default_admin_and_company()
-        res = super(Settings, self).read(fields_to_read, load=load)
-        return res
-
     def _get_instance_data(self):
-        module = (
-            self.env["ir.module.module"].sudo().search([("name", "=", MODULE_NAME)])
-        )
+        parameters = self.env["ir.config_parameter"].sudo()
         for rec in self:
-            rec.module_version = re.sub(r"^(\d+\.\d+\.)", "", module.installed_version)
-            rec.odoo_version = release.major_version
-            rec.instance_uid = (
-                self.env["ir.config_parameter"].sudo().get_param("connect.instance_uid")
-            )
-            # Format API URL according to the preferred region or dev URL.
-            rec.installation_date = (
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("connect.installation_date")
-            )
-            rec.api_url = (
-                self.env["ir.config_parameter"].sudo().get_param("connect.api_url")
-            )
-            rec.registration_key = (
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("connect.registration_key")
-            )
-            rec.web_base_url = (
-                self.env["ir.config_parameter"].sudo().get_param("web.base.url")
-            )
-            rec.registration_number = (
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("connect.registration_number")
-            )
+            rec.instance_uid = parameters.get_param("connect.instance_uid")
+            rec.api_url = parameters.get_param("connect.api_url")
+            rec.web_base_url = parameters.get_param("web.base.url")
             rec.call_duration_limit = int(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("connect.call_duration_limit", "7200")
+                parameters.get_param("connect.call_duration_limit", "7200")
             )
 
     @api.model
@@ -674,7 +571,7 @@ class Settings(models.Model):
 
         account_sid = data.get_param('account_sid')
         auth_token = data.get_param('auth_token')
-        activated = bool(data.is_registered or account_sid or auth_token)
+        activated = bool(account_sid or auth_token)
         if not activated:
             return findings
 
@@ -765,157 +662,6 @@ class Settings(models.Model):
             self.env["ir.config_parameter"].set_param(
                 "connect.instance_uid", instance_uid
             )
-
-    def register_instance(self):
-        if not self.env.user.has_group("base.group_system"):
-            raise ValidationError("Only Odoo admin can do it!")
-        if self.get_param("is_registered"):
-            raise ValidationError("This instance is already registered!")
-        data = self.prepare_registration_data()
-        if not data.get("customer_code"):
-            raise ValidationError("Enter your customer code!")
-        required_fields = [
-            "admin_email",
-            "admin_name",
-            "admin_phone",
-            "company_name",
-            "company_country",
-            "installation_date",
-            "module_name",
-            "module_version",
-            "url",
-            "odoo_version",
-        ]
-        missing_fields = [field for field in required_fields if not data.get(field)]
-        if missing_fields:
-            raise ValidationError(
-                f"Please fill in the following fields: {', '.join([k.replace('_', ' ').capitalize() for k in missing_fields])}"
-            )
-        res = self.make_usage_request(
-            "registration", requests.post, data=data, raise_on_error=True
-        )
-        self.env["ir.config_parameter"].sudo().set_param(
-            "connect.registration_key", res.get("registration_key")
-        )
-        self.env["ir.config_parameter"].sudo().set_param(
-            "connect.registration_number", res.get("registration_number")
-        )
-        self.set_param("is_registered", True)
-        self.connect_notify("Instance registered successfully!", title="Registration")
-
-    def update_instance_registration(self):
-        if not self.env.user.has_group("base.group_system"):
-            raise ValidationError("Only Odoo admin can do it!")
-        if not self.get_param("is_registered"):
-            raise ValidationError("This instance is not registered yet! Please register first.")
-        data = self.prepare_registration_data()
-        required_fields = [
-            "admin_email",
-            "admin_name",
-            "admin_phone",
-            "company_name",
-            "company_country",
-            "installation_date",
-            "module_name",
-            "module_version",
-            "url",
-            "odoo_version",
-        ]
-        missing_fields = [field for field in required_fields if not data.get(field)]
-        if missing_fields:
-            raise ValidationError(
-                f"Please fill in the following fields: {', '.join([k.replace('_', ' ').capitalize() for k in missing_fields])}"
-            )
-        res = self.make_usage_request(
-            "update_registration", requests.post, data=data, raise_on_error=True
-        )
-        # Display the message returned from the API
-        message = res.get("message", "Registration updated successfully!")
-        self.connect_notify(message, title="Registration Update")
-
-    def prepare_registration_data(self):
-        company_country = self.get_param("company_country")
-        return {
-            "instance_uid": self.get_param("instance_uid"),
-            "company_name": self.get_param("company_name"),
-            "company_country": company_country.name if company_country else False,
-            "company_country_code": company_country.code if company_country else False,
-            "company_country_name": company_country.name if company_country else False,
-            "admin_name": self.get_param("admin_name"),
-            "admin_email": self.get_param("admin_email"),
-            "admin_phone": self.get_param("admin_phone"),
-            "module_version": self.get_param("module_version"),
-            "module_name": MODULE_NAME,
-            "odoo_version": self.get_param("odoo_version"),
-            "odoo_full_version": release.version,
-            "url": self.get_param("web_base_url"),
-            "installation_date": self.get_param("installation_date").strftime(
-                "%Y-%m-%d"
-            ),
-            "customer_code": self.get_param("customer_code"),
-        }
-
-    def get_usage_model_list(self):
-        return [
-            "call",
-            "callflow",
-            "domain",
-            "exten",
-            "message",
-            "number",
-            "outgoing_callerid",
-            "recording",
-            "twiml",
-            "user",
-        ]
-
-    @api.model
-    def update_usage(self):
-        res = {
-            "usage": {},
-            "usage_errors": {},
-        }
-        for model in self.get_usage_model_list():
-            try:
-                res["usage"][model] = {
-                    "count": self.env["connect.{}".format(model)].search_count([]),
-                }
-                if model == "call":
-                    self.env.cr.execute("SELECT SUM(duration)/60 FROM connect_call")
-                    call_minutes = self.env.cr.fetchall()[0][0]
-                    res["usage"][model]["minutes"] = call_minutes
-            except Exception as e:
-                res["usage_errors"][model] = str(e)
-        data = self.prepare_registration_data()
-        data.update(res)
-        try:
-            self.make_usage_request("usage", requests.post, data)
-        except Exception as e:
-            logger.exception("Usage error:")
-
-    def make_usage_request(
-        self, path, method, data={}, headers={}, raise_on_error=False
-    ):
-        url = self.env["ir.config_parameter"].get_param(
-            "connect.registration_url", "https://api1.oduist.com/instance/"
-        )
-        if not url.endswith("/"):
-            url = "{}/".format(url)
-        res = None
-        try:
-            res = method(urljoin(url, path), json=data, headers=headers)
-            if res.status_code == 200:
-                res = res.json()
-                if res.get("error"):
-                    raise ValidationError(res["error"])
-                return res
-            else:
-                raise ValidationError(res.text)
-        except Exception as e:
-            if raise_on_error:
-                raise ValidationError(str(e))
-            else:
-                return {}
 
     @api.model_create_multi
     def create(self, vals_list):

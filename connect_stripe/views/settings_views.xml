@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="connect.connect_settings_form"/>
         <field name="arch" type="xml">
             <page name="keys" position="after">
-                <page name="stripe" string="Stripe" invisible="is_registered == False">
+                <page name="stripe" string="Stripe">
                     <separator string="Stripe Phone Payments"/>
 
                     <group invisible="stripe_provider_active">

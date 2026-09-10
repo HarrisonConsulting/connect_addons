@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for connect.settings model."""
 
+import importlib.util
 import os
+from pathlib import Path
 import tempfile
 from unittest.mock import patch
 
@@ -116,7 +118,6 @@ class TestSecurityPreflight(ConnectTestCase):
     def _check(self, **values):
         settings = self.env['connect.settings'].sudo().search([], limit=1)
         settings.write({
-            'is_registered': False,
             'rest_provider': 'twilio',
             'twilio_verify_requests': True,
             'account_sid': False,
@@ -139,9 +140,9 @@ class TestSecurityPreflight(ConnectTestCase):
     def test_virgin_disabled_verification_has_no_findings(self):
         self.assertEqual(self._check(twilio_verify_requests=False), [])
 
-    def test_registered_instance_requires_credentials(self):
+    def test_auth_token_alone_requires_account(self):
         with self.assertLogs(settings_module.logger, level='CRITICAL'):
-            findings = self._check(is_registered=True)
+            findings = self._check(auth_token='partial-token')
         self.assertEqual(
             [(finding['code'], finding['level']) for finding in findings],
             [('twilio_credentials_missing', 'critical')],
@@ -155,10 +156,9 @@ class TestSecurityPreflight(ConnectTestCase):
             [('twilio_credentials_missing', 'critical')],
         )
 
-    def test_registered_instance_requires_verification(self):
+    def test_configured_instance_requires_verification(self):
         with self.assertLogs(settings_module.logger, level='CRITICAL'):
             findings = self._check(
-                is_registered=True,
                 account_sid='ACconfigured',
                 auth_token='configured-token',
                 twilio_verify_requests=False,
@@ -204,3 +204,83 @@ class TestVoiceMLCompatSettings(ConnectTestCase):
             args, kwargs = mock_client_cls.call_args
             self.assertEqual(args[1], 'primary_token')
             self.assertIsNotNone(kwargs.get('http_client'))
+
+
+@tagged('post_install', '-at_install')
+class TestUsageRetirement(ConnectTestCase):
+    """Upgrades retire the exact scheduled job without deleting other work."""
+
+    def _migration(self, phase):
+        path = Path(__file__).parents[1] / 'migrations' / '1.30.11' / f'{phase}-migrate.py'
+        spec = importlib.util.spec_from_file_location(f'connect_retirement_{phase}', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.migrate
+
+    def _alias(self, xmlid, record):
+        module, name = xmlid.split('.')
+        metadata = self.env['ir.model.data'].search([
+            ('module', '=', module), ('name', '=', name),
+        ])
+        values = {'model': record._name, 'res_id': record.id}
+        if metadata:
+            metadata.write(values)
+        else:
+            self.env['ir.model.data'].create({'module': module, 'name': name, **values})
+        self.env.registry.clear_cache()
+
+    def _cron(self, name):
+        return self.env['ir.cron'].create({
+            'name': name, 'model_id': self.env['ir.model']._get_id('connect.settings'),
+            'state': 'code', 'code': 'pass', 'active': False,
+            'interval_number': 1, 'interval_type': 'days',
+        })
+
+    def test_retirement_restores_visibility_and_is_idempotent(self):
+        """The legacy filter clears; unrelated cron rows survive repeated upgrades."""
+        beacon = self._cron('Obsolete job')
+        notification = self._cron('Module notifications')
+        unrelated = self._cron('Independent work')
+        self._alias('connect.update_usage', beacon)
+        self._alias('mail.ir_cron_module_update_notification', notification)
+        action = self.env.ref('base.ir_cron_act')
+        action.domain = repr([('id', 'not in', [notification.id, beacon.id])])
+        migrate = self._migration('post')
+        migrate(self.env.cr, '1.30.10')
+        migrate(self.env.cr, '1.30.10')
+        self.assertFalse(beacon.exists())
+        self.assertTrue(notification.exists())
+        self.assertTrue(unrelated.exists())
+        self.assertFalse(action.domain)
+        self.assertFalse(self.env.ref('connect.update_usage', raise_if_not_found=False))
+
+    def test_custom_action_domain_survives_retirement(self):
+        """Independent administrator filters are not the legacy concealment."""
+        beacon = self._cron('Obsolete job')
+        self._alias('connect.update_usage', beacon)
+        action = self.env.ref('base.ir_cron_act')
+        custom_domain = "[('active', '=', True)]"
+        action.domain = custom_domain
+        self._migration('post')(self.env.cr, '1.30.10')
+        self.assertFalse(beacon.exists())
+        self.assertEqual(action.domain, custom_domain)
+
+    def test_stored_extension_gate_is_removed_in_every_language(self):
+        """Installed child views remain valid before their own module upgrades."""
+        view = self.env['ir.ui.view'].create({
+            'name': 'Settings extension fixture', 'model': 'connect.settings',
+            'arch': '<form><sheet><group/></sheet></form>',
+        })
+        self._alias('connect_enterprise.connect_enterprise_settings_form', view)
+        architecture = '<form><sheet invisible="is_registered == False"/></form>'
+        self.env.cr.execute(
+            "UPDATE ir_ui_view SET arch_db = jsonb_build_object('en_US', %s, 'fr_FR', %s) WHERE id = %s",
+            [architecture, architecture, view.id],
+        )
+        migrate = self._migration('pre')
+        migrate(self.env.cr, '1.30.10')
+        migrate(self.env.cr, '1.30.10')
+        self.env.cr.execute('SELECT arch_db FROM ir_ui_view WHERE id = %s', [view.id])
+        translations = self.env.cr.fetchone()[0]
+        self.assertEqual(set(translations), {'en_US', 'fr_FR'})
+        self.assertTrue(all('is_registered' not in value for value in translations.values()))

@@ -14,6 +14,7 @@ def migrate(cr, version):
               WHERE model = 'ir.ui.view'
                 AND (module, name) IN (
                     ('connect_stripe', 'connect_stripe_settings_form_inherit'),
+                    ('connect_crm', 'connect_crm_settings_form'),
                     ('connect_website', 'connect_website_settings_form'),
                     ('connect_enterprise', 'connect_enterprise_settings_form')
                 )

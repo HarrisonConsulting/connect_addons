@@ -211,7 +211,8 @@ class TestUsageRetirement(ConnectTestCase):
     """Upgrades retire the exact scheduled job without deleting other work."""
 
     def _migration(self, phase):
-        path = Path(__file__).parents[1] / 'migrations' / '1.30.11' / f'{phase}-migrate.py'
+        version = '1.30.12' if phase == 'pre' else '1.30.11'
+        path = Path(__file__).parents[1] / 'migrations' / version / f'{phase}-migrate.py'
         spec = importlib.util.spec_from_file_location(f'connect_retirement_{phase}', path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

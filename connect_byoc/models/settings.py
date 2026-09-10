@@ -1,5 +1,5 @@
-from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError, UserError
+from odoo import models, api
+from odoo.exceptions import ValidationError
 from ..migrators import BYOCMigrator
 
 
@@ -11,12 +11,6 @@ class Settings(models.Model):
         # After DomainMigrator: trunks bind from_domain_sid and the domain's
         # credential list, which exist on the target only once domains migrated.
         return super()._get_account_migrators() + [BYOCMigrator]
-
-    def get_usage_model_list(self):
-        res = super(Settings, self).get_usage_model_list()
-        res.extend(["byoc", "outgoing_rule"])
-        res.sort()
-        return res
 
     def sync(self):
         super().sync()

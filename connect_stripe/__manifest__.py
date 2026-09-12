@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 {
     'name': 'Connect Stripe Payments',
-    'version': '19.0.2.2.4',
+    'version': '19.0.2.2.5',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',

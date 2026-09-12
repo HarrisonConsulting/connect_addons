@@ -43,7 +43,7 @@
                                 <i class="fa fa-info-circle me-2" title="Setup Guide"/>
                                 Twilio Pay Connector — first-time setup &amp; troubleshooting
                             </summary>
-                            <div class="alert alert-light border mt-2 p-3">
+                            <div class="alert alert-light border mt-2 p-3" role="status">
                                 <p class="mb-2">
                                     This integration needs three things, in order. If any step is
                                     skipped the OAuth handshake in step 2 typically fails with

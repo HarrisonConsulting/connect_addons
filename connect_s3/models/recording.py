@@ -30,8 +30,8 @@ class Recording(models.Model):
         if not self.media_url:
             return
         from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
-        account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-        auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+        # The active provider's credentials, not Twilio's (task 9597).
+        account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
         response = requests.get(
             self.media_url, auth=(account_sid, auth_token),
             timeout=HTTP_DOWNLOAD_TIMEOUT,
@@ -106,8 +106,8 @@ class Recording(models.Model):
             audio = base64.b64decode(self.attachment_id.sudo().datas)
         else:
             from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
-            account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-            auth_token = self.env['connect.settings'].sudo().get_param('auth_token')
+            # The active provider's credentials, not Twilio's (task 9597).
+            account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
             resp = requests.get(
                 self.media_url, auth=(account_sid, auth_token),
                 timeout=HTTP_DOWNLOAD_TIMEOUT,

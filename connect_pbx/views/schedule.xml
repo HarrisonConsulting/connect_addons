@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="schedule_form_lines" model="ir.ui.view">
+        <field name="name">connect.schedule.form.lines</field>
+        <field name="model">connect.schedule</field>
+        <field name="inherit_id" ref="connect.schedule_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="after">
+                <notebook>
+                    <page string="Weekly Schedule" name="weekly_schedule">
+                        <field name="line_ids">
+                            <list editable="bottom">
+                                <field name="day_of_week"/>
+                                <field name="start_hour" widget="float_time"/>
+                                <field name="end_hour" widget="float_time"/>
+                                <field name="is_closed"/>
+                            </list>
+                        </field>
+                    </page>
+                    <page string="Holidays" name="holidays">
+                        <field name="holiday_ids">
+                            <list editable="bottom">
+                                <field name="name"/>
+                                <field name="date"/>
+                                <field name="recurring"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

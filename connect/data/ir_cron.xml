@@ -20,16 +20,6 @@
             <field name="active">True</field>
         </record>
 
-        <record id="ir_cron_park_timeout" model="ir.cron">
-            <field name="name">Park Slot: Check Timeouts</field>
-            <field name="model_id" ref="model_connect_park_slot"/>
-            <field name="state">code</field>
-            <field name="code">model.check_park_timeouts()</field>
-            <field name="interval_number">1</field>
-            <field name="interval_type">minutes</field>
-            <field name="active">True</field>
-        </record>
-
         <record id="ir_cron_retry_stuck_finalizations" model="ir.cron">
             <field name="name">Connect: Retry Stuck Call Finalizations</field>
             <field name="model_id" ref="model_connect_call"/>

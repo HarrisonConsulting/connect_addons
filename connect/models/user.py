@@ -13,7 +13,6 @@ from odoo.models import Constraint
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
-from .audio_referrer_mixin import SELECTABLE_AUDIO_STATES
 from .settings import format_connect_response, debug, strip_number, TWILIO_EDGES, DEFAULT_SIP_DOMAIN_SUFFIX
 from .twiml import pretty_xml
 
@@ -45,16 +44,9 @@ class UserCallflow(models.Model):
 
 class User(models.Model):
     _name = 'connect.user'
-    _inherit = ['connect.tts.mixin', 'connect.audio.referrer.mixin']
     _rec_name = 'username'
     _description = 'Connect User'
     _order = 'username'
-
-    _audio_reference_fields = ('greeting_audio_id', 'voicemail_audio_id')
-    _audio_reference_trigger_fields = ('active',)
-    _audio_reachability_fields = (
-        'active', 'greeting_audio_id', 'voicemail_audio_id', 'voicemail_enabled',
-    )
 
     sid = fields.Char('SID', readonly=True)
     callflow = fields.One2many('connect.user_callflow', 'user')
@@ -72,22 +64,11 @@ class User(models.Model):
     password = fields.Char(groups="connect.group_connect_admin,connect.group_connect_user")
     uri = fields.Char('SIP URI', compute='_get_sip_uri')
     connect_uri = fields.Char('SIP Connect URI', compute='_get_sip_uri')
-    dnd_enabled = fields.Boolean(string='Do Not Disturb', help='When enabled, all incoming calls go directly to voicemail')
     record_calls = fields.Boolean(default=True)
     voicemail_enabled = fields.Boolean()
     voicemail_email_enabled = fields.Boolean(
         string='Voicemail to Email', default=True,
         help='Send voicemail recordings and transcriptions via email')
-    voicemail_audio_id = fields.Many2one('connect.audio', ondelete='set null',
-        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
-        string='Voicemail Prompt Audio',
-        help='Audio played when a caller reaches this user\'s voicemail.')
-    voicemail_preview = fields.Html(
-        related='voicemail_audio_id.latest_utterance_id.preview_audio',
-        string='Voicemail Preview', sanitize=False)
-    voicemail_box_id = fields.Many2one(
-        'connect.voicemail_box', ondelete='set null', string='Voicemail Box',
-        help='Shared box for this user\'s personal voicemails. All box members gain access to calls and voicemails routed to this user.')
     application = fields.Many2one('connect.twiml')
     sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
     client_ring_timeout = fields.Integer(required=True, default=20, string='Web client ring timeout')
@@ -99,23 +80,8 @@ class User(models.Model):
     missed_calls_notify = fields.Boolean(default=False, help='Notify user on missed calls.')
     call_popup_is_enabled = fields.Boolean(default=True, string='Enable Call Notifications', help='Enable notifications for call events')
     call_popup_is_sticky = fields.Boolean(default=False, string='Sticky Call Notifications', help='Require manual dismissal of call notifications?')
-    greeting_audio_id = fields.Many2one('connect.audio', ondelete='set null',
-        domain=[('state', 'in', SELECTABLE_AUDIO_STATES)],
-        string='Greeting Audio',
-        help='Audio played to callers on first contact, before ringing this '
-             'user\'s devices.')
-    greeting_preview = fields.Html(
-        related='greeting_audio_id.latest_utterance_id.preview_audio',
-        string='Greeting Preview', sanitize=False)
     summary_prompt = fields.Char()
     twilio_edge = fields.Selection(selection=SIP_TWILIO_EDGES, required=True, default='roaming')
-    presence_status = fields.Selection([
-        ('offline', 'Offline'),
-        ('available', 'Available'),
-        ('on_call', 'On Call'),
-        ('on_hold', 'On Hold'),
-    ], string='Presence', default='offline', help='Current telephony presence status')
-    presence_updated = fields.Datetime(string='Presence Updated', help='Last presence status change timestamp')
     active = fields.Boolean(default=True,
         help='Archived users are excluded from routing and appear with '
              'inactive_reason="user archived" in the audio Where-Used tab.')

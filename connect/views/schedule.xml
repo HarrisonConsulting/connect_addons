@@ -48,27 +48,6 @@
                             <field name="active" invisible="1"/>
                         </group>
                     </group>
-                    <notebook>
-                        <page string="Weekly Schedule" name="weekly_schedule">
-                            <field name="line_ids">
-                                <list editable="bottom">
-                                    <field name="day_of_week"/>
-                                    <field name="start_hour" widget="float_time"/>
-                                    <field name="end_hour" widget="float_time"/>
-                                    <field name="is_closed"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Holidays" name="holidays">
-                            <field name="holiday_ids">
-                                <list editable="bottom">
-                                    <field name="name"/>
-                                    <field name="date"/>
-                                    <field name="recurring"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
                 </sheet>
             </form>
         </field>

@@ -150,8 +150,12 @@ class Number(models.Model):
                 # Number already in Odoo, update Voice URLs and routing region
                 rec.update_twilio_number(client)
 
-        # Additionally, ensure all existing numbers have correct routing region
-        if region:
+        # Additionally, ensure all existing numbers have correct routing region.
+        # Routing regions are served by Twilio's routes.v2, which compatible
+        # providers do not have; a write there is accepted and ignored.
+        if region and self.env['connect.settings'].sudo().get_param('rest_provider') != 'twilio':
+            debug(self, 'Skipping routing region update: non-Twilio provider.')
+        elif region:
             debug(self, 'Updating routing region to {} for all phone numbers during sync.'.format(region))
             all_numbers = self.search([('sid', '!=', False), ('is_ignored', '=', False)])  # Only numbers with SID (not BYOC), skip ignored
             for rec in all_numbers:
@@ -164,21 +168,24 @@ class Number(models.Model):
                         rec.phone_number, str(e)), level="warning")
 
         # Remove numbers that exist only in Odoo (number was removed in Twilio).
-        # Skip entirely when the account returned no numbers at all: that's
-        # far more likely a mid-migration or empty target account than every
-        # number having been deleted, and the alternative is unlinking
-        # everything (and cascading message configurations with it) on a
-        # single SYNC click.
-        numbers_to_remove = self.env['connect.number']
-        if numbers:
-            numbers_to_remove = self.search([
-                ('sid', 'not in', [k.sid for k in numbers]),
-                # Also match by phone number so an account swap re-adopts
-                # numbers instead of deleting every row whose SID no longer
-                # resolves.
-                ('phone_number', 'not in', [k.phone_number for k in numbers]),
-                ('sid', '!=', False) # BYOC related number are not included!
-            ])
+        # Refuse when that would drop most of what we hold, an empty listing
+        # included: a partial listing is far more likely a mid-migration,
+        # wrong or empty target account than those numbers having been
+        # deleted, and the alternative is unlinking them (and cascading
+        # message configurations with them) on a single SYNC click.
+        numbers_to_remove = self.search([
+            ('sid', 'not in', [k.sid for k in numbers]),
+            # Also match by phone number so an account swap re-adopts
+            # numbers instead of deleting every row whose SID no longer
+            # resolves.
+            ('phone_number', 'not in', [k.phone_number for k in numbers]),
+            ('sid', '!=', False) # BYOC related number are not included!
+        ])
+        if self.env['connect.settings']._refuse_implausible_removal(
+                'phone numbers', len(numbers),
+                self.search_count([('sid', '!=', False)]),
+                numbers_to_remove.mapped('phone_number')):
+            numbers_to_remove = self.env['connect.number']
         if numbers_to_remove:
             user_message = 'Number(s) {} removed in Twilio!'.format(
                 ','.join([k.phone_number for k in numbers_to_remove]))

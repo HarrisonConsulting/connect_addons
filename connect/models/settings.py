@@ -726,6 +726,65 @@ class Settings(models.Model):
         return (self.sudo().get_param('rest_api_host') or '').strip()
 
     @api.model
+    def _short_sid(self, sid):
+        return '{}…'.format(sid[:8]) if sid else 'unset'
+
+    @api.model
+    def _provider_log_context(self):
+        """Which provider and account a log line acted against.
+
+        Without this, a sync's log cannot say which account it ran under
+        (task 9592). The SID is shortened for readability; the token is
+        never included. It runs inside webhook validation, so it must never
+        raise: a diagnostic cannot be allowed to break the check it reports.
+        """
+        try:
+            account_sid, _ = self.sudo()._get_client_credentials()
+            return 'provider={} account={} host={}'.format(
+                self.sudo().get_param('rest_provider') or 'twilio',
+                self._short_sid(account_sid),
+                self._get_rest_api_host() or 'api.twilio.com')
+        except Exception:
+            logger.exception('Could not describe the active Connect provider')
+            return 'provider=unknown'
+
+    @api.model
+    def _provider_label(self):
+        provider = self.sudo().get_param('rest_provider') or 'twilio'
+        labels = dict(self._fields['rest_provider']._description_selection(self.env))
+        return labels.get(provider, provider)
+
+    @api.model
+    def _refuse_implausible_removal(self, what, provider_count, local_count, to_remove):
+        """Refuse a sync removal pass that would drop most of what we hold.
+
+        A provider listing that omits most local rows is far more likely a
+        partial or wrong-account response than a real mass release. On
+        2026-09-11 a listing of one number queued two live caller IDs for
+        removal on every sync (task 9590). An empty listing is the extreme
+        case of the same thing.
+
+        Returns True when the removal is refused, after telling the operator
+        why, with counts.
+        """
+        if not to_remove or len(to_remove) * 2 <= local_count:
+            return False
+        message = (
+            '{provider} returned {provider_count} {what} and Odoo holds '
+            '{local_count}; refusing to remove {remove_count} ({numbers}). '
+            'Check which {provider} account is configured before syncing '
+            'again. If these really were released at {provider}, delete '
+            'them in Odoo by hand.'
+        ).format(
+            provider=self._provider_label(), what=what,
+            provider_count=provider_count, local_count=local_count,
+            remove_count=len(to_remove), numbers=', '.join(to_remove))
+        logger.warning('%s [%s]', message, self._provider_log_context())
+        self.connect_notify(title='Sync refused a removal', message=message,
+                            warning=True, sticky=True)
+        return True
+
+    @api.model
     def _get_account_migrators(self):
         """Migrator classes the account migration wizard runs, in list order.
 
@@ -943,6 +1002,7 @@ class Settings(models.Model):
         api_url_check = self.check_api_url()
         if api_url_check:
             raise ValidationError(api_url_check)
+        logger.info('Connect sync starting: %s', self._provider_log_context())
         # Each resource type syncs inside its own savepoint: one failing
         # type must not roll back the others. The provider-side API calls
         # a sub-sync makes are NOT transactional — an all-or-nothing

@@ -43,9 +43,27 @@ class OutgoingCallerID(models.Model):
         else:
             numbers = []
         # First get numbers from Twilio.
+        sid_conflicts = []
         for number in numbers:
             existing_number = self.env['connect.outgoing_callerid'].search([
                 ('sid', '=', number.sid)])
+            if existing_number and existing_number.number != number.phone_number:
+                # The provider paired a SID we already map to one number with
+                # a different number, i.e. it recycled the SID (task 9594;
+                # Twilio never does). Writing it would move this row onto
+                # digits another row may hold and trip UNIQUE(number) --
+                # reported at the NEXT search(), when Odoo flushes the write,
+                # which makes the traceback point at the wrong line. Skip it
+                # and say so rather than prefer either side.
+                settings = self.env['connect.settings']
+                logger.warning(
+                    'Caller ID sync skipped %s: provider returned it for %s, '
+                    'Odoo holds it for %s [%s]',
+                    settings._short_sid(number.sid), number.phone_number,
+                    existing_number.number, settings._provider_log_context())
+                sid_conflicts.append('{} (Odoo: {})'.format(
+                    number.phone_number, existing_number.number))
+                continue
             if not existing_number:
                 existing_number = self.env['connect.outgoing_callerid'].search([
                     ('number', '=', number.phone_number)])
@@ -85,22 +103,36 @@ class OutgoingCallerID(models.Model):
                     else:
                         client.incoming_phone_numbers(existing_number.sid).update(
                             friendly_name=existing_number.friendly_name)
-        # Now sync numbers from Odoo. Skip the delete pass entirely when the
-        # provider returned nothing: an empty list is far more likely a
-        # mid-migration state or a compat-provider gap than every caller ID
-        # having been removed, and the alternative wipes defaults and user
-        # assignments on a single SYNC click (same guard as connect.number).
-        if not numbers:
-            debug(self, 'Provider returned no {} entries; skipping removal pass.'.format(callerid_type))
-            return
+        if sid_conflicts:
+            provider = self.env['connect.settings']._provider_label()
+            self.env['connect.settings'].connect_notify(
+                title='Sync skipped caller IDs',
+                message='{} reused an identifier Odoo already maps to a '
+                        'different number, so these were not updated: {}. '
+                        'Ask {} whether phone-number SIDs are reused.'.format(
+                            provider, ', '.join(sid_conflicts), provider),
+                warning=True, sticky=True)
+        # Now sync numbers from Odoo. A removal that would drop most of what
+        # we hold is refused: a partial or empty listing is far more likely
+        # a mid-migration state, a compat-provider gap or the wrong account
+        # than those caller IDs having been released, and the alternative
+        # wipes defaults and user assignments on a single SYNC click (same
+        # guard as connect.number).
         recs_to_remove = self.env['connect.outgoing_callerid'].search(
             [('sid', 'not in', [k.sid for k in numbers]),
              # Match by number too, so an account swap re-adopts records
              # instead of deleting every row whose SID no longer resolves.
              ('number', 'not in', [k.phone_number for k in numbers]),
              ('callerid_type', '=', callerid_type)])
+        if self.env['connect.settings']._refuse_implausible_removal(
+                'caller IDs of type {}'.format(callerid_type), len(numbers),
+                self.search_count([('callerid_type', '=', callerid_type)]),
+                recs_to_remove.mapped('number')):
+            return
         debug(self, 'Removing {} CallerIds: {}'.format(callerid_type, [k.number for k in recs_to_remove]))
-        recs_to_remove.unlink()
+        # The removal was judged plausible above, so it may pass the
+        # interlock in unlink() that refuses a manual delete.
+        recs_to_remove.with_context(connect_sync_removal=True).unlink()
 
     @api.model
     def sync(self):
@@ -177,11 +209,27 @@ class OutgoingCallerID(models.Model):
 
     def unlink(self):
         if not self.env["connect.settings"].get_param("twilio_auto_sync"):
+            # With auto sync off Odoo does not mirror the provider's
+            # inventory, so local caller IDs are the operator's to manage.
+            # That is also the documented way out of the refusal below.
             return super().unlink()
         sids = {}
         for rec in self:
-            if rec.callerid_type == 'number':
-                raise ValidationError('Remove Twilio numbers from Twilio Console and use Twilio Sync button!')
+            if rec.callerid_type == 'number' and not self.env.context.get('connect_sync_removal'):
+                # A safety interlock, not a workflow hint: it is what stopped
+                # the 2026-09-11 sync from deleting live caller IDs (task
+                # 9591). A number-type caller ID mirrors a phone number on
+                # the provider account, so only the sync may remove it, and
+                # only after _refuse_implausible_removal() has passed it.
+                provider = self.env['connect.settings']._provider_label()
+                raise ValidationError(
+                    'Odoo will not delete the caller ID for {number}: it is a '
+                    'phone number on your {provider} account, and deleting it '
+                    'here would leave Odoo out of step with {provider}. '
+                    'Release the number at {provider}, then run Sync, which '
+                    'removes it. To manage caller IDs by hand instead, turn '
+                    'off Auto Sync in Connect settings.'.format(
+                        number=rec.number, provider=provider))
             if rec.sid and rec.callerid_type == 'outgoing_callerid':
                 sids[rec.sid] = rec.number
         res = super().unlink()

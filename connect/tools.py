@@ -59,10 +59,11 @@ def validate_twilio_request(settings, httprequest, data, *, region=False):
         else:
             _logger.error(
                 'Twilio request signature is invalid for %s; '
-                'signature_header_present=%s signature_len=%s',
+                'signature_header_present=%s signature_len=%s %s',
                 httprequest.path,
                 bool(signature),
                 len(signature),
+                settings._provider_log_context(),
             )
     return request_valid
 

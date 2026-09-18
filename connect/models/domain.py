@@ -81,6 +81,17 @@ class Domain(models.Model):
             )
         return app
 
+    def _update_routing_region(self, client, region):
+        self.ensure_one()
+        if self.env['connect.settings'].sudo().get_param('rest_provider') != 'twilio':
+            # Routing regions are served by Twilio's routes.v2, which
+            # compatible providers do not have; a write there is accepted
+            # and ignored (task 9596).
+            debug(self, 'Skipping routing region for domain {}: non-Twilio provider.'.format(
+                self.domain_name))
+            return
+        client.routes.v2.sip_domains(self.domain_name).update(voice_region=region)
+
     def create_twilio_sip_domain(self, client):
         self.ensure_one()
         region = self.env['connect.settings'].get_param('twilio_region')
@@ -93,7 +104,7 @@ class Domain(models.Model):
             sip_registration=True,
             voice_status_callback_url=self.application.voice_status_url,
         )
-        sip_domain = client.routes.v2.sip_domains(self.domain_name).update(voice_region=region)
+        self._update_routing_region(client, region)
         # Create cred lists for domain.
         credential_list = client.sip.credential_lists.create(friendly_name=domain.sid)
         # Assotiate cred list with REGISTER.
@@ -515,7 +526,7 @@ class Domain(models.Model):
                 voice_fallback_url=self.application.voice_fallback_url,
                 voice_status_callback_url=self.application.voice_status_url,
             )
-            sip_domain = client.routes.v2.sip_domains(self.domain_name).update(voice_region=region)
+            self._update_routing_region(client, region)
             debug(self, "Domain {} updated".format(self.friendly_name))
         except Exception as e:
             if "was not found" in str(e):

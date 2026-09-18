@@ -150,6 +150,10 @@ class SettingsMigrateWizard(models.TransientModel):
         data = settings.search([], limit=1)
         if not data:
             data = settings.with_context(no_constrains=True).create({})
+        logger.info('Connect account cutover: from %s to account=%s host=%s',
+                    settings._provider_log_context(),
+                    settings._short_sid(self.target_account_sid),
+                    (self.target_rest_api_host or '').strip() or 'api.twilio.com')
         # display_auth_token goes through the protected-fields write path,
         # which stores the real value in auth_token and masks the display.
         # Region token and API key/secret are account-scoped: stale values

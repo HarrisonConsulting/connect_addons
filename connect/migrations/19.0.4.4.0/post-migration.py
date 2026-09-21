@@ -163,9 +163,19 @@ def migrate(cr, version):
         _assert_count(cr, dst, expected)
 
     for table in PBX_TABLES:
+        expected = snap.get(table)
+        if expected is None:
+            _logger.warning(
+                'PBX table %s was absent before cutover; not requiring it after',
+                table,
+            )
+            continue
         if not _table_exists(cr, table):
-            raise AssertionError('PBX table missing after cutover: %s' % table)
-        _assert_count(cr, table, snap.get(table))
+            raise AssertionError(
+                'PBX table vanished after cutover: %s (had %s rows)'
+                % (table, expected)
+            )
+        _assert_count(cr, table, expected)
 
     for old in COUNT_KPI:
         new = KPI_NEW_NAME.get(old, old)

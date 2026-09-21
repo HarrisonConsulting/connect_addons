@@ -34,6 +34,7 @@
     </record>
 
     <record id="action_twilio_exten" model="ir.actions.act_window">
+        <field name="path">twilio-exten</field>
         <field name="name">Extensions</field>
         <field name="res_model">connect.twilio.exten</field>
         <field name="view_mode">list,form</field>

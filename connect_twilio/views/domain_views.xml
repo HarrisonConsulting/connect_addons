@@ -2,6 +2,7 @@
 <odoo>
 
     <record id="domain_action" model="ir.actions.act_window">
+        <field name="path">domain-action</field>
         <field name="name">Domains</field>
         <field name="res_model">connect.twilio.domain</field>
         <field name="view_mode">list,form</field>

@@ -87,6 +87,14 @@ class Settings(models.Model):
     )
 
     @api.model
+    def _get_client_credentials(self):
+        """Supply the Twilio account credentials to shared callback and media code."""
+        return (
+            self.sudo().get_param('account_sid'),
+            self.sudo().get_param('auth_token'),
+        )
+
+    @api.model
     def get_media_auth(self, media_url):
         """Twilio API credentials, and only for Twilio's own hosts.
 

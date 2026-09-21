@@ -1,39 +1,17 @@
 # -*- coding: utf-8 -*-
-import logging
-
 from odoo.http import request, Controller, route
-from twilio.request_validator import RequestValidator
-
-logger = logging.getLogger(__name__)
+from odoo.addons.connect.tools import validate_twilio_request
 
 
 class ConnectTwilioController(Controller):
 
     @staticmethod
     def check_signature():
-        if not request.env['connect.settings'].sudo().get_param('twilio_verify_requests'):
-            return True
-        validator = RequestValidator(request.env['connect.settings'].sudo().get_param('auth_token'))
-        url = request.httprequest.url.replace('http:', 'https:')
-        signature = request.httprequest.headers.get('X-Twilio-Signature', '')
-        # Twilio signs the request URL -- query string included -- plus the
-        # POST body parameters. Odoo merges the query string into the route
-        # kwargs, so validating with those counts every query parameter
-        # twice and no URL carrying one can ever validate: the
-        # ?done_callflows= marker on the <Dial> action URL made every
-        # rejected call answer "Invalid Twilio request!".
-        params = (
-            request.httprequest.form.to_dict()
-            if request.httprequest.method == 'POST'
-            else {}
+        return validate_twilio_request(
+            request.env['connect.settings'].sudo(),
+            request.httprequest,
+            request.httprequest.form if request.httprequest.method == 'POST' else {},
         )
-        request_valid = validator.validate(url, params, signature)
-        if not request_valid:
-            if request.httprequest.url.startswith('http:'):
-                logger.error('Twilio requires HTTPS to be setup!')
-            else:
-                logger.error('Twilio request is not valid!')
-        return request_valid
 
     @route('/twilio/webhook/domain', methods=['POST'], type='http', auth='public', csrf=False)
     def domain_webhook(self, **kw):

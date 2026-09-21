@@ -76,6 +76,7 @@
     </record>
 
     <record id="action_twilio_callflow" model="ir.actions.act_window">
+        <field name="path">twilio-callflow</field>
         <field name="name">Call Flows</field>
         <field name="res_model">connect.twilio.callflow</field>
         <field name="view_mode">list,form</field>

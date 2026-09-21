@@ -44,6 +44,7 @@
     </record>
 
     <record id="action_twilio_callerid" model="ir.actions.act_window">
+        <field name="path">twilio-callerid</field>
         <field name="name">Outgoing Caller IDs</field>
         <field name="res_model">connect.twilio.outgoing_callerid</field>
         <field name="view_mode">list,form</field>

@@ -14,3 +14,5 @@ from . import test_webhook_signature
 from . import test_whatsapp_sender
 from . import test_inbound_message_routing
 from . import test_whatsapp_originate
+from . import test_twiml_sync
+from . import test_message_content_template

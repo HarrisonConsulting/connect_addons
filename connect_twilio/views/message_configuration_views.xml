@@ -32,6 +32,7 @@
     </record>
 
     <record id="action_twilio_message_configuration" model="ir.actions.act_window">
+        <field name="path">twilio-message-configuration</field>
         <field name="name">Message Configuration</field>
         <field name="res_model">connect.twilio.message_configuration</field>
         <field name="view_mode">list,form</field>

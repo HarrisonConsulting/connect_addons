@@ -94,7 +94,9 @@ class TwiML(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if not self.env["connect.settings"].get_param("twilio_auto_sync"):
+        # Precedent: /mnt/19/odoo/odoo/tools/convert.py supplies install_mode
+        # while loading module data. Seed updates stay local to the database.
+        if self.env.context.get('install_mode') or not self.env["connect.settings"].get_param("twilio_auto_sync"):
             return res
         client = self.env['connect.settings'].get_client()
         for rec in self:

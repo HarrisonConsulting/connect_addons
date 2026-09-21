@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class ByocNumber(models.Model):
-    _inherit = "connect.number"
+    _inherit = "connect.twilio.number"
 
     byoc = fields.Many2one('connect.byoc', string='BYOC', ondelete='cascade')
 

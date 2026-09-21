@@ -11,7 +11,7 @@
     'installable': True,
     'application': False,
     'auto_install': False,
-    'depends': ['website', 'connect'],
+    'depends': ['website', 'connect', 'connect_twilio'],
     'data': [
         # Views
         'views/settings.xml',

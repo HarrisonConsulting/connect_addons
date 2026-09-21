@@ -21,7 +21,7 @@ Adds VoiceTel as a telephony provider in Connect settings:
 - Migration uses Connect's native Migrate Account wizard, no external tooling
 - Browser softphone (SIP.js over WSS) in the same transport registry as Twilio
     """,
-    'depends': ['connect'],
+    'depends': ['connect', 'connect_twilio'],
     'data': [
         # Security
         'security/ir.model.access.csv',

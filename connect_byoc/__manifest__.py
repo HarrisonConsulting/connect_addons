@@ -12,7 +12,7 @@
     "category": "Phone",
     "summary": "Twilio Bring Your Own Carrier",
     "description": "Twilio BYOC is a feature that allows you to use your own carrier to make and receive calls.",
-    "depends": ["connect"],
+    "depends": ["connect", "connect_twilio"],
     "data": [
         "security/user.xml",
         "security/admin.xml",

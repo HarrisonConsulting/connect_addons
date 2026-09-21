@@ -7,7 +7,7 @@ _logger = logging.getLogger(__name__)
 
 
 class OutgoingCallerID(models.Model):
-    _inherit = 'connect.outgoing_callerid'
+    _inherit = 'connect.twilio.outgoing_callerid'
 
     @api.model
     def sync(self):

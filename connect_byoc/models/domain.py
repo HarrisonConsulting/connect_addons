@@ -24,7 +24,7 @@ def have_same_country_code(num1: str, num2: str) -> bool:
 
 
 class Domain(models.Model):
-    _inherit = "connect.domain"
+    _inherit = "connect.twilio.domain"
 
     byoc = fields.Many2one('connect.byoc', string='BYOC', readonly=True)
 

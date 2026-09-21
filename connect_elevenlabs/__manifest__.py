@@ -22,7 +22,7 @@ Features:
 - Telephony integration with Twilio
 - Full conversation tracking and history
     """,
-    'depends': ['connect', 'connect_pbx', 'calendar', 'mail', 'queue_job'],
+    'depends': ['connect', 'connect_twilio', 'connect_pbx', 'calendar', 'mail', 'queue_job'],
     'external_dependencies': {
         'python': ['elevenlabs'],
     },

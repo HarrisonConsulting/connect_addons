@@ -12,7 +12,7 @@ Odoo-native SMS features to send through the Connect Twilio account.
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
-    'depends': ['connect', 'sms_twilio'],
+    'depends': ['connect', 'connect_twilio', 'sms_twilio'],
     'data': [],
     'auto_install': True,
     'installable': True,

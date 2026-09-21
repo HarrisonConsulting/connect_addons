@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class ElevenlabsNumber(models.Model):
-    _inherit = 'connect.number'
+    _inherit = 'connect.twilio.number'
 
     destination = fields.Selection(selection_add=[('elevenlabs_agent', 'Agent')])
     elevenlabs_agent = fields.Many2one('connect.elevenlabs_agent', ondelete='set null')

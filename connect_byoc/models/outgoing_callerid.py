@@ -4,7 +4,7 @@ from odoo import fields, models, api
 
 
 class OutgoingCallerIDByoc(models.Model):
-    _inherit = 'connect.outgoing_callerid'
+    _inherit = 'connect.twilio.outgoing_callerid'
 
     # Add byoc field as Many2one to reference BYOC configuration
     byoc = fields.Many2one(

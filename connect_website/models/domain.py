@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class Domain(models.Model):
-    _inherit = 'connect.domain'
+    _inherit = 'connect.twilio.domain'
 
     @api.model
     def route_call(self, request, params={}):

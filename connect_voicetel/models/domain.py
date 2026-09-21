@@ -3,7 +3,7 @@ from odoo import models
 
 
 class VoicetelDomain(models.Model):
-    _inherit = 'connect.domain'
+    _inherit = 'connect.twilio.domain'
 
     def _credential_is_person(self, credential):
         """Exclude per-browser-tab SIP credentials from the user import.

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Exten(models.Model):
-    _inherit = 'connect.exten'
+    _inherit = 'connect.twilio.exten'
 
     dst = fields.Reference(selection_add=[('connect.elevenlabs_agent', 'Agent')])
     agent = fields.Many2one('connect.elevenlabs_agent')

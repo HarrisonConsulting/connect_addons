@@ -61,6 +61,7 @@
                         <field name="summary" nolabel="1" colspan="2"/>
                     </group>
                     <notebook>
+                        <page name="call" string="Call" invisible="1"/>
                         <page name="recording" string="Recording">
                             <field name="recording_widget" nolabel="1" colspan="2"
                                    invisible="not recording_widget"/>

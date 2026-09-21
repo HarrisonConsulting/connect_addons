@@ -298,7 +298,7 @@ class ConnectMessageContentTemplate(models.Model):
         return super().unlink()
 
     def write(self, vals):
-        if self.env.context.get('skip_check'):
+        if self.env.context.get('skip_check') or self.env.context.get('install_mode'):
             return super().write(vals)
         # Prevent changing content unless status is unsubmitted or rejected.
         # Exception: allow changing 'category' when status is 'approved' AND allow_category_change is True.

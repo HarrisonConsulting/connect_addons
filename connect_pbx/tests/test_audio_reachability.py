@@ -41,14 +41,14 @@ class TestAudioReachability(ConnectTestCase):
     def _make_callflow(self, prompt_audio):
         # prompt_audio_id lives on the elevenlabs extension of connect.callflow;
         # connect_elevenlabs is installed transitively on this branch.
-        return self.env['connect.callflow'].create({
+        return self.env['connect.twilio.callflow'].create({
             'name': 'Reach CF',
             'prompt_audio_id': prompt_audio.id if prompt_audio else False,
         })
 
     def _make_number(self, callflow):
         # Unique number suffix avoids UNIQUE-constraint clashes across runs.
-        return self.env['connect.number'].create({
+        return self.env['connect.twilio.number'].create({
             'phone_number': f'+1500555{self.env.cr.now().microsecond % 10000:04d}',
             'destination': 'callflow',
             'callflow': callflow.id,

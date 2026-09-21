@@ -135,7 +135,7 @@ class TestTwimlAudioHelper(ConnectTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Audio = cls.env['connect.audio']
-        cls.Twiml = cls.env['connect.twiml']
+        cls.Twiml = cls.env['connect.twilio.twiml']
         cls.tts_audio = cls.Audio.create({
             'name': 'Welcome TTS',
             'source': 'twilio_tts',
@@ -237,7 +237,7 @@ class TestTwimlReferencedAudio(ConnectTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Audio = cls.env['connect.audio']
-        cls.Twiml = cls.env['connect.twiml']
+        cls.Twiml = cls.env['connect.twilio.twiml']
         cls.Reference = cls.env['connect.audio.reference']
         cls.audio_a = cls.Audio.create({
             'name': 'Audio A',
@@ -327,7 +327,7 @@ class TestTwimlReferencedAudio(ConnectTestCase):
         tw = self._make_twiml(body)
         refs_a = self.Reference.search([
             ('audio_id', '=', self.audio_a.id),
-            ('referrer_model', '=', 'connect.twiml'),
+            ('referrer_model', '=', 'connect.twilio.twiml'),
             ('referrer_res_id', '=', tw.id),
         ])
         self.assertTrue(
@@ -343,12 +343,12 @@ class TestTwimlReferencedAudio(ConnectTestCase):
         })
         refs_a_after = self.Reference.search([
             ('audio_id', '=', self.audio_a.id),
-            ('referrer_model', '=', 'connect.twiml'),
+            ('referrer_model', '=', 'connect.twilio.twiml'),
             ('referrer_res_id', '=', tw.id),
         ])
         refs_b_after = self.Reference.search([
             ('audio_id', '=', self.audio_b.id),
-            ('referrer_model', '=', 'connect.twiml'),
+            ('referrer_model', '=', 'connect.twilio.twiml'),
             ('referrer_res_id', '=', tw.id),
         ])
         self.assertFalse(
@@ -381,7 +381,7 @@ class TestTwimlReferencedAudio(ConnectTestCase):
         body = f'<Response>{{{{ audio(\'{self.audio_a.uuid}\') }}}}</Response>'
         tw = self._make_twiml(body)
         # Create an exten + inbound number that routes to this twiml.
-        self.env['connect.number'].create({
+        self.env['connect.twilio.number'].create({
             'phone_number': f'+1500556{uuid_lib.uuid4().int % 10000:04d}',
             'destination': 'twiml',
             'twiml': tw.id,

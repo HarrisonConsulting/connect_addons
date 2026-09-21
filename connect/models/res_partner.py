@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import logging
 import phonenumbers
 import re
@@ -9,8 +7,8 @@ from .settings import debug
 
 logger = logging.getLogger(__name__)
 
+
 def strip_number(number):
-    """Strip number formating"""
     if not isinstance(number, str):
         return number
     pattern = r'[\s\(\)\-\+]'
@@ -18,16 +16,13 @@ def strip_number(number):
 
 
 def format_number(self, number, country=None, format_type='e164'):
-    """Return number in requested format_type
-    """
     res = False
     try:
-        phone_nbr = phonenumbers.parse(number, country)
+        phone_nbr = phonenumbers.parse(number, country or None)
         if not phonenumbers.is_possible_number(phone_nbr):
             debug(self, '{} country {} parse impossible'.format(
                 number, country
             ))
-        # We have a parsed number, let check what format to return.
         elif format_type == 'e164':
             res = phonenumbers.format_number(
                 phone_nbr, phonenumbers.PhoneNumberFormat.E164)
@@ -45,15 +40,11 @@ def format_number(self, number, country=None, format_type='e164'):
         return res or number
 
 
-
 class Partner(models.Model):
     _inherit = 'res.partner'
 
     @api.model
     def create_record_from_message(self, message, default_values=None):
-        """Default destination handler: ensure a Partner exists for the message sender.
-        default_values: dict of additional field values to include in creation.
-        """
         number = message.from_number
         partner = self.get_partner_by_number(number)
         if partner:
@@ -73,7 +64,6 @@ class Partner(models.Model):
     if release.version_info[0] >= 19:
         mobile = fields.Char()
 
-
     def _get_connect_user(self):
         for rec in self:
             user = self.env['res.users'].sudo().search([('partner_id', '=', rec.id)])
@@ -89,35 +79,14 @@ class Partner(models.Model):
                 call.partner = res[0]
         except Exception as e:
             logger.exception(e)
-        if res and not self.env.context.get('no_clear_cache'):
-            if release.version_info[0] >= 17:
-                self.env.registry.clear_cache()
-            else:
-                self.clear_caches()
+        # NB: no registry.clear_cache() here. There is no ormcache keyed on
+        # partner data in this addon (connect_*_count are non-stored computes,
+        # get_partner_by_number does a live search), so clearing the whole
+        # ORM cache on every partner create/write/unlink was pure overhead
+        # on a hot path. Removed; the ORM invalidates its own field caches.
         return res
-
-    def write(self, values):
-        res = super().write(values)
-        if res and not self.env.context.get('no_clear_cache'):
-            if release.version_info[0] >= 17:
-                self.env.registry.clear_cache()
-            else:
-                self.clear_caches()
-        return res
-
-    def unlink(self):
-        res = super().unlink()
-        if res and not self.env.context.get('no_clear_cache'):
-            if release.version_info[0] >= 17:
-                self.env.registry.clear_cache()
-            else:
-                self.clear_caches()
-        return res
-
 
     def _normalize_phone(self, number):
-        """Keep normalized (E.164) phone numbers in normalized fields.
-        """
         if self.env['connect.settings'].sudo().get_param('disable_phone_format'):
             return number
         country = self._get_country()
@@ -128,70 +97,64 @@ class Partner(models.Model):
                 number = phonenumbers.format_number(
                     phone_nbr, phonenumbers.PhoneNumberFormat.E164)
         except phonenumbers.phonenumberutil.NumberParseException:
-            # Force the number to be E.164 format.
             number = '+{}'.format(strip_number(number))
         except Exception as e:
             logger.warning('Normalize phone error: %s', e)
-        # Strip the number if parse error.
         return number
-
 
     @api.model
     def get_partner_by_number(self, number):
-        """Search partner by number.
-        Args:
-            number (str): number to be searched on.
-        If several partners are found by the same number:
-        a) If partners belong to same company, return company record.
-        b) If partners belong to different companies return False.
-        """
         found = self.sudo().search([('phone_mobile_search', '=', number)])
+        if not found:
+            country = self.env['res.company'].sudo().browse(1).country_id.code
+            normalized = format_number(self, number, country)
+            if normalized and normalized != number:
+                found = self.sudo().search(
+                    [('phone_mobile_search', '=', normalized)])
+                if not found and 'phone_sanitized' in self._fields:
+                    found = self.sudo().search(
+                        [('phone_sanitized', '=', normalized)])
+                debug(self, '{} normalized to {} for partner lookup'.format(
+                    number, normalized
+                ))
+            elif normalized and 'phone_sanitized' in self._fields:
+                found = self.sudo().search(
+                    [('phone_sanitized', '=', normalized)])
         debug(self, '{} belongs to partners: {}'.format(
             number, found.mapped('id')
         ))
         parents = found.mapped('parent_id')
-        # 1-st case: just one partner, perfect!
         if len(found) == 1:
             return found
-        # 2-nd case: Many partners, no parent company / many companies
         elif len(parents) == 0 and len(found) > 1:
             logger.warning('MANY PARTNERS FOR NUMBER %s', number)
             return found[0]
-        # 3-rd case: many partners, many companies
         elif len(parents) > 1 and len(found) > 1:
             logger.warning(
                 'MANY PARTNERS DIFFERENT COMPANIES FOR NUMBER %s', number)
-            # Return empty recordset.
             return self.env['res.partner']
-        # 4-rd case: 1 partner from one company
         elif len(parents) == 1 and len(found) == 2 and len(
                 found.filtered(
                     lambda r: r.parent_id.id in [k.id for k in parents])) == 1:
             debug(self, 'one partner from one parent found')
             return found.filtered(
                 lambda r: r.parent_id in [k for k in parents])[0]
-        # 5-rd case: many partners same parent company
         elif len(parents) == 1 and len(found) > 1 and len(found.filtered(
                 lambda r: r.parent_id in [k for k in parents])) > 1:
             debug(self, 'MANY PARTNERS SAME PARENT COMPANY {}'.format(number))
             return parents[0]
         else:
-            # Return empty recordset.
             return self.env['res.partner']
 
     def _get_country(self):
         partner = self
         if partner and partner.country_id:
-            # Return partner country code
             return partner.country_id.code
         elif partner and partner.parent_id and partner.parent_id.country_id:
-            # Return partner's parent country code
             return partner.parent_id.country_id.code
         elif partner and partner.company_id and partner.company_id.country_id:
-            # Return partner's company country code
             return partner.company_id.country_id.code
         elif self.env.user and self.env.user.company_id.country_id:
-            # Return Odoo's main company country
             return self.env.user.company_id.country_id.code
 
     def _get_connect_calls_count(self):
@@ -219,93 +182,18 @@ class Partner(models.Model):
 
     def _phone_format(self, number=None, country=None, company=None, force_format='E164', **kwargs):
         version_info = release.version_info
-        # For Odoo versions before 16
         if version_info[0] < 16:
             return super(Partner, self)._phone_format(number, country=country, company=company)
-        # For Odoo version 16
         elif version_info[0] == 16:
             return super(Partner, self)._phone_format(number, country=country, company=company, force_format=force_format)
-        # For Odoo version 17 and later
         else:
-            # Ensure 'fname' and 'raise_exception' are extracted from kwargs or set to defaults
             fname = kwargs.get('fname', False)
             return super(Partner, self)._phone_format(fname=fname, number=number, country=country, force_format=force_format)
 
     @api.model
     def api_get_partner(self, number):
-        # Called from Client.
         partner = self.get_partner_by_number(number)
         if partner:
             return {'id': partner.id, 'name': partner.display_name}
         else:
             return {'id': False, 'name': 'Unknown'}
-
-    @api.model
-    def originate_call_to(self, number, extension_id, callerid, partner_id=False):
-        """Originate a call to partner and connect to an extension.
-
-        Args:
-            number: Phone number to call (partner's phone)
-            extension_id: ID of connect.exten to connect to after partner answers
-            callerid: Caller ID to display
-            partner_id: Optional partner ID for tracking
-
-        Flow:
-            1. Call the partner's number
-            2. When partner answers, execute TwiML from extension.render()
-        """
-        from urllib.parse import urljoin
-
-        settings = self.env['connect.settings'].sudo()
-        client = settings.get_client()
-
-        # Get extension and render its TwiML
-        extension = self.env['connect.exten'].browse(extension_id)
-        if not extension.exists():
-            raise ValueError('Extension not found')
-
-        # Format number
-        number = strip_number(number)
-        if len(number) > 4:
-            number = "+{}".format(number)
-
-        # Get API URL and edge for callbacks
-        api_url = settings.get_param("api_url")
-        edge = settings.get_param('twilio_edge')
-        status_url = urljoin(api_url, "twilio/webhook/callstatus#e={}".format(edge))
-        record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
-
-        # Render TwiML from extension destination
-        twiml = str(extension.render())
-
-        # Check if recording is enabled for current user
-        record = False
-        if self.env.user.connect_user:
-            record = self.env.user.connect_user.record_calls
-
-        debug(self, 'Originate call to TwiML: {}'.format(twiml))
-
-        # Create outbound call to partner, execute extension TwiML when answered
-        channel = client.calls.create(
-            twiml=twiml,
-            to=number,
-            from_=callerid,
-            status_callback=status_url,
-            record=record,
-            recording_channels="dual",
-            recording_status_callback=record_status_url,
-            recording_status_callback_event=["completed"],
-            status_callback_event=["initiated", "answered", "completed"],
-        )
-
-        # Create channel record for tracking
-        self.env["connect.channel"].sudo().create({
-            "sid": channel.sid,
-            "technical_direction": "outbound-api",
-            "caller_user": self.env.user.id,
-            "caller_pbx_user": self.env.user.connect_user.id if self.env.user.connect_user else False,
-            "partner": partner_id,
-            "called": number,
-            "caller": callerid,
-        })
-

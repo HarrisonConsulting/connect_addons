@@ -9,8 +9,8 @@ from odoo import models
 
 
 class Exten(models.Model):
-    _name = 'connect.exten'
-    _inherit = ['connect.exten', 'connect.tts.mixin',
+    _name = 'connect.twilio.exten'
+    _inherit = ['connect.twilio.exten', 'connect.tts.mixin',
                 'connect.audio.referrer.mixin']
 
     # Polymorphic destination pointer — model + res_id together define the edge.

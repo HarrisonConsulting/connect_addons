@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect PBX',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
@@ -19,7 +19,7 @@ extensions, TwiML. This module owns everything a call SAYS and everything
 it leaves behind, and attaches those to the provider's routing records
 through inherited extensions rather than by editing them.
     """,
-    'depends': ['connect'],
+    'depends': ['connect', 'connect_twilio'],
     'data': [
         # Security
         'security/admin.xml',

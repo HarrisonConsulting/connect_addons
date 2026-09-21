@@ -16,8 +16,8 @@ class TestVoicemailBoxModel(ConnectTestCase):
         super().setUpClass()
         cls.Box = cls.env['connect.voicemail_box']
         cls.User = cls.env['connect.user']
-        cls.Callflow = cls.env['connect.callflow']
-        cls.domain = cls.env['connect.domain'].with_context(
+        cls.Callflow = cls.env['connect.twilio.callflow']
+        cls.domain = cls.env['connect.twilio.domain'].with_context(
             no_twilio_create=True,
         ).create({'friendly_name': 'VMBox Domain', 'subdomain': 'vmboxd'})
         cls.alice = cls.env['res.users'].create({
@@ -93,7 +93,7 @@ class TestVoicemailBoxStamping(ConnectTestCase):
         cls.Box = cls.env['connect.voicemail_box']
         cls.Channel = cls.env['connect.channel']
         cls.Call = cls.env['connect.call']
-        cls.Callflow = cls.env['connect.callflow']
+        cls.Callflow = cls.env['connect.twilio.callflow']
 
         cls.member = cls.env['res.users'].create({
             'name': 'Box Member',
@@ -104,7 +104,7 @@ class TestVoicemailBoxStamping(ConnectTestCase):
             'name': 'Stamp Box',
             'member_ids': [(6, 0, [cls.member.id])],
         })
-        cls.domain = cls.env['connect.domain'].with_context(
+        cls.domain = cls.env['connect.twilio.domain'].with_context(
             no_twilio_create=True,
         ).create({'friendly_name': 'Stamp Domain', 'subdomain': 'stampd'})
         cls.pbx_user = cls.env['connect.user'].create({
@@ -277,7 +277,7 @@ class TestVoicemailBoxAccess(ConnectTestCase):
         super().setUpClass()
         cls.Box = cls.env['connect.voicemail_box']
         cls.Call = cls.env['connect.call']
-        connect_user_group = cls.env.ref('connect.group_connect_user')
+        connect_user_group = cls.env.ref('connect.group_user')
 
         cls.alice = cls.env['res.users'].create({
             'name': 'Alice',

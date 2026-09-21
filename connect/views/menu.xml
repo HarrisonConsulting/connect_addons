@@ -1,30 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Gate the whole app on the Connect groups. Child menus stay ungated and
+         inherit this; without it an internal user outside the groups can reach
+         Connect pages (by URL, bookmark or a restored last action) and only
+         finds out via an AccessError dialog. Matches connect_addons. -->
+    <menuitem id="menu_connect_root"
+              name="Connect"
+              sequence="10"
+              groups="connect.group_user,connect.group_admin"
+              web_icon="connect,static/description/icon.png"/>
 
-  <menuitem id="connect_top_menu" name="Connect"
-      groups="connect.group_connect_user,connect.group_connect_admin"
-      sequence="21" web_icon='connect,static/description/icon.png'/>
+    <menuitem id="menu_connect_calls"
+              name="Calls"
+              parent="menu_connect_root"
+              sequence="10"/>
 
-  <menuitem id="connect_voice_menu" name="Voice"
-        parent="connect_top_menu" sequence="100"/>
+    <menuitem id="menu_connect_settings"
+              name="Configuration"
+              parent="menu_connect_root"
+              sequence="100"/>
 
-  <menuitem id="connect_messaging_menu" name="Messaging"
-        parent="connect_top_menu" sequence="150"/>
-
-  <menuitem id="connect_ai_menu" name="AI"
-        parent="connect_top_menu" sequence="200"/>
-
-  <menuitem id="connect_reports_menu" name="Reports"
-        sequence="300" parent="connect_top_menu"/>
-
-  <menuitem id="connect_settings_menu" name="Settings"
-        sequence="400" parent="connect_top_menu"/>
-
-  <menuitem id="connect_debug_menu" name="Debug"
-      groups="base.group_no_one"
-      sequence="500" parent="connect_top_menu"/>
-
-  <menuitem id="connect_documentation_menu" name="Documentation"
-      groups="base.group_no_one"
-      sequence="600" parent="connect_top_menu"/>
-
+    <!-- HC child menus: connect_pbx / connect_elevenlabs / connect_byoc still parent off these xmlids. -->
+    <menuitem id="connect_voice_menu"
+              name="Voice"
+              parent="menu_connect_root"
+              sequence="20"/>
+    <menuitem id="connect_messaging_menu"
+              name="Messaging"
+              parent="menu_connect_root"
+              sequence="30"/>
+    <menuitem id="connect_ai_menu"
+              name="AI"
+              parent="menu_connect_root"
+              sequence="40"/>
+    <menuitem id="connect_reports_menu"
+              name="Reports"
+              parent="menu_connect_root"
+              sequence="80"/>
+    <menuitem id="connect_debug_menu"
+              name="Debug"
+              parent="menu_connect_root"
+              groups="base.group_no_one"
+              sequence="90"/>
+    <menuitem id="connect_documentation_menu"
+              name="Documentation"
+              parent="menu_connect_root"
+              groups="base.group_no_one"
+              sequence="95"/>
 </odoo>

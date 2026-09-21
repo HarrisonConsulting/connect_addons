@@ -4,9 +4,9 @@
     <record id="user_list_audio" model="ir.ui.view">
         <field name="name">connect.user.list.audio</field>
         <field name="model">connect.user</field>
-        <field name="inherit_id" ref="connect.user_list"/>
+        <field name="inherit_id" ref="connect.view_connect_user_tree"/>
         <field name="arch" type="xml">
-            <field name="exten_number" position="after">
+            <field name="voicemail_enabled" position="after">
                 <field name="presence_status" string="Presence" widget="badge"
                        decoration-success="presence_status == 'available'"
                        decoration-danger="presence_status == 'on_call'"
@@ -19,16 +19,18 @@
     <record id="user_form_audio" model="ir.ui.view">
         <field name="name">connect.user.form.audio</field>
         <field name="model">connect.user</field>
-        <field name="inherit_id" ref="connect.connect_user_form"/>
+        <field name="inherit_id" ref="connect.view_connect_user_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//page[@name='callflow']//field[@name='outgoing_callerid']" position="before">
+            <xpath expr="//field[@name='greeting_message']" position="before">
                 <field name="greeting_audio_id"
                        domain="[('state', 'in', ('reviewed', 'live'))]"/>
                 <field name="greeting_preview" widget="html"
                        nolabel="1" colspan="2"
                        invisible="not greeting_preview"/>
             </xpath>
-            <xpath expr="//page[@name='callflow']//field[@name='voicemail_email_enabled']" position="after">
+            <xpath expr="//field[@name='voicemail_enabled']" position="after">
+                <field name="voicemail_email_enabled"
+                       invisible="not voicemail_enabled"/>
                 <field name="voicemail_audio_id"
                        domain="[('state', 'in', ('reviewed', 'live'))]"
                        invisible="not voicemail_enabled"
@@ -40,7 +42,7 @@
                        invisible="not voicemail_enabled"
                        options="{'no_create': True}"/>
             </xpath>
-            <xpath expr="//page[@name='settings']/group" position="inside">
+            <xpath expr="//page[@name='organization']" position="inside">
                 <group string="Presence">
                     <field name="presence_status" readonly="1"/>
                     <field name="presence_updated" readonly="1"/>

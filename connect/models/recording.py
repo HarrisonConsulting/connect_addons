@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
-
 import base64
-import json
 import logging
 import os
-import requests
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from tempfile import NamedTemporaryFile
+from urllib.parse import quote
+
+import requests
+from markupsafe import escape
 from odoo import fields, models, api, release, SUPERUSER_ID
 from odoo.exceptions import ValidationError
-from .settings import format_connect_response, debug, HTTP_DOWNLOAD_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +20,23 @@ class Recording(models.Model):
     _rec_name = 'id'
     _order = 'id desc'
 
+    _TRANSCRIPTION_MODEL = 'whisper-1'
+    _TRANSCRIPTION_PRICE_PER_MINUTE = Decimal('0.006')
+    _TRANSCRIPTION_PRICE_QUANTUM = Decimal('0.000001')
+
     call = fields.Many2one('connect.call', ondelete='set null')
     channel = fields.Many2one('connect.channel', ondelete='set null')
     partner = fields.Many2one('res.partner', ondelete='set null')
-    sid = fields.Char('SID', readonly=True, required=True)
-    # It's a channel sid actually.
-    call_sid = fields.Char(required=True, string='Channel SID', readonly=True)
+    sid = fields.Char('SID', readonly=True)
+    call_sid = fields.Char(string='Channel SID', readonly=True)
     caller_user = fields.Many2one(related='call.caller_user', store=True, readonly=False)
     called_user = fields.Many2one('res.users', ondelete='set null')
+    users = fields.Many2many('res.users', compute='_compute_users', string='Users')
     caller_number = fields.Char()
     called_number = fields.Char()
     media_url = fields.Char()
+    recording_filename = fields.Char(readonly=True)
+    recording_attachment = fields.Binary(attachment=True, readonly=True)
     price = fields.Char()
     price_unit = fields.Char()
     source = fields.Char()
@@ -38,197 +44,172 @@ class Recording(models.Model):
     duration_human = fields.Char(compute='_get_duration_human')
     start_time = fields.Datetime()
     status = fields.Char()
-    attachment_id = fields.Many2one('ir.attachment', string='Recording File', ondelete='set null', readonly=True, copy=False)
     if release.version_info[0] >= 17.0:
         recording_widget = fields.Html(compute='_get_recording_widget', string='Recording', sanitize=False)
     else:
         recording_widget = fields.Char(compute='_get_recording_widget', string='Recording')
-    ############## TRANSCRIPTION FIELDS ######################################
     transcript = fields.Text()
     transcription_token = fields.Char()
     transcription_error = fields.Char()
+    # Work-queue flag for the transcription cron. Set on create() when
+    # transcript_calls is enabled; the cron picks these up out of the
+    # request path (see _cron_transcribe_recordings).
+    transcription_pending = fields.Boolean(default=False, copy=False)
     transcription_price = fields.Char()
     summary = fields.Html()
     list_view_summary = fields.Html(compute='_get_list_view_summary')
 
-    ############## TRANSCRIPTION METHODS #####################################
+    @api.depends(
+        'caller_user',
+        'called_user',
+        'call.caller_user',
+        'call.called_users',
+        'call.answered_user',
+    )
+    def _compute_users(self):
+        for rec in self:
+            users = rec.caller_user | rec.called_user
+            if rec.call:
+                users |= (
+                    rec.call.caller_user
+                    | rec.call.called_users
+                    | rec.call.answered_user
+                )
+            rec.users = users
 
-    def _get_summary_context(self):
-        """Build template context for summary prompt rendering.
+    def _fetch_media_to(self, temp_file):
+        """Write this recording's audio into an open binary file object.
 
-        Available placeholders: {caller_name}, {called_name}, {caller_number},
-        {called_number}, {direction}, {number_name}, {number_description}
+        Seam: storage add-ons (connect_s3) override this to read the audio
+        from their own backend instead of the provider's URL.
         """
-        if not self:
-            return {
-                'caller_number': '',
-                'called_number': '',
-                'direction': 'unknown',
-                'caller_name': 'Unknown Caller',
-                'called_name': 'Unknown',
-                'number_name': '',
-                'number_description': '',
-            }
         self.ensure_one()
-        ctx = {
-            'caller_number': self.caller_number or '',
-            'called_number': self.called_number or '',
-            'direction': (self.call.direction or 'unknown') if self.call else 'unknown',
-        }
-        # Resolve caller display name: prefer partner, then user, then number
-        if self.call and self.call.partner:
-            ctx['caller_name'] = self.call.partner.display_name
-        elif self.caller_user:
-            ctx['caller_name'] = self.caller_user.display_name
-        else:
-            ctx['caller_name'] = self.caller_number or 'Unknown Caller'
-        # Resolve called display name: prefer user, then number
-        if self.called_user:
-            ctx['called_name'] = self.called_user.display_name
-        else:
-            ctx['called_name'] = self.called_number or 'Unknown'
-        # Look up connect.number for identity context
-        number = False
-        if self.call:
-            our_number = self.called_number if ctx['direction'] == 'inbound' else self.caller_number
-            if our_number:
-                number = self.env['connect.number'].sudo().search(
-                    [('phone_number', '=', our_number)], limit=1)
-        ctx['number_name'] = (number.friendly_name or number.phone_number) if number else ''
-        ctx['number_description'] = (number.description or '') if number else ''
-        return ctx
-
-    def _render_summary_prompt(self, summary_prompt, transcript=''):
-        """Render summary prompt template with call context.
-
-        Uses safe formatting: unrecognized {placeholders} are left as-is.
-        """
-        ctx = self._get_summary_context()
-        ctx['transcript'] = transcript
-
-        class SafeDict(dict):
-            def __missing__(self, key):
-                return '{' + key + '}'
-
-        try:
-            return summary_prompt.format_map(SafeDict(ctx))
-        except Exception:
-            logger.warning('Failed to render summary prompt template, using as-is')
-            return summary_prompt
-
-    def _get_transcription_model(self):
-        """Return transcription model name. Override to make configurable."""
-        return 'whisper-1'
-
-    def _get_completion_model(self):
-        """Return completion/summary model name. Override to make configurable."""
-        return os.environ.get('OPENAI_COMPLETION_MODEL', 'gpt-4o')
-
-    def _download_recording_audio(self):
-        """Download recording audio to a temporary file. Returns path or None."""
-        if self.attachment_id:
-            data = base64.b64decode(self.attachment_id.sudo().datas)
-            with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
-                f.write(data)
-                return f.name
-        if not self.media_url:
-            return None
-        account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
-        response = requests.get(self.media_url, stream=True, auth=(account_sid, auth_token),
-                                timeout=HTTP_DOWNLOAD_TIMEOUT)
+        if self.recording_attachment:
+            # Providers whose recording downloads require API auth
+            # store the audio bytes on the record instead of
+            # exposing a public media_url (e.g. connect_infobip,
+            # Asterisk or LiveKit sidecars).
+            temp_file.write(base64.b64decode(self.recording_attachment))
+            return
+        # Bounded download: media_url points at the provider's
+        # recording store; without a timeout a hung endpoint
+        # pins the worker.
+        response = requests.get(self.media_url, stream=True, timeout=30)
         response.raise_for_status()
-        with NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    temp_file.write(chunk)
-            return temp_file.name
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                temp_file.write(chunk)
 
     def transcribe_recording(self, openai_api_key, summary_prompt):
         result = {}
         temp_file_path = None
         try:
             client = self.env['connect.settings'].get_openai_client()
-            temp_file_path = self._download_recording_audio()
-            if not temp_file_path:
-                result['transcription_error'] = 'Recording media not available'
-                return
-            file_size = os.path.getsize(temp_file_path)
-            if file_size > 26214400:
-                error_msg = 'File exceeds size limit (26MB). Please use the Elevenlabs module for larger files.'
-                logger.error(error_msg)
-                result['transcription_error'] = error_msg
-                return
-            transcript_text = self._call_transcription_api(client, temp_file_path)
-            result['transcript'] = transcript_text
-            result.update(self.make_summary(client, summary_prompt, transcript_text))
-            result['transcription_error'] = False
-        except Exception as e:
-            logger.exception('Transcribe error for recording id=%s sid=%s: %s', self.id, self.sid, e)
-            result['transcription_error'] = str(e)
-        finally:
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-            self.write(result)
-
-    def _call_transcription_api(self, client, audio_path):
-        """Call transcription API with fallback for non-standard models.
-
-        First tries verbose_json with timestamps (Whisper native).
-        Falls back to plain text if the model/proxy doesn't support it.
-        """
-        model = self._get_transcription_model()
-        # Try verbose format with timestamps first
-        try:
-            with open(audio_path, 'rb') as audio_file:
+            # OpenAI infers the audio container from the file extension, so
+            # keep the original one when the filename is known.
+            suffix = os.path.splitext(self.recording_filename or '')[1] or '.mp3'
+            with NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                self._fetch_media_to(temp_file)
+                temp_file_path = temp_file.name
+            with open(temp_file_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model=model, file=audio_file,
-                    response_format='verbose_json',
-                    timestamp_granularities=["segment"])
+                    model=self._TRANSCRIPTION_MODEL, file=audio_file,
+                    response_format='verbose_json', timestamp_granularities=["segment"])
+            result['transcription_price'] = self._get_transcription_price(transcript)
             segments = ''
             for s in transcript.segments:
                 seconds = int(s.start)
                 ts = f"{int(seconds // 3600):02d}:{int((seconds % 3600) // 60):02d}:{int(seconds % 60):02d}"
                 segments += '{} {}\n'.format(ts, s.text)
-            return segments
+            result['transcript'] = segments
+            result.update(self.make_summary(client, summary_prompt, result['transcript']))
+            result.setdefault('transcription_error', False)
         except Exception as e:
-            logger.info(
-                'verbose_json transcription failed (%s), falling back to text format: %s',
-                model, e)
-        # Fallback: plain text transcription (works with more providers/proxies)
-        with open(audio_path, 'rb') as audio_file:
-            transcript = client.audio.transcriptions.create(
-                model=model, file=audio_file,
-                response_format='text')
-        return transcript if isinstance(transcript, str) else str(transcript)
+            logger.exception(f'Transcribe error: {e}')
+            result['transcription_error'] = str(e)
+        finally:
+            # NamedTemporaryFile(delete=False) is not auto-removed; drop the
+            # downloaded audio so /tmp does not grow without bound.
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except OSError:
+                    logger.warning('Could not remove temp file %s', temp_file_path)
+            result['transcription_pending'] = False
+            self.write(result)
+            self._delete_after_successful_transcription()
+
+    @api.model
+    def _format_transcription_price(self, price):
+        if price is None or price is False:
+            return False
+        try:
+            value = Decimal(str(price)).quantize(
+                self._TRANSCRIPTION_PRICE_QUANTUM,
+                rounding=ROUND_HALF_UP,
+            )
+        except (InvalidOperation, TypeError, ValueError):
+            logger.warning('Invalid transcription price: %r', price)
+            return False
+        return format(value, 'f').rstrip('0').rstrip('.') or '0'
+
+    @api.model
+    def _get_transcription_price(self, transcript):
+        usage = getattr(transcript, 'usage', None)
+        duration = getattr(usage, 'seconds', None)
+        if not isinstance(duration, (int, float, Decimal)):
+            duration = getattr(transcript, 'duration', None)
+        if not isinstance(duration, (int, float, Decimal)):
+            logger.warning('OpenAI transcription response has no duration')
+            return False
+        price = (
+            Decimal(str(duration))
+            * self._TRANSCRIPTION_PRICE_PER_MINUTE
+            / Decimal('60')
+        )
+        return self._format_transcription_price(price)
 
     def make_summary(self, client, summary_prompt, transcript):
         logger.info('Make summary!')
         try:
-            # Render prompt template with call context
-            transcript_in_prompt = '{transcript}' in summary_prompt
-            rendered = self._render_summary_prompt(summary_prompt, transcript)
-            if transcript_in_prompt:
-                # Transcript embedded in prompt via {transcript} placeholder
-                messages = [{'role': 'user', 'content': rendered}]
-            else:
-                # Legacy: prompt and transcript as separate messages
-                messages = [
-                    {'role': 'user', 'content': rendered},
-                    {'role': 'user', 'content': transcript},
-                ]
-            response = client.chat.completions.create(
-                model=self._get_completion_model(),
-                messages=messages,
-                temperature=float(os.environ.get('OPENAI_COMPLETION_TEMPERATURE', 0.5)),
-                max_tokens=int(os.environ.get('OPENAI_COMPLETION_MAX_TOKENS', 4096)),
-                top_p=float(os.environ.get('OPENAI_COMPLETION_TOP_P', 1.0)),
-                frequency_penalty=float(os.environ.get('OPENAI_COMPLETION_FREQUENCY_PENALTY', 0.0)),
-                presence_penalty=float(os.environ.get('OPENAI_COMPLETION_PRESENCE_PENALTY', 0.0)),
+            settings = self.env['connect.settings']
+            model = (
+                os.environ.get('OPENAI_COMPLETION_MODEL')
+                or settings.get_param('openai_summary_model', 'gpt-5.4-mini')
             )
+            max_tokens = int(os.environ.get('OPENAI_COMPLETION_MAX_TOKENS', 4096))
+            completion_params = {
+                'model': model,
+                'messages': [
+                    {
+                        'role': 'user',
+                        'content': summary_prompt
+                    },
+                    {
+                        'role': 'user',
+                        'content': transcript,
+                    },
+                ],
+            }
+            if model.startswith('gpt-5'):
+                completion_params['max_completion_tokens'] = max_tokens
+            else:
+                completion_params.update({
+                    'temperature': float(os.environ.get(
+                        'OPENAI_COMPLETION_TEMPERATURE', 0.5)),
+                    'max_tokens': max_tokens,
+                    'top_p': float(os.environ.get('OPENAI_COMPLETION_TOP_P', 1.0)),
+                    'frequency_penalty': float(os.environ.get(
+                        'OPENAI_COMPLETION_FREQUENCY_PENALTY', 0.0)),
+                    'presence_penalty': float(os.environ.get(
+                        'OPENAI_COMPLETION_PRESENCE_PENALTY',
+                        os.environ.get('OPENAI_COMPLETION_PRESENSE_PENALTY', 0.0))),
+                })
+            response = client.chat.completions.create(**completion_params)
             logger.info('%s', response.usage)
             return {'summary': response.choices[0].message.content.strip('\n\n')}
         except Exception as e:
-            logger.exception('Summary error for recording id=%s: %s', self.id, e)
+            logger.exception(f'Summary error: {e}')
             return {'transcription_error': str(e)}
 
     def get_transcript(self, fail_silently=False):
@@ -241,114 +222,98 @@ class Recording(models.Model):
             else:
                 raise ValidationError('OpenAI key is not set!')
         summary_prompt = self.env['connect.settings'].get_param('summary_prompt')
-        if not self.media_url:
+        if not self.media_url and not self.recording_attachment:
             raise ValidationError('Recording is not available yet!')
         self.transcribe_recording(openai_key, summary_prompt)
 
     def update_transcript(self, data):
-        # Update transcription and also erase access token.
         self.ensure_one()
-        transcription_price = data.get('transcription_price')
-        if transcription_price:
-            # Round
-            transcription_price = round(transcription_price, 2)
+        call = self.call
         vals = {
             'transcript': data.get('transcript'),
-            'transcription_price': str(transcription_price),
+            'transcription_price': self._format_transcription_price(
+                data.get('transcription_price')
+            ),
             'summary': data.get('summary'),
-            # Reset the token
             'transcription_token': False,
-            'transcription_error': data.get('transcription_error')
+            'transcription_error': data.get('transcription_error'),
+            'transcription_pending': False,
         }
         self.with_context(tracking_disable=True).write(vals)
-        # Update call summary.
-        if self.call:
-            self.call.summary = data.get('summary')
-            # Reload calls view when transcription has come.
+        self._delete_after_successful_transcription()
+        if call:
             self.env['connect.settings'].connect_reload_view('connect.call')
-        # Reload views when transcription has come.
         self.env['connect.settings'].connect_reload_view('connect.recording')
-        # Notify user
         if data.get('notify_uid'):
             self.env['connect.settings'].connect_notify(
                 'Transcript updated', notify_uid=data['notify_uid'])
 
-##########  END OF TRANSCRIPTION METHODS #########################################################
+    def _delete_after_successful_transcription(self):
+        """Remove processed audio only after its analysis is durable."""
+        self.ensure_one()
+        if (
+            not self.exists()
+            or not self.call
+            or not self.transcript
+            or self.transcription_error
+        ):
+            return False
+        delete_recording = self.env['connect.settings'].sudo().get_param(
+            'delete_recording_after_transcription'
+        )
+        if not delete_recording:
+            return False
+        self.unlink()
+        return True
 
     def _get_recording_widget(self):
         proxy_recordings = self.env['connect.settings'].sudo().get_param('proxy_recordings')
         for rec in self:
-            if rec.attachment_id:
-                src = '/web/content/{}?download=false'.format(rec.attachment_id.id)
-            elif rec.media_url:
-                src = '/connect/recording/{}'.format(rec.id) if proxy_recordings else rec.media_url
-            else:
+            media_url = rec._get_media_src(proxy_recordings)
+            if not media_url:
                 rec.recording_widget = ''
                 continue
-            rec.recording_widget = (
-                '<audio id="sound_file" preload="auto" controls="controls">'
-                '<source src="{}"/></audio>'.format(src)
-            )
+            # media_url may be a raw, webhook-supplied URL when
+            # proxy_recordings is off; escape it before it lands in the
+            # sanitize=False Html field to prevent stored XSS.
+            rec.recording_widget = '<audio id="sound_file" preload="auto" ' \
+                'controls="controls"> ' \
+                '<source src="{}"/>' \
+                '</audio>'.format(escape(media_url))
 
-    def _store_as_attachment(self):
-        """Download recording from Twilio and store as ir.attachment."""
-        self.ensure_one()
-        if not self.media_url:
-            return
-        settings = self.env['connect.settings'].sudo()
-        account_sid, auth_token = settings._get_client_credentials()
-        response = requests.get(
-            self.media_url, auth=(account_sid, auth_token),
-            timeout=HTTP_DOWNLOAD_TIMEOUT
-        )
-        response.raise_for_status()
-        attachment = self.env['ir.attachment'].sudo().create({
-            'name': 'recording_{}.mp3'.format(self.sid),
-            'datas': base64.b64encode(response.content).decode(),
-            'res_model': self._name,
-            'res_id': self.id,
-            'mimetype': 'audio/mpeg',
-        })
-        self.write({'attachment_id': attachment.id})
-        if settings.get_param('delete_twilio_recording'):
-            self._delete_from_twilio()
-        return attachment
+    def _get_media_src(self, proxy_recordings):
+        """Return the URL the player should point at, '' when there is none.
 
-    def _delete_from_twilio(self):
-        """Queue deletion of this recording from the provider.
-
-        Runs post-commit so a failed/retried transaction never destroys a
-        remote recording the database has no committed copy of.
+        Seam: storage add-ons (connect_s3) override this to hand out a
+        backend-specific URL, e.g. an S3 presigned URL.
         """
         self.ensure_one()
-        self.env['connect.settings'].defer_twilio_recording_delete(self.sid)
+        if self.recording_attachment:
+            return self.get_attachment_media_url()
+        if self.media_url:
+            if proxy_recordings:
+                return '/connect/recording/{}'.format(self.id)
+            return self.media_url
+        return ''
+
+    def get_attachment_media_url(self):
+        self.ensure_one()
+        if not self.recording_attachment:
+            return ''
+        filename = quote(self.recording_filename or 'recording.wav')
+        return (
+            '/web/content?model=connect.recording'
+            '&id={}&field=recording_attachment'
+            '&filename_field=recording_filename'
+            '&filename={}&download=True'.format(self.id, filename))
 
     def _get_list_view_summary(self):
         for rec in self:
             rec.list_view_summary = rec.summary
 
-    @api.model
-    def prepare_data(self, rec):
-        data = {}
-        for field in ['sid', 'call_sid', 'media_url', 'price', 'price_unit',
-                      'duration', 'source', 'start_time','status']:
-            data[field] = getattr(rec, field)
-            if field in ['start_time', 'date_created', 'date_updated']:
-                # Parse 2024-05-29 21:44:48+00:00
-                data[field] = data[field].utcnow()
-        channel = self.env['connect.channel'].search([('sid', '=', rec.call_sid)])
-        data['call'] = channel.call.id
-        data['channel'] = channel.id
-        return data
-
-    def sync(self):
-        client = self.env['connect.settings'].get_client()
-        for rec in self:
-            if not rec.media_url:
-                continue
-            recording = client.recordings(rec.sid).fetch()
-            data = self.prepare_data(recording)
-            rec.write(data)
+    def unlink(self):
+        self._sync_analysis_to_call()
+        return super().unlink()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -357,162 +322,62 @@ class Recording(models.Model):
         transcript_calls = self.env['connect.settings'].sudo().get_param('transcript_calls')
         recs = super(Recording, self.with_context(
             mail_create_nosubscribe=True, mail_create_nolog=True)).create(vals_list)
-        # Commit to the database so that transcription error will not break the recording.
-        self.env.cr.commit()
         if transcript_calls:
-            for rec in recs:
-                try:
-                    rec.get_transcript(fail_silently=True)
-                except Exception as e:
-                    logger.exception('Transcript error: %s', e)
+            # Defer transcription to _cron_transcribe_recordings. Running
+            # the Whisper + GPT round trip inline blocked the provider
+            # webhook that created the recording (timeout -> retry ->
+            # duplicate processing) and was only survivable via a
+            # mid-create cr.commit() that broke the caller transaction's
+            # atomicity. The flag is the cron's work queue instead.
+            recs.filtered(lambda r: not r.transcript).transcription_pending = True
         return recs
 
-    def _notify_recording_started(self, params, channel):
-        """Push a bus event so the phone UI immediately reflects auto-recording state.
-
-        Dial-level recordings live on the parent call SID, not the browser client SID.
-        For incoming calls: recording is on the parent, browser client is a child channel.
-        For outgoing calls: recording is on the browser's own channel (as caller).
-        """
-        call_sid = params['CallSid']
-        recording_sid = params['RecordingSid']
-
-        uids = set()
-        # Outgoing calls: recording lives on the caller's own channel
-        if channel and channel.caller_user:
-            uids.add(channel.caller_user.id)
-        # Incoming calls: browser client is a child of the parent call SID
-        child_channels = self.env['connect.channel'].search([('parent_sid', '=', call_sid)])
-        for ch in child_channels:
-            if ch.called_user:
-                uids.add(ch.called_user.id)
-
-        payload = {'recording_call_sid': call_sid, 'recording_sid': recording_sid}
-        for uid in uids:
-            self.env['bus.bus']._sendone(
-                'connect_actions_{}'.format(uid), 'recording_started', payload)
-
     @api.model
-    def on_recording_status(self, params):
-        self = self.sudo()
-        debug(self, 'On recording status: %s' % json.dumps(params, indent=2))
-        data = {
-            'sid': params['RecordingSid'],
-            'call_sid': params['CallSid'],
-            'duration': params['RecordingDuration'],
-            'status': params['RecordingStatus']
-        }
-        call = None
-        channel = self.env['connect.channel'].search([('sid', '=', params['CallSid'])], limit=1)
-        if channel:
-            call = channel.call
-        # Conference recordings include ConferenceSid; fall back to call lookup
-        if not call and params.get('ConferenceSid'):
-            call = self.env['connect.call'].search([
-                ('conference_sid', '=', params['ConferenceSid'])
-            ], limit=1)
-            if not call:
-                # Try matching by conference friendly name
-                friendly_name = params.get('FriendlyName', '')
-                if friendly_name:
-                    call = self.env['connect.call'].search([
-                        ('conference_name', '=', friendly_name)
-                    ], limit=1)
-        called_user = False
-        if channel:
-            called_user = channel.search([
-                '|', ('sid', '=', params['CallSid']),
-                ('parent_channel', '=', channel.id),
-                ('called_user', '!=', False)], limit=1).called_user
-            data['channel'] = channel.id
-        if call:
-            data['call'] = call.id
-            data['partner'] = call.partner.id
-            if called_user:
-                data['called_user'] = called_user.id
-            data['caller_number'] = call.caller
-            data['called_number'] = call.called
+    def _cron_transcribe_recordings(self, limit=20):
+        """Transcribe recordings queued by create() (transcription_pending).
 
-        # For in-progress callbacks (auto-recording just started), notify the UI and
-        # skip record creation — the completed callback will create the full record.
-        if params['RecordingStatus'] == 'in-progress':
-            self._notify_recording_started(params, channel)
-            return True
-
-        # Idempotency: skip if this RecordingSid was already processed (Twilio may retry)
-        existing = self.search([('sid', '=', data['sid'])], limit=1)
-        if existing:
-            logger.info('Duplicate recording webhook ignored for RecordingSid=%s', data['sid'])
-            existing.write({'status': data.get('status', existing.status)})
-            return True
-        # Fetching full metadata from Twilio's REST API, transcribing, and
-        # (with recording_storage != 'twilio') downloading + re-uploading the
-        # audio are all slow outbound calls. Doing them inline here pushed
-        # this webhook's response time to 20-60s in production — past
-        # Twilio's callback timeout, so Twilio retried from a different edge
-        # each time (multiple source IPs hitting this same route). The
-        # idempotency check above already makes a retry harmless, but
-        # there's no reason to hold Twilio's connection open for the
-        # enrichment work: create the bare row fast, ack, and defer the rest.
-        # skip_transcription bypasses create()'s own synchronous
-        # get_transcript() call; _enrich_from_provider does that (and the
-        # metadata fetch, and storage) out of line. Falls back to inline
-        # when queue_job is not installed.
-        recording = self.with_context(
-            skip_transcription=True, mail_create_nosubscribe=True, mail_create_nolog=True
-        ).create(data)
-        with_delay = getattr(recording, 'with_delay', None)
-        if with_delay:
-            with_delay()._enrich_from_provider()
-        else:
-            recording._enrich_from_provider()
-        return True
-
-    def _enrich_from_provider(self):
-        """Fetch full metadata from Twilio, transcribe, and store per
-        connect.settings' recording_storage — deferred out of the
-        recordingstatus webhook so Twilio gets a fast ack (see
-        on_recording_status)."""
-        self.ensure_one()
-        client = self.env['connect.settings'].get_client()
-        try:
-            provider_recording = client.recordings(self.sid).fetch()
-            self.write(self.prepare_data(provider_recording))
-        except Exception as e:
-            logger.exception(format_connect_response(e))
-        if self.env['connect.settings'].sudo().get_param('transcript_calls'):
+        Runs out of the request path so a slow OpenAI round trip never
+        blocks a provider webhook. Each recording is committed
+        independently so one failure does not roll back the batch.
+        """
+        pending = self.search([('transcription_pending', '=', True)], limit=limit)
+        for rec in pending:
             try:
-                self.get_transcript(fail_silently=True)
-            except Exception as e:
-                logger.exception('Transcript error: %s', e)
-        recording_storage = self.env['connect.settings'].sudo().get_param('recording_storage', 'twilio')
-        if recording_storage and recording_storage != 'twilio':
-            try:
-                self._store_as_attachment()
-            except Exception as e:
-                logger.exception('Failed to store recording %s: %s', self.sid, e)
+                if not rec.transcript:
+                    rec.get_transcript(fail_silently=True)
+            except Exception:
+                logger.exception('Cron transcript error for recording %s', rec.id)
+            # Clear the flag whether or not it succeeded: transcribe_recording
+            # records the transcript or the error, and a single attempt
+            # matches the previous inline behaviour while avoiding an
+            # unbounded retry loop. The commit is safe here — the cron owns
+            # its own transaction, unlike create().
+            if rec.exists():
+                rec.transcription_pending = False
+            self.env.cr.commit()
 
     @api.depends('duration')
     def _get_duration_human(self):
         for record in self:
             if record.duration is not None:
-                # Compute minutes and seconds
                 minutes = record.duration // 60
                 seconds = record.duration % 60
-                # Format human-readable time as MM:SS
                 record.duration_human = '{:02}:{:02}'.format(minutes, seconds)
             else:
                 record.duration_human = "00:00"
 
-    @api.constrains('summary')
-    def _sync_summary(self):
-        # When recording transcription summary is set we update related object summary.
-        if self.call:
-            self.with_user(SUPERUSER_ID).call.summary = self.summary
-
-    def unlink(self):
-        attachments = self.mapped('attachment_id').filtered(lambda a: a.id)
-        result = super().unlink()
-        if attachments:
-            attachments.sudo().unlink()
-        return result
+    @api.constrains('call', 'transcript', 'summary')
+    def _sync_analysis_to_call(self):
+        for rec in self.filtered('call'):
+            recordings = self.search(
+                [('call', '=', rec.call.id)], order='id desc'
+            )
+            vals = {}
+            latest_transcript = recordings.filtered('transcript')[:1]
+            latest_summary = recordings.filtered('summary')[:1]
+            if rec == latest_transcript:
+                vals['transcript'] = rec.transcript
+            if rec == latest_summary:
+                vals['summary'] = rec.summary
+            if vals:
+                rec.call.with_user(SUPERUSER_ID).write(vals)

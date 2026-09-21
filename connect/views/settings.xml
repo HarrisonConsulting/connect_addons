@@ -1,158 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-  <record model="ir.actions.server" id="connect_settings_action">
-      <field name="type">ir.actions.server</field>
-      <field name="name">General Settings</field>
-      <field name="state">code</field>
-      <field name="model_id" ref="model_connect_settings"/>
-      <field name="code">action = model.open_settings_form()</field>
-  </record>
+    <record model="ir.actions.server" id="connect_settings_action">
+        <field name="type">ir.actions.server</field>
+        <field name="name">General Settings</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="model_connect_settings"/>
+        <field name="code">action = model.open_settings_form()</field>
+    </record>
 
-  <menuitem id="settings_menu" parent="connect.connect_settings_menu"
-      groups="connect.group_connect_admin"
-      action="connect_settings_action" name="General" sequence="70"/>
+    <menuitem id="menu_connect_settings_general"
+              name="Settings"
+              parent="menu_connect_settings"
+              action="connect_settings_action"
+              groups="connect.group_admin"
+              sequence="10"/>
 
-  <record id='connect_settings_form' model='ir.ui.view'>
-      <field name='name'>connect.settings.form</field>
-      <field name='model'>connect.settings</field>
-      <field name='type'>form</field>
-      <field name='arch' type='xml'>
-        <form create="false" delete="false">
-            <sheet>
-              <notebook>
-                <page name="general" string="General">
-                  <group>
-                    <group>
-                      <field name="api_url" string="Odoo URL"/>
-                      <button class="btn btn-primary" colspan="2" name="action_open_system_parameters" type="object" string="Change Odoo URL"/>
-                      <field name="api_fallback_url" string="Fallback URL"/>
-                      <field name="debug_mode"/>
-                    </group>
-                    <group string="Balance">
-                      <field name="twilio_balance" string="Current Balance" readonly="1"/>
-                      <button class="btn btn-info" colspan="2" name="get_twilio_balance" type="object" string="GET TWILIO BALANCE" invisible="rest_provider != 'twilio'"/>
-                    </group>
-                  </group>
-                </page>
-                <page name="keys" string="API Keys">
-                  <group>
-                    <group string="Twilio" name="twilio_api">
-                      <field name="rest_provider"/>
-                      <div colspan="2" invisible="rest_provider != 'twilio'">
-                        <small><strong>You can find your Twilio API data in <a href="https://console.twilio.com/" target="_blank">your Twilio Console</a></strong></small>
-                      </div>
-                      <field name="twilio_auto_sync" groups="base.group_no_one"/>
-                      <field name="account_sid" invisible="rest_provider != 'twilio'"/>
-                      <field name="display_auth_token" string="Auth Token" password="1" invisible="rest_provider != 'twilio'"/>
-                      <field name="twilio_region" string="Region" invisible="rest_provider != 'twilio'"/>
-                      <field name="display_region_auth_token" string="Region Auth Token" password="1" invisible="rest_provider != 'twilio' or twilio_region == 'us1'" required="rest_provider == 'twilio' and twilio_region != 'us1'"/>
-                      <field name="twilio_api_key" string="API Key SID" invisible="rest_provider != 'twilio'"/>
-                      <field name="display_twilio_api_secret" string="API Key Secret" password="1" invisible="rest_provider != 'twilio'"/>
-                      <field name="twilio_edge" string="Edge" invisible="rest_provider != 'twilio' or rest_api_host"/>
-                      <field name="rest_api_host" string="REST API Host" placeholder="Leave empty for Twilio" invisible="rest_provider != 'twilio'"/>
-                      <field name="sip_domain_suffix" string="SIP Domain Suffix" placeholder="sip.twilio.com (default)"/>
-                      <field name="default_hold_music_url" string="Default Hold Music URL" placeholder="Twilio twimlets default when empty"/>
-                      <field name="webrtc_provider" string="Browser Phone"/>
-                      <field name="default_country_code" string="Default Country" placeholder="e.g. US, GB, DE"/>
-                      <button colspan="2" name="sync" type="object" string="SYNC TWILIO ACCOUNT" class="btn btn-primary" invisible="rest_provider != 'twilio'"/>
-                      <button colspan="2" name="%(connect.connect_settings_migrate_wizard_action)d" type="action" string="MIGRATE ACCOUNT" class="btn btn-secondary"/>
-                    </group>
-                    <group name="openai_api" string="OpenAI">
-                      <div colspan="2">
-                        <small><strong>You can find your OpenAI API key in <a href="https://platform.openai.com/settings/organization/api-keys" target="_blank">your OpenAI Settings</a></strong></small>
-                      </div>
-                      <field name="display_openai_api_key" string="API Key" password="1"/>
-                      <field name="openai_base_url" string="Base URL" placeholder="https://api.openai.com (default)"/>
-                      <div colspan="2">
-                        <small>Leave empty for default OpenAI API. Set custom URL for LiteLLM or other OpenAI-compatible proxies.</small>
-                      </div>
-                    </group>
-                  </group>
-                </page>
-                <page name="calls" string="Calls">
-                  <group>
-                    <group>
-                      <field name="proxy_recordings"/>
-                      <small colspan="2">If you disable it remove the HTTP AUTH in Twilio. Read <a target="new" href="https://help.twilio.com/articles/15827821586843">more</a>.</small>
-                      <field name="fetch_call_prices"/>
-                      <small colspan="2">Fetch call prices from Twilio API after call completion. This may add delay to call processing.</small>
-                    </group>
-                    <group name="recording_storage_group" string="Recording Storage">
-                      <field name="recording_storage"/>
-                      <small colspan="2" invisible="recording_storage == 'twilio'">Recordings are downloaded from Twilio and stored locally on each new call.</small>
-                      <field name="delete_twilio_recording" invisible="recording_storage == 'twilio'"/>
-                      <small colspan="2" invisible="recording_storage == 'twilio' or not delete_twilio_recording">Recordings are permanently deleted from Twilio after local transfer. Ensure your storage is reliable before enabling.</small>
-                    </group>
-                    <group string="Customer Portal">
-                      <field name="customer_portal_calls_enabled"/>
-                      <small colspan="2" invisible="not customer_portal_calls_enabled">
-                        Customers can view only calls linked directly to their portal contact. Access is read-only.
-                      </small>
-                    </group>
-                    <group string="Voicemail">
-                      <field name="voicemail_max_length"/>
-                      <field name="voicemail_finish_key"/>
-                    </group>
-                    <group>
-                      <button colspan="2" name="reformat_numbers_button" string="FORMAT NUMBERS" type="object"/>
-                    </group>
-                  </group>
-                </page>
-                <page name="messaging" string="Messaging">
-                  <group>
-                    <group string="WhatsApp">
-                      <field name="enable_whatsapp"/>
-                      <small colspan="2">When disabled, WhatsApp menu items and action buttons are hidden. Requires a page refresh to take effect.</small>
-                    </group>
-                  </group>
-                </page>
-                <page name="transcription" string="Transcription">
-                  <group>
-                    <group name="transcribe_options">
-                      <field name="transcript_calls"/>
-                      <field name="transcript_provider"
-                             invisible="transcript_calls == False"/>
-                      <field name="summary_prompt"
-                             invisible="transcript_calls == False"/>
-                      <small colspan="2" invisible="transcript_calls == False">
-                        Placeholders: {number_name}, {number_description}, {caller_name}, {called_name}, {caller_number}, {called_number}, {direction}, {transcript}
-                      </small>
-                      <field name="register_summary"
-                             invisible="transcript_calls == False"/>
-                    </group>
-                  </group>
-                </page>
-                <page name="parking" string="Call Parking">
-                  <group>
-                    <group string="Park Slots">
-                      <field name="park_slot_count"/>
-                      <small colspan="2">Number of available parking slots (1-99). Changes take effect after saving and running sync.</small>
-                      <button class="btn btn-primary" colspan="2" name="action_sync_park_slots" type="object" string="SYNC PARK SLOTS"/>
-                    </group>
-                    <group string="Timeout">
-                      <field name="park_timeout"/>
-                      <small colspan="2">Seconds before a parked call times out and rings back the user who parked it. Set to 0 to disable timeout.</small>
-                    </group>
-                  </group>
-                  <group>
-                    <group string="Announcements">
-                      <field name="park_announcement_enabled"/>
-                      <small colspan="2">When enabled, callers hear "Your call has been parked at slot N" before hold music.</small>
-                    </group>
-                  </group>
-                </page>
-                <page string="Development" groups="base.group_no_one">
-                  <group>
-                    <group>
-                      <field name="twilio_verify_requests"/>
-                    </group>
-                  </group>
-                </page>
-              </notebook>
-            </sheet>
-        </form>
-      </field>
-  </record>
+    <record id="connect_settings_form" model="ir.ui.view">
+        <field name="name">connect.settings.form</field>
+        <field name="model">connect.settings</field>
+        <field name="type">form</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <sheet>
+                    <notebook>
+                        <page name="general" string="General">
+                            <group>
+                                <group string="Call Settings">
+                                    <field name="debug_mode"/>
+                                    <field name="number_search_operation"/>
+                                    <field name="proxy_recordings"/>
+                                </group>
+                                <group string="API">
+                                    <field name="api_url" readonly="1"/>
+                                    <field name="web_base_url" readonly="1"/>
+                                    <field name="instance_uid" readonly="1"/>
+                                    <field name="call_duration_limit" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page name="transcription" string="Transcription">
+                            <group>
+                                <group string="Transcription Settings">
+                                    <field name="transcript_calls"/>
+                                    <field name="delete_recording_after_transcription"/>
+                                    <field name="transcript_provider"/>
+                                    <field name="register_summary"/>
+                                </group>
+                                <group string="OpenAI">
+                                    <field name="display_openai_api_key" string="API Key"/>
+                                    <field name="openai_summary_model" string="Summary Model"/>
+                                </group>
+                            </group>
+                            <group string="Summary Prompt">
+                                <field name="summary_prompt" nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
 
 </odoo>

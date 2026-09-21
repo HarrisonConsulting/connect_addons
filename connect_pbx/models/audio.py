@@ -421,13 +421,13 @@ class Audio(models.Model):
              lambda rec: True if rec.active else 'user archived'),
             ('connect.user', 'voicemail_audio_id',
              lambda rec: True if rec.active else 'user archived'),
-            ('connect.callflow', 'prompt_audio_id',
+            ('connect.twilio.callflow', 'prompt_audio_id',
              lambda rec: True if rec.active else 'callflow archived'),
-            ('connect.callflow', 'invalid_input_audio_id',
+            ('connect.twilio.callflow', 'invalid_input_audio_id',
              lambda rec: True if rec.active else 'callflow archived'),
-            ('connect.callflow', 'voicemail_audio_id',
+            ('connect.twilio.callflow', 'voicemail_audio_id',
              lambda rec: True if rec.active else 'callflow archived'),
-            ('connect.callflow', 'after_hours_audio_id',
+            ('connect.twilio.callflow', 'after_hours_audio_id',
              lambda rec: True if rec.active else 'callflow archived'),
             # Singleton settings row — always "active"; no archive state to
             # branch on. Surfaces in Where-Used so operators can see which
@@ -438,7 +438,7 @@ class Audio(models.Model):
             # into the referenced_audio_ids M2m on save. A twiml without an
             # exten is orphaned (not wired to any extension); treat that
             # as inactive so the Where-Used row flags dead-prompt candidates.
-            ('connect.twiml', 'referenced_audio_ids',
+            ('connect.twilio.twiml', 'referenced_audio_ids',
              lambda rec: True if rec.exten else 'twiml not wired to extension'),
         ]
 
@@ -576,7 +576,7 @@ class Audio(models.Model):
         Everything reachable from these seeds through _reachability_successors
         edges is considered "live" for the purpose of the is_reachable flag.
         """
-        return [('connect.number', [])]
+        return [('connect.twilio.number', [])]
 
     @api.model
     def _reachability_successors(self, record):
@@ -592,20 +592,20 @@ class Audio(models.Model):
         The base implementation handles connect.number (destination→user/
         callflow/twiml), connect.callflow (ring_users, choices→exten,
         voicemail leaves), connect.exten (polymorphic dst via model+res_id),
-        connect.callflow_choice (its exten). Modules add edges by overriding
+        connect.twilio.callflow_choice (its exten). Modules add edges by overriding
         this method via _inherit on connect.audio.
         """
         model = record._name
-        if model == 'connect.number':
+        if model == 'connect.twilio.number':
             # Polymorphic destination — only one of user/callflow/twiml is set.
             if record.destination == 'user' and record.user:
                 return [('connect.user', record.user.id)]
             if record.destination == 'callflow' and record.callflow:
-                return [('connect.callflow', record.callflow.id)]
+                return [('connect.twilio.callflow', record.callflow.id)]
             if record.destination == 'twiml' and record.twiml:
-                return [('connect.twiml', record.twiml.id)]
+                return [('connect.twilio.twiml', record.twiml.id)]
             return []
-        if model == 'connect.twiml':
+        if model == 'connect.twilio.twiml':
             # TwiML bodies may cite any number of audios via the audio()
             # helper. referenced_audio_ids is a stored compute populated by
             # scanning the body on save — we just follow it here.
@@ -618,7 +618,7 @@ class Audio(models.Model):
             if record.voicemail_audio_id:
                 succ.append(('connect.audio', record.voicemail_audio_id.id))
             return succ
-        if model == 'connect.callflow':
+        if model == 'connect.twilio.callflow':
             succ = []
             # Audio leaves — prompts and voicemail played by this callflow.
             if record.prompt_audio_id:
@@ -636,13 +636,13 @@ class Audio(models.Model):
             # polymorphic (user / callflow / twiml).
             for choice in record.choices:
                 if choice.exten:
-                    succ.append(('connect.exten', choice.exten.id))
+                    succ.append(('connect.twilio.exten', choice.exten.id))
             return succ
-        if model == 'connect.callflow_choice':
+        if model == 'connect.twilio.callflow_choice':
             if record.exten:
-                return [('connect.exten', record.exten.id)]
+                return [('connect.twilio.exten', record.exten.id)]
             return []
-        if model == 'connect.exten':
+        if model == 'connect.twilio.exten':
             # Reference-field-equivalent: model (char) + res_id (int) form
             # the polymorphic pointer. Skip if either side is missing.
             if record.model and record.res_id:

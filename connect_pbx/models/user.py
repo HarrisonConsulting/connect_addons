@@ -42,6 +42,12 @@ class User(models.Model):
     greeting_preview = fields.Html(
         related='greeting_audio_id.latest_utterance_id.preview_audio',
         string='Greeting Preview', sanitize=False)
+    voicemail_email_enabled = fields.Boolean(
+        string='Voicemail to Email', default=True,
+        help='Send voicemail recordings and transcriptions via email.')
+    callerid_number = fields.Many2one(
+        'connect.twilio.number', ondelete='restrict',
+        help='DID used as this user\'s caller ID when no outgoing caller ID is set.')
     presence_status = fields.Selection([
         ('offline', 'Offline'),
         ('available', 'Available'),

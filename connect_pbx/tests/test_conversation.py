@@ -22,11 +22,11 @@ class TestConversation(ConnectTestCase):
         cls.phone_theirs = '+15550002222'
 
         # Create a connect.number so _resolve_phone_roles can identify "our" numbers
-        if 'connect.number' in cls.env:
-            existing = cls.env['connect.number'].search(
+        if 'connect.twilio.number' in cls.env:
+            existing = cls.env['connect.twilio.number'].search(
                 [('phone_number', '=', cls.phone_ours)], limit=1)
             if not existing:
-                cls.env['connect.number'].create({'phone_number': cls.phone_ours})
+                cls.env['connect.twilio.number'].create({'phone_number': cls.phone_ours})
 
     # ------------------------------------------------------------------
     # get_or_create

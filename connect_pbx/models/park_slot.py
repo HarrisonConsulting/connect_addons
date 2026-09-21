@@ -218,9 +218,12 @@ class ParkSlot(models.Model):
         edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
         status_url = '{}/twilio/webhook/callstatus#e={}'.format(api_url.rstrip('/'), edge)
 
-        caller_id = current_user.outgoing_callerid.number if current_user.outgoing_callerid else None
+        caller_id = (
+            current_user.twilio_outgoing_callerid.number
+            if current_user.twilio_outgoing_callerid else None
+        )
         if not caller_id:
-            default_number = self.env['connect.outgoing_callerid'].search(
+            default_number = self.env['connect.twilio.outgoing_callerid'].search(
                 [('is_default', '=', True)], limit=1)
             caller_id = default_number.number if default_number else None
         if not caller_id:
@@ -323,11 +326,11 @@ class ParkSlot(models.Model):
             if parker and parker.connect_user:
                 connect_user = parker.connect_user
                 caller_id = (
-                    connect_user.outgoing_callerid.number
-                    if connect_user.outgoing_callerid else None
+                    connect_user.twilio_outgoing_callerid.number
+                    if connect_user.twilio_outgoing_callerid else None
                 )
                 if not caller_id:
-                    default_number = self.env['connect.outgoing_callerid'].search(
+                    default_number = self.env['connect.twilio.outgoing_callerid'].search(
                         [('is_default', '=', True)], limit=1)
                     caller_id = default_number.number if default_number else None
 

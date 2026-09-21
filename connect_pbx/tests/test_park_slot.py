@@ -347,8 +347,8 @@ class TestUnparkCall(ConnectTestCase):
             new_callable=PropertyMock,
             return_value=mock_connect_user,
         ), patch.object(
-            self.env['connect.outgoing_callerid'].__class__, 'search',
-            return_value=self.env['connect.outgoing_callerid'],
+            self.env['connect.twilio.outgoing_callerid'].__class__, 'search',
+            return_value=self.env['connect.twilio.outgoing_callerid'],
         ):
             result = ParkSlot.unpark_call('6')
 

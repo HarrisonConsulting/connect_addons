@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 import logging
 import random
 import uuid
-from odoo import models, fields, api, tools
-from odoo.models import Constraint
+from odoo import models, fields, api, tools, release
+if release.version_info[0] >= 19:
+    from odoo.models import Constraint
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +13,21 @@ PIN_CODE_RANGE = [100000, 999999]
 class ResUser(models.Model):
     _inherit = 'res.users'
 
-    connect_user = fields.Many2one('connect.user', compute='_get_connect_user')
-    # PIN code to access the system by phone.
+    # compute_sudo: every internal user reads their own res.users record (own
+    # preferences, any read() that includes this field), but only Connect
+    # group members may read connect.user. Without it the compute raises
+    # AccessError for everyone outside those groups. Resolving the link is not
+    # privileged — the value is the reader's own PBX user.
+    connect_user = fields.Many2one(
+        'connect.user', compute='_get_connect_user', compute_sudo=True)
     pin_code = fields.Char(string='PIN code')
 
-    _user_pin_code_unique = Constraint('UNIQUE(pin_code)', 'This PIN code is already used!')
+    if release.version_info[0] >= 19:
+        _user_pin_code_unique = Constraint('UNIQUE(pin_code)', 'This PIN code is already used!')
+    else:
+        _sql_constraints = [
+            ('user_pin_code_unique', 'UNIQUE(pin_code)', 'This PIN code is already used!'),
+        ]
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -41,29 +51,28 @@ class ResUser(models.Model):
     @api.model
     def connect_notify(self, message, title='PBX', notify_uid=None,
                              sticky=False, warning=False):
-        """Send a notification to logged in Odoo user.
-
-        Args:
-            message (str): Notification message.
-            title (str): Notification title. If not specified: PBX.
-            uid (int): Odoo user UID to send notification to. If not specified: calling user UID.
-            sticky (boolean): Make a notiication message sticky (shown until closed). Default: False.
-            warning (boolean): Make a warning notification type. Default: False.
-        Returns:
-            Always True.
-        """
-        # Use calling user UID if not specified.
         if not notify_uid:
             notify_uid = self.env.uid
 
-        self.env['bus.bus']._sendone(
-            'connect_actions_{}'.format(notify_uid),
-            'connect_notify',
-            {
-                'message': message,
-                'title': title,
-                'sticky': sticky,
-                'warning': warning
-            })
+        if release.version_info[0] < 15:
+            self.env['bus.bus'].sendone(
+                'connect_actions_{}'.format(notify_uid),
+                {
+                    'action': 'notify',
+                    'message': message,
+                    'title': title,
+                    'sticky': sticky,
+                    'warning': warning
+                })
+        else:
+            self.env['bus.bus']._sendone(
+                'connect_actions_{}'.format(notify_uid),
+                'connect_notify',
+                {
+                    'message': message,
+                    'title': title,
+                    'sticky': sticky,
+                    'warning': warning
+                })
 
         return True

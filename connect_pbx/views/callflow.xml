@@ -2,9 +2,9 @@
 <odoo>
 
     <record id="callflow_form_audio" model="ir.ui.view">
-        <field name="name">connect.callflow.form.audio</field>
-        <field name="model">connect.callflow</field>
-        <field name="inherit_id" ref="connect.callflow_form"/>
+        <field name="name">connect.twilio.callflow.form.audio</field>
+        <field name="model">connect.twilio.callflow</field>
+        <field name="inherit_id" ref="connect_twilio.view_twilio_callflow_form"/>
         <field name="arch" type="xml">
             <field name="language" position="after">
                 <field name="prompt_audio_id"
@@ -33,14 +33,19 @@
                     invisible="not voicemail_enabled"
                     options="{'no_create': True}"/>
             </field>
-            <field name="after_hours_voicemail" position="before">
-                <field name="after_hours_audio_id"
-                    domain="[('state', 'in', ('reviewed', 'live'))]"
-                    invisible="not schedule_id and not business_hours_enabled"/>
-                <field name="after_hours_preview" widget="html"
-                    nolabel="1" colspan="2"
-                    invisible="(not schedule_id and not business_hours_enabled) or not after_hours_preview"/>
-            </field>
+            <xpath expr="//group[@string='Voicemail']" position="after">
+                <group string="Business Hours">
+                    <field name="schedule_id"/>
+                    <field name="business_hours_enabled"/>
+                    <field name="after_hours_voicemail"/>
+                    <field name="after_hours_audio_id"
+                        domain="[('state', 'in', ('reviewed', 'live'))]"
+                        invisible="not schedule_id and not business_hours_enabled"/>
+                    <field name="after_hours_preview" widget="html"
+                        nolabel="1" colspan="2"
+                        invisible="(not schedule_id and not business_hours_enabled) or not after_hours_preview"/>
+                </group>
+            </xpath>
         </field>
     </record>
 

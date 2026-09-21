@@ -487,7 +487,7 @@
   </record>
 
   <menuitem id="connect_audio_menu" name="Audio"
-      parent="connect.connect_settings_menu" sequence="50"
+      parent="connect.menu_connect_settings" sequence="50"
       action="connect_audio_action"/>
 
   <!-- Audio Usage Overview is reached via the Where Used smart button on the
@@ -496,12 +496,12 @@
        access; it is not exposed as a menu. -->
 
   <menuitem id="connect_audio_utterance_menu" name="Utterances"
-      parent="connect.connect_settings_menu" sequence="51"
+      parent="connect.menu_connect_settings" sequence="51"
       action="connect_audio_utterance_action"
       groups="base.group_no_one"/>
 
   <menuitem id="connect_voice_menu_item" name="Voices"
-      parent="connect.connect_settings_menu" sequence="52"
+      parent="connect.menu_connect_settings" sequence="52"
       action="connect_voice_action"/>
 
 </odoo>

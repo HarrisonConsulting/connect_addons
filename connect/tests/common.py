@@ -131,20 +131,20 @@ class ConnectTestCase(TransactionCase):
         Reuse an existing domain when the database already has one, so this
         never perturbs tests that count or sync domains.
         """
-        Domain = cls.env['connect.domain']
+        Domain = cls.env['connect.twilio.domain']
         existing = Domain.search([('subdomain', 'not like', 'byoc')], limit=1)
         if existing:
             return existing
-        app = cls.env['connect.twiml'].search([
+        app = cls.env['connect.twilio.twiml'].search([
             ('code_type', '=', 'model_method'),
-            ('model', '=', 'connect.domain'),
+            ('model', '=', 'connect.twilio.domain'),
             ('method', '=', 'route_call'),
         ], limit=1)
         if not app:
-            app = cls.env['connect.twiml'].create({
+            app = cls.env['connect.twilio.twiml'].create({
                 'name': 'Test Domain App',
                 'code_type': 'model_method',
-                'model': 'connect.domain',
+                'model': 'connect.twilio.domain',
                 'method': 'route_call',
             })
         return Domain.with_context(no_twilio_create=True).create({
@@ -221,7 +221,7 @@ class AudioTestMixin:
         return self.env['connect.audio'].create(vals)
 
     def _make_callflow_with_prompt(self, audio):
-        return self.env['connect.callflow'].create({
+        return self.env['connect.twilio.callflow'].create({
             'name': 'Test CF',
             'prompt_audio_id': audio.id,
         })

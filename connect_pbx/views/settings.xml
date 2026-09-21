@@ -6,29 +6,30 @@
         <field name="model">connect.settings</field>
         <field name="inherit_id" ref="connect.connect_settings_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='voicemail_max_length']/.." position="before">
-                <group string="Voice">
-                    <field name="default_twilio_voice"
-                           options="{'no_create': True}"/>
-                </group>
-            </xpath>
-            <xpath expr="//field[@name='park_announcement_enabled']/.." position="before">
-                <group string="Hold Music">
-                    <field name="park_hold_music_audio_id"
-                           domain="[('state', 'in', ('reviewed', 'live')), ('source', 'in', ('external_url', 'attachment', 'record'))]"
-                           options="{'no_create': True}"/>
-                    <small colspan="2">Audio played to parked callers. Leave empty for default Twilio classical music.</small>
-                    <div class="alert alert-warning" colspan="2" role="alert"
-                         invisible="park_hold_music_audio_id_source != 'twilio_tts'">
-                        <strong>TTS can't be used as hold music.</strong>
-                        Twilio's conference waitUrl requires a media URL, not a
-                        live <code>&lt;Say&gt;</code>. Parked callers will hear
-                        the default classical hold loop instead. Switch to a
-                        Browser Recording, Internal Attachment, or External URL
-                        to take effect.
-                    </div>
-                    <field name="park_hold_music_audio_id_source" invisible="1"/>
-                </group>
+            <xpath expr="//page[@name='general']" position="after">
+                <page name="audio" string="Audio">
+                    <group>
+                        <group string="Voice">
+                            <field name="default_twilio_voice"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Hold Music">
+                            <field name="park_hold_music_audio_id"
+                                   domain="[('state', 'in', ('reviewed', 'live')), ('source', 'in', ('external_url', 'attachment', 'record'))]"
+                                   options="{'no_create': True}"/>
+                            <field name="park_hold_music_audio_id_source" invisible="1"/>
+                        </group>
+                        <group string="Voicemail">
+                            <field name="voicemail_max_length"/>
+                            <field name="voicemail_finish_key"/>
+                        </group>
+                        <group string="Call Park">
+                            <field name="park_slot_count"/>
+                            <field name="park_timeout"/>
+                            <field name="park_announcement_enabled"/>
+                        </group>
+                    </group>
+                </page>
             </xpath>
         </field>
     </record>

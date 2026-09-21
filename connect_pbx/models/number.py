@@ -8,8 +8,8 @@ from odoo import models
 
 
 class Number(models.Model):
-    _name = 'connect.number'
-    _inherit = ['connect.number', 'connect.audio.referrer.mixin']
+    _name = 'connect.twilio.number'
+    _inherit = ['connect.twilio.number', 'connect.audio.referrer.mixin']
 
     # Inbound DIDs are entry points for the reachability BFS. Any change to
     # the destination polymorphism flips what's reachable.

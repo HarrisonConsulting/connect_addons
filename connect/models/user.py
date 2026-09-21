@@ -1,909 +1,250 @@
-# -*- coding: utf-8 -*-
-
-import json
 import logging
-import random
-import re
-import string
-from datetime import timedelta
-from urllib.parse import urljoin
-from odoo import fields, models, api, Command
+from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
-from odoo.models import Constraint
-from twilio.jwt.access_token import AccessToken
-from twilio.jwt.access_token.grants import VoiceGrant
-from twilio.twiml.voice_response import Client, Dial, VoiceResponse
-from .settings import format_connect_response, debug, strip_number, TWILIO_EDGES, DEFAULT_SIP_DOMAIN_SUFFIX
-from .twiml import pretty_xml
+if release.version_info[0] >= 19:
+    from odoo.models import Constraint
+from .settings import debug
 
 logger = logging.getLogger(__name__)
 
 
-SIP_TWILIO_EDGES = TWILIO_EDGES.copy()
-SIP_TWILIO_EDGES.insert(0, ['roaming', 'Global Low-latency Roaming'])
-
-
-class UserCallflowCall(models.Model):
-    _name = 'connect.user_callflow_call'
-    _log_access = False
-    _description = 'User Callflow Call'
-
-    call = fields.Many2one('connect.call', required=True, ondelete='cascade')
-    callflow = fields.Many2one('connect.user_callflow', required=True, ondelete='cascade')
-
-
-class UserCallflow(models.Model):
-    _name = 'connect.user_callflow'
-    _description = 'User Callflow'
-
-    user = fields.Many2one('connect.user', required=True, ondelete='cascade')
-    prio = fields.Integer(required=True, default=1)
-    callflow_type = fields.Char(string='Type', required=True)
-    method = fields.Char(required=True)
-
-
 class User(models.Model):
     _name = 'connect.user'
-    _rec_name = 'username'
+    _rec_name = 'name'
     _description = 'Connect User'
-    _order = 'username'
+    _order = 'name'
 
-    sid = fields.Char('SID', readonly=True)
-    callflow = fields.One2many('connect.user_callflow', 'user')
-    exten = fields.Many2one('connect.exten', ondelete='set null', readonly=True)
-    exten_number = fields.Char(related='exten.number', store=True)
-    sip_enabled = fields.Boolean('SIP Phone Enabled')
-    sip_priority = fields.Selection([('1', '1'),('2', '2')], required=True, default='2')
-    client_enabled = fields.Boolean('Web Phone Enabled', default=True)
-    client_priority = fields.Selection([('1', '1'),('2', '2')], required=True, default='1')
-    name = fields.Char(compute='_get_name')
-    user = fields.Many2one('res.users', string='Odoo User', domain=[('share', '=', False)])
-    domain = fields.Many2one('connect.domain', required=True, ondelete='cascade',
-                            default=lambda x: x.env['connect.domain'].search([('subdomain', 'not like', 'byoc')], limit=1))
-    username = fields.Char(required=True)
-    password = fields.Char(groups="connect.group_connect_admin,connect.group_connect_user")
-    uri = fields.Char('SIP URI', compute='_get_sip_uri')
-    connect_uri = fields.Char('SIP Connect URI', compute='_get_sip_uri')
+    name = fields.Char(compute='_get_name', store=True)
+    user = fields.Many2one('res.users', string='Odoo User', required=True, domain=[('share', '=', False)])
     record_calls = fields.Boolean(default=True)
     voicemail_enabled = fields.Boolean()
-    voicemail_email_enabled = fields.Boolean(
-        string='Voicemail to Email', default=True,
-        help='Send voicemail recordings and transcriptions via email')
-    application = fields.Many2one('connect.twiml')
-    sip_ring_timeout = fields.Integer(required=True, default=30, string='SIP ring timeout')
-    client_ring_timeout = fields.Integer(required=True, default=20, string='Web client ring timeout')
-    callerid_number = fields.Many2one('connect.number', ondelete='restrict')
-    outgoing_callerid = fields.Many2one('connect.outgoing_callerid', ondelete='set null',
-        domain=['|',('status', '=', 'validated'),('callerid_type', '=', 'number')])
-    whatsapp_sender_id = fields.Many2one('connect.whatsapp_sender', string='WhatsApp Sender', ondelete='set null',
-        domain="[('no_sync', '=', False), ('status', '=', 'ONLINE')]")
+    voicemail_prompt = fields.Text(
+        default="Hello, this is {{user.name}}. I'm unable to take your call right now. Please leave a message after the tone.")
     missed_calls_notify = fields.Boolean(default=False, help='Notify user on missed calls.')
-    call_popup_is_enabled = fields.Boolean(default=True, string='Enable Call Notifications', help='Enable notifications for call events')
-    call_popup_is_sticky = fields.Boolean(default=False, string='Sticky Call Notifications', help='Require manual dismissal of call notifications?')
+    greeting_message = fields.Char()
+    language = fields.Selection(
+        selection=lambda self: self._get_language_selection(),
+        default='en-US', required=True, string='Language',
+        help='TTS language the telephony provider uses to speak this '
+             "user's greeting message and voicemail prompt.")
+    voice = fields.Char(
+        help='Provider-specific TTS voice name (e.g. "Woman" for Twilio, '
+             '"Polly.Joanna" for Twilio/Telnyx). Leave empty to use the '
+             'provider default voice.')
     summary_prompt = fields.Char()
-    twilio_edge = fields.Selection(selection=SIP_TWILIO_EDGES, required=True, default='roaming')
-    active = fields.Boolean(default=True,
-        help='Archived users are excluded from routing and appear with '
-             'inactive_reason="user archived" in the audio Where-Used tab.')
+    active = fields.Boolean(default=True)
+    # Provider modules add their key via selection_add (e.g. 'twilio',
+    # 'freeswitch', 'asterisk'). When several providers are installed the
+    # user picks which one handles click-to-call; with a single provider
+    # the dispatcher falls back to it automatically.
+    originate_provider = fields.Selection(
+        selection=[], string='Click-to-call Provider',
+        help='Telephony module used to originate calls for this user. '
+             'Leave empty when only one telephony module is installed.')
+    # Messaging counterpart of originate_provider: provider modules that
+    # implement connect.message.send() add their key via selection_add
+    # (e.g. 'twilio', 'bird').
+    message_provider = fields.Selection(
+        selection=[], string='Messaging Provider',
+        help='Messaging module used to send SMS/WhatsApp for this user. '
+             'Leave empty when only one messaging module is installed.')
 
-    _user_uniq = Constraint('UNIQUE("user")', 'This Odoo user account is already defined!')
-    _username_uniq = Constraint('UNIQUE(username)', 'This PBX username is already defined!')
+    if release.version_info[0] >= 19:
+        _user_uniq = Constraint('UNIQUE("user")', 'This Odoo user account is already defined!')
+    else:
+        _sql_constraints = [
+            ('user_uniq', 'UNIQUE("user")', 'This Odoo user account is already defined!'),
+        ]
 
-    @api.depends('username', 'domain', 'twilio_edge')
-    def _get_sip_uri(self):
-        settings = self.env['connect.settings']
-        default_edge = settings.get_param('twilio_edge') or 'roaming'
+    @api.depends('user', 'user.name')
+    def _get_name(self):
         for rec in self:
-            username = rec.sudo().username  # restricted read via sudo
-            if not username or not rec.domain or not rec.domain.subdomain:
-                rec.uri = ''
-                rec.connect_uri = ''
-                continue
-            edge = rec.twilio_edge or default_edge
-            rec.uri = '{}@{}'.format(username, rec.domain.domain_name)
-            if edge == 'roaming' or settings.normalized_sip_domain_suffix() != DEFAULT_SIP_DOMAIN_SUFFIX:
-                rec.connect_uri = rec.uri
-            else:
-                rec.connect_uri = settings.format_sip_connect_uri(
-                    username, rec.domain.subdomain, edge)
+            rec.name = rec.user.name if rec.user else ''
 
-    def _create_sip_account(self, username, password, client=None):
-        self.ensure_one()
-        try:
-            client = client or self.env['connect.settings'].get_client()
-            credential = client.sip.credential_lists(
-                self.domain.cred_list_sid).credentials.create(
-                    username=username, password=password)
-            if not credential:
-                raise ValidationError('Cannot create a SIP user!')
-            return credential.sid
-        except Exception as e:
-            if 'A strong password is required' in str(e):
-                msg = 'A strong password is required. It must have a minimum length of 12, at least one number, uppercase char and lowercase character.'
-                raise ValidationError(msg)
-            elif 'already exists' in str(e):
-                # Credential already exists in Twilio - import the existing SID
-                debug(self, 'SIP credential {} already exists in Twilio - importing existing SID'.format(username))
-                return self._import_existing_sip_credential(username, client)
-            else:
-                raise ValidationError(format_connect_response(e))
+    @api.model
+    def _get_language_selection(self):
+        """BCP-47 languages for the user's TTS prompts.
 
-    def _import_existing_sip_credential(self, username, client=None):
-        """Import existing SIP credential from Twilio by username.
-
-        This is called when trying to create a credential that already exists.
+        Deliberate copy of the provider callflow lists (ADR-031/ADR-037):
+        the same list exists in connect_twilio, connect_telnyx and
+        connect_freeswitch callflow models. Providers never import this
+        one; keep all four lists in sync when editing.
         """
+        return [
+            ('ca-ES', 'Catalan (Spain)'),
+            ('cs-CZ', 'Czech'),
+            ('da-DK', 'Danish'),
+            ('de-DE', 'German'),
+            ('en-GB', 'English (UK)'),
+            ('en-US', 'English (US)'),
+            ('es-ES', 'Spanish (Spain)'),
+            ('es-MX', 'Spanish (Mexico)'),
+            ('fi-FI', 'Finnish'),
+            ('fr-FR', 'French'),
+            ('hu-HU', 'Hungarian'),
+            ('is-IS', 'Icelandic'),
+            ('it-IT', 'Italian'),
+            ('nl-BE', 'Dutch (Belgium)'),
+            ('nl-NL', 'Dutch (Netherlands)'),
+            ('pl-PL', 'Polish'),
+            ('pt-BR', 'Portuguese (Brazil)'),
+            ('pt-PT', 'Portuguese (Portugal)'),
+            ('ro-RO', 'Romanian'),
+            ('ru-RU', 'Russian'),
+            ('sk-SK', 'Slovak'),
+            ('sv-SE', 'Swedish'),
+            ('tr-TR', 'Turkish'),
+            ('uk-UA', 'Ukrainian'),
+            ('vi-VN', 'Vietnamese'),
+            ('zh-CN', 'Chinese (Mandarin)'),
+        ]
+
+    @api.model
+    def _pbx_number_fields(self):
+        """Names of Char fields on connect.user holding a provider extension
+        number. Provider modules append their field (e.g.
+        'twilio_exten_number', 'freeswitch_exten_number',
+        'asterisk_exten_number')."""
+        return []
+
+    def get_pbx_number(self):
+        """First non-empty provider extension number of this user."""
         self.ensure_one()
-        client = client or self.env['connect.settings'].get_client()
+        for field_name in self._pbx_number_fields():
+            number = self[field_name]
+            if number:
+                return number
+        return ''
 
-        try:
-            # Get all credentials from the domain's credential list
-            credentials = client.sip.credential_lists(
-                self.domain.cred_list_sid
-            ).credentials.list()
-
-            # Find the credential with matching username
-            matching_credential = None
-            for credential in credentials:
-                if credential.username == username:
-                    matching_credential = credential
-                    break
-
-            if matching_credential:
-                debug(self, 'Found existing SIP credential for {} with SID {}'.format(
-                    username, matching_credential.sid))
-                return matching_credential.sid
+    def manage_group(self, action='add'):
+        attribute_name = 'user_ids' if release.version_info[0] >= 19 else 'users'
+        # Adjusting res.groups membership is an internal side-effect of
+        # connect.user CRUD (already gated by connect.group_admin on the
+        # model ACL). Use sudo so a Connect admin who is not also an Odoo
+        # system administrator can still create/remove connect.users.
+        #
+        # Iterate: write() calls this on whatever recordset it was given, so
+        # editing two PBX users at once used to reach has_group() with a
+        # multi-record self and raise "Expected singleton".
+        for rec in self:
+            if not rec.user:
+                continue
+            if (rec.user.has_group('base.group_system')
+                    and rec.user.has_group('base.group_erp_manager')):
+                group = self.env.ref('connect.group_admin').sudo()
             else:
-                # This shouldn't happen if we got 'already exists' error
-                debug(self, 'Could not find existing credential for {} in credential list'.format(
-                    username), level='error')
-                raise ValidationError(
-                    'SIP credential "{}" already exists but could not be found in credential list'.format(username)
-                )
-
-        except Exception as e:
-            debug(self, 'Error importing existing SIP credential for {}: {}'.format(
-                username, str(e)), level='error')
-            raise ValidationError(
-                'Failed to import existing SIP credential for "{}": {}'.format(
-                    username, format_connect_response(e)
-                )
-            )
+                group = self.env.ref('connect.group_user').sudo()
+            if action == 'add':
+                group.write({attribute_name: [(4, rec.user.id)]})
+            else:
+                group.with_context(install_mode=True).write(
+                    {attribute_name: [(3, rec.user.id)]})
 
     @api.model_create_multi
     def create(self, vals_list):
         recs = super().create(vals_list)
-        if not self.env.context.get('no_twilio_create'):
-            for rec in recs:
-                try:
-                    if rec.sip_enabled and rec.password:
-                        if not self.env.context.get('skip_create_credential'):
-                            rec.sid = rec._create_sip_account(username=rec.username, password=rec.password)
-                        # Don't keep SIP password in Odoo.
-                        rec.with_context(skip_sync=True).password = '*' * len(rec.password)
-                except Exception as e:
-                    if 'A strong password is required' in str(e):
-                        msg = 'A strong password is required. It must have a minimum length of 12, at least one number, uppercase char and lowercase character.'
-                        raise ValidationError(msg)
-                    else:
-                        raise ValidationError(format_connect_response(e))
         for connect_user in recs:
             connect_user.manage_group()
-        recs._ensure_voicemail_box()
         if recs and not self.env.context.get('no_clear_cache'):
-            self.env.registry.clear_cache()
-        return recs
-
-    def _ensure_voicemail_box(self):
-        """Give every new user their own voicemail box.
-
-        Merged here from a second create() that used to sit lower in this
-        same class. Two `def create` in one class is not an override chain:
-        the later definition simply replaces the earlier one, so from
-        2026-05-13 (commit 2b46557) until this merge the SIP provisioning,
-        password masking and group assignment above never ran at all.
-        """
-        for pbx_user in self:
-            if pbx_user.voicemail_box_id:
-                continue
-            box = self.env['connect.voicemail_box'].sudo().create({
-                'name': (pbx_user.user.name if pbx_user.user else pbx_user.username) or 'Voicemail',
-                'member_ids': [Command.link(pbx_user.user.id)] if pbx_user.user else [],
-            })
-            pbx_user.sudo().voicemail_box_id = box.id
-
-    def _propagate_voicemail_box(self, vals):
-        """Re-point this user's existing voicemails at their new box.
-
-        Merged here from a second write() in this same class; see
-        _ensure_voicemail_box for why that shadowing mattered.
-        """
-        if 'voicemail_box_id' not in vals:
-            return
-        new_box_id = vals['voicemail_box_id'] or None
-        for pbx_user in self:
-            pbx_user.env.cr.execute("""
-                UPDATE connect_call
-                SET voicemail_box_id = %s
-                WHERE voicemail_url IS NOT NULL
-                AND id IN (
-                    SELECT connect_call_id
-                    FROM connect_call_connect_user_rel
-                    WHERE connect_user_id = %s
-                )
-            """, (new_box_id, pbx_user.id))
-
-    def delete_sip_account(self):
-        self.ensure_one()
-        if not self.sid:
-            logger.warning(
-                'Attempt to delete SIP account %s (%s) without SID!', self.id, self.name)
-            return
-        try:
-            client = self.env['connect.settings'].get_client()
-            credential = client.sip.credential_lists(
-                self.domain.cred_list_sid).credentials(self.sid).delete()
-            debug(self, 'Deleted SIP account {}.'.format(self.username))
-            return True
-        except Exception as e:
-            if 'not found' in str(e):
-                logger.warning('SIP account %s was not present in Twilio.', self.username)
+            if release.version_info[0] >= 17:
+                self.env.registry.clear_cache()
             else:
-                raise ValidationError(format_connect_response(e))
+                self.clear_caches()
+        return recs
 
     def unlink(self):
         for rec in self:
-            # Check if twilio_auto_sync is disabled
-            if self.env["connect.settings"].get_param("twilio_auto_sync"):
-                rec.delete_sip_account()
             rec.manage_group('remove')
         res = super(User, self).unlink()
         if res and not self.env.context.get('no_clear_cache'):
-            self.env.registry.clear_cache()
+            if release.version_info[0] >= 17:
+                self.env.registry.clear_cache()
+            else:
+                self.clear_caches()
         return res
-
-    def _update_sip_password(self, password):
-        self.ensure_one()
-        if not self.sid:
-            logger.warning('SIP account %s SID not set, not updating.', self.id)
-            return
-        try:
-            client = self.env['connect.settings'].get_client()
-            credential = client.sip.credential_lists(
-                self.domain.cred_list_sid).credentials(self.sid).update(password=password)
-        except Exception as e:
-            if 'A strong password is required.' in str(e):
-                msg = 'A strong password is required. It must have a minimum length of 12, at least one number, uppercase char and lowercase character.'
-                raise ValidationError(msg)
-            elif 'not found' in str(e):
-                # Twilio user is not present, create it.
-                debug(self, 'SIP cred {} SID {} not found in Twilio'.format(self.username, self.sid))
-                self._create_sip_account(self.username, password)
-            else:
-                raise ValidationError(format_connect_response(e))
-
-    @staticmethod
-    def generate_twilio_password():
-        """Generate a strong password for Twilio SIP credentials.
-
-        Requirements:
-        - Minimum 12 characters
-        - At least one digit (0-9)
-        - At least one uppercase letter (A-Z)
-        - At least one lowercase letter (a-z)
-        """
-        # Ensure we have at least one of each required character type
-        password_chars = [
-            random.choice(string.ascii_lowercase),  # At least one lowercase
-            random.choice(string.ascii_uppercase),  # At least one uppercase
-            random.choice(string.digits),           # At least one digit
-        ]
-
-        # Fill the rest with random characters from all allowed types
-        all_chars = string.ascii_letters + string.digits
-        password_chars += random.choices(all_chars, k=12 - len(password_chars))
-
-        # Shuffle to avoid predictable patterns
-        random.shuffle(password_chars)
-
-        return ''.join(password_chars)
-
-    def manage_group(self, action='add'):
-        if self.user and self.user.has_group('base.group_system') and self.user.has_group('base.group_erp_manager'):
-            group_connect_admin = self.env.ref('connect.group_connect_admin')
-            if action == 'add':
-                group_connect_admin.write({'user_ids': [(4, self.user.id)]})
-            else:
-                group_connect_admin.with_context(install_mode=True).write({'user_ids': [(3, self.user.id)]})
-        elif self.user:
-            group_connect_user = self.env.ref('connect.group_connect_user')
-            if action == 'add':
-                group_connect_user.write({'user_ids': [(4, self.user.id)]})
-            else:
-                group_connect_user.with_context(install_mode=True).write({'user_ids': [(3, self.user.id)]})
 
     def write(self, vals):
         if 'user' in vals.keys():
             self.manage_group('remove')
-        if self.env.context.get('skip_sync'):
-            res = super().write(vals)
-            self.manage_group()
-            self._propagate_voicemail_box(vals)
-            return res
-        if 'username' in vals:
-            raise ValidationError('Username cannot be changed!')
-        for rec in self:
-            if vals.get('password'):
-                # Check if twilio_auto_sync is disabled
-                if not self.env["connect.settings"].get_param("twilio_auto_sync"):
-                    vals['password'] = '*' * len(vals['password'])
-                else:
-                    if rec.sid:
-                        rec._update_sip_password(vals['password'])
-                    else:
-                        # SIP was enabled, create SIP user account.
-                        vals['sid'] = self._create_sip_account(rec.username, vals['password'])
-                    # Don't keep SIP password in Odoo.
-                    vals['password'] = '*' * len(vals['password'])
         res = super().write(vals)
         self.manage_group()
-        self._propagate_voicemail_box(vals)
         if res and not self.env.context.get('no_clear_cache'):
-            self.env.registry.clear_cache()
+            if release.version_info[0] >= 17:
+                self.env.registry.clear_cache()
+            else:
+                self.clear_caches()
         return res
-
-    def _get_name(self):
-        for rec in self:
-            rec.name = rec.user.name if rec.user else rec.username
-
-    @api.constrains('username')
-    def _check_username(self):
-        for rec in self:
-            if not rec.username.isalnum():
-                raise ValidationError('Username must be alphanumeric!')
-
-    def _get_caller_id(self, request, params):
-        caller_user = self.env['connect.user'].get_user_by_uri(request.get('Caller'))
-        if caller_user:
-            callerId = caller_user.exten.number or ''
-            if not callerId:
-                logger.warning('Exten not set for user %s', caller_user.name)
-                # Get default callerid as Twilio always requires it.
-                callerId = self.env['connect.outgoing_callerid'].search([('is_default', '=', True)], limit=1).number
-        else:
-            callerId = request.get('Caller')
-        return callerId
-
-    def _get_transferring_pbx_user(self, call):
-        """Find the PBX user who is transferring the call (the last user who answered before transfer)."""
-        if call.answered_pbx_user:
-            return call.answered_pbx_user
-        # answered_pbx_user not yet set (finalization hasn't run), find from channels
-        completed_channels = call.channels.filtered(
-            lambda c: c.called_pbx_user and c.status in ('completed', 'in-progress')
-                      and c.called_pbx_user.user not in call.transferred_users
-        )
-        if completed_channels:
-            return completed_channels.sorted('id')[0].called_pbx_user
-        return None
-
-    def _get_caller_name(self, request, params):
-        caller_user = self.env['connect.user'].get_user_by_uri(request.get('Caller'))
-        caller_name = params.get('CallerName', False)
-        if caller_user:
-            caller_name = caller_user.name
-        return caller_name
-
-    def render_client(self, response, request, params):
-        caller_name = self._get_caller_name(request, params)
-        callerId = self._get_caller_id(request, params)
-        api_url = self.env['connect.settings'].sudo().get_param('api_url')
-        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
-        record_status_url = urljoin(api_url, 'twilio/webhook/recordingstatus#e={}'.format(edge))
-        status_url = urljoin(api_url, 'twilio/webhook/callstatus#e={}'.format(edge))
-        dial_action_url = urljoin(api_url, 'twilio/webhook/connect.user/call_action/{}#e={}'.format(self.id, edge))
-        # For transfer redirects, use dial_complete for completion tracking
-        if params.get('_is_transfer_redirect'):
-            dial_action_url = urljoin(api_url, 'connect/dial_complete#e={}'.format(edge))
-        # For transfers, show the original caller to the transfer recipient
-        channel = self.env['connect.channel'].search([('sid', '=', request.get('CallSid'))])
-        call = channel.call if channel else None
-        if call and call.transferred_users:
-            if call.caller_pbx_user and call.caller_pbx_user.exten:
-                callerId = call.caller_pbx_user.exten.number or callerId
-                caller_name = call.caller_pbx_user.name or caller_name
-            elif call.caller:
-                callerId = call.caller or callerId
-        dial_client_kwargs = {'timeout': self.client_ring_timeout, 'callerId': callerId}
-        # Check for action callback URL.
-        if params.get('dial_action_url'):
-            dial_client_kwargs['action'] = params['dial_action_url']
-        else:
-            dial_client_kwargs['action'] = dial_action_url
-        if self.record_calls:
-            dial_client_kwargs.update({
-                'record': 'record-from-answer-dual',
-                'recordingStatusCallback': record_status_url
-            })
-        dial_client = Dial(**dial_client_kwargs)
-        client = Client(
-            statusCallbackEvent='initiated answered completed',
-            statusCallback=status_url)
-        client.identity(self.get_client_identity())
-        if caller_name:
-            client.parameter(name='CallerName', value=caller_name)
-        if not channel:
-            channel = self.env['connect.channel'].search([('sid', '=', request.get('CallSid'))])
-            call = channel.call if channel else None
-        if call and call.partner:
-            partner_id = call.partner.id
-            if not caller_name:
-                client.parameter(name="CallerName", value=call.partner.name)
-        elif channel and channel.caller_user:
-            partner_id = channel.caller_user.partner_id.id
-            if not caller_name:
-                client.parameter(name="CallerName", value=channel.caller_user.partner_id.name)
-        else:
-            partner_id = False
-        client.parameter(name='Partner', value=partner_id)
-        dial_client.append(client)
-        response.append(dial_client)
-
-    def render_sip(self, response, request, params):
-        callerId = self._get_caller_id(request, params)
-        api_url = self.env['connect.settings'].sudo().get_param('api_url')
-        edge = self.env['connect.settings'].get_param('twilio_edge')
-        dial_action_url = urljoin(api_url, 'twilio/webhook/connect.user/call_action/{}#e={}'.format(self.id, edge))
-        # For transfer redirects, use dial_complete for completion tracking
-        if params.get('_is_transfer_redirect'):
-            dial_action_url = urljoin(api_url, 'connect/dial_complete#e={}'.format(edge))
-        # For transfers, use the transferring user's caller ID instead of the original caller
-        channel = self.env['connect.channel'].search([('sid', '=', request.get('CallSid'))])
-        call = channel.call if channel else None
-        if call and call.transferred_users:
-            transferring_user = self._get_transferring_pbx_user(call)
-            if transferring_user:
-                callerId = transferring_user.exten.number or callerId
-        record_status_url = urljoin(api_url, 'twilio/webhook/recordingstatus#e={}'.format(edge))
-        status_url = urljoin(api_url, 'twilio/webhook/callstatus#e={}'.format(edge))
-        dial_sip_kwargs = {'timeout': self.sip_ring_timeout, 'callerId': callerId}
-        # Check for action callback URL.
-        if params.get('dial_action_url'):
-            dial_sip_kwargs['action'] = params['dial_action_url']
-        else:
-            dial_sip_kwargs['action'] = dial_action_url
-        if self.record_calls:
-            dial_sip_kwargs.update({
-                'recordingStatusCallback': record_status_url,
-                'record': 'record-from-answer-dual'
-            })
-        dial_sip = Dial(**dial_sip_kwargs)
-        dial_sip.sip(
-            'sip:{}{}'.format(self.uri, ';secure=true' if self.domain.secure_media else ''),
-            statusCallbackEvent='initiated answered completed',
-            statusCallback=status_url)
-        response.append(dial_sip)
-
-
-    def render_voicemail(self, response, request, params):
-        api_url = self.env['connect.settings'].sudo().get_param('api_url')
-        edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
-        voicemail_record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
-        self.get_voicemail_prompt(response)
-        vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
-        vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
-        response.record(
-            maxLength=vm_max_length,
-            finishOnKey=vm_finish_key,
-            playBeep=True,
-            recordingStatusCallback=voicemail_record_status_url)
-
-    def render(self, request={}, params={}):
-        self.ensure_one()
-        # DND: send directly to voicemail
-        if self.dnd_enabled:
-            response = VoiceResponse()
-            if self.voicemail_enabled:
-                self.render_voicemail(response, request, params)
-            else:
-                self.tts_system_message(response, 'system.dnd')
-                response.hangup()
-            return response.to_xml()
-        channel = self.env['connect.channel'].search(
-            [('sid', '=', request.get('CallSid'))], order='id desc')
-        call = channel.call
-        # TRANSFER DETECTION
-        is_transfer_redirect = self._detect_transfer_redirect(request, params, call)
-        if is_transfer_redirect:
-            original_call = self._find_original_call_for_transfer(request, params)
-            if original_call:
-                if self.user:
-                    original_call.add_transferred_user(self.user)
-                    original_call.store_transfer_context(request.get('CallSid'), self.user)
-        if is_transfer_redirect:
-            params = dict(params)
-            params['_is_transfer_redirect'] = True
-        response = VoiceResponse()
-        # Check if this is real a call or dialplan view render.
-        if call:
-            done_callflow_ids = self.env['connect.user_callflow_call'].sudo().search(
-                [('call', '=', call.id)]).mapped('callflow').mapped('id')
-            if not done_callflow_ids and self.greeting_audio_id:
-                # First attempt. Greet the caller if required.
-                self.get_greeting_message(response)
-            next_call_flow = self.env['connect.user_callflow'].sudo().search(
-                [('user', '=', self.id), ('id', 'not in', done_callflow_ids)], order='prio', limit=1)
-            if next_call_flow:
-                self.env['connect.user_callflow_call'].sudo().create({
-                    'call': call.id,
-                    'callflow': next_call_flow.id,
-                })
-                # Call the method
-                getattr(self, next_call_flow.method)(response, request, params)
-                debug(self, pretty_xml(response.to_xml()))
-                return response.to_xml()
-            else:
-                # Cleanup.
-                callflows = self.env['connect.user_callflow_call'].sudo().search(
-                    [('call', '=', call.id)])
-                callflows.sudo().unlink()
-                response.hangup()
-                return response.to_xml()
-        else:
-            # Dialplan view render, just render all one by one
-            all_flows = self.env['connect.user_callflow'].sudo().search([('user', '=', self.id)], order='prio')
-            for flow in all_flows:
-                getattr(self, flow.method)(response, request, params)
-            return response.to_xml()
-
-    def get_client_identity(self):
-        # Clients always user global domain.
-        return '{}@{}'.format(self.username, self.domain.domain_name)
-
-    @api.model
-    def _can_issue_client_token(self):
-        """Whether the current user may mint a Twilio client token.
-
-        Extracted as an overridable predicate so downstream modules (e.g.
-        connect_portal) can widen issuance to additional groups without
-        duplicating the token logic below.
-        """
-        return (self.env.user.has_group('connect.group_connect_user')
-                or self.env.user.has_group('connect.group_connect_admin'))
-
-    @api.model
-    def get_client_token(self, nonce=False):
-        try:
-            if not self._can_issue_client_token():
-                return {'token': False}
-            if not self.env['connect.settings'].is_webrtc_enabled():
-                logger.info(
-                    'Browser phone disabled in settings (webrtc_provider=disabled).')
-                return {'token': False}
-            user = self.search([('user', '=', self.env.user.id)])
-            if not user:
-                logger.info("User %s not found!", self.env.user.id)
-                return {'token': False}
-            if not user.client_enabled:
-                logger.info("Client for user %s not enabled!", self.env.user.id)
-                return {'token': False}
-            return user._mint_client_token(nonce)
-        except Exception as e:
-            logger.exception('Error getting client token:')
-            return {'error': str(e)}
-
-    def _mint_client_token(self, nonce=False):
-        """Mint the browser softphone credential for the active provider.
-
-        This is the built-in Twilio implementation — the default provider.
-        Provider extensions (e.g. connect_voicetel) override this, checking
-        their own provider condition first and falling back to super() so
-        Twilio stays reachable when the active provider doesn't match theirs.
-        `nonce` (unused here) identifies the calling browser tab/session —
-        Twilio's JWT is stateless so every tab can share one identity;
-        stateful providers need it to avoid tabs rotating each other's
-        credentials out from under themselves.
-        """
-        self.ensure_one()
-        account_sid = self.env['connect.settings'].sudo().get_param('account_sid')
-        api_key = self.env['connect.settings'].sudo().get_param('twilio_api_key')
-        api_secret = self.env['connect.settings'].sudo().get_param('twilio_api_secret')
-        if not (account_sid and api_key and api_secret):
-            # Neutralized copy (data/neutralize.sql scrubs the API keys)
-            # or an unprovisioned database. Fail clean — the web phone
-            # simply stays unmounted — instead of letting to_jwt() raise.
-            logger.info(
-                'Twilio API key credentials not configured — '
-                'web phone disabled for user %s.', self.id)
-            return {'token': False}
-        identity = self.get_client_identity()
-        token = AccessToken(account_sid, api_key, api_secret, identity=identity, ttl=3600,
-            region=self.env['connect.settings'].sudo().get_param('twilio_region'),
-        )
-        voice_grant = VoiceGrant(
-            outgoing_application_sid=self.application.sid or self.domain.application.sid,
-            outgoing_application_params={},
-            incoming_allow=True,
-        )
-        token.add_grant(voice_grant)
-        return {
-            'token': token.to_jwt(),
-            'edge': self.twilio_edge or self.env['connect.settings'].sudo().get_param('twilio_edge'),
-        }
-
-    @api.model
-    def update_presence(self, status):
-        """Update current user's telephony presence status. Called from JS on Device/call events.
-
-        A SerializationFailure on this write is NOT raised here: write()
-        only updates the ORM cache and marks the field dirty (see
-        odoo.orm.fields.Field.write); the actual UPDATE runs later at
-        flush time, outside this method. There is therefore nothing this
-        method can retry — the framework-level retry (Odoo's HTTP
-        dispatcher replaying the whole request on a transient
-        serialization failure) is what actually rescues these calls, and
-        already does.
-        """
-        user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
-        if user:
-            user.with_context(skip_sync=True, no_clear_cache=True).write({
-                'presence_status': status,
-                'presence_updated': fields.Datetime.now(),
-            })
-            self.env['bus.bus']._sendone(
-                'connect_presence',
-                'presence_update',
-                {
-                    'user_id': user.id,
-                    'status': status,
-                    'name': user.name,
-                }
-            )
-        return True
-
-    @api.model
-    def get_all_presence(self):
-        """Get presence status of all connect users."""
-        users = self.sudo().search([])
-        return [{
-            'id': u.id,
-            'name': u.name,
-            'exten_number': u.exten_number or '',
-            'presence_status': u.presence_status,
-            'user_id': u.user.id if u.user else False,
-        } for u in users]
 
     @api.model
     def get_user_by_exten_number(self, search_query):
-        # Called from Client.
         has_group = self.env.user.has_group
-        if not any([has_group('connect.group_connect_user'), has_group('connect.group_connect_admin')]):
+        if not any([has_group('connect.group_user'), has_group('connect.group_admin')]):
             raise ValidationError('Only Connect users can search other Connect users!')
-        domain = [['exten_number', '=', search_query]]
-        search_fields = ['id', 'name', 'exten_number', 'user']
-        user = self.sudo().search_read(domain, search_fields, limit=1, order='exten_number asc')
-        return user[0] if user else False
+        number_fields = self._pbx_number_fields()
+        if not number_fields:
+            return False
+        domain = ['|'] * (len(number_fields) - 1) + [
+            [field_name, '=', search_query] for field_name in number_fields]
+        search_fields = ['id', 'name', 'user'] + number_fields
+        user = self.sudo().search_read(domain, search_fields, limit=1)
+        if not user:
+            return False
+        # Keep the historical key used by the transfer widget.
+        user[0]['exten_number'] = next(
+            (user[0][f] for f in number_fields if user[0].get(f)), '')
+        # The colleague's contact. Every res.users has one, and it is the
+        # record a caller actually wants when they ask to open the person on
+        # the other end -- the user record is an account, the partner is the
+        # person.
+        record = self.sudo().browse(user[0]['id'])
+        user[0]['partner_id'] = record.user.partner_id.id or False
+        return user[0]
+
+    @api.model
+    def search_directory(self, search_query, limit=10):
+        """Colleagues a Connect user may dial, by name or extension.
+
+        The `rule_connect_user_own` record rule deliberately keeps a Connect
+        user out of every other connect.user record, and rightly so: provider
+        modules hang credentials off this model (connect_twilio adds
+        `password`, `username` and `sid`). A softphone still has to let
+        someone dial a colleague, so this runs sudo and hand-picks the only
+        two things a directory needs -- who they are and what to dial.
+        Nothing else leaves the model, and the record rule is untouched.
+
+        Returns a list of {id, name, user_id, exten_number}; provider
+        extension fields come from `_pbx_number_fields()`, so a database with
+        several providers installed resolves whichever one the colleague has.
+        """
+        has_group = self.env.user.has_group
+        if not any([has_group('connect.group_user'), has_group('connect.group_admin')]):
+            raise ValidationError('Only Connect users can search other Connect users!')
+        query = (search_query or '').strip()
+        if not query:
+            return []
+        number_fields = self._pbx_number_fields()
+        # One OR less than the number of terms: the name plus one term per
+        # provider extension field.
+        domain = ['|'] * len(number_fields) + [('name', 'ilike', query)] + [
+            (field_name, '=ilike', '%{}%'.format(query))
+            for field_name in number_fields
+        ]
+        records = self.sudo().search_read(
+            domain, ['id', 'name', 'user'] + number_fields,
+            order='name asc', limit=limit)
+        return [
+            {
+                'id': record['id'],
+                'name': record['name'],
+                'user_id': record['user'][0] if record['user'] else False,
+                'exten_number': next(
+                    (record[field_name] for field_name in number_fields
+                     if record.get(field_name)), ''),
+            }
+            for record in records
+        ]
 
     @api.model
     def get_user_by_uri(self, userinfo):
-        """Resolve a SIP or client URI to its connect.user.
-
-        The wire identity is always domain-qualified: SIP endpoints register
-        as username@domain_name, and Twilio/VoiceTel client identities are
-        minted in the same shape by get_client_identity(). username alone is
-        currently enough to resolve, because connect.user._username_uniq is
-        UNIQUE table-wide, but the host is honoured as a tie-breaker so this
-        keeps resolving to the right endpoint if that constraint is ever
-        scoped per domain. With today's constraint the host branch is
-        unreachable and the result is identical to a username-only lookup.
-        """
-        if not userinfo:
-            # Return empty set.
-            return self.env['connect.user']
-        re_call_uri = re.compile(r'^(?:sip|client):([^@]+)@([^;>\s]*)')
-        found = re_call_uri.search(userinfo)
-        if found:
-            username, host = found.group(1), (found.group(2) or '').strip()
-            user = self.env['connect.user'].search([('username', '=', username)])
-            if len(user) > 1 and host:
-                scoped = user.filtered(lambda u: u._matches_sip_host(host))
-                if scoped:
-                    user = scoped
-            debug(self, 'Found user: {} by {}.'.format(user.mapped('username'), userinfo))
-            return user
-        # Return empty set.
+        """Lookup connect.user by SIP/client URI. No-op in core; overridden by provider modules."""
         return self.env['connect.user']
-
-    def _matches_sip_host(self, host):
-        """Whether a SIP/client URI host belongs to this user's domain.
-
-        Accepts the domain's canonical name and its per-edge variants
-        (subdomain.sip.<edge>.twilio.com), since a Twilio media edge puts the
-        edge form in the URI while connect.user.uri carries the canonical one.
-        """
-        self.ensure_one()
-        domain = self.sudo().domain
-        host = (host or '').strip().lower()
-        if not (domain and host):
-            return False
-        candidates = {(domain.domain_name or '').strip().lower()}
-        candidates.update(
-            d.strip().lower()
-            for d in (domain.edge_domains or '').split('\n') if d.strip())
-        candidates.discard('')
-        return host in candidates
-
-    def create_extension(self):
-        self.ensure_one()
-        return self.env['connect.exten'].create_extension(self, 'user')
-
-    @api.model
-    def on_call_action(self, record_id, request):
-        # Use sudo() to bypass record rules - webhook is authenticated via Twilio signature
-        self = self.sudo()
-        response = VoiceResponse()
-        user = self.browse(record_id)
-
-        if request.get('DialCallStatus') == 'completed':
-            response.hangup()
-        else:
-            if user.voicemail_enabled:
-                api_url = self.env['connect.settings'].sudo().get_param('api_url')
-                edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
-                record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))
-                response.pause(length=1)
-                # get_voicemail_prompt plays voicemail_audio_id or falls back
-                # to a generic <Say> so the recording is never preceded by
-                # silence, and pronunciation rules still apply on both paths.
-                user.get_voicemail_prompt(response)
-                vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
-                vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
-                response.record(
-                    maxLength=vm_max_length,
-                    finishOnKey=vm_finish_key,
-                    playBeep=True,
-                    recordingStatusCallback=record_status_url)
-            else:
-                system_voice = self.env['connect.settings'].get_system_voice()
-                processed_text = self.env['connect.settings'].process_pronunciation('Sorry, there is no voicemail set up. Please try again later. Goodbye!')
-                response.say(processed_text, voice=system_voice)
-                response.pause(length=1)
-                response.hangup()
-
-        debug(self, pretty_xml(str(response)))
-        return response
-
-    def get_greeting_message(self, response):
-        """Play greeting_audio_id on this call leg. Silent no-op when unset —
-        greeting is intentionally optional, unlike voicemail."""
-        self.ensure_one()
-        # sudo the parent record before traversing the m2o so record rules
-        # on connect.audio don't silently drop the reference to an empty
-        # recordset — matches the sudo pattern on callflow playback.
-        user = self.sudo()
-        if user.greeting_audio_id:
-            try:
-                user.greeting_audio_id.play_on(response, record=user)
-            except Exception as e:
-                logger.error('Greeting audio render failed for user %s: %s', self.id, e)
-
-    def get_voicemail_prompt(self, response):
-        """Play voicemail_audio_id or fall back to a generic prompt.
-
-        The caller is about to be dropped into a <Record> — silence there
-        confuses real humans. A generic line keeps the recording usable
-        when the operator hasn't picked a per-user audio yet.
-        """
-        self.ensure_one()
-        user = self.sudo()
-        if user.voicemail_audio_id:
-            try:
-                user.voicemail_audio_id.play_on(response, record=user)
-                return
-            except Exception as e:
-                logger.error('Voicemail audio render failed for user %s: %s', self.id, e)
-        Settings = self.env['connect.settings'].sudo()
-        voice = Settings.get_system_voice()
-        generic = Settings.process_pronunciation(
-            f'{self.name} is not available. '
-            f'Please leave a message after the tone.')
-        response.say(generic, voice=voice)
-
-    def _detect_transfer_redirect(self, request, params, call):
-        call_sid = request.get('CallSid')
-        if not call_sid:
-            return False
-        if call:
-            return False
-        recent_transfers = self.env['connect.call'].search([
-            ('transferred_users', '!=', False),
-            ('create_date', '>=', fields.Datetime.now() - timedelta(minutes=5))
-        ])
-        if recent_transfers:
-            return True
-        return False
-
-    def _find_original_call_for_transfer(self, request, params):
-        call_sid = request.get('CallSid')
-        if self.user:
-            potential_calls = self.env['connect.call'].search([
-                ('transferred_users', 'in', [self.user.id]),
-                ('create_date', '>=', fields.Datetime.now() - timedelta(minutes=5))
-            ])
-            for call in potential_calls:
-                existing_channel = call.channels.filtered(lambda c: c.sid == call_sid)
-                if not existing_channel:
-                    return call
-        recent_calls = self.env['connect.call'].search([
-            ('transferred_users', '!=', False),
-            ('create_date', '>=', fields.Datetime.now() - timedelta(minutes=5)),
-            ('status', 'not in', ['completed', 'failed', 'busy', 'no-answer'])
-        ])
-        for call in recent_calls:
-            transfer_completed = False
-            for user in call.transferred_users:
-                user_channels = call.channels.filtered(lambda c: c.called_user and c.called_user.id == user.id)
-                if user_channels.filtered(lambda c: c.status == 'completed'):
-                    transfer_completed = True
-                    break
-            if not transfer_completed:
-                return call
-        logger.warning(f'Could not find original call for transfer redirect SID {call_sid}')
-        return None
-
-    @api.onchange('domain')
-    def _restrict_sip_domain_change(self):
-        if self.sip_enabled and self.sid:
-            raise ValidationError('You cannot change SIP domain for existing SIP account! Disable SIP account first!')
-
-    @api.onchange('sip_enabled')
-    def _make_blank_password(self):
-        if self.sip_enabled:
-            self.password = ''
-
-    def _manage_channel_callflow(self, channel, enable):
-        self.ensure_one()
-        if enable:
-            callflow = self.env['connect.user_callflow'].search(
-                    [('user', '=', self.id), ('callflow_type', '=', channel)])
-            if not callflow:
-                self.env['connect.user_callflow'].create({
-                    'user': self.id,
-                    'callflow_type': channel,
-                    'prio': int(getattr(self, '{}_priority'.format(channel))),
-                    'method': 'render_{}'.format(channel),
-                })
-            else:
-                # Existing record, change prio
-                callflow.prio = getattr(self, '{}_priority'.format(channel))
-        else:
-            # Disabled
-            self.env['connect.user_callflow'].search(
-                [('user', '=', self.id), ('callflow_type', '=', channel)]).unlink()
-
-
-    @api.constrains('sip_enabled', 'sip_priority')
-    def _manage_sip_callflow(self):
-        for rec in self:
-            rec._manage_channel_callflow('sip', rec.sip_enabled)
-
-    @api.constrains('client_enabled', 'client_priority')
-    def _manage_client_callflow(self):
-        for rec in self:
-            rec._manage_channel_callflow('client', rec.client_enabled)
-
-    @api.constrains('voicemail_enabled')
-    def _manage_voicemail_enabled(self):
-        Callflow = self.env['connect.user_callflow']
-        for rec in self:
-            existing = Callflow.search(
-                [('user', '=', rec.id), ('callflow_type', '=', 'voicemail')])
-            if not rec.voicemail_enabled:
-                existing.unlink()
-            elif not existing:
-                Callflow.create({
-                    'user': rec.id,
-                    'prio': 10,
-                    'callflow_type': 'voicemail',
-                    'method': 'render_voicemail'
-                })

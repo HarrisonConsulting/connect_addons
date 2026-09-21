@@ -28,7 +28,7 @@ class TestTwimlAudioFallback(ConnectTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Audio = cls.env['connect.audio']
-        cls.Twiml = cls.env['connect.twiml']
+        cls.Twiml = cls.env['connect.twilio.twiml']
         # Seeded fallbacks — exist via data/audio.xml. If missing the
         # install is broken and we want the tests to fail loudly.
         cls.fallback_archived = cls.env.ref('connect_pbx.audio_fallback_archived')

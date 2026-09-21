@@ -1,33 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-
-    <record id="module_connect_category"  model="ir.module.category">
+    <record id="module_category_connect" model="ir.module.category">
         <field name="name">Connect</field>
-        <field name="sequence">20</field>
-        <field name="description">Connect Security</field>
+        <field name="sequence">10</field>
     </record>
 
-    <record id="module_connect_privilege" model="res.groups.privilege" >
+    <record id="module_connect_privilege" model="res.groups.privilege">
         <field name="name">Connect</field>
-        <field name="sequence">9</field>
-        <field name="category_id" ref="connect.module_connect_category"/>
+        <field name="sequence">10</field>
+        <field name="category_id" ref="module_category_connect"/>
     </record>
 
-    <record model="res.groups" id="group_connect_user">
+    <record id="group_user" model="res.groups">
         <field name="name">User</field>
         <field name="privilege_id" ref="module_connect_privilege"/>
     </record>
 
-    <record model="res.groups" id="group_connect_admin">
+    <record id="group_admin" model="res.groups">
         <field name="name">Admin</field>
         <field name="privilege_id" ref="module_connect_privilege"/>
+        <field name="implied_ids" eval="[(4, ref('group_user'))]"/>
         <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
-        <field name="implied_ids" eval="[(4, ref('group_connect_user'))]"/>
     </record>
 
-    <record model="res.groups" id="group_connect_webhook">
+    <record id="group_webhook" model="res.groups">
         <field name="name">Webhook</field>
-        <field name="privilege_id" ref="module_connect_privilege"/>
-        <field name="user_ids" eval="[(4, ref('connect.user_connect_webhook'))]"/>
     </record>
-
 </odoo>

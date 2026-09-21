@@ -26,7 +26,7 @@ class TestAudioArchiveWizard(ConnectTestCase):
         cls.audio.action_mark_reviewed()
 
     def _make_callflow_using(self, audio):
-        return self.env['connect.callflow'].create({
+        return self.env['connect.twilio.callflow'].create({
             'name': 'Wizard Test CF',
             'prompt_audio_id': audio.id,
         })
@@ -100,7 +100,7 @@ class TestAudioArchiveWizard(ConnectTestCase):
             'name': 'Connect User',
             'login': f'connect_user_{self.env.cr.now().microsecond}',
             'group_ids': [(6, 0, [
-                self.env.ref('connect.group_connect_user').id,
+                self.env.ref('connect.group_user').id,
                 self.env.ref('base.group_user').id,
             ])],
         })

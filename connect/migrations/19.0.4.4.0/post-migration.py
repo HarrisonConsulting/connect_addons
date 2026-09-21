@@ -165,7 +165,7 @@ def migrate(cr, version):
     for table in PBX_TABLES:
         expected = snap.get(table)
         if expected is None:
-            _logger.warning(
+            _logger.info(
                 'PBX table %s was absent before cutover; not requiring it after',
                 table,
             )

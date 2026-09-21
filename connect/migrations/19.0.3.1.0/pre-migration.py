@@ -42,7 +42,7 @@ def migrate(cr, version):
 
     missing = [t for t in PBX_TABLES if not _table_exists(cr, t)]
     if missing:
-        _logger.warning(
+        _logger.info(
             'connect 19.0.3.1.0 no-op: PBX tables never created on this '
             'database (not an archive): %s',
             missing,

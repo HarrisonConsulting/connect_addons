@@ -54,6 +54,16 @@
     <field name="perm_unlink" eval="0"/>
   </record>
 
+  <record id="connect_scheduled_call_webhook" model="ir.model.access">
+    <field name="name">connect_scheduled_call_webhook</field>
+    <field name="model_id" ref="connect_pbx.model_connect_scheduled_call"/>
+    <field name="group_id" ref="connect.group_webhook"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
   <record id="connect_voice_webhook" model="ir.model.access">
     <field name="name">connect_voice_webhook</field>
     <field name="model_id" ref="connect_pbx.model_connect_voice"/>

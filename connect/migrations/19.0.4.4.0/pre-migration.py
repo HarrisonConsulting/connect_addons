@@ -317,12 +317,31 @@ def _snapshot(cr, tables):
 def _rename_xmlid(cr, old, new):
     cr.execute(
         """
-        SELECT 1 FROM ir_model_data
-         WHERE module = %s AND name = %s
+        SELECT res_id FROM ir_model_data
+         WHERE module = %s AND name = %s AND model = 'ir.ui.view'
         """,
         (OLD_MODULE, new),
     )
-    if cr.fetchone():
+    new_row = cr.fetchone()
+    cr.execute(
+        """
+        SELECT res_id FROM ir_model_data
+         WHERE module = %s AND name = %s AND model = 'ir.ui.view'
+        """,
+        (OLD_MODULE, old),
+    )
+    old_row = cr.fetchone()
+    if new_row and old_row and new_row[0] != old_row[0]:
+        cr.execute(
+            "UPDATE ir_ui_view SET inherit_id = %s WHERE inherit_id = %s",
+            (new_row[0], old_row[0]),
+        )
+        _logger.info(
+            'retargeted %s inheriting views from connect.%s (%s) to connect.%s (%s)',
+            cr.rowcount, old, old_row[0], new, new_row[0],
+        )
+        return
+    if new_row:
         return
     cr.execute(
         """

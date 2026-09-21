@@ -94,6 +94,8 @@ class TwiML(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
+        if self.env.context.get('install_mode'):
+            return res
         if not self.env["connect.settings"].get_param("twilio_auto_sync"):
             return res
         client = self.env['connect.settings'].get_client()

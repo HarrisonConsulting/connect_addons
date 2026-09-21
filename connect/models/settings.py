@@ -22,6 +22,10 @@ PROTECTED_FIELDS = [
     "display_openai_api_key",
 ]
 
+# HTTP request timeouts: (connect_timeout_secs, read_timeout_secs)
+HTTP_DOWNLOAD_TIMEOUT = (10, 60)
+HTTP_API_TIMEOUT = (10, 30)
+
 
 def debug(rec, message, level="info"):
     caller_module = inspect.stack()[1][3]

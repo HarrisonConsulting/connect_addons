@@ -68,10 +68,30 @@
         </field>
     </record>
 
+    <record id="view_connect_recording_search" model="ir.ui.view">
+        <field name="name">connect.recording.search</field>
+        <field name="model">connect.recording</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner"/>
+                <field name="caller_user"/>
+                <field name="called_user"/>
+                <field name="caller_number"/>
+                <field name="called_number"/>
+                <field name="summary"/>
+                <filter name="partners" string="Partners" domain="[('partner', '!=', False)]"/>
+                <filter name="by_partner" string="Partner" context="{'group_by': 'partner'}"/>
+                <filter name="by_caller" string="Caller User" context="{'group_by': 'caller_user'}"/>
+                <filter name="by_called" string="Called User" context="{'group_by': 'called_user'}"/>
+            </search>
+        </field>
+    </record>
+
     <record id="action_connect_recording" model="ir.actions.act_window">
         <field name="name">Recordings</field>
         <field name="res_model">connect.recording</field>
         <field name="view_mode">list,form</field>
+        <field name="path">connect-recording</field>
     </record>
 
     <menuitem id="menu_connect_recordings"

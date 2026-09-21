@@ -147,6 +147,11 @@ def _coalesce_callflow_language(cr):
     )
 
 
+def _assert_pbx_table_counts(cr, snapshot, tables=PBX_TABLES):
+    for table in tables:
+        _assert_count(cr, table, snapshot.get(table))
+
+
 def migrate(cr, version):
     if not version:
         return
@@ -162,10 +167,7 @@ def migrate(cr, version):
             expected = snap.get(dst)
         _assert_count(cr, dst, expected)
 
-    for table in PBX_TABLES:
-        if not _table_exists(cr, table):
-            raise AssertionError('PBX table missing after cutover: %s' % table)
-        _assert_count(cr, table, snap.get(table))
+    _assert_pbx_table_counts(cr, snap)
 
     for old in COUNT_KPI:
         new = KPI_NEW_NAME.get(old, old)

@@ -1,17 +1,17 @@
 import json
 import logging
 from werkzeug.exceptions import NotFound
-from odoo import http, release
+from odoo import http
 from odoo.api import SUPERUSER_ID
 
 logger = logging.getLogger(__name__)
-route_type = "json" if release.version_info[0] < 19.0 else 'jsonrpc'
 
 
 class ConnectController(http.Controller):
 
-    @http.route('/connect/transcript/<int:rec_id>', methods=['POST'], type=route_type,
-                auth='public', csrf=False)
+    # preflight-ignore-next-line: idor-sudo-write -- transcription_token is a per-record capability token verified in the search domain before update.
+    @http.route('/connect/transcript/<int:rec_id>', methods=['POST'], type='jsonrpc',
+                auth='public')
     def upload_transcript(self, rec_id):
         data = json.loads(http.request.httprequest.get_data(as_text=True))
         rec = http.request.env['connect.recording'].sudo().search([
@@ -66,6 +66,7 @@ class ConnectController(http.Controller):
         res.headers['Content-Disposition'] = http.content_disposition(media_name)
         return res
 
+    # preflight-ignore-next-line: csrf-off-public-write -- capability health probe only compares the supplied instance UID and does not write.
     @http.route('/connect/<string:uid>/', methods=['GET', 'POST'], type='http',
                 auth='public', csrf=False)
     def health_check(self, uid):

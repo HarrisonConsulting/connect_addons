@@ -92,10 +92,32 @@
         </field>
     </record>
 
+    <record id="view_connect_call_search" model="ir.ui.view">
+        <field name="name">connect.call.search</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner"/>
+                <field name="caller"/>
+                <field name="called"/>
+                <field name="caller_user"/>
+                <field name="answered_user"/>
+                <filter name="by_partner" context="{'group_by': 'partner'}"/>
+                <filter name="by_caller_user" context="{'group_by': 'caller_user'}"/>
+                <filter name="by_direction" context="{'group_by': 'direction'}"/>
+                <filter name="by_status" context="{'group_by': 'status'}"/>
+                <filter name="by_call_type" string="Group by Call Type" context="{'group_by': 'call_type'}"/>
+                <filter name="by_created" context="{'group_by': 'create_date'}"/>
+                <filter name="has_error" string="Failed Calls" domain="[('has_error', '=', True)]"/>
+            </search>
+        </field>
+    </record>
+
     <record id="action_connect_call" model="ir.actions.act_window">
         <field name="name">Calls</field>
         <field name="res_model">connect.call</field>
         <field name="view_mode">list,form</field>
+        <field name="path">connect-call</field>
         <field name="context">{'search_default_filter_today': 1}</field>
     </record>
 

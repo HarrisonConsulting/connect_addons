@@ -193,8 +193,25 @@ RENAME_XMLIDS = (
     ('connect_user_form', 'view_connect_user_form'),
     ('connect_call_form', 'view_connect_call_form'),
     ('connect_call_list', 'view_connect_call_tree'),
+    ('connect_call_search', 'view_connect_call_search'),
+    ('recording_list', 'view_connect_recording_tree'),
+    ('connect_recording_form', 'view_connect_recording_form'),
+    ('connect_recording_search', 'view_connect_recording_search'),
     ('view_connect_sms_message_form', 'view_connect_message_form'),
     ('view_connect_sms_message_tree', 'view_connect_message_tree'),
+    ('user_action', 'action_connect_user'),
+    ('call_action', 'action_connect_call'),
+    ('channel_action', 'action_connect_channel'),
+    ('recording_action', 'action_connect_recording'),
+    ('connect_debug_action', 'action_connect_debug'),
+    ('connect_calls_action', 'action_connect_call_partner'),
+    ('connect_messages_action', 'action_connect_message_partner'),
+    ('view_partner_form', 'view_partner_form_connect'),
+    ('users_menu', 'menu_connect_users'),
+    ('calls_menu', 'menu_connect_calls_list'),
+    ('channels_menu', 'menu_connect_channels'),
+    ('recordings_menu', 'menu_connect_recordings'),
+    ('connect_debug_messages_menu', 'menu_connect_debug'),
 )
 
 # xmlids that moved to connect_twilio under the same name.
@@ -334,33 +351,6 @@ def _rename_xmlid(cr, old, new):
         _logger.info('renamed xmlid connect.%s -> connect.%s', old, new)
 
 
-def _alias_xmlid(cr, canonical, alias):
-    cr.execute(
-        """
-        SELECT model, res_id, noupdate
-          FROM ir_model_data
-         WHERE module = %s AND name = %s
-        """,
-        (OLD_MODULE, canonical),
-    )
-    row = cr.fetchone()
-    if not row:
-        return
-    cr.execute(
-        """
-        INSERT INTO ir_model_data
-            (module, name, model, res_id, noupdate,
-             create_uid, create_date, write_uid, write_date)
-        SELECT %s, %s, %s, %s, %s, 1, NOW(), 1, NOW()
-         WHERE NOT EXISTS (
-               SELECT 1 FROM ir_model_data
-                WHERE module = %s AND name = %s
-         )
-        """,
-        (OLD_MODULE, alias, row[0], row[1], row[2], OLD_MODULE, alias),
-    )
-
-
 def _reown_models(cr, models, module):
     if not models:
         return
@@ -485,10 +475,13 @@ def _rename_auto_xmlids(cr, old_model, new_model):
     )
     _logger.info('renamed %s field xmlids for %s', cr.rowcount, new_model)
     selection_prefix = 'selection__%s__' % new_key
+    # Precedent: /mnt/19/odoo/odoo/addons/base/models/ir_model.py
+    # selection_xmlid() normalizes selection values this way.
     cr.execute(
         """
         UPDATE ir_model_data d
-           SET name = %s || f.name || '__' || s.value
+           SET name = %s || f.name || '__' ||
+               lower(replace(replace(s.value, '.', '_'), ' ', '_'))
           FROM ir_model_fields_selection s
           JOIN ir_model_fields f ON f.id = s.field_id
          WHERE d.model = 'ir.model.fields.selection'
@@ -498,6 +491,30 @@ def _rename_auto_xmlids(cr, old_model, new_model):
         (selection_prefix, new_model),
     )
     _logger.info('renamed %s selection xmlids for %s', cr.rowcount, new_model)
+
+
+def _rename_model_references(cr, old_model, new_model):
+    cr.execute(
+        "UPDATE ir_model_data SET model = %s WHERE model = %s",
+        (new_model, old_model),
+    )
+    cr.execute(
+        "UPDATE mail_followers SET res_model = %s WHERE res_model = %s",
+        (new_model, old_model),
+    )
+    cr.execute(
+        "UPDATE mail_message SET model = %s WHERE model = %s",
+        (new_model, old_model),
+    )
+    cr.execute(
+        "UPDATE ir_attachment SET res_model = %s WHERE res_model = %s",
+        (new_model, old_model),
+    )
+    if _table_exists(cr, 'connect_twilio_twiml'):
+        cr.execute(
+            "UPDATE connect_twilio_twiml SET model = %s WHERE model = %s",
+            (new_model, old_model),
+        )
 
 
 def _reown_and_rename_ir(cr):
@@ -519,6 +536,7 @@ def _reown_and_rename_ir(cr):
             "UPDATE ir_model_fields SET relation = %s WHERE relation = %s",
             (new, old),
         )
+        _rename_model_references(cr, old, new)
         if _table_exists(cr, 'ir_ui_view'):
             cr.execute("UPDATE ir_ui_view SET model = %s WHERE model = %s", (new, old))
         if _table_exists(cr, 'ir_act_window'):
@@ -559,7 +577,6 @@ def _reown_and_rename_ir(cr):
     # 7. Group / menu / view xmlid renames so NG XML updates in place.
     for old, new in RENAME_XMLIDS:
         _rename_xmlid(cr, old, new)
-        _alias_xmlid(cr, new, old)
 
     # 8. Exten.model Char values stored as connect.callflow / connect.twiml.
     if _table_exists(cr, 'connect_twilio_exten'):

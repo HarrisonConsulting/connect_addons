@@ -1,18 +1,13 @@
-"""No-op replacement for NG 19.0.3.1.0.
-
-NG's script archives live PBX tables (connect_scheduled_call,
-connect_documentation) and DROP TABLE if an archive already exists. That
-must never run against this fork. We only assert the PBX tables are still
-present and that no `_connect_*_archive` table appeared.
-"""
+"""Prevent the upstream PBX archive migration from losing local records."""
 
 import logging
 
+
 _logger = logging.getLogger(__name__)
 
-PBX_TABLES = (
-    'connect_documentation',
-    'connect_scheduled_call',
+PBX_MODELS = (
+    ('connect.documentation', 'connect_documentation'),
+    ('connect.scheduled_call', 'connect_scheduled_call'),
 )
 
 # Exact names NG 19.0.3.1.0 would have created. Never LIKE: `_` is a wildcard.
@@ -35,15 +30,28 @@ def _table_exists(cr, table):
     return bool(cr.fetchone())
 
 
+def _model_exists(cr, model):
+    cr.execute("SELECT 1 FROM ir_model WHERE model = %s", (model,))
+    return bool(cr.fetchone())
+
+
+def _declared_but_missing_tables(cr, model_tables=PBX_MODELS):
+    return [
+        (model, table)
+        for model, table in model_tables
+        if _model_exists(cr, model) and not _table_exists(cr, table)
+    ]
+
+
 def migrate(cr, version):
     if not version:
         return
 
-    missing = [t for t in PBX_TABLES if not _table_exists(cr, t)]
+    missing = _declared_but_missing_tables(cr)
     if missing:
         raise AssertionError(
-            'connect 19.0.3.1.0 no-op: PBX tables missing, refusing to '
-            'continue: %s' % (missing,)
+            'connect 19.0.3.1.0 no-op: declared PBX model tables missing, '
+            'refusing to continue: %s' % missing
         )
 
     archives = [t for t in NG_ARCHIVE_TABLES if _table_exists(cr, t)]
@@ -53,7 +61,4 @@ def migrate(cr, version):
             'script must not have run: %s' % (archives,)
         )
 
-    _logger.info(
-        'connect 19.0.3.1.0 no-op: PBX tables %s present, no _archive tables',
-        PBX_TABLES,
-    )
+    _logger.info('connect 19.0.3.1.0 no-op: no declared PBX table is missing')

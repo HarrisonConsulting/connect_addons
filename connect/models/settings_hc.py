@@ -5,11 +5,25 @@ Provider-agnostic fields the NG ledger does not declare. Twilio credentials
 live on connect_twilio; audio/park/voicemail fields live on connect_pbx.
 """
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class Settings(models.Model):
     _inherit = 'connect.settings'
+
+    @api.model
+    def _get_client_credentials(self):
+        """Let the installed provider supply its selected account credentials."""
+        return False, False
+
+    @api.model
+    def _provider_log_context(self):
+        """Describe the selected provider and shortened account without secrets."""
+        account_sid, _token = self.sudo()._get_client_credentials()
+        return 'provider=%s account=%s' % (
+            self.sudo().get_param('rest_provider') or 'unconfigured',
+            '%s…' % account_sid[:8] if account_sid else 'unset',
+        )
 
     rest_provider = fields.Selection(
         [('twilio', 'Twilio')],

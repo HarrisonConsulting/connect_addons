@@ -92,6 +92,23 @@
         </field>
     </record>
 
+    <record id="connect_call_search" model="ir.ui.view">
+        <field name="name">connect.call.search</field>
+        <field name="model">connect.call</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner"/>
+                <field name="caller"/>
+                <field name="called"/>
+                <filter name="filter_today" string="Today"
+                        domain="[('create_date', '&gt;=', datetime.datetime.now().strftime('%Y-%m-%d 00:00:00'))]"/>
+                <group>
+                    <filter name="by_partner" string="Partner" context="{'group_by': 'partner'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_connect_call" model="ir.actions.act_window">
         <field name="name">Calls</field>
         <field name="res_model">connect.call</field>

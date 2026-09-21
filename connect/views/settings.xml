@@ -31,6 +31,11 @@
                                     <field name="number_search_operation"/>
                                     <field name="proxy_recordings"/>
                                 </group>
+                                <group name="recording_storage_group" string="Recording Storage">
+                                    <field name="recording_storage"/>
+                                    <field name="delete_twilio_recording"
+                                           invisible="recording_storage == 'twilio'"/>
+                                </group>
                                 <group string="API">
                                     <field name="api_url" readonly="1"/>
                                     <field name="web_base_url" readonly="1"/>

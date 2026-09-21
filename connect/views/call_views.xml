@@ -54,19 +54,18 @@
                             <field name="answered_user"/>
                         </group>
                     </group>
-                    <group string="Recording" invisible="not recording_widget">
-                        <field name="recording_widget" nolabel="1" colspan="2"/>
-                    </group>
                     <group string="Voicemail" invisible="not voicemail_widget">
                         <field name="voicemail_widget" nolabel="1" colspan="2"/>
-                    </group>
-                    <group string="Transcript" invisible="not transcript">
-                        <field name="transcript" nolabel="1" colspan="2"/>
                     </group>
                     <group string="Summary" invisible="not summary">
                         <field name="summary" nolabel="1" colspan="2"/>
                     </group>
                     <notebook>
+                        <page name="recording" string="Recording">
+                            <field name="recording_widget" nolabel="1" colspan="2"
+                                   invisible="not recording_widget"/>
+                            <field name="transcript" nolabel="1" colspan="2"/>
+                        </page>
                         <page name="channels" string="Channels">
                             <field name="channels">
                                 <list>

@@ -484,11 +484,15 @@ def _rename_auto_xmlids(cr, old_model, new_model):
         (field_prefix, new_model),
     )
     _logger.info('renamed %s field xmlids for %s', cr.rowcount, new_model)
+    # Odoo selection_xmlid: value.replace('.', '_').replace(' ', '_').lower()
+    # Raw s.value 'dtmf speech' violates ir_model_data_name_nospaces
+    # (harrison-staging-38404402).
     selection_prefix = 'selection__%s__' % new_key
     cr.execute(
         """
         UPDATE ir_model_data d
-           SET name = %s || f.name || '__' || s.value
+           SET name = %s || f.name || '__'
+                      || replace(replace(lower(s.value), '.', '_'), ' ', '_')
           FROM ir_model_fields_selection s
           JOIN ir_model_fields f ON f.id = s.field_id
          WHERE d.model = 'ir.model.fields.selection'

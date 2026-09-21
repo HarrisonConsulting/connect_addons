@@ -74,6 +74,13 @@ export class Phone extends Component {
         // credential instead of racing over one shared password. Unused on
         // the Twilio path (JWTs are stateless — no cross-tab collision).
         this.browserSessionNonce = this.props.browserSessionNonce
+        // Last-write-wins queue for connect.user.update_presence. The
+        // method is async but every call site is fire-and-forget; concurrent
+        // UPDATEs of the same connect_user row under REPEATABLE READ
+        // serialisation-fail and occupy HTTP workers on retry.
+        this._presenceDesired = null
+        this._presenceSent = null
+        this._presenceInFlight = false
         this.token = this.props.token_data.token
         this.edge = this.props.token_data.edge
         // Twilio's current get_client_token() response has no 'provider' key
@@ -1287,12 +1294,31 @@ export class Phone extends Component {
         this.state.showQualityDetails = !this.state.showQualityDetails
     }
 
-    async _updatePresence(status) {
+    _updatePresence(status) {
+        this._presenceDesired = status
+        if (this._presenceInFlight) {
+            return
+        }
+        this._flushPresence()
+    }
+
+    async _flushPresence() {
+        const status = this._presenceDesired
+        if (status === null || status === this._presenceSent) {
+            return
+        }
+        this._presenceInFlight = true
         try {
             await this.orm.call('connect.user', 'update_presence', [status])
+            this._presenceSent = status
         } catch (e) {
             // Don't let presence failures affect call operations
             console.warn('Connect: Presence update failed:', e)
+        } finally {
+            this._presenceInFlight = false
+            if (this._presenceDesired !== this._presenceSent) {
+                this._flushPresence()
+            }
         }
     }
 

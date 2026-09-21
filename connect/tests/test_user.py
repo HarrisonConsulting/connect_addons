@@ -533,6 +533,19 @@ class TestUserPresence(ConnectTestCase):
             self.connect_user.invalidate_recordset(['presence_updated'])
             self.assertTrue(self.connect_user.presence_updated)
 
+    def test_update_presence_skips_fresh_unchanged(self):
+        """A second write of the same status within the heartbeat window is a no-op."""
+        if not self.env['connect.user']._fields['presence_status'].store:
+            self.skipTest(
+                'presence_status is agent-derived when connect_enqueue is '
+                'installed; see connect_enqueue test_presence_bridge')
+        with patch.object(self.env['bus.bus'].__class__, '_sendone'):
+            self.env['connect.user'].update_presence('available')
+        self.connect_user.invalidate_recordset()
+        with patch.object(type(self.connect_user), 'write') as write:
+            self.env['connect.user'].update_presence('available')
+            write.assert_not_called()
+
     def test_update_presence_does_not_swallow_serialization_conflict(self):
         """update_presence must not catch SerializationFailure itself.
 

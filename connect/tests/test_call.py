@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for connect.call model."""
 
+from datetime import timedelta
+
+from odoo import fields
 from odoo.tests import tagged
 from .common import ConnectTestCase
 
@@ -802,3 +805,24 @@ class TestCallAnalyticsFields(ConnectTestCase):
         """Completed incoming call without answered_user is classified as 'missed'."""
         call = self._create_test_call(direction='incoming', status='completed')
         self.assertEqual(call.call_result, 'missed')
+
+    def test_cron_reconciles_stale_ringing(self):
+        """Ringing rows older than the early threshold become failed."""
+        call = self._create_test_call(status='ringing')
+        old = fields.Datetime.now() - timedelta(hours=2)
+        self.env.cr.execute(
+            "UPDATE connect_call SET write_date = %s, create_date = %s WHERE id = %s",
+            [old, old, call.id],
+        )
+        n = self.env['connect.call']._cron_reconcile_stale_calls()
+        call.invalidate_recordset()
+        self.assertGreaterEqual(n, 1)
+        self.assertEqual(call.status, 'failed')
+        self.assertEqual(call.error_code, 'stale_no_terminal')
+
+    def test_cron_leaves_fresh_in_progress(self):
+        """A live in-progress call is not aged out."""
+        call = self._create_test_call(status='in-progress')
+        self.env['connect.call']._cron_reconcile_stale_calls()
+        call.invalidate_recordset()
+        self.assertEqual(call.status, 'in-progress')

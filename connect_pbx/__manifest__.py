@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect PBX',
-    'version': '19.0.1.0.1',
+    'version': '19.0.1.0.2',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',

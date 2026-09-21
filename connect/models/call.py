@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from markupsafe import escape
 from odoo import fields, models, api, release, SUPERUSER_ID
 from .settings import debug
@@ -246,6 +247,50 @@ class Call(models.Model):
         elif channel.technical_direction == 'inbound' and not channel.caller_pbx_user:
             return 'incoming'
         return 'outgoing'
+
+    # Ringing / initiated with no terminal webhook after this age are dead.
+    _STALE_EARLY_HOURS = 1
+    # in-progress past this age never received a completed callback.
+    _STALE_IN_PROGRESS_HOURS = 12
+
+    @api.model
+    def _cron_reconcile_stale_calls(self):
+        """Age out connect.call rows whose terminal webhook never arrived.
+
+        The active-calls popup domains status = 'in-progress'. Rows stuck
+        there (and the wider initiated/ringing leak) accumulate forever
+        without a sweep. Distinct from enqueue's idle-session closer, which
+        only covers chat/sms/email conversations.
+        """
+        now = fields.Datetime.now()
+        early = self.search([
+            ('status', 'in', ('initiated', 'ringing', 'queued')),
+            ('write_date', '<', now - timedelta(hours=self._STALE_EARLY_HOURS)),
+        ])
+        in_progress = self.search([
+            ('status', '=', 'in-progress'),
+            ('write_date', '<', now - timedelta(hours=self._STALE_IN_PROGRESS_HOURS)),
+        ])
+        stale = early | in_progress
+        if not stale:
+            return 0
+        stale.write({
+            'status': 'failed',
+            'has_error': True,
+            'error_code': 'stale_no_terminal',
+            'error_message': 'Aged out: no terminal webhook received.',
+        })
+        open_channels = self.env['connect.channel'].search([
+            ('call', 'in', stale.ids),
+            ('status', 'not in', CALL_END_STATUSES),
+        ])
+        if open_channels:
+            open_channels.write({'status': 'failed'})
+        logger.warning(
+            'reconciled %s stale non-terminal call(s) (%s channels)',
+            len(stale), len(open_channels),
+        )
+        return len(stale)
 
     def register_call(self, channel, params):
         try:

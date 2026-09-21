@@ -56,12 +56,14 @@
                             <field name="transcription_error" invisible="not transcription_error"/>
                         </group>
                     </group>
-                    <group string="Transcript" invisible="not transcript">
-                        <field name="transcript" nolabel="1" colspan="2"/>
-                    </group>
-                    <group string="Summary" invisible="not summary">
-                        <field name="summary" nolabel="1" colspan="2"/>
-                    </group>
+                    <notebook>
+                        <page name="transcript" string="Transcript">
+                            <field name="transcript" nolabel="1" colspan="2"/>
+                        </page>
+                        <page name="summary" string="Summary" invisible="not summary">
+                            <field name="summary" nolabel="1" colspan="2"/>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>

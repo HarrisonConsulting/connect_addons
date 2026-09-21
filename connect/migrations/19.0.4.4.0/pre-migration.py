@@ -195,6 +195,8 @@ RENAME_XMLIDS = (
     ('connect_call_list', 'view_connect_call_tree'),
     ('view_connect_sms_message_form', 'view_connect_message_form'),
     ('view_connect_sms_message_tree', 'view_connect_message_tree'),
+    ('connect_recording_form', 'view_connect_recording_form'),
+    ('connect_recording_list', 'view_connect_recording_tree'),
 )
 
 # xmlids that moved to connect_twilio under the same name.

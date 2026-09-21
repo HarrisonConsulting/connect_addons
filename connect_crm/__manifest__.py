@@ -12,7 +12,7 @@
     'category': 'Phone',
     'summary': 'Twilio Odoo CRM integration',
     'description': "",
-    'depends': ['crm', 'utm', 'connect', 'connect_pbx'],
+    'depends': ['crm', 'utm', 'connect', 'connect_pbx', 'connect_twilio'],
     'data': [
         'security/webhook.xml',
         'views/crm_lead.xml',

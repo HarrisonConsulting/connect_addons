@@ -32,7 +32,7 @@
                             <field name="record_calls"/>
                             <field name="gather_input"/>
                         </group>
-                        <group string="Voicemail">
+                        <group name="voicemail" string="Voicemail">
                             <field name="voicemail_enabled"/>
                             <field name="voicemail_prompt" invisible="not voicemail_enabled"/>
                         </group>

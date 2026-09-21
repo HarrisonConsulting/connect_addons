@@ -33,7 +33,7 @@
                     invisible="not voicemail_enabled"
                     options="{'no_create': True}"/>
             </field>
-            <xpath expr="//group[@string='Voicemail']" position="after">
+            <xpath expr="//group[@name='voicemail']" position="after">
                 <group string="Business Hours">
                     <field name="schedule_id"/>
                     <field name="business_hours_enabled"/>

@@ -126,6 +126,16 @@
     <field name="perm_unlink" eval="1"/>
   </record>
 
+  <record id="connect_scheduled_call_admin" model="ir.model.access">
+    <field name="name">connect.scheduled_call admin</field>
+    <field name="model_id" ref="connect_pbx.model_connect_scheduled_call"/>
+    <field name="group_id" ref="connect.group_admin"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="1"/>
+    <field name="perm_create" eval="1"/>
+    <field name="perm_unlink" eval="1"/>
+  </record>
+
   <!-- Documentation access -->
   <record model="ir.model.access" id="access_connect_documentation">
       <field name="name">connect.documentation</field>

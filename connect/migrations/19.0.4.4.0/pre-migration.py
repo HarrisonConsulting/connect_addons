@@ -561,6 +561,15 @@ def _reown_and_rename_ir(cr):
                 (new, old),
             )
         _rename_auto_xmlids(cr, old, new)
+        cr.execute(
+            "UPDATE ir_model_data SET model = %s WHERE model = %s",
+            (new, old),
+        )
+        if cr.rowcount:
+            _logger.info(
+                'retargeted %s ir_model_data rows %s -> %s',
+                cr.rowcount, old, new,
+            )
         _logger.info('renamed model identity %s -> %s', old, new)
 
     # 2. Re-own moved models (now under connect.twilio.*) to connect_twilio.

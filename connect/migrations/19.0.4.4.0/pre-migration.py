@@ -336,9 +336,18 @@ def _rename_xmlid(cr, old, new):
             "UPDATE ir_ui_view SET inherit_id = %s WHERE inherit_id = %s",
             (new_row[0], old_row[0]),
         )
+        retargeted = cr.rowcount
+        cr.execute(
+            """
+            UPDATE ir_model_data
+               SET res_id = %s
+             WHERE module = %s AND name = %s
+            """,
+            (new_row[0], OLD_MODULE, old),
+        )
         _logger.info(
-            'retargeted %s inheriting views from connect.%s (%s) to connect.%s (%s)',
-            cr.rowcount, old, old_row[0], new, new_row[0],
+            'retargeted %s inheriting views and xmlid connect.%s -> connect.%s (%s)',
+            retargeted, old, new, new_row[0],
         )
         return
     if new_row:

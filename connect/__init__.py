@@ -55,11 +55,19 @@ def _alias_legacy_xmlids(env):
             INSERT INTO ir_model_data
                 (module, name, model, res_id, noupdate,
                  create_uid, create_date, write_uid, write_date)
-            SELECT 'connect', %s, %s, %s, %s, 1, NOW(), 1, NOW()
+            SELECT 'connect', %s, %s, %s, true, 1, NOW(), 1, NOW()
              WHERE NOT EXISTS (
                    SELECT 1 FROM ir_model_data
                     WHERE module = 'connect' AND name = %s
              )
             """,
-            (alias, row[0], row[1], row[2], alias),
+            (alias, row[0], row[1], alias),
+        )
+        cr.execute(
+            """
+            UPDATE ir_model_data
+               SET noupdate = true
+             WHERE module = 'connect' AND name = %s
+            """,
+            (alias,),
         )

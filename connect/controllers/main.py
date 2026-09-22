@@ -1,24 +1,27 @@
 import json
 import logging
 from werkzeug.exceptions import NotFound
-from odoo import http, release
+from odoo import http
 from odoo.api import SUPERUSER_ID
 
 logger = logging.getLogger(__name__)
-route_type = "json" if release.version_info[0] < 19.0 else 'jsonrpc'
 
 
 class ConnectController(http.Controller):
 
-    @http.route('/connect/transcript/<int:rec_id>', methods=['POST'], type=route_type,
+    @http.route('/connect/transcript', methods=['POST'], type='jsonrpc',
                 auth='public', csrf=False)
-    def upload_transcript(self, rec_id):
+    def upload_transcript(self):
         data = json.loads(http.request.httprequest.get_data(as_text=True))
-        rec = http.request.env['connect.recording'].sudo().search([
-            ('id', '=', rec_id), ('transcription_token', '!=', False),
-            ('transcription_token', '=', data['transcription_token'])
-        ])
-        if not rec:
+        token = data.get('transcription_token') if isinstance(data, dict) else None
+        if not token:
+            raise NotFound()
+        recording = http.request.env['connect.recording'].with_user(
+            http.request.env.ref('connect.user_connect_webhook'))
+        rec = recording.search([
+            ('transcription_token', '=', token),
+        ], limit=2)
+        if len(rec) != 1:
             raise NotFound()
         rec.with_user(SUPERUSER_ID).update_transcript(data)
         return True
@@ -66,8 +69,8 @@ class ConnectController(http.Controller):
         res.headers['Content-Disposition'] = http.content_disposition(media_name)
         return res
 
-    @http.route('/connect/<string:uid>/', methods=['GET', 'POST'], type='http',
+    @http.route('/connect/<string:uid>/', methods=['GET'], type='http',
                 auth='public', csrf=False)
     def health_check(self, uid):
-        instance_uid = http.request.env['connect.settings'].sudo().get_param('instance_uid')
+        instance_uid = http.request.env['connect.settings'].get_param('instance_uid')
         return "True" if uid == instance_uid else "False"

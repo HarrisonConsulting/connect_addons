@@ -11,11 +11,23 @@ class ConnectTwilioController(Controller):
 
     @staticmethod
     def check_signature():
-        if not request.env['connect.settings'].sudo().get_param('twilio_verify_requests'):
-            return True
-        validator = RequestValidator(request.env['connect.settings'].sudo().get_param('auth_token'))
+        settings = request.env['connect.settings'].sudo()
+        if not settings.get_param('twilio_verify_requests'):
+            logger.warning(
+                'Twilio request verification is off; rejecting the webhook.')
+            return False
+        auth_token = settings.get_param('auth_token')
+        if not auth_token:
+            logger.warning(
+                'Twilio auth token is missing; rejecting the webhook.')
+            return False
+        signature = request.httprequest.headers.get('X-Twilio-Signature')
+        if not signature:
+            logger.warning(
+                'Twilio signature header is missing; rejecting the webhook.')
+            return False
+        validator = RequestValidator(auth_token)
         url = request.httprequest.url.replace('http:', 'https:')
-        signature = request.httprequest.headers.get('X-Twilio-Signature', '')
         # Twilio signs the request URL -- query string included -- plus the
         # POST body parameters. Odoo merges the query string into the route
         # kwargs, so validating with those counts every query parameter

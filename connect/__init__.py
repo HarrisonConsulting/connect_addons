@@ -34,6 +34,8 @@ def _alias_legacy_xmlids(env):
         ('view_connect_call_tree', 'connect_call_list'),
         ('view_connect_message_form', 'view_connect_sms_message_form'),
         ('view_connect_message_tree', 'view_connect_sms_message_tree'),
+        ('view_connect_recording_form', 'connect_recording_form'),
+        ('view_connect_recording_tree', 'connect_recording_list'),
     )
     cr = env.cr
     for canonical, alias in aliases:

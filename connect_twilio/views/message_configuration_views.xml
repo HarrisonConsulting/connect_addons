@@ -35,6 +35,7 @@
         <field name="name">Message Configuration</field>
         <field name="res_model">connect.twilio.message_configuration</field>
         <field name="view_mode">list,form</field>
+        <field name="path">twilio-message-configuration</field>
     </record>
 
     <menuitem id="menu_twilio_message_configuration"

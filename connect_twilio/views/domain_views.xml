@@ -5,6 +5,7 @@
         <field name="name">Domains</field>
         <field name="res_model">connect.twilio.domain</field>
         <field name="view_mode">list,form</field>
+        <field name="path">domain-action</field>
     </record>
 
     <menuitem id="menu_connect_domains"

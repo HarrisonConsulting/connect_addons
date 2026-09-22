@@ -84,6 +84,7 @@
         <field name="name">Recordings</field>
         <field name="res_model">connect.recording</field>
         <field name="view_mode">list,form</field>
+        <field name="path">connect-recording</field>
     </record>
 
     <menuitem id="menu_connect_recordings"

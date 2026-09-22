@@ -46,6 +46,7 @@
         <field name="name">Numbers</field>
         <field name="res_model">connect.twilio.number</field>
         <field name="view_mode">list,form</field>
+        <field name="path">twilio-number</field>
     </record>
 
     <menuitem id="menu_twilio_numbers"

@@ -16,6 +16,7 @@
         <field name="name">Debug Log</field>
         <field name="res_model">connect.debug</field>
         <field name="view_mode">list</field>
+        <field name="path">connect-debug</field>
     </record>
 
     <menuitem id="menu_connect_debug"

@@ -5,6 +5,7 @@
         <field name="name">TwiML</field>
         <field name="res_model">connect.twilio.twiml</field>
         <field name="view_mode">list,form</field>
+        <field name="path">twiml-action</field>
     </record>
 
     <menuitem id="menu_connect_twiml"

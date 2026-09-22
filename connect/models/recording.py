@@ -1,6 +1,8 @@
 import base64
+import io
 import logging
 import os
+import wave
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from tempfile import NamedTemporaryFile
 from urllib.parse import quote
@@ -11,6 +13,40 @@ from odoo import fields, models, api, release, SUPERUSER_ID
 from odoo.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def silence_wav_spans(wav_bytes, spans):
+    """Zero the samples that fall inside ``spans``.
+
+    Each span is ``(start_ms, end_ms)``. ``end_ms`` of None runs to the end
+    of the file. The result is a wav with the same parameters.
+    """
+    source = io.BytesIO(wav_bytes)
+    with wave.open(source, 'rb') as reader:
+        params = reader.getparams()
+        frames = bytearray(reader.readframes(reader.getnframes()))
+    width = params.sampwidth * params.nchannels
+    rate = params.framerate or 1
+    total = len(frames)
+
+    def _byte(ms):
+        if ms is None:
+            return total
+        sample = int(rate * (ms / 1000.0))
+        return max(0, min(total, sample * width))
+
+    for start_ms, end_ms in spans:
+        start = _byte(start_ms)
+        end = _byte(end_ms)
+        if end <= start:
+            continue
+        start -= start % width
+        frames[start:end] = b'\x00' * (end - start)
+    out = io.BytesIO()
+    with wave.open(out, 'wb') as writer:
+        writer.setparams(params)
+        writer.writeframes(bytes(frames))
+    return out.getvalue()
 
 
 class Recording(models.Model):
@@ -58,6 +94,89 @@ class Recording(models.Model):
     transcription_price = fields.Char()
     summary = fields.Html()
     list_view_summary = fields.Html(compute='_get_list_view_summary')
+    redaction_note = fields.Char(
+        help='What happened when this copy was aligned to the recording marks.',
+    )
+
+    def _redaction_spans(self):
+        self.ensure_one()
+        marks = self.env['connect.recording.mark'].sudo().search([
+            ('call', '=', self.call.id),
+        ]) if self.call else self.env['connect.recording.mark']
+        if self.channel:
+            marks = marks.filtered(
+                lambda mark: not mark.channel or mark.channel == self.channel)
+        duration_ms = (self.duration or 0) * 1000 or None
+        anchor = self.start_time or (
+            self.channel.create_date if self.channel else None)
+
+        class _Point:
+            def __init__(self, kind, offset_ms):
+                self.kind = kind
+                self.offset_ms = offset_ms
+
+        points = []
+        for mark in marks:
+            offset = mark.offset_ms or 0
+            if anchor and mark.occurred_at:
+                offset = max(0, int((mark.occurred_at - anchor).total_seconds() * 1000))
+            points.append(_Point(mark.kind, offset))
+        return self.env['connect.recording.mark'].spans_ms(points, duration_ms)
+
+    def _redact_stored_audio(self):
+        """Silence pause and stop spans on the copy we keep.
+
+        Provider pause is attempted separately. This pass is what makes the
+        copy match the marks when the provider kept recording.
+        """
+        for rec in self:
+            spans = rec._redaction_spans()
+            if not spans:
+                continue
+            payload = b''
+            if rec.recording_attachment:
+                payload = base64.b64decode(rec.recording_attachment)
+            elif rec.media_url:
+                try:
+                    response = requests.get(rec.media_url, timeout=30)
+                    response.raise_for_status()
+                    payload = response.content
+                except Exception as error:
+                    rec.with_context(recording_redaction=True).write({
+                        'redaction_note': 'Could not fetch audio to redact: {}'.format(error)[:200],
+                    })
+                    continue
+            if not payload or not payload.startswith(b'RIFF'):
+                if payload:
+                    rec.with_context(recording_redaction=True).write({
+                        'redaction_note': 'Audio is not wav; marks are kept for a later redact.',
+                    })
+                continue
+            try:
+                redacted = silence_wav_spans(payload, spans)
+            except wave.Error as error:
+                rec.with_context(recording_redaction=True).write({
+                    'redaction_note': 'Could not read wav: {}'.format(error)[:200],
+                })
+                continue
+            rec.with_context(recording_redaction=True).write({
+                'recording_attachment': base64.b64encode(redacted),
+                'redaction_note': 'Silenced {} span(s) on the kept copy.'.format(len(spans)),
+            })
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._redact_stored_audio()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        if not self.env.context.get('recording_redaction'):
+            watched = {'recording_attachment', 'media_url', 'start_time', 'duration', 'status'}
+            if watched.intersection(vals):
+                self._redact_stored_audio()
+        return result
 
     @api.depends(
         'caller_user',

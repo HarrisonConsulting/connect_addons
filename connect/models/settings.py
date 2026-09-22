@@ -254,6 +254,24 @@ class Settings(models.Model):
             'provider on the Connect user (Connect > Users).')
 
     @api.model
+    def calls_are_recorded(self, user=None, callflow=None, channel=None):
+        """Whether this call should be recorded from the start.
+
+        A stop during the call wins over every default. Otherwise the
+        account-wide switch records the call, and a user or callflow flag
+        records it when that switch is off.
+        """
+        if channel is not None and channel._recording_was_stopped():
+            return False
+        if self.sudo().get_param('record_all_calls'):
+            return True
+        if user is not None and user.record_calls:
+            return True
+        if callflow is not None and callflow.record_calls:
+            return True
+        return False
+
+    @api.model
     def _get_message_provider(self, user=None):
         """Resolve the provider key used to send messages for the user."""
         odoo_user = user or self.env.user

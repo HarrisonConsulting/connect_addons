@@ -8,6 +8,7 @@ from . import favorite
 from . import mail
 from . import message
 from . import recording
+from . import recording_mark
 from . import res_partner
 from . import res_users
 from . import schedule

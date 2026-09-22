@@ -601,7 +601,7 @@ class Domain(models.Model):
         status_url = urljoin(api_url, "twilio/webhook/callstatus#e={}".format(edge))
         record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
         call_duration_limit = int(self.env['connect.settings'].sudo().get_param('call_duration_limit'))
-        if user.record_calls:
+        if self.env['connect.settings'].sudo().calls_are_recorded(user=user):
             dial = Dial(
                 timeout=60,
                 callerId=callerId,
@@ -638,7 +638,8 @@ class Domain(models.Model):
         record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
         call_duration_limit = int(self.env['connect.settings'].sudo().get_param('call_duration_limit'))
         # Reuse recording preference from user's settings if available
-        record_calls = bool(getattr(pbx_user, 'record_calls', False))
+        record_calls = self.env['connect.settings'].sudo().calls_are_recorded(
+            user=pbx_user)
         if record_calls:
             dial = Dial(
                 timeout=60,

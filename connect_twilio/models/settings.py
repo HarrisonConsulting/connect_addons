@@ -267,7 +267,8 @@ class Settings(models.Model):
                 twiml = self.get_external_call_route(
                     number, callerId, status_url
                 )
-        record = self.env.user.connect_user.record_calls
+        record = self.env['connect.settings'].sudo().calls_are_recorded(
+            user=self.env.user.connect_user)
         record_status_url = urljoin(
             api_url, "twilio/webhook/recordingstatus#e={}".format(edge)
         )

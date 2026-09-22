@@ -11,6 +11,12 @@ from odoo import fields, models
 class Settings(models.Model):
     _inherit = 'connect.settings'
 
+    record_all_calls = fields.Boolean(
+        default=True,
+        string='Record all calls',
+        help='Record every phone call from the moment it is answered. '
+             'A stop during the call keeps the rest of that call silent.',
+    )
     rest_provider = fields.Selection(
         [('twilio', 'Twilio')],
         default='twilio',

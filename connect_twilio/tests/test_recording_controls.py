@@ -126,7 +126,7 @@ class TestTwilioRecordingControls(TransactionCase):
                     'provider': 'twilio',
                     'channel_sid': channel.sid,
                 })
-        self.assertEqual(result['state'], 'off')
+        self.assertEqual(result['state'], 'stopped')
         recordings.assert_called_with('Twilio.CURRENT')
         recordings.return_value.update.assert_called_with(status='stopped')
 
@@ -222,7 +222,7 @@ class TestTwilioRecordingControls(TransactionCase):
                     'provider': 'twilio',
                     'channel_sid': child.sid,
                 })
-        self.assertEqual(state['state'], 'off')
+        self.assertEqual(state['state'], 'stopped')
         client.calls.assert_called_with('CASTOPPARENT')
         recordings.assert_called_with('RESTOPFLOW')
         recordings.return_value.update.assert_called_with(status='stopped')
@@ -248,6 +248,44 @@ class TestTwilioRecordingControls(TransactionCase):
                     'provider': 'twilio',
                     'channel_sid': channel.sid,
                 })
+
+    def test_pause_is_kept_when_the_provider_refuses(self):
+        channel = self._channel('CARECPAUSE')
+        client, recordings = self._mock_client(
+            active_calls={'CARECPAUSE': 'REPAUSE'})
+        recordings.return_value.update.side_effect = Exception('pause refused')
+        with patch.object(type(self.Settings), 'get_client',
+                          return_value=client):
+            result = self.env['connect.channel'].with_user(
+                self.owner_user).pause_softphone_recording({
+                    'provider': 'twilio',
+                    'channel_sid': channel.sid,
+                })
+        self.assertEqual(result['state'], 'paused')
+        mark = self.env['connect.recording.mark'].sudo().search([
+            ('channel', '=', channel.id),
+            ('kind', '=', 'pause'),
+        ])
+        self.assertTrue(mark)
+        self.assertFalse(mark.provider_applied)
+        self.assertGreaterEqual(mark.offset_ms, 0)
+
+    def test_stop_blocks_a_later_start(self):
+        channel = self._channel('CARECSTOP')
+        client, recordings = self._mock_client()
+        with patch.object(type(self.Settings), 'get_client',
+                          return_value=client):
+            self.env['connect.channel'].with_user(
+                self.owner_user).stop_softphone_recording({
+                    'provider': 'twilio',
+                    'channel_sid': channel.sid,
+                })
+            with self.assertRaises(UserError):
+                self.env['connect.channel'].with_user(
+                    self.owner_user).start_softphone_recording({
+                        'provider': 'twilio',
+                        'channel_sid': channel.sid,
+                    })
 
     def test_completed_call_cannot_start_recording(self):
         channel = self._channel('CAREC5', status='completed')

@@ -275,13 +275,23 @@
                             Sound
                         </button>
 
-                        <button t-attf-class="o_csp_ctrl {{ isRecordingOn() ? 'o_csp_ctrl_active' : 'o_csp_ctrl_off' }}"
-                                t-att-aria-pressed="isRecordingOn() ? 'true' : 'false'"
+                        <button t-attf-class="o_csp_ctrl {{ isRecordingOn() ? 'o_csp_ctrl_active' : isRecordingPaused() ? 'o_csp_ctrl_active' : 'o_csp_ctrl_off' }}"
+                                t-att-aria-pressed="isRecordingOn() || isRecordingPaused() ? 'true' : 'false'"
                                 t-att-title="getRecordingTitle()"
                                 t-att-disabled="isRecordingButtonDisabled()"
                                 t-on-click="_onClickRecordingToggle">
                             <t t-call="connect_twilio.icon_record"/>
-                            <t t-if="isRecordingOn()">Stop rec</t><t t-else="">Record</t>
+                            <t t-if="isRecordingStopped()">Off</t>
+                            <t t-elif="isRecordingPaused()">Resume</t>
+                            <t t-elif="isRecordingOn()">Pause</t>
+                            <t t-else="">Record</t>
+                        </button>
+                        <button t-if="isRecordingOn() || isRecordingPaused()"
+                                class="o_csp_ctrl o_csp_ctrl_off"
+                                title="Stop recording for the rest of this call"
+                                t-att-disabled="state.recordingBusy"
+                                t-on-click="_onClickRecordingStop">
+                            Stop
                         </button>
                     </div>
 

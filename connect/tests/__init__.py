@@ -2,6 +2,7 @@
 from . import test_call
 from . import test_channel
 from . import test_recording
+from . import test_recording_marks
 from . import test_settings
 from . import test_transfer
 from . import test_message

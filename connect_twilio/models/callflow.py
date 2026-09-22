@@ -156,7 +156,7 @@ class CallFlow(models.Model):
                     response = VoiceResponse()
                     response.say('Your must configure a default number for caller ID!')
                     return response
-            if self.record_calls:
+            if self.env['connect.settings'].sudo().calls_are_recorded(callflow=self):
                 dial = Dial(callerId=callerId, action=action_url,
                     record='record-from-answer-dual', recordingStatusCallback=record_status_url)
             else:

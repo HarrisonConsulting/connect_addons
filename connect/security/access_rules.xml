@@ -125,6 +125,35 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
+    <!-- connect.recording.mark access -->
+    <record id="access_recording_mark_user" model="ir.model.access">
+        <field name="name">connect.recording.mark user</field>
+        <field name="model_id" ref="model_connect_recording_mark"/>
+        <field name="group_id" ref="group_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="access_recording_mark_admin" model="ir.model.access">
+        <field name="name">connect.recording.mark admin</field>
+        <field name="model_id" ref="model_connect_recording_mark"/>
+        <field name="group_id" ref="group_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+    <record id="access_recording_mark_webhook" model="ir.model.access">
+        <field name="name">connect.recording.mark webhook</field>
+        <field name="model_id" ref="model_connect_recording_mark"/>
+        <field name="group_id" ref="group_webhook"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
     <!-- connect.user access -->
     <record id="access_connect_user_user" model="ir.model.access">
         <field name="name">connect.user user</field>

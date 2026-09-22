@@ -454,7 +454,7 @@ class User(models.Model):
                 params.get('dial_action_url') or self._get_dial_action_url()
             ),
         }
-        if self.record_calls:
+        if self.env['connect.settings'].sudo().calls_are_recorded(user=self):
             dial_client_kwargs.update(
                 {
                     'record': 'record-from-answer',
@@ -521,7 +521,7 @@ class User(models.Model):
                 params.get('dial_action_url') or self._get_dial_action_url()
             ),
         }
-        if self.record_calls:
+        if self.env['connect.settings'].sudo().calls_are_recorded(user=self):
             dial_sip_kwargs.update(
                 {
                     'recordingStatusCallback': record_status_url,
@@ -781,7 +781,7 @@ class User(models.Model):
                 # dial TwiML and the SIP domain handler -- so it is the right
                 # answer to show immediately. The Twilio sync still runs and
                 # corrects it if recording did not actually start.
-                'record_calls': bool(user.record_calls),
+                'record_calls': self.env['connect.settings'].sudo().calls_are_recorded(user=user),
                 # Shown in the softphone header ("· ext 101") and under the
                 # favourites grid ("Calls you place show +1 555 0100"), so the
                 # user can see which identity the phone is and what the far

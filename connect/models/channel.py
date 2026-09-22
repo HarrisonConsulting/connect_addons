@@ -43,8 +43,12 @@ class Channel(models.Model):
     recording_state = fields.Selection([
         ('off', 'Off'),
         ('on', 'On'),
+        ('paused', 'Paused'),
+        ('stopped', 'Stopped'),
         ('starting', 'Starting'),
         ('stopping', 'Stopping'),
+        ('pausing', 'Pausing'),
+        ('resuming', 'Resuming'),
         ('error', 'Error'),
     ], default='off', copy=False, tracking=True)
     recording_control_ref = fields.Char(copy=False, readonly=True)
@@ -329,6 +333,46 @@ class Channel(models.Model):
                 'Forwarding a call is not supported by this provider.')
         return getattr(self, method)(payload)
 
+    def _recording_was_stopped(self):
+        self.ensure_one()
+        if self.recording_state == 'stopped':
+            return True
+        return bool(self.env['connect.recording.mark'].sudo().search_count([
+            ('channel', '=', self.id),
+            ('kind', '=', 'stop'),
+        ]))
+
+    def _append_recording_mark(self, kind, provider_applied, note=''):
+        """Record the moment, whether or not the provider honoured it."""
+        self.ensure_one()
+        now = fields.Datetime.now()
+        anchor = self.create_date or now
+        offset_ms = int((now - anchor).total_seconds() * 1000)
+        if offset_ms < 0:
+            offset_ms = 0
+        self.env['connect.recording.mark'].sudo().create({
+            'call': self.call.id,
+            'channel': self.id,
+            'kind': kind,
+            'occurred_at': now,
+            'offset_ms': offset_ms,
+            'provider_applied': bool(provider_applied),
+            'provider_note': (note or '')[:200],
+        })
+        state = {
+            'start': 'on',
+            'resume': 'on',
+            'pause': 'paused',
+            'stop': 'stopped',
+        }[kind]
+        self.sudo().write({
+            'recording_state': state,
+            'recording_control_error': False if provider_applied else (note or False),
+        })
+        if kind == 'stop':
+            self.sudo().recording_control_ref = 'stopped'
+        return self._softphone_recording_payload()
+
     @api.model
     def get_softphone_recording_state(self, payload):
         return self._dispatch_softphone_recording(payload, 'state')
@@ -336,6 +380,14 @@ class Channel(models.Model):
     @api.model
     def start_softphone_recording(self, payload):
         return self._dispatch_softphone_recording(payload, 'start')
+
+    @api.model
+    def pause_softphone_recording(self, payload):
+        return self._dispatch_softphone_recording(payload, 'pause')
+
+    @api.model
+    def resume_softphone_recording(self, payload):
+        return self._dispatch_softphone_recording(payload, 'resume')
 
     @api.model
     def stop_softphone_recording(self, payload):

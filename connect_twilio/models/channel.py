@@ -149,21 +149,71 @@ class Channel(models.Model):
                 return call_sid, getattr(recordings[0], 'sid', '') or ''
         return '', ''
 
+    def _twilio_set_recording_status(self, channel, status):
+        """Ask Twilio to pause, resume or stop. Return (applied, note)."""
+        call_sid, recording_ref = channel._twilio_active_recording()
+        if not call_sid:
+            call_sid = channel.sid
+            recording_ref = channel.recording_control_ref or ''
+        if not recording_ref or recording_ref in ('manual-off', 'stopped'):
+            recording_ref = 'Twilio.CURRENT'
+        try:
+            self.env['connect.settings'].sudo().get_client().calls(
+                call_sid).recordings(recording_ref).update(status=status)
+            return True, ''
+        except Exception as error:
+            logger.exception(
+                'Twilio recording %s failed for %s', status, channel.sid)
+            return False, str(error)
+
     @api.model
     def _softphone_recording_state_twilio(self, payload):
         channel = self._softphone_recording_channel(payload)
+        if channel._recording_was_stopped():
+            Mark = self.env['connect.recording.mark'].sudo()
+            stop = Mark.search(
+                [('channel', '=', channel.id), ('kind', '=', 'stop')],
+                order='id desc', limit=1)
+            if stop and not stop.provider_applied:
+                applied, note = self._twilio_set_recording_status(
+                    channel, 'stopped')
+                if applied:
+                    stop.write({
+                        'provider_applied': True,
+                        'provider_note': note or stop.provider_note,
+                    })
+            result = channel._softphone_recording_payload()
+            result['state'] = 'stopped'
+            return result
+        Mark = self.env['connect.recording.mark'].sudo()
+        last = Mark.search(
+            [('channel', '=', channel.id)],
+            order='occurred_at desc, id desc', limit=1)
+        if last and last.kind == 'pause':
+            result = channel._softphone_recording_payload()
+            result['state'] = 'paused'
+            return result
         result = channel._softphone_recording_payload()
         if result['state'] in ('off', '') and not result['recording_ref']:
             call_sid, recording_sid = channel._twilio_active_recording()
             if call_sid:
                 result['state'] = 'on'
                 result['recording_ref'] = recording_sid
+                if not Mark.search_count([
+                    ('channel', '=', channel.id),
+                    ('kind', '=', 'start'),
+                ]):
+                    channel._append_recording_mark(
+                        'start', True, 'observed on the provider')
         return result
 
     @api.model
     def _softphone_recording_start_twilio(self, payload):
         channel = self._softphone_recording_channel(payload)
         channel._check_softphone_recording_active()
+        if channel._recording_was_stopped():
+            raise UserError(
+                'Recording stays off for the rest of this call.')
         channel.sudo().write({
             'recording_state': 'starting',
             'recording_control_error': False,
@@ -187,10 +237,9 @@ class Channel(models.Model):
             recording = settings.get_client().calls(
                 channel.sid).recordings.create(**kwargs)
             channel.sudo().write({
-                'recording_state': 'on',
                 'recording_control_ref': getattr(recording, 'sid', '') or '',
-                'recording_control_error': False,
             })
+            channel._append_recording_mark('start', True)
         except Exception as e:
             logger.exception('Twilio recording start failed for %s', channel.sid)
             channel.sudo().write({
@@ -201,33 +250,31 @@ class Channel(models.Model):
         return channel._softphone_recording_payload()
 
     @api.model
+    def _softphone_recording_pause_twilio(self, payload):
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        if channel._recording_was_stopped():
+            raise UserError('Recording stays off for the rest of this call.')
+        applied, note = self._twilio_set_recording_status(channel, 'paused')
+        channel._append_recording_mark('pause', applied, note)
+        return channel._softphone_recording_payload()
+
+    @api.model
+    def _softphone_recording_resume_twilio(self, payload):
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        if channel._recording_was_stopped():
+            raise UserError('Recording stays off for the rest of this call.')
+        applied, note = self._twilio_set_recording_status(channel, 'in-progress')
+        channel._append_recording_mark('resume', applied, note)
+        return channel._softphone_recording_payload()
+
+    @api.model
     def _softphone_recording_stop_twilio(self, payload):
         channel = self._softphone_recording_channel(payload)
         channel._check_softphone_recording_active()
-        channel.sudo().write({
-            'recording_state': 'stopping',
-            'recording_control_error': False,
-        })
-        call_sid, recording_ref = channel._twilio_active_recording()
-        if not call_sid:
-            call_sid = channel.sid
-            recording_ref = channel.recording_control_ref or 'Twilio.CURRENT'
-        try:
-            self.env['connect.settings'].sudo().get_client().calls(
-                call_sid).recordings(recording_ref).update(
-                    status='stopped')
-            channel.sudo().write({
-                'recording_state': 'off',
-                'recording_control_ref': 'manual-off',
-                'recording_control_error': False,
-            })
-        except Exception as e:
-            logger.exception('Twilio recording stop failed for %s', channel.sid)
-            channel.sudo().write({
-                'recording_state': 'error',
-                'recording_control_error': str(e),
-            })
-            raise UserError('Could not stop recording: {}'.format(e))
+        applied, note = self._twilio_set_recording_status(channel, 'stopped')
+        channel._append_recording_mark('stop', applied, note)
         return channel._softphone_recording_payload()
 
     def _softphone_forward_twilio(self, payload):

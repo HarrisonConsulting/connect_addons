@@ -756,7 +756,7 @@ export class Phone extends Component {
         this.state.recordingRef = result.recording_ref || ''
         this.state.recordingPath = result.recording_path || ''
         this.state.recordingError = result.error || ''
-        this.state.recordingBusy = ['starting', 'stopping'].includes(this.state.recordingState)
+        this.state.recordingBusy = ['starting', 'stopping', 'pausing', 'resuming'].includes(this.state.recordingState)
     }
 
     _broadcastRecordingState() {
@@ -867,21 +867,35 @@ export class Phone extends Component {
         return this.state.recordingState === 'on' || this.state.recordingState === 'starting'
     }
 
+    isRecordingPaused() {
+        return this.state.recordingState === 'paused' || this.state.recordingState === 'pausing'
+    }
+
+    isRecordingStopped() {
+        return this.state.recordingState === 'stopped' || this.state.recordingState === 'stopping'
+    }
+
     isRecordingButtonDisabled() {
-        return this.state.recordingBusy || !this.getLiveChannelSid()
+        return this.state.recordingBusy || !this.getLiveChannelSid() || this.state.recordingState === 'stopped'
     }
 
     getRecordingTitle() {
         if (!this.getLiveChannelSid()) {
             return 'Recording unavailable'
         }
+        if (this.state.recordingState === 'stopped') {
+            return 'Recording is off for the rest of this call'
+        }
         if (this.state.recordingBusy) {
-            return this.state.recordingState === 'starting' ? 'Starting recording' : 'Stopping recording'
+            return 'Updating recording'
         }
         if (this.state.recordingState === 'error') {
             return this.state.recordingError || 'Recording error'
         }
-        return this.isRecordingOn() ? 'Stop Recording' : 'Start Recording'
+        if (this.isRecordingPaused()) {
+            return 'Resume recording'
+        }
+        return this.isRecordingOn() ? 'Pause recording' : 'Start recording'
     }
 
     getRecordingIconClass() {
@@ -894,13 +908,15 @@ export class Phone extends Component {
         return this.isRecordingOn() ? 'fa fa-stop-circle' : 'fa fa-dot-circle-o'
     }
 
-    async _onClickRecordingToggle() {
-        if (this.isRecordingButtonDisabled()) {
+    async _setRecordingAction(action, pendingState) {
+        if (this.state.recordingBusy || !this.getLiveChannelSid()) {
             return
         }
-        const action = this.isRecordingOn() ? 'stop_softphone_recording' : 'start_softphone_recording'
+        if (this.state.recordingState === 'stopped') {
+            return
+        }
         this.state.recordingBusy = true
-        this.state.recordingState = this.isRecordingOn() ? 'stopping' : 'starting'
+        this.state.recordingState = pendingState
         this._broadcastRecordingState()
         try {
             const result = await this.orm.call(
@@ -917,6 +933,23 @@ export class Phone extends Component {
             this._broadcastRecordingState()
             this.notify(this.state.recordingError, {title: 'Recording', sticky: false, type: 'danger'})
         }
+    }
+
+    async _onClickRecordingToggle() {
+        if (this.isRecordingButtonDisabled()) {
+            return
+        }
+        if (this.isRecordingPaused()) {
+            await this._setRecordingAction('resume_softphone_recording', 'resuming')
+        } else if (this.isRecordingOn()) {
+            await this._setRecordingAction('pause_softphone_recording', 'pausing')
+        } else {
+            await this._setRecordingAction('start_softphone_recording', 'starting')
+        }
+    }
+
+    async _onClickRecordingStop() {
+        await this._setRecordingAction('stop_softphone_recording', 'stopping')
     }
 
     async updateToken() {

@@ -21,6 +21,7 @@
             <form>
                 <header/>
                 <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_button_box" name="button_box"/>
                     <group>
                         <group string="User Info" name="user_info">

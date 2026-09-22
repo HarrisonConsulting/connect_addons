@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.4.4',
+    'version': '19.0.4.4.5',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -41,6 +41,19 @@
             '/connect/static/src/components/license_banner/*',
             '/connect/static/src/components/calls/*',
             '/connect/static/src/services/active_calls/*',
+            # Leaf modules before the components that import them, and those
+            # before main.js. main.js is the only ConnectPhoneService.
+            '/connect/static/src/js/utils.js',
+            '/connect/static/src/components/phone/calls/*',
+            '/connect/static/src/components/phone/contacts/*',
+            '/connect/static/src/components/phone/favorites/*',
+            '/connect/static/src/components/phone/phone/transports/telephony_transport.js',
+            '/connect/static/src/components/phone/phone/transports/twilio_transport.js',
+            '/connect/static/src/components/phone/phone/phone.js',
+            '/connect/static/src/components/phone/phone/phone.xml',
+            '/connect/static/src/components/phone/phone/phone.scss',
+            '/connect/static/src/components/phone/tray/*',
+            '/connect/static/src/js/main.js',
         ],
     },
     'post_init_hook': 'post_init_hook',

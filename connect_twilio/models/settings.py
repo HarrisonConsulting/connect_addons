@@ -7,10 +7,10 @@ from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
 from twilio.rest import Client
 
-from odoo.addons.connect.models.license import ODUIST_MODULES
 from odoo.addons.connect.models.settings import debug
 
-ODUIST_MODULES.append('connect_twilio')
+# The license server sells Twilio as the connect product. connect_twilio
+# is not a catalog name, so it is not registered for purchase or the banner.
 
 
 logger = logging.getLogger(__name__)

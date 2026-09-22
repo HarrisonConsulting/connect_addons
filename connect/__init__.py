@@ -28,14 +28,6 @@ def _alias_legacy_xmlids(env):
         ('module_category_connect', 'module_connect_category'),
         ('menu_connect_root', 'connect_top_menu'),
         ('menu_connect_settings', 'connect_settings_menu'),
-        ('view_connect_user_tree', 'user_list'),
-        ('view_connect_user_form', 'connect_user_form'),
-        ('view_connect_call_form', 'connect_call_form'),
-        ('view_connect_call_tree', 'connect_call_list'),
-        ('view_connect_message_form', 'view_connect_sms_message_form'),
-        ('view_connect_message_tree', 'view_connect_sms_message_tree'),
-        ('view_connect_recording_form', 'connect_recording_form'),
-        ('view_connect_recording_tree', 'connect_recording_list'),
     )
     cr = env.cr
     for canonical, alias in aliases:

@@ -1,10 +1,9 @@
 """Recreate the pre-rename Connect xmlids and keep them.
 
 A finished connect update drops any ir.model.data row that the module's
-files did not load and that is not noupdate. The renamed groups and views
-are only known to older modules under their previous names, so those names
-have to exist before the dependents load, and they have to be noupdate or
-the same update deletes them again.
+files did not load and that is not noupdate. Groups and menus are still referenced under their previous names.
+View xmlids are not aliased: a second ir.model.data row makes every
+upgrade look for that name in the view file and warn.
 """
 
 ALIASES = (
@@ -14,14 +13,6 @@ ALIASES = (
     ('module_category_connect', 'module_connect_category'),
     ('menu_connect_root', 'connect_top_menu'),
     ('menu_connect_settings', 'connect_settings_menu'),
-    ('view_connect_user_tree', 'user_list'),
-    ('view_connect_user_form', 'connect_user_form'),
-    ('view_connect_call_form', 'connect_call_form'),
-    ('view_connect_call_tree', 'connect_call_list'),
-    ('view_connect_message_form', 'view_connect_sms_message_form'),
-    ('view_connect_message_tree', 'view_connect_sms_message_tree'),
-    ('view_connect_recording_form', 'connect_recording_form'),
-    ('view_connect_recording_tree', 'connect_recording_list'),
 )
 
 

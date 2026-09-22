@@ -4,7 +4,7 @@
     <record id="connect_stripe_call_form_inherit" model="ir.ui.view">
         <field name="name">connect_stripe_call_form_inherit</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.connect_call_form"/>
+        <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button name="%(connect_stripe.connect_stripe_payment_action)d"

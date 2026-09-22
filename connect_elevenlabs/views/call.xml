@@ -4,7 +4,7 @@
     <record id="elevenlabs_call_list" model="ir.ui.view">
         <field name="name">elevenlabs_call_list</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.connect_call_list"/>
+        <field name="inherit_id" ref="connect.view_connect_call_tree"/>
         <field name="arch" type="xml">
             <field name="partner" position="after">
                 <field name="elevenlabs_agent" optional="show"/>
@@ -16,7 +16,7 @@
     <record id="elevenlabs_call_form" model="ir.ui.view">
         <field name="name">elevenlabs_call_form</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.connect_call_form"/>
+        <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
             <page name="recording" position="before">
                 <page name="elevenlabs" string="Agent" invisible="not elevenlabs_transcript">

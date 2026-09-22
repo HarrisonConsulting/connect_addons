@@ -9,7 +9,7 @@
       <field name="code">action = model.open_elevenlabs_form()</field>
   </record>
 
-  <menuitem id="elevenlabs_menu" parent="connect.connect_settings_menu"
+  <menuitem id="elevenlabs_menu" parent="connect.menu_connect_settings"
       groups="connect.group_connect_admin"
       name="ElevenLabs" sequence="1000"/>
 

@@ -4,7 +4,7 @@
     <record id="view_ticket_call_list" model="ir.ui.view">
         <field name="name">view_ticket_call_list</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.connect_call_list"/>
+        <field name="inherit_id" ref="connect.view_connect_call_tree"/>
         <field name="arch" type="xml">
             <field name="partner" position="after">
                 <field name="ticket" optional="show"/>
@@ -15,7 +15,7 @@
     <record id="view_ticket_call_form" model="ir.ui.view">
         <field name="name">view_ticket_call_form</field>
         <field name="model">connect.call</field>
-        <field name="inherit_id" ref="connect.connect_call_form"/>
+        <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
             <button name="create_partner_button" position="after">
                 <button string="Ticket" name="create_ticket_button" type="object" class="btn btn-info" icon='fa-ticket'/>

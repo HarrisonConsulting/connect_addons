@@ -1,4 +1,5 @@
 from . import call
+from . import ir_http
 from . import ir_module_module
 from . import license
 from . import channel

@@ -1,3 +1,4 @@
+from . import ir_http
 from . import settings
 from . import twiml
 from . import call

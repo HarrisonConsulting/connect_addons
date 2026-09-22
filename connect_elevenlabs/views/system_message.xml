@@ -13,6 +13,6 @@
         id="elevenlabs_system_message_menu"
         name="System Messages"
         action="elevenlabs_system_message_action"
-        parent="connect.connect_settings_menu"
+        parent="connect.menu_connect_settings"
         sequence="25"/>
 </odoo>

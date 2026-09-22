@@ -70,6 +70,16 @@
         </field>
     </record>
 
+    <record id="view_connect_recording_search" model="ir.ui.view">
+        <field name="name">connect.recording.search</field>
+        <field name="model">connect.recording</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="summary"/>
+            </search>
+        </field>
+    </record>
+
     <record id="action_connect_recording" model="ir.actions.act_window">
         <field name="name">Recordings</field>
         <field name="res_model">connect.recording</field>

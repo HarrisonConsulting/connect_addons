@@ -43,6 +43,17 @@
         </field>
     </record>
 
+    <record id="view_twilio_outgoing_callerid_search" model="ir.ui.view">
+        <field name="name">connect.twilio.outgoing_callerid.search</field>
+        <field name="model">connect.twilio.outgoing_callerid</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="callerid_type"/>
+                <filter name="by_type" string="Type" context="{'group_by': 'callerid_type'}"/>
+            </search>
+        </field>
+    </record>
+
     <record id="action_twilio_callerid" model="ir.actions.act_window">
         <field name="name">Outgoing Caller IDs</field>
         <field name="res_model">connect.twilio.outgoing_callerid</field>

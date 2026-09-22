@@ -4,8 +4,8 @@
     <!-- Inherit the list view to add BYOC field -->
     <record id="outgoing_callerid_list_byoc" model="ir.ui.view">
         <field name="name">connect.outgoing_callerid_list_byoc</field>
-        <field name="model">connect.outgoing_callerid</field>
-        <field name="inherit_id" ref="connect.outgoing_callerid_list"/>
+        <field name="model">connect.twilio.outgoing_callerid</field>
+        <field name="inherit_id" ref="connect_twilio.view_twilio_outgoing_callerid_tree"/>
         <field name="arch" type="xml">
             <field name="callerid_type" position="after">
                 <field name="byoc"/>
@@ -16,8 +16,8 @@
     <!-- Inherit the form view to add BYOC field -->
     <record id="outgoing_callerid_form_byoc" model="ir.ui.view">
         <field name="name">connect_outgoing_callerid_form_byoc</field>
-        <field name="model">connect.outgoing_callerid</field>
-        <field name="inherit_id" ref="connect.connect_outgoing_callerid_form"/>
+        <field name="model">connect.twilio.outgoing_callerid</field>
+        <field name="inherit_id" ref="connect_twilio.view_twilio_outgoing_callerid_form"/>
         <field name="arch" type="xml">
             <!-- Make callerid_type field conditionally editable -->
             <field name="callerid_type" position="attributes">
@@ -35,8 +35,8 @@
     <!-- Inherit the search view to add BYOC filter -->
     <record id="outgoing_callerid_search_byoc" model="ir.ui.view">
         <field name="name">connect_outgoing_callerid_search_byoc</field>
-        <field name="model">connect.outgoing_callerid</field>
-        <field name="inherit_id" ref="connect.connect_outgoing_callerid_search"/>
+        <field name="model">connect.twilio.outgoing_callerid</field>
+        <field name="inherit_id" ref="connect_twilio.view_twilio_outgoing_callerid_search"/>
         <field name="arch" type="xml">
             <field name="callerid_type" position="after">
                 <field name="byoc"/>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_connect" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.connect</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Connect" string="Connect" name="connect" logo="/connect/static/description/icon.png">
+                    <block title="Providers" name="connect_provider_settings">
+                        <setting string="Twilio" help="Install the Twilio provider. Calls, numbers and the browser phone use it.">
+                            <field name="module_connect_twilio"/>
+                        </setting>
+                        <setting string="VoiceTel" help="Install VoiceTel. It speaks the Twilio API and connects to VoiceTel.">
+                            <field name="module_connect_voicetel"/>
+                        </setting>
+                        <setting string="Bring your own carrier" help="Install BYOC on top of Twilio.">
+                            <field name="module_connect_byoc"/>
+                        </setting>
+                    </block>
+                    <block title="Audio and recordings" name="connect_audio_settings">
+                        <setting string="Audio library" help="Install prompts, utterances, voicemail and call parking. Say and Play stay on this layer.">
+                            <field name="module_connect_pbx"/>
+                        </setting>
+                        <setting string="ElevenLabs" help="Install transcription with speaker diarization.">
+                            <field name="module_connect_elevenlabs"/>
+                        </setting>
+                        <setting string="S3 storage" help="Install storage of call recordings in S3.">
+                            <field name="module_connect_s3"/>
+                        </setting>
+                        <setting string="Record all calls" help="Record every call from answer. Stopping a call keeps the rest of that call silent.">
+                            <field name="connect_record_all_calls"/>
+                        </setting>
+                        <setting string="Transcribe calls" help="Transcribe recordings after the call.">
+                            <field name="connect_transcript_calls"/>
+                        </setting>
+                        <setting string="Proxy recordings" help="Re-stream recordings through Odoo instead of the provider URL.">
+                            <field name="connect_proxy_recordings"/>
+                        </setting>
+                        <setting string="Debug logging" help="Write Connect debug lines to the server log.">
+                            <field name="connect_debug_mode"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_connect_config_settings" model="ir.actions.act_window">
+        <field name="name">Settings</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module': 'connect', 'bin_size': False}</field>
+    </record>
+
+    <menuitem id="menu_connect_settings_general"
+              name="Settings"
+              parent="menu_connect_settings"
+              action="action_connect_config_settings"
+              groups="base.group_system"
+              sequence="10"/>
+</odoo>

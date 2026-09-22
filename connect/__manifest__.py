@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.4.8',
+    'version': '19.0.4.4.9',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -24,6 +24,7 @@
         'data/license.xml',
         'views/menu.xml',
         'views/settings.xml',
+        'views/res_config_settings_views.xml',
         'views/user_views.xml',
         'views/call_views.xml',
         'views/channel_views.xml',

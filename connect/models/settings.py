@@ -299,6 +299,62 @@ class Settings(models.Model):
         """
         return None
 
+    def _config_parameter_names(self):
+        return {
+            name for name, field in self._fields.items()
+            if field.store and not field.compute and field.type in (
+                'boolean', 'char', 'text', 'selection', 'integer', 'float',
+            )
+        }
+
+    def _icp_key(self, param):
+        return 'connect.%s' % param
+
+    def _format_icp(self, field, value):
+        if field.type == 'boolean':
+            return 'True' if value else 'False'
+        if value in (None, False):
+            return ''
+        return str(value)
+
+    def _parse_icp(self, field, raw):
+        if field.type == 'boolean':
+            return raw in ('True', '1', 'true')
+        if field.type == 'integer':
+            return int(raw or 0)
+        if field.type == 'float':
+            return float(raw or 0)
+        return raw
+
+    def _read_icp(self, param):
+        field = self._fields.get(param)
+        if field is None or param not in self._config_parameter_names():
+            return None
+        stored = self.env['ir.config_parameter'].sudo().search(
+            [('key', '=', self._icp_key(param))], limit=1)
+        if not stored:
+            return None
+        if field.groups and not self.env.su:
+            allowed = any(
+                self.env.user.has_group(group.strip())
+                for group in field.groups.split(',')
+                if group.strip() and not group.strip().startswith('!')
+            )
+            if not allowed:
+                return False
+        return self._parse_icp(field, stored.value)
+
+    def _sync_icp(self, vals):
+        if self.env.context.get('skip_icp_sync'):
+            return
+        names = self._config_parameter_names().intersection(vals)
+        if not names:
+            return
+        icp = self.env['ir.config_parameter'].sudo()
+        for name in names:
+            icp.set_param(self._icp_key(name), self._format_icp(
+                self._fields[name], self[name]))
+
     @api.model
     def get_param(self, param, default=False):
         # Sudo-find the singleton so config reads do not require the caller to
@@ -306,6 +362,10 @@ class Settings(models.Model):
         # parameters stay protected: a field carrying a ``groups=`` restriction
         # is only returned to a member of those groups (or to a sudo/internal
         # caller), never to a plain user reaching get_param over RPC.
+        # ir.config_parameter wins when Settings has saved the key.
+        stored = self._read_icp(param)
+        if stored is not None:
+            return stored
         data = self.sudo().search([])
         if not data:
             data = self.sudo().with_context(no_constrains=True).create({})
@@ -345,6 +405,7 @@ class Settings(models.Model):
         if not self.openai_api_key and vals.get("display_openai_api_key"):
             vals.update({"transcript_calls": True})
         res = super(Settings, self).write(vals)
+        self._sync_icp(vals)
         changed_fields = {}
         for field_name in PROTECTED_FIELDS:
             if vals.get(field_name):

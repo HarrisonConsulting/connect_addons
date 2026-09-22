@@ -57,3 +57,11 @@ class TestRecordingMarks(TransactionCase):
         self.assertTrue(settings.calls_are_recorded(user=user))
         settings.set_param('record_all_calls', False)
         self.assertFalse(settings.calls_are_recorded(user=user))
+        self.assertEqual(
+            self.env['ir.config_parameter'].sudo().get_param('connect.record_all_calls'),
+            'False',
+        )
+        self.assertIn(
+            'module_connect_voicetel',
+            self.env['res.config.settings']._fields,
+        )

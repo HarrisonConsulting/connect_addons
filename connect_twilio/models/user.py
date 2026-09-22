@@ -738,6 +738,13 @@ class User(models.Model):
                 .sudo()
                 .get_param('twilio_api_secret')
             )
+            if not (account_sid and api_key and api_secret):
+                logger.info(
+                    "Twilio credentials are not configured; "
+                    "client token not issued for user %s.",
+                    self.env.user.id,
+                )
+                return {'token': False}
             identity = user.get_client_identity()
             token = AccessToken(
                 account_sid,

@@ -1,6 +1,6 @@
 {
     'name': 'Oduist Connect Twilio',
-    'version': '19.0.2.4.1',
+    'version': '19.0.2.4.2',
     'author': 'Oduist',
     'category': 'Phone',
     'summary': 'Twilio integration for Oduist Connect',
@@ -33,8 +33,9 @@
     'assets': {
         'web.assets_backend': [
             'connect_twilio/static/src/icomoon/style.css',
-            'connect_twilio/static/src/components/phone/*/*',
-            'connect_twilio/static/src/js/main.js',
+            # connect/static/src/js/main.js registers ConnectPhoneService.
+            # This module's js/main.js adds the same name and throws on load,
+            # and nothing else imports the legacy phone components.
             'connect_twilio/static/src/js/utils.js',
             'connect_twilio/static/src/widgets/phone_field/*',
             'connect_twilio/static/src/services/actions/*',

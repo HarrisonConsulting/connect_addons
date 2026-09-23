@@ -693,7 +693,13 @@ class User(models.Model):
         )
 
     @api.model
-    def get_client_token(self):
+    def get_client_token(self, nonce=False):
+        """The browser softphone's Twilio JWT.
+
+        ``nonce`` identifies the calling browser tab. The connect phone sends
+        it with every request; a Twilio token is minted per user, not per tab,
+        so it is accepted and not used here.
+        """
         try:
             has_user_group = self.env.user.has_group(
                 'connect.group_user'

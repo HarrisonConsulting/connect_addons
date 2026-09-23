@@ -40,7 +40,6 @@
     'assets': {
         'web.assets_backend': [
             '/connect/static/src/components/license_banner/*',
-            '/connect/static/src/components/calls/*',
             '/connect/static/src/services/active_calls/*',
             # Leaf modules before the components that import them, and those
             # before main.js. main.js is the only ConnectPhoneService.

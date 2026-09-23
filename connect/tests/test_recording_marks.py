@@ -65,3 +65,9 @@ class TestRecordingMarks(TransactionCase):
             'module_connect_voicetel',
             self.env['res.config.settings']._fields,
         )
+        self.assertIn(
+            'module_connect_enqueue',
+            self.env['res.config.settings']._fields,
+        )
+        settings_view = self.env.ref('connect.res_config_settings_view_form_connect')
+        self.assertEqual(settings_view.priority, 1000)

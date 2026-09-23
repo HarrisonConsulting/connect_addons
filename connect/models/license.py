@@ -249,6 +249,20 @@ class OduistLicense(models.Model):
         return is_valid, max(0, days_left)
 
     @api.model
+    @api.model
+    def purchased_module_names(self):
+        """Module names the current token lists as purchased."""
+        license_rec = self.sudo().search([], limit=1)
+        if not license_rec or not license_rec.license_token:
+            return set()
+        payload = license_rec.validate_token(license_rec.license_token)
+        if not payload:
+            return set()
+        purchased = payload.get('purchased_modules') or {}
+        if isinstance(purchased, dict):
+            return set(purchased)
+        return set(purchased)
+
     def get_license_status(self, module_name):
         token = self._get_license_token()
         if token:

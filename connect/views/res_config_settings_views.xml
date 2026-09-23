@@ -1,32 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- priority 1000: this inherit runs after the other settings apps,
+         so Connect is the last entry in the side panel. -->
     <record id="res_config_settings_view_form_connect" model="ir.ui.view">
         <field name="name">res.config.settings.view.form.inherit.connect</field>
         <field name="model">res.config.settings</field>
+        <field name="priority" eval="1000"/>
         <field name="inherit_id" ref="base.res_config_settings_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
-                <app data-string="Connect" string="Connect" name="connect" logo="/connect/static/description/icon.png">
+                <app data-string="Connect" string="Connect" name="connect" groups="base.group_system" logo="/connect/static/description/icon.png">
+                    <field name="connect_ee_entitled" invisible="1"/>
                     <block title="Providers" name="connect_provider_settings">
-                        <setting string="Twilio" help="Install the Twilio provider. Calls, numbers and the browser phone use it.">
+                        <setting string="Twilio" help="Calls, numbers, and the browser phone.">
                             <field name="module_connect_twilio"/>
                         </setting>
-                        <setting string="VoiceTel" help="Install VoiceTel. It speaks the Twilio API and connects to VoiceTel.">
+                        <setting string="VoiceTel" help="The Twilio API, connected to VoiceTel.">
                             <field name="module_connect_voicetel"/>
                         </setting>
-                        <setting string="Bring your own carrier" help="Install BYOC on top of Twilio.">
+                        <setting string="Bring your own carrier" help="Your carrier, on top of Twilio.">
                             <field name="module_connect_byoc"/>
                         </setting>
                     </block>
-                    <block title="Audio and recordings" name="connect_audio_settings">
-                        <setting string="Audio library" help="Install prompts, utterances, voicemail and call parking. Say and Play stay on this layer.">
+                    <block title="Channels" name="connect_channel_settings">
+                        <setting string="Audio library" help="Prompts, utterances, voicemail, and call parking. Say and Play stay on this layer.">
                             <field name="module_connect_pbx"/>
                         </setting>
-                        <setting string="ElevenLabs" help="Install transcription with speaker diarization.">
+                        <setting string="SMS" help="SMS bridge.">
+                            <field name="module_connect_sms"/>
+                        </setting>
+                        <setting string="CRM" help="CRM integration.">
+                            <field name="module_connect_crm"/>
+                        </setting>
+                        <setting string="Website" help="Website integration.">
+                            <field name="module_connect_website"/>
+                        </setting>
+                        <setting string="Helpdesk" help="Helpdesk integration.">
+                            <field name="module_connect_helpdesk"/>
+                        </setting>
+                        <setting string="Stripe" help="Stripe payments.">
+                            <field name="module_connect_stripe"/>
+                        </setting>
+                    </block>
+                    <block title="Recordings" name="connect_audio_settings">
+                        <setting string="S3 storage" help="Store call recordings in S3.">
+                            <field name="module_connect_s3"/>
+                        </setting>
+                        <setting string="ElevenLabs" help="Transcription with speaker diarization.">
                             <field name="module_connect_elevenlabs"/>
                         </setting>
-                        <setting string="S3 storage" help="Install storage of call recordings in S3.">
-                            <field name="module_connect_s3"/>
+                        <setting string="ElevenLabs knowledge" help="Knowledge base for ElevenLabs. Requires ElevenLabs.">
+                            <field name="module_connect_elevenlabs_knowledge"/>
+                        </setting>
+                        <setting string="ElevenLabs sale" help="Sale integration for ElevenLabs. Requires ElevenLabs.">
+                            <field name="module_connect_elevenlabs_sale"/>
+                        </setting>
+                        <setting string="ElevenLabs helpdesk" help="Helpdesk integration for ElevenLabs. Requires ElevenLabs and Helpdesk.">
+                            <field name="module_connect_elevenlabs_helpdesk"/>
                         </setting>
                         <setting string="Record all calls" help="Record every call from answer. Stopping a call keeps the rest of that call silent.">
                             <field name="connect_record_all_calls"/>
@@ -39,6 +69,26 @@
                         </setting>
                         <setting string="Debug logging" help="Write Connect debug lines to the server log.">
                             <field name="connect_debug_mode"/>
+                        </setting>
+                    </block>
+                    <block title="Connect EE" name="connect_ee_settings">
+                        <setting string="Enterprise" help="Available with a Connect EE subscription. The box installs the module once that subscription is on this database.">
+                            <field name="module_connect_enterprise" readonly="not connect_ee_entitled"/>
+                        </setting>
+                        <setting string="Call queues" help="Available with a Connect EE subscription.">
+                            <field name="module_connect_enqueue" readonly="not connect_ee_entitled"/>
+                        </setting>
+                        <setting string="Callout" help="Available with a Connect EE subscription.">
+                            <field name="module_connect_callout" readonly="not connect_ee_entitled"/>
+                        </setting>
+                        <setting string="Portal" help="Available with a Connect EE subscription.">
+                            <field name="module_connect_portal" readonly="not connect_ee_entitled"/>
+                        </setting>
+                        <setting string="AI queries" help="Available with a Connect EE subscription.">
+                            <field name="module_connect_ai" readonly="not connect_ee_entitled"/>
+                        </setting>
+                        <setting string="Stripe EE" help="Available with a Connect EE subscription.">
+                            <field name="module_connect_stripe_enterprise" readonly="not connect_ee_entitled"/>
                         </setting>
                     </block>
                 </app>

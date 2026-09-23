@@ -27,7 +27,7 @@ class ResConfigSettings(models.TransientModel):
     module_connect_voicetel = fields.Boolean(string='VoiceTel')
     module_connect_byoc = fields.Boolean(string='Bring your own carrier')
     module_connect_pbx = fields.Boolean(string='Audio, voicemail and parking')
-    module_connect_sms = fields.Boolean(string='SMS')
+    module_connect_sms = fields.Boolean(string='SMS bridge')
     module_connect_crm = fields.Boolean(string='CRM')
     module_connect_website = fields.Boolean(string='Website')
     module_connect_helpdesk = fields.Boolean(string='Helpdesk')

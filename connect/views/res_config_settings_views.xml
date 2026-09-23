@@ -26,7 +26,7 @@
                         <setting string="Audio library" help="Prompts, utterances, voicemail, and call parking. Say and Play stay on this layer.">
                             <field name="module_connect_pbx"/>
                         </setting>
-                        <setting string="SMS" help="SMS bridge.">
+                        <setting string="SMS bridge" help="SMS bridge.">
                             <field name="module_connect_sms"/>
                         </setting>
                         <setting string="CRM" help="CRM integration.">

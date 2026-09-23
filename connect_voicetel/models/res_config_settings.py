@@ -13,7 +13,7 @@ class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     connect_voicetel_account_sid = fields.Char(
-        string='Account SID',
+        string='VoiceTel Account SID',
         config_parameter='connect_voicetel.account_sid',
         help="Account SID from your VoiceTel account; identifies your "
              "account on the VoiceML REST API.",

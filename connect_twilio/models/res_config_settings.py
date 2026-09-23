@@ -21,7 +21,7 @@ class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     connect_twilio_account_sid = fields.Char(
-        string='Account SID',
+        string='Twilio Account SID',
         config_parameter='connect_twilio.account_sid',
     )
     connect_twilio_auth_token = fields.Char(

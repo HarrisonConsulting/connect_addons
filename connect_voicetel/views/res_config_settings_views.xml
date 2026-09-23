@@ -9,7 +9,7 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='connect']" position="inside">
                 <block title="VoiceTel" name="connect_voicetel_account" invisible="not module_connect_voicetel">
-                    <setting string="Account SID" help="Account SID from your VoiceTel account; identifies your account on the VoiceML REST API.">
+                    <setting string="VoiceTel Account SID" help="Account SID from your VoiceTel account; identifies your account on the VoiceML REST API.">
                         <field name="connect_voicetel_account_sid"/>
                     </setting>
                     <setting string="API Key" help="API key from your VoiceTel account; used as the auth token for the VoiceML REST API.">

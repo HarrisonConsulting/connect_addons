@@ -48,9 +48,9 @@
 
     <record id="action_connect_config_settings" model="ir.actions.act_window">
         <field name="name">Settings</field>
+        <field name="path">connect-settings</field>
         <field name="res_model">res.config.settings</field>
         <field name="view_mode">form</field>
-        <field name="target">inline</field>
         <field name="context">{'module': 'connect', 'bin_size': False}</field>
     </record>
 

@@ -4,7 +4,7 @@
     <record id="helpdesk_ticket_webhook" model="ir.model.access">
         <field name="name">helpdesk_ticket_webhook</field>
         <field name="model_id" ref="helpdesk.model_helpdesk_ticket"/>
-        <field name="group_id" ref="connect.group_connect_webhook"/>
+        <field name="group_id" ref="connect.group_webhook"/>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="1"/>
         <field name="perm_create" eval="1"/>
@@ -15,7 +15,7 @@
     <record id="helpdesk_team_webhook" model="ir.model.access">
         <field name="name">helpdesk_team_webhook</field>
         <field name="model_id" ref="helpdesk.model_helpdesk_team"/>
-        <field name="group_id" ref="connect.group_connect_webhook"/>
+        <field name="group_id" ref="connect.group_webhook"/>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="0"/>
         <field name="perm_create" eval="0"/>
@@ -26,7 +26,7 @@
     <record id="helpdesk_stage_webhook" model="ir.model.access">
         <field name="name">helpdesk_stage_webhook</field>
         <field name="model_id" ref="helpdesk.model_helpdesk_stage"/>
-        <field name="group_id" ref="connect.group_connect_webhook"/>
+        <field name="group_id" ref="connect.group_webhook"/>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="0"/>
         <field name="perm_create" eval="0"/>

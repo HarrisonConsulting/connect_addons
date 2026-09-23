@@ -167,7 +167,7 @@ class TestDomainRouteCall(ConnectTestCase):
     def setUpClass(cls):
         super().setUpClass()
         # Grant webhook access so connect_website's route_call override passes
-        webhook_group = cls.env.ref('connect.group_connect_webhook')
+        webhook_group = cls.env.ref('connect.group_webhook')
         cls.env.user.group_ids = [(4, webhook_group.id)]
         cls.twiml_app = cls.env['connect.twiml'].create({
             'name': 'Route App',

@@ -220,7 +220,7 @@ class TestGetClientToken(ConnectTestCase):
         # (_can_issue_client_token). Odoo 19 has_group() has no superuser
         # bypass, so the test user must genuinely be in the group.
         cls.env.user.write({'group_ids': [Command.link(
-            cls.env.ref('connect.group_connect_user').id)]})
+            cls.env.ref('connect.group_user').id)]})
 
     def test_get_client_token(self):
         """JWT token generated with correct identity and grants."""

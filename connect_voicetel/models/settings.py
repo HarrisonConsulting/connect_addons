@@ -16,7 +16,7 @@ class VoicetelSettings(models.Model):
         help="Account SID from your VoiceTel account; identifies your "
              "account on the VoiceML REST API.")
     voicetel_api_key = fields.Char(
-        groups="base.group_erp_manager,connect.group_connect_webhook",
+        groups="base.group_erp_manager,connect.group_webhook",
         help="API key from your VoiceTel account; used as the auth token "
              "for the VoiceML REST API.")
     display_voicetel_api_key = fields.Char()

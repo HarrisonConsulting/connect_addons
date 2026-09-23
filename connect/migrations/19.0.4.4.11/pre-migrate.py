@@ -1,8 +1,9 @@
 """Recreate the legacy group xmlids before views are loaded.
 
-Views still say groups="connect.group_connect_user". The canonical record
-is group_user. Creating the old name in a post-migrate is too late: the
-view loader has already warned that the group does not exist.
+Views and security data now reference group_user, group_admin, and
+group_webhook. Those names are already in the registry when a remint
+starts. The old names are still created here so a database that has not
+been rewritten keeps resolving them.
 """
 
 GROUP_ALIASES = (

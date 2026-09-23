@@ -1875,24 +1875,62 @@ class Audio(models.Model):
         a recorded brand-voice file with no code change.
 
         The param value may be an xmlid (``module.name``), a bare database id,
-        or a ``system_key``. Returns an empty recordset when unresolvable so
-        callers can skip the notice gracefully rather than crash.
+        or a ``system_key``. A missing row is created with the default text
+        so a fresh database can play the notice, and a tour can open it,
+        without a separate setup step.
         """
+        return self._resolve_notice(
+            'connect.qa_recording_notice_audio',
+            'connect_pbx.audio_qa_recording_notice',
+            'system.qa_recording_notice',
+            'System: QA Recording Notice',
+            "This call will be recorded for quality assurance. "
+            "We'll connect you now.",
+        )
+
+    @api.model
+    def resolve_payment_entry_notice(self):
+        """The clip played before a keypad collects a payment.
+
+        Same resolution rules as the recording notice. The default text
+        tells the caller the recording pauses and that a card number is
+        not for the microphone.
+        """
+        return self._resolve_notice(
+            'connect.payment_entry_notice_audio',
+            'connect_pbx.audio_payment_entry_notice',
+            'system.payment_entry_notice',
+            'System: Payment entry notice',
+            'We are pausing the recording while you enter this with your '
+            'keypad. Please do not say card numbers aloud.',
+        )
+
+    @api.model
+    def _resolve_notice(self, param_key, default_xmlid, system_key, name, text):
         ICP = self.env['ir.config_parameter'].sudo()
-        ref = (ICP.get_param('connect.qa_recording_notice_audio')
-               or 'connect_pbx.audio_qa_recording_notice')
+        ref = (ICP.get_param(param_key) or default_xmlid)
         Audio = self.sudo()
         rec = None
         if '.' in ref:
             rec = self.env.ref(ref, raise_if_not_found=False)
             if rec is not None and rec._name != 'connect.audio':
                 rec = None
-        if rec is None and ref.isdigit():
+        if rec is None and str(ref).isdigit():
             candidate = Audio.browse(int(ref))
             rec = candidate if candidate.exists() else None
         if rec is None:
             rec = Audio.search([('system_key', '=', ref)], limit=1) or None
-        return rec.sudo() if rec else Audio.browse()
+        if rec is None:
+            rec = Audio.search([('system_key', '=', system_key)], limit=1) or None
+        if not rec:
+            rec = Audio.create({
+                'name': name,
+                'system_key': system_key,
+                'source': 'twilio_tts',
+                'state': 'live',
+                'static_text': text,
+            })
+        return rec.sudo()
 
     def play_on(self, response, record=None):
         """Render, then attach to a TwiML VoiceResponse/Gather.

@@ -196,4 +196,20 @@
     <field name="value">connect_pbx.audio_qa_recording_notice</field>
   </record>
 
+  <!-- Spoken before a keypad collects a payment. The caller should hear
+       that the recording pauses and that a card number is not for the
+       microphone. Swappable the same way as the recording notice. -->
+  <record id="audio_payment_entry_notice" model="connect.audio">
+    <field name="name">System: Payment entry notice</field>
+    <field name="system_key">system.payment_entry_notice</field>
+    <field name="uuid">c4a1e8b2-6d47-4f0a-9c31-7e2b5a91d048</field>
+    <field name="source">twilio_tts</field>
+    <field name="state">live</field>
+    <field name="static_text">We are pausing the recording while you enter this with your keypad. Please do not say card numbers aloud.</field>
+  </record>
+  <record id="payment_entry_notice_audio_param" model="ir.config_parameter">
+    <field name="key">connect.payment_entry_notice_audio</field>
+    <field name="value">connect_pbx.audio_payment_entry_notice</field>
+  </record>
+
 </odoo>

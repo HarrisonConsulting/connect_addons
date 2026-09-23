@@ -38,17 +38,28 @@ class VoicetelSettings(models.Model):
         ]
 
     @api.model
+    def _voicetel_param(self, key, column):
+        """New ir.config_parameter key, then the connect.settings column."""
+        raw = self.env['ir.config_parameter'].sudo().get_param(key)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return self.sudo().get_param(column)
+
+    @api.model
     def _get_client_credentials(self):
         if self.sudo().get_param('rest_provider') == 'voicetel':
             return (
-                self.sudo().get_param('voicetel_account_sid'),
-                self.sudo().get_param('voicetel_api_key'),
+                self._voicetel_param(
+                    'connect_voicetel.account_sid', 'voicetel_account_sid'),
+                self._voicetel_param(
+                    'connect_voicetel.api_key', 'voicetel_api_key'),
             )
         return super()._get_client_credentials()
 
     @api.model
     def _get_rest_api_host(self):
         if self.sudo().get_param('rest_provider') == 'voicetel':
-            host = (self.sudo().get_param('voicetel_rest_host') or '').strip()
-            return host or VOICETEL_DEFAULT_HOST
+            host = self._voicetel_param(
+                'connect_voicetel.rest_host', 'voicetel_rest_host')
+            return (host or '').strip() or VOICETEL_DEFAULT_HOST
         return super()._get_rest_api_host()

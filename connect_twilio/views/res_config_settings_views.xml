@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- priority 1010: Connect's own app is added at 1000. -->
+    <record id="res_config_settings_view_form_connect_twilio" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.connect.twilio</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="1010"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='connect']" position="inside">
+                <block title="Twilio" name="connect_twilio_account" invisible="not module_connect_twilio">
+                    <setting string="Account" help="Account SID, token, and API key for this Twilio account.">
+                        <div class="content-group">
+                            <div class="row">
+                                <label for="connect_twilio_account_sid" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_account_sid"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_auth_token" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_auth_token" password="True"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_api_key" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_api_key"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_api_secret" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_api_secret" password="True"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_region" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_region"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_edge" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_edge"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_verify_requests" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_verify_requests"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_auto_sync" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_auto_sync"/>
+                            </div>
+                            <div class="row">
+                                <label for="connect_twilio_fetch_call_prices" class="col-lg-3 o_light_label"/>
+                                <field name="connect_twilio_fetch_call_prices"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

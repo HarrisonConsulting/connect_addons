@@ -87,6 +87,21 @@ class Settings(models.Model):
     )
 
     @api.model
+    def _twilio_param(self, key, legacy):
+        """ir.config_parameter key, else the connect.settings column.
+
+        Boolean parameters are the strings 'True' and 'False'. 'True' and
+        '1' are True. A missing row falls back; a stored 'False' does not.
+        """
+        value = self.env['ir.config_parameter'].sudo().get_param(key)
+        if value not in (False, None, ''):
+            field = self._fields.get(legacy)
+            if field is not None and field.type == 'boolean':
+                return value in ('True', '1')
+            return value
+        return self.sudo().get_param(legacy)
+
+    @api.model
     def get_media_auth(self, media_url):
         """Twilio API credentials, and only for Twilio's own hosts.
 
@@ -100,9 +115,10 @@ class Settings(models.Model):
         host = (urlparse(media_url or '').hostname or '').lower()
         if host != 'twilio.com' and not host.endswith('.twilio.com'):
             return super().get_media_auth(media_url)
-        settings = self.sudo()
-        account_sid = settings.get_param('account_sid')
-        auth_token = settings.get_param('auth_token')
+        account_sid = self._twilio_param(
+            'connect_twilio.account_sid', 'account_sid')
+        auth_token = self._twilio_param(
+            'connect_twilio.auth_token', 'auth_token')
         if not (account_sid and auth_token):
             return super().get_media_auth(media_url)
         return (account_sid, auth_token)
@@ -110,15 +126,19 @@ class Settings(models.Model):
     @api.model
     def get_client(self):
         try:
-            # connect.settings is admin-only; credentials are read with sudo()
-            # below, so no caller-level model access check is needed here.
-            account_sid = self.sudo().get_param("account_sid")
-            auth_token = self.sudo().get_param("auth_token")
+            # connect.settings is admin-only. _twilio_param reads with sudo,
+            # so no caller-level model access check is needed here.
+            account_sid = self._twilio_param(
+                "connect_twilio.account_sid", "account_sid")
+            auth_token = self._twilio_param(
+                "connect_twilio.auth_token", "auth_token")
             client = Client(account_sid, auth_token)
-            twilio_region = self.sudo().get_param("twilio_region")
+            twilio_region = self._twilio_param(
+                "connect_twilio.region", "twilio_region")
             if twilio_region:
                 client.region = twilio_region
-            twilio_edge = self.sudo().get_param("twilio_edge")
+            twilio_edge = self._twilio_param(
+                "connect_twilio.edge", "twilio_edge")
             if twilio_edge:
                 client.edge = twilio_edge
             client.http_client.logger.setLevel(TWILIO_LOG_LEVEL)
@@ -131,8 +151,8 @@ class Settings(models.Model):
 
     def sync(self):
         if not (
-            self.sudo().get_param("account_sid")
-            and self.sudo().get_param("auth_token")
+            self._twilio_param("connect_twilio.account_sid", "account_sid")
+            and self._twilio_param("connect_twilio.auth_token", "auth_token")
         ):
             raise ValidationError("You must set account SID and Auth token!")
         api_url_check = self.check_api_url()
@@ -224,7 +244,7 @@ class Settings(models.Model):
         api_url = self.sudo().get_param("api_url")
         edge = (
             self.twilio_edge
-            or self.env['connect.settings'].get_param('twilio_edge')
+            or self._twilio_param('connect_twilio.edge', 'twilio_edge')
         )
         status_url = urljoin(
             api_url, "twilio/webhook/callstatus#e={}".format(edge)

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '1.2.5',
+    'version': '1.2.6',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -27,6 +27,7 @@ Adds VoiceTel as a telephony provider in Connect settings:
         'security/ir.model.access.csv',
         # Views
         'views/settings.xml',
+        'views/res_config_settings_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

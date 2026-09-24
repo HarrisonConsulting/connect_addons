@@ -1,6 +1,8 @@
 import base64
+import importlib.util
 import os
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from odoo.tests import TransactionCase, tagged
@@ -49,3 +51,30 @@ class TestNgRecordingMedia(TransactionCase):
                 recording._download_recording_audio()
         self.assertTrue(paths)
         self.assertFalse(os.path.exists(paths[0]))
+
+    def test_upgrade_retires_only_the_removed_cron(self):
+        cron = self.env.ref('connect.ir_cron_retry_stuck_finalizations', raise_if_not_found=False)
+        if not cron:
+            cron = self.env['ir.cron'].create({
+                'name': 'Legacy call finalization',
+                'model_id': self.env['ir.model']._get_id('connect.call'),
+                'state': 'code', 'code': 'model._retry_stuck_finalizations()',
+            })
+            self.env['ir.model.data'].create({
+                'module': 'connect', 'name': 'ir_cron_retry_stuck_finalizations',
+                'model': 'ir.cron', 'res_id': cron.id, 'noupdate': True,
+            })
+        cron.write({'active': True, 'code': 'model._retry_stuck_finalizations()'})
+        replacement = self.env.ref('connect.cron_reconcile_stale_calls')
+        before = replacement.active
+        path = Path(__file__).parents[1] / 'migrations/19.0.4.4.14/post-migration.py'
+        spec = importlib.util.spec_from_file_location('retire_connect_cron', path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        migration.migrate(self.env.cr, '19.0.4.4.13')
+        migration.migrate(self.env.cr, '19.0.4.4.13')
+        self.assertFalse(cron.active)
+        self.assertEqual(replacement.active, before)
+        cron.write({'active': True, 'code': 'model._cron_reconcile_stale_calls()'})
+        migration.migrate(self.env.cr, '19.0.4.4.13')
+        self.assertTrue(cron.active)

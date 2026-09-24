@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 import base64
 import logging
-import requests
-from io import BytesIO
-from tempfile import NamedTemporaryFile
+import os
+
 from botocore.exceptions import BotoCoreError, ClientError
-from odoo import fields, models
+from odoo import api, fields, models
+from odoo.exceptions import AccessError
 
 logger = logging.getLogger(__name__)
-
 S3_KEY_PREFIX = 'connect/recordings'
 
 
@@ -16,135 +15,131 @@ class Recording(models.Model):
     _inherit = 'connect.recording'
 
     s3_key = fields.Char(string='S3 Key', readonly=True, copy=False)
+    storage_pending = fields.Boolean(
+        copy=False, help='The storage cron still needs to archive this recording.')
+    storage_error = fields.Char(
+        readonly=True, copy=False, help='Last archival failure; provider media is retained.')
 
     def _s3_object_key(self):
         self.ensure_one()
-        return '{}/{}/{}.mp3'.format(S3_KEY_PREFIX, self.env.cr.dbname, self.sid)
+        suffix = os.path.splitext(self.recording_filename or '')[1] or '.wav'
+        return '{}/{}/{}{}'.format(S3_KEY_PREFIX, self.env.cr.dbname, self.sid or self.id, suffix)
 
-    def _store_as_attachment(self):
-        """Upload recording to S3 when recording_storage == 's3'."""
+    def _queue_storage(self):
         settings = self.env['connect.settings'].sudo().search([], limit=1)
-        if settings.recording_storage != 's3':
-            return super()._store_as_attachment()
-        self.ensure_one()
-        if not self.media_url:
-            return
-        from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
-        # The active provider's credentials, not Twilio's (task 9597).
-        account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
-        response = requests.get(
-            self.media_url, auth=(account_sid, auth_token),
-            timeout=HTTP_DOWNLOAD_TIMEOUT,
-        )
-        response.raise_for_status()
-        s3 = settings.get_s3_client()
-        bucket = settings.s3_bucket
-        key = self._s3_object_key()
-        try:
-            s3.upload_fileobj(
-                BytesIO(response.content), bucket, key,
-                ExtraArgs={'ContentType': 'audio/mpeg'},
-            )
-        except (ClientError, BotoCoreError) as e:
-            logger.error('S3 upload failed for recording %s, falling back to attachment: %s', self.sid, e)
-            return super()._store_as_attachment()
-        self.write({'s3_key': key})
-        if settings.delete_twilio_recording:
-            if settings._s3_object_verified(s3, bucket, key):
-                self._delete_from_twilio()
-            else:
-                logger.warning('S3 verify failed for recording %s — skipping Twilio delete', self.sid)
-        logger.info('Recording %s stored in S3: %s/%s', self.sid, bucket, key)
+        if settings.recording_storage == 's3':
+            self.filtered(lambda rec: not rec.s3_key and rec.status == 'completed'
+                          and (rec.media_url or rec.recording_attachment)).with_context(
+                              connect_storage_write=True).write({'storage_pending': True})
 
-    def _download_recording_audio(self):
-        """Fetch audio from S3 when s3_key is set."""
+    def action_retry_storage(self):
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError('Only administrators can retry recording archival.')
+        self._queue_storage()
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._queue_storage()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        if not self.env.context.get('connect_storage_write') and {
+                'status', 'media_url', 'recording_attachment'}.intersection(vals):
+            self._queue_storage()
+        return result
+
+    def _fetch_media_to(self, temp_file):
+        """All media consumers share NG's provider/storage download seam."""
+        self.ensure_one()
         if self.s3_key:
             settings = self.env['connect.settings'].sudo().search([], limit=1)
             try:
-                s3 = settings.get_s3_client()
-                buf = BytesIO()
-                s3.download_fileobj(settings.s3_bucket, self.s3_key, buf)
-                with NamedTemporaryFile(delete=False, suffix='.mp3') as f:
-                    f.write(buf.getvalue())
-                    return f.name
-            except (ClientError, BotoCoreError) as e:
-                logger.error('S3 download failed for recording %s (%s): %s', self.id, self.s3_key, e)
-        return super()._download_recording_audio()
-
-    def _get_recording_widget(self):
-        """Render widget with presigned S3 URL when s3_key is set."""
-        settings = self.env['connect.settings'].sudo().search([], limit=1)
-        if settings.recording_storage != 's3':
-            return super()._get_recording_widget()
-        for rec in self:
-            if not rec.s3_key:
-                rec.recording_widget = ''
-                continue
-            try:
-                s3 = settings.get_s3_client()
-                url = s3.generate_presigned_url(
-                    'get_object',
-                    Params={'Bucket': settings.s3_bucket, 'Key': rec.s3_key},
-                    ExpiresIn=28800,
-                )
-                rec.recording_widget = (
-                    '<audio id="sound_file" preload="auto" controls="controls">'
-                    '<source src="{}"/></audio>'.format(url)
-                )
-            except Exception as e:
-                logger.error('S3 presigned URL error for recording %s: %s', rec.id, e)
-                rec.recording_widget = ''
+                settings.get_s3_client().download_fileobj(
+                    settings.s3_bucket, self.s3_key, temp_file)
+                return
+            except (ClientError, BotoCoreError):
+                temp_file.seek(0)
+                temp_file.truncate()
+                if not (self.media_url or self.recording_attachment):
+                    raise
+                logger.warning('S3 read failed for recording %s; trying retained source', self.id)
+        return super()._fetch_media_to(temp_file)
 
     def _migrate_to_s3(self, settings):
-        """Migrate a single recording to S3 from Twilio or local filestore."""
+        """Archive exact source bytes; retain the provider copy during recovery."""
         self.ensure_one()
-        s3 = settings.get_s3_client()
-        bucket = settings.s3_bucket
-        key = self._s3_object_key()
+        if self.s3_key:
+            return
+        path = self._download_recording_audio()
+        try:
+            size = os.path.getsize(path)
+            if not size:
+                raise ValueError('Recording download was empty')
+            key = self._s3_object_key()
+            client = settings.get_s3_client()
+            try:
+                with open(path, 'rb') as media:
+                    signature = media.read(12)
+                    media.seek(0)
+                    mimetype = 'audio/wav' if signature.startswith(b'RIFF') else 'audio/mpeg'
+                    client.upload_fileobj(media, settings.s3_bucket, key,
+                                          ExtraArgs={'ContentType': mimetype})
+                if client.head_object(Bucket=settings.s3_bucket, Key=key).get('ContentLength') != size:
+                    raise ValueError('S3 stored size differs from downloaded recording')
+            except (ClientError, BotoCoreError, ValueError):
+                with open(path, 'rb') as media:
+                    self.with_context(connect_storage_write=True).write({
+                        'recording_attachment': base64.b64encode(media.read()),
+                        'recording_filename': os.path.basename(path),
+                    })
+                raise
+            self.with_context(connect_storage_write=True).write({
+                's3_key': key, 'storage_pending': False, 'storage_error': False,
+            })
+        finally:
+            os.unlink(path)
 
-        if self.attachment_id:
-            audio = base64.b64decode(self.attachment_id.sudo().datas)
-        else:
-            from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
-            # The active provider's credentials, not Twilio's (task 9597).
-            account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
-            resp = requests.get(
-                self.media_url, auth=(account_sid, auth_token),
-                timeout=HTTP_DOWNLOAD_TIMEOUT,
-            )
-            resp.raise_for_status()
-            audio = resp.content
+    @api.model
+    def _cron_store_recordings(self, limit=20):
+        settings = self.env['connect.settings'].sudo().search([], limit=1)
+        if settings.recording_storage != 's3':
+            return
+        for rec in self.search([('storage_pending', '=', True)], limit=limit):
+            try:
+                rec._migrate_to_s3(settings)
+            except Exception as error:
+                logger.exception('Recording archival failed for recording %s', rec.id)
+                rec.storage_error = type(error).__name__
+            rec.storage_pending = False
+            if not self.env['ir.cron']._commit_progress(1):
+                break
 
-        s3.upload_fileobj(BytesIO(audio), bucket, key, ExtraArgs={'ContentType': 'audio/mpeg'})
-
-        if not settings._s3_object_verified(s3, bucket, key):
-            raise Exception('S3 verify failed after upload for recording {}'.format(self.id))
-
-        source_attachment = self.attachment_id
-        self.write({'s3_key': key})
-
-        if settings.delete_twilio_recording:
-            if source_attachment:
-                source_attachment.sudo().unlink()
-            elif self.sid:
-                self._delete_from_twilio()
-
-        logger.info('Migrated recording %s to S3: %s/%s', self.id, bucket, key)
+    def _get_media_src(self, proxy_recordings):
+        self.ensure_one()
+        if self.s3_key:
+            settings = self.env['connect.settings'].sudo().search([], limit=1)
+            try:
+                return settings.get_s3_client().generate_presigned_url(
+                    'get_object', Params={'Bucket': settings.s3_bucket, 'Key': self.s3_key},
+                    ExpiresIn=28800)
+            except (ClientError, BotoCoreError, ValueError):
+                logger.warning('S3 playback URL failed for recording %s; trying retained source', self.id)
+        return super()._get_media_src(proxy_recordings)
 
     def unlink(self):
-        """Delete S3 objects when recordings are deleted."""
-        s3_recs = self.filtered('s3_key')
+        keys = self.mapped('s3_key')
         result = super().unlink()
-        if s3_recs:
+        if keys:
             try:
                 settings = self.env['connect.settings'].sudo().search([], limit=1)
-                s3 = settings.get_s3_client()
-                bucket = settings.s3_bucket
-                for rec in s3_recs:
+                client = settings.get_s3_client()
+                for key in keys:
                     try:
-                        s3.delete_object(Bucket=bucket, Key=rec.s3_key)
-                    except Exception as e:
-                        logger.error('Failed to delete S3 object %s: %s', rec.s3_key, e)
-            except Exception as e:
-                logger.error('S3 cleanup error on recording unlink: %s', e)
+                        client.delete_object(Bucket=settings.s3_bucket, Key=key)
+                    except Exception:
+                        logger.exception('S3 cleanup failed for one deleted recording')
+            except Exception:
+                logger.exception('S3 cleanup failed after recording unlink')
         return result

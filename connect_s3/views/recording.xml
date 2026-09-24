@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_recording_storage" model="ir.ui.view">
+        <field name="name">connect.recording.storage</field>
+        <field name="model">connect.recording</field>
+        <field name="inherit_id" ref="connect.view_connect_recording_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='transcription_error']" position="after">
+                <field name="storage_pending" readonly="1"/>
+                <field name="storage_error" invisible="not storage_error"/>
+                <button name="action_retry_storage" type="object" string="Retry archive"
+                        groups="base.group_system" invisible="not storage_error"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

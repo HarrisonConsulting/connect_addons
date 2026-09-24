@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cron_store_recordings" model="ir.cron">
+        <field name="name">Connect: archive pending recordings to S3</field>
+        <field name="model_id" ref="connect.model_connect_recording"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_store_recordings()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">minutes</field>
+    </record>
+</odoo>

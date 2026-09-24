@@ -20,3 +20,4 @@ from . import test_live_call_lifecycle
 from . import test_reload_broadcast
 from . import test_systray_tour
 from . import test_sync_safety
+from . import test_ng_recording_media

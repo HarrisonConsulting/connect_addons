@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import boto3
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from odoo import fields, models
 from odoo.exceptions import UserError
@@ -40,6 +41,7 @@ class Settings(models.Model):
             'aws_access_key_id': settings.s3_access_key,
             'aws_secret_access_key': settings.s3_secret_key,
             'region_name': settings.s3_region or 'us-east-1',
+            'config': Config(connect_timeout=5, read_timeout=30, retries={'max_attempts': 1}),
         }
         if settings.s3_endpoint:
             kwargs['endpoint_url'] = settings.s3_endpoint
@@ -103,7 +105,7 @@ class Settings(models.Model):
             ('s3_key', '=', False),
             '|',
             ('media_url', '!=', False),
-            ('attachment_id', '!=', False),
+            ('recording_attachment', '!=', False),
         ], limit=limit)
         for rec in recordings:
             try:

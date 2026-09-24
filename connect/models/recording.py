@@ -213,11 +213,32 @@ class Recording(models.Model):
         # Bounded download: media_url points at the provider's
         # recording store; without a timeout a hung endpoint
         # pins the worker.
-        response = requests.get(self.media_url, stream=True, timeout=30)
-        response.raise_for_status()
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                temp_file.write(chunk)
+        auth = self.env['connect.settings'].sudo().get_media_auth(self.media_url)
+        with requests.get(self.media_url, auth=auth, stream=True, timeout=30) as response:
+            response.raise_for_status()
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    temp_file.write(chunk)
+
+    def _download_recording_audio(self):
+        """Materialize the shared media seam for file-based consumers.
+
+        The caller owns the returned file. Failed downloads leave no partial
+        file behind. Storage overrides belong on _fetch_media_to so portal,
+        synchronous transcription and chunked transcription read the same bytes.
+        """
+        self.ensure_one()
+        suffix = os.path.splitext(self.recording_filename or '')[1] or '.wav'
+        path = None
+        try:
+            with NamedTemporaryFile(delete=False, suffix=suffix) as media:
+                path = media.name
+                self._fetch_media_to(media)
+            return path
+        except Exception:
+            if path and os.path.exists(path):
+                os.unlink(path)
+            raise
 
     def transcribe_recording(self, openai_api_key, summary_prompt):
         result = {}

@@ -11,6 +11,7 @@ before sudoed data is returned.
 """
 
 import logging
+import mimetypes
 import os
 
 from werkzeug.exceptions import NotFound
@@ -174,7 +175,7 @@ class ConnectCustomerPortal(CustomerPortal):
         recording = call.recording
         if not recording:
             raise NotFound()
-        mimetype = recording.attachment_id.mimetype or 'audio/mpeg'
+        mimetype = mimetypes.guess_type(recording.recording_filename or 'recording.wav')[0] or 'audio/wav'
         return self._serve_customer_audio(
             recording._download_recording_audio,
             mimetype,

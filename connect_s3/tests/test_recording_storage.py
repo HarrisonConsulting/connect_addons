@@ -81,7 +81,8 @@ class TestNgRecordingStorage(TransactionCase):
         recordings = self._recording(s3_key='first.wav') | self._recording(s3_key='second.wav')
         client = MagicMock()
         client.delete_object.side_effect = [ValueError('first deletion failed'), None]
-        with patch.object(type(self.settings), 'get_s3_client', return_value=client):
+        with patch.object(type(self.settings), 'get_s3_client', return_value=client), \
+                self.assertLogs('odoo.addons.connect_s3.models.recording', level='ERROR'):
             recordings.unlink()
         self.assertEqual(client.delete_object.call_count, 2)
         self.assertFalse(recordings.exists())

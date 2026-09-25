@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """Tests for the Voicemail Box feature: model, stamping, and record-rule access."""
 
-from odoo.exceptions import AccessError
+import os
+from unittest.mock import MagicMock, patch
+
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.connect.tests.common import ConnectTestCase
@@ -37,6 +40,90 @@ class TestVoicemailBoxModel(ConnectTestCase):
         self.assertTrue(box.active)
         self.assertEqual(box.member_count, 0)
         self.assertEqual(box.voicemail_count, 0)
+
+    def test_call_keeps_voicemail_assignment_contract(self):
+        """The PBX call extension owns persisted voicemail queue fields."""
+        call = self._create_test_call(
+            voicemail_url='https://api.twilio.com/r/test.mp3',
+            voicemail_assignee_ids=[(6, 0, [self.alice.id])],
+        )
+        self.assertIn(self.alice, call.voicemail_assignee_ids)
+        self.assertEqual(call.call_result, 'voicemail')
+
+    def test_voicemail_actions_keep_the_composed_call_contract(self):
+        """The voicemail form's fields and object actions load on connect.call."""
+        call = self._create_test_call(partner=self.partner_1.id)
+
+        self.assertTrue({
+            'voicemail_assignee_ids', 'voicemail_box_id', 'voicemail_stage_id',
+            'voicemail_transcript', 'voicemail_duration', 'voicemail_widget',
+        }.issubset(call._fields))
+        call.action_assign_to_me()
+        self.assertIn(self.env.user, call.voicemail_assignee_ids)
+        self.assertEqual(call.action_view_partner()['res_id'], self.partner_1.id)
+        voicemail = self._create_test_call(
+            voicemail_url='https://api.twilio.com/2010-04-01/Recordings/RE1',
+        )
+        with patch.object(type(voicemail), '_transcribe_voicemail') as transcribe:
+            voicemail.action_transcribe()
+        transcribe.assert_called_once()
+
+    def test_voicemail_download_uses_provider_media_auth_without_redirects(self):
+        """A voicemail download only sends credentials selected for its provider URL."""
+        account_sid = 'ACvoicemailtest'
+        auth_token = 'voicemail_test_auth_token'
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('connect_twilio.account_sid', account_sid)
+        icp.set_param('connect_twilio.auth_token', auth_token)
+        call = self._create_test_call(
+            voicemail_url=(
+                'https://api.twilio.com/2010-04-01/Accounts/{}/Recordings/RE1'
+                .format(account_sid)),
+        )
+        response = MagicMock(status_code=200)
+        response.iter_content.return_value = [b'voicemail-audio']
+
+        with patch(
+            'odoo.addons.connect_pbx.models.call.requests.get',
+            return_value=response,
+        ) as get:
+            path = call._download_voicemail_audio()
+        try:
+            with open(path, 'rb') as audio_file:
+                self.assertEqual(audio_file.read(), b'voicemail-audio')
+        finally:
+            os.unlink(path)
+        get.assert_called_once_with(
+            call.voicemail_url,
+            stream=True,
+            auth=(account_sid, auth_token),
+            allow_redirects=False,
+            timeout=30,
+        )
+        response.close.assert_called_once()
+
+    def test_voicemail_download_rejects_untrusted_media_url(self):
+        """An arbitrary voicemail URL cannot receive provider credentials."""
+        call = self._create_test_call(
+            voicemail_url='https://media.invalid/voicemail.mp3',
+        )
+
+        with patch('odoo.addons.connect_pbx.models.call.requests.get') as get:
+            with self.assertRaises(ValidationError):
+                call._download_voicemail_audio()
+        get.assert_not_called()
+
+    def test_voicemail_download_rejects_insecure_provider_url(self):
+        """Provider credentials are never sent over HTTP or through URL userinfo."""
+        for voicemail_url in (
+            'http://api.twilio.com/2010-04-01/Recordings/RE1',
+            'https://user:password@api.twilio.com/2010-04-01/Recordings/RE1',
+        ):
+            call = self._create_test_call(voicemail_url=voicemail_url)
+            with patch('odoo.addons.connect_pbx.models.call.requests.get') as get:
+                with self.assertRaises(ValidationError):
+                    call._download_voicemail_audio()
+            get.assert_not_called()
 
     def test_box_membership(self):
         box = self.Box.create({

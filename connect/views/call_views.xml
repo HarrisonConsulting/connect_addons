@@ -100,10 +100,18 @@
                 <field name="partner"/>
                 <field name="caller"/>
                 <field name="called"/>
+                <field name="caller_user"/>
+                <field name="answered_user"/>
                 <filter name="filter_today" string="Today"
                         domain="[('create_date', '&gt;=', datetime.datetime.now().strftime('%Y-%m-%d 00:00:00'))]"/>
+                <filter name="has_error" string="Failed Calls" domain="[('has_error', '=', True)]"/>
                 <group>
                     <filter name="by_partner" string="Partner" context="{'group_by': 'partner'}"/>
+                    <filter name="by_caller_user" string="Caller User" context="{'group_by': 'caller_user'}"/>
+                    <filter name="by_direction" string="Direction" context="{'group_by': 'direction'}"/>
+                    <filter name="by_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="by_call_type" string="Call Type" context="{'group_by': 'call_type'}"/>
+                    <filter name="by_created" string="Created" context="{'group_by': 'create_date'}"/>
                 </group>
             </search>
         </field>

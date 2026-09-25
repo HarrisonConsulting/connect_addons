@@ -42,10 +42,12 @@ class Call(models.Model):
             logger.info('Voicemail already in S3, adopted: %s/%s', bucket, key)
             return
         from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
-        # The active provider's credentials, not Twilio's (task 9597).
-        account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
+        # Credentials come from the recording's own provider, resolved by
+        # its host -- never a fixed provider's token sent to another
+        # provider's media host.
+        auth = self.env['connect.settings'].sudo().get_media_auth(self.voicemail_url)
         response = requests.get(
-            self.voicemail_url, auth=(account_sid, auth_token),
+            self.voicemail_url, auth=auth,
             timeout=HTTP_DOWNLOAD_TIMEOUT,
         )
         response.raise_for_status()
@@ -144,10 +146,12 @@ class Call(models.Model):
             audio = base64.b64decode(self.voicemail_attachment_id.sudo().datas)
         else:
             from odoo.addons.connect.models.settings import HTTP_DOWNLOAD_TIMEOUT
-            # The active provider's credentials, not Twilio's (task 9597).
-            account_sid, auth_token = self.env['connect.settings'].sudo()._get_client_credentials()
+            # Credentials come from the recording's own provider, resolved
+            # by its host -- never a fixed provider's token sent to another
+            # provider's media host.
+            auth = self.env['connect.settings'].sudo().get_media_auth(self.voicemail_url)
             resp = requests.get(
-                self.voicemail_url, auth=(account_sid, auth_token),
+                self.voicemail_url, auth=auth,
                 timeout=HTTP_DOWNLOAD_TIMEOUT,
             )
             resp.raise_for_status()

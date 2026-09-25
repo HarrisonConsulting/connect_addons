@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Connect S3 Recording Storage',
-    'version': '19.0.1.3.5',
+    'version': '19.0.1.3.6',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',

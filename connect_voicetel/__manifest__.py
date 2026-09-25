@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '1.2.8',
+    'version': '1.2.9',
     'author': 'Oduist',
     'maintainer': 'Oduist',
     'price': 0,
@@ -17,7 +17,8 @@ VoiceTel provider for Connect
 
 Adds VoiceTel as a telephony provider in Connect settings:
 - VoiceTel-labeled credentials (Account SID, API Key, API Secret, REST host)
-- Routes the Connect REST client to the VoiceML API
+- Serves Twilio's API, webhooks and media on VoiceTel's endpoint
+- Numbers are ported carrier-side, then synced into Connect
 - Browser softphone (SIP.js over WSS) in the same transport registry as Twilio
     """,
     'depends': ['connect', 'connect_twilio'],

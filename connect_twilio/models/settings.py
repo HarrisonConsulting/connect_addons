@@ -103,6 +103,16 @@ class Settings(models.Model):
         return self.sudo().get_param(legacy)
 
     @api.model
+    def _get_client_credentials(self):
+        """Twilio account SID and auth token when Twilio is the selected provider."""
+        if self.sudo().get_param('rest_provider') != 'twilio':
+            return super()._get_client_credentials()
+        return (
+            self._twilio_param('connect_twilio.account_sid', 'account_sid'),
+            self._twilio_param('connect_twilio.auth_token', 'auth_token'),
+        )
+
+    @api.model
     def get_media_auth(self, media_url):
         """Twilio API credentials, and only for Twilio's own hosts.
 

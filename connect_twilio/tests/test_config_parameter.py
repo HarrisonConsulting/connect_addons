@@ -97,3 +97,17 @@ class TestTwilioConfigParameter(TransactionCase):
                 'connect_twilio.verify_requests'),
             'False',
         )
+
+    def test_client_credentials_and_log_context_keep_the_secret_private(self):
+        """Twilio supplies its credentials; the log context names only the account."""
+        settings = self.env['connect.settings'].sudo()
+        icp = self.env['ir.config_parameter'].sudo()
+        settings.set_param('rest_provider', 'twilio')
+        icp.set_param('connect_twilio.account_sid', 'AC123456789')
+        icp.set_param('connect_twilio.auth_token', 'test-secret')
+
+        self.assertEqual(
+            settings._get_client_credentials(), ('AC123456789', 'test-secret'))
+        context = settings._provider_log_context()
+        self.assertEqual(context, 'provider=twilio account=AC123456…')
+        self.assertNotIn('test-secret', context)

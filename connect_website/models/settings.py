@@ -16,10 +16,10 @@ class Settings(models.Model):
     connect_website_enable = fields.Boolean(string="Talk Button Enable")
     # Restrict deleting an extension that is used here.
     connect_website_connect_extension = fields.Many2one(
-        'connect.exten', string='Connect Extension', ondelete='restrict')
+        'connect.twilio.exten', string='Connect Extension', ondelete='restrict')
     # Allow to clear the settings when deleting domain. It's an extra rare operation and user knows what is doing.
     connect_website_connect_domain = fields.Many2one(
-        'connect.domain', string='Connect Domain', ondelete='set null')
+        'connect.twilio.domain', string='Connect Domain', ondelete='set null')
 
     @api.model
     def originate_call(self, number, res_model=None, res_id=None, user=None):

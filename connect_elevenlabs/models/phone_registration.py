@@ -16,7 +16,7 @@ class ElevenlabsPhoneRegistration(models.Model):
     name = fields.Char(required=True, tracking=True, help="Display name for this phone registration")
     active = fields.Boolean(default=True)
     outgoing_callerid_id = fields.Many2one(
-        'connect.outgoing_callerid',
+        'connect.twilio.outgoing_callerid',
         string="Twilio Phone Number",
         required=True,
         ondelete='cascade',

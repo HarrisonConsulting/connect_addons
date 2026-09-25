@@ -42,7 +42,7 @@ class Domain(models.Model):
                 return byoc.default_callerid.number
             elif not callerId and not byoc.default_callerid:
                 debug(self, "Case 2: user's callerid not set. Use system default.")
-                default_number = self.env["connect.outgoing_callerid"].search(
+                default_number = self.env["connect.twilio.outgoing_callerid"].search(
                     [("is_default", "=", True)], limit=1
                 )
                 return default_number.number
@@ -61,7 +61,7 @@ class Domain(models.Model):
             if callerId:
                 return callerId
             else:
-                return self.env["connect.outgoing_callerid"].search(
+                return self.env["connect.twilio.outgoing_callerid"].search(
                     [("is_default", "=", True)], limit=1).number
 
 

@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 {
     "name": "Twilio BYOC",
-    "version": "1.1.3",
+    "version": "1.1.4",
     "author": "Oduist",
     "price": 499,
     "currency": "EUR",

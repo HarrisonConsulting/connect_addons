@@ -314,7 +314,7 @@ class ElevenlabsAgent(models.Model):
     )
 
     # === Telephony Integration ===
-    exten = fields.Many2one("connect.exten", ondelete="set null", readonly=True)
+    exten = fields.Many2one("connect.twilio.exten", ondelete="set null", readonly=True)
     exten_number = fields.Char(related="exten.number", string="Extension")
 
     # === Template & Transfer (upstream architecture) ===
@@ -781,7 +781,7 @@ class ElevenlabsAgent(models.Model):
 
     def create_extension(self):
         self.ensure_one()
-        return self.env["connect.exten"].create_extension(
+        return self.env["connect.twilio.exten"].create_extension(
             self, "elevenlabs_agent"
         )
 
@@ -839,12 +839,12 @@ class ElevenlabsAgent(models.Model):
         channel = self.env["connect.channel"].search(
             [("sid", "=", channel_sid)]
         )
-        exten_rec = self.env["connect.exten"].search(
+        exten_rec = self.env["connect.twilio.exten"].search(
             [("number", "=", str(exten).strip())]
         )
         if not exten_rec:
             # Get all published extensions
-            published_extens = self.env["connect.exten"].search(
+            published_extens = self.env["connect.twilio.exten"].search(
                 [("is_published", "=", True)]
             )
             if published_extens:

@@ -58,7 +58,7 @@ class Call(models.Model):
                 'previous_topics': previous_conversations[0].elevenlabs_summary,
             })
         # Get published extensions for transfer
-        published_extens = self.env['connect.exten'].search([('is_published', '=', True)])
+        published_extens = self.env['connect.twilio.exten'].search([('is_published', '=', True)])
         if published_extens:
             data['available_extensions'] = ', '.join(
                 ['<{}> "{}"'.format(k.number, k.dst.name if k.dst else '') for k in published_extens]

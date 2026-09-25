@@ -115,13 +115,13 @@ class BYOC(models.Model):
     voice_fallback_url = fields.Char(compute="_get_urls")
     voice_status_url = fields.Char(compute="_get_urls")
     connection_policy_sid = fields.Char()
-    app = fields.Many2one("connect.twiml", ondelete="restrict")
+    app = fields.Many2one("connect.twilio.twiml", ondelete="restrict")
     domain_name = fields.Char(compute='_get_byoc_domain')
-    domain = fields.Many2one('connect.domain', compute='_get_byoc_domain')
+    domain = fields.Many2one('connect.twilio.domain', compute='_get_byoc_domain')
     sip_credential_sid = fields.Char()
     sip_username = fields.Char('SIP Username')
     sip_password = fields.Char('SIP password')
-    default_callerid = fields.Many2one('connect.outgoing_callerid', ondelete='set null')
+    default_callerid = fields.Many2one('connect.twilio.outgoing_callerid', ondelete='set null')
     cnam_lookup_enabled = fields.Boolean('CNAM Lookup',
         help='Look up the caller name (CNAM) for inbound calls on this trunk.')
 
@@ -143,7 +143,7 @@ class BYOC(models.Model):
 
     def _get_byoc_domain(self):
         for rec in self:
-            domain = self.env['connect.domain'].search([('byoc', '=', rec.id)], limit=1)
+            domain = self.env['connect.twilio.domain'].search([('byoc', '=', rec.id)], limit=1)
             rec.domain_name = domain.domain_name
             rec.domain = domain
 
@@ -163,7 +163,7 @@ class BYOC(models.Model):
                 else:
                     raise
         # Unlink BYOC domain.
-        self.env['connect.domain'].search(
+        self.env['connect.twilio.domain'].search(
             [('byoc', '=', rec.id)]).with_context(force_delete=True).unlink()
         res = super(BYOC, self).unlink()
         return res
@@ -229,9 +229,9 @@ class BYOC(models.Model):
         client = self.env["connect.settings"].get_client()
         for rec in recs:
             # Get main domain
-            main_domain = self.env['connect.domain'].search([('byoc', '=', False)])[0]
+            main_domain = self.env['connect.twilio.domain'].search([('byoc', '=', False)])[0]
             # Create a new domain
-            self.env['connect.domain'].create({
+            self.env['connect.twilio.domain'].create({
                 'friendly_name': main_domain.friendly_name + ' BYOC {}'.format(rec.id),
                 'subdomain': main_domain.subdomain + '-byoc-{}'.format(rec.id),
                 'byoc': rec.id,
@@ -356,7 +356,7 @@ class BYOC(models.Model):
                         dict(vals, byoc=self.id, target=target.target))
 
     def _import_byoc_domain(self, client, trunk):
-        """Best-effort link to an existing connect.domain by name, so a
+        """Best-effort link to an existing connect.twilio.domain by name, so a
         console-adopted trunk's from_domain_sid survives a later migration
         (create_twilio_byoc() sends self.domain.sid, which is empty without
         this). Never creates a domain record — only links one that's already
@@ -373,13 +373,13 @@ class BYOC(models.Model):
                   'linking.'.format(self.friendly_name, from_domain_sid),
                   level='warning')
             return
-        domain = self.env['connect.domain'].search(
+        domain = self.env['connect.twilio.domain'].search(
             [('domain_name', '=', twilio_domain.domain_name)], limit=1)
         if domain and not domain.byoc:
             domain.with_context(skip_twilio_sync=True).write({'byoc': self.id})
         elif not domain:
             debug(self, 'BYOC trunk {}\'s SIP domain {} has no matching '
-                  'connect.domain record; from_domain_sid will stay unset on '
+                  'connect.twilio.domain record; from_domain_sid will stay unset on '
                   'this trunk until the domain is synced.'.format(
                       self.friendly_name, twilio_domain.domain_name),
                   level='warning')
@@ -428,7 +428,7 @@ class BYOC(models.Model):
         # a mid-migration state or a compat provider without the Voice v1
         # surface than every trunk having been deleted — the alternative
         # unlinks every trunk (cascading its origination URIs) on one SYNC
-        # click (same guard as connect.number).
+        # click (same guard as connect.twilio.number).
         if not trunks:
             return
         trunks_to_remove = self.search([

@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-import logging
-
 from odoo.http import request, Controller, route
-from twilio.request_validator import RequestValidator
-
-logger = logging.getLogger(__name__)
 
 
 class ConnectTwilioController(Controller):
@@ -12,22 +7,6 @@ class ConnectTwilioController(Controller):
     @staticmethod
     def check_signature():
         settings = request.env['connect.settings'].sudo()
-        if not settings.get_param('twilio_verify_requests'):
-            logger.warning(
-                'Twilio request verification is off; rejecting the webhook.')
-            return False
-        auth_token = settings.get_param('auth_token')
-        if not auth_token:
-            logger.warning(
-                'Twilio auth token is missing; rejecting the webhook.')
-            return False
-        signature = request.httprequest.headers.get('X-Twilio-Signature')
-        if not signature:
-            logger.warning(
-                'Twilio signature header is missing; rejecting the webhook.')
-            return False
-        validator = RequestValidator(auth_token)
-        url = request.httprequest.url.replace('http:', 'https:')
         # Twilio signs the request URL -- query string included -- plus the
         # POST body parameters. Odoo merges the query string into the route
         # kwargs, so validating with those counts every query parameter
@@ -39,13 +18,7 @@ class ConnectTwilioController(Controller):
             if request.httprequest.method == 'POST'
             else {}
         )
-        request_valid = validator.validate(url, params, signature)
-        if not request_valid:
-            if request.httprequest.url.startswith('http:'):
-                logger.error('Twilio requires HTTPS to be setup!')
-            else:
-                logger.error('Twilio request is not valid!')
-        return request_valid
+        return settings._validate_twilio_request(request.httprequest, params)
 
     @route('/twilio/webhook/domain', methods=['POST'], type='http', auth='public', csrf=False)
     def domain_webhook(self, **kw):

@@ -19,7 +19,6 @@ import logging
 from twilio.twiml.voice_response import VoiceResponse, Pay, Dial
 
 from odoo.http import Controller, route, request, Response
-from odoo.addons.connect.tools import validate_twilio_request
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class ConnectStripeController(Controller):
         # POST form body only — Twilio docs are explicit that query-string params
         # must not be in the params dict (they're already in the URL).
         body = dict(request.httprequest.form) if request.httprequest.method == 'POST' else {}
-        return validate_twilio_request(settings, request.httprequest, body)
+        return settings._validate_twilio_request(request.httprequest, body)
 
     def _find_payment(self, session_id=None, call_sid=None, states=None):
         env = request.env

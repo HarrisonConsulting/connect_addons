@@ -1,7 +1,6 @@
 import logging
 
 from odoo import models
-from odoo.addons.connect.tools import validate_twilio_request
 from odoo.http import request
 from werkzeug.exceptions import Unauthorized
 
@@ -15,7 +14,7 @@ class IrHttp(models.AbstractModel):
     def _auth_twilio_request(cls):
         settings = request.env['connect.settings'].sudo()
         data = request.httprequest.form.to_dict(flat=True)
-        if not validate_twilio_request(settings, request.httprequest, data):
+        if not settings._validate_twilio_request(request.httprequest, data):
             _logger.warning('Twilio signature rejected')
             raise Unauthorized(description='Invalid Twilio signature')
         cls._auth_method_public()

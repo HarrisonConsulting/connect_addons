@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 {
     'name': 'Connect Stripe Payments',
-    'version': '19.0.2.2.5',
+    'version': '19.0.2.2.6',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
@@ -19,6 +19,7 @@ matching (requires Odoo Enterprise), install `connect_stripe_enterprise`.
     """,
     'depends': [
         'connect',
+        'connect_twilio',
         'account_payment',
         'payment_stripe',
     ],

@@ -5,6 +5,7 @@ from urllib.parse import urljoin, urlparse
 
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
+from twilio.request_validator import RequestValidator
 from twilio.rest import Client
 
 from odoo.addons.connect.models.license import ODUIST_MODULES
@@ -122,6 +123,62 @@ class Settings(models.Model):
         if not (account_sid and auth_token):
             return super().get_media_auth(media_url)
         return (account_sid, auth_token)
+
+    @api.model
+    def _validate_twilio_request(self, httprequest, data):
+        """Validate a Twilio request and fail closed on every missing precondition.
+
+        Every public Twilio webhook controller in the estate shares this
+        policy, so a newly added integration cannot interpret a disabled
+        setting or a missing credential as permission to accept an unsigned
+        request. Callers must pass form-body parameters only, never the
+        merged route kwargs: Twilio signs the full request URL -- query
+        string included -- plus the POST body, so folding the query string
+        into the params a second time makes every URL that carries one fail
+        validation.
+        """
+        settings = self.sudo()
+        if not settings.get_param('twilio_verify_requests'):
+            logger.critical(
+                'SECURITY: Twilio webhook signature verification is '
+                'disabled; rejecting the request.'
+            )
+            return False
+        auth_token = settings._twilio_param(
+            'connect_twilio.auth_token', 'auth_token')
+        if not auth_token:
+            logger.critical(
+                'SECURITY: Twilio webhook signature verification has no '
+                'auth token; rejecting the request.'
+            )
+            return False
+        url = httprequest.url.replace('http:', 'https:', 1)
+        signature = httprequest.headers.get('X-Twilio-Signature', '')
+        try:
+            request_valid = RequestValidator(auth_token).validate(
+                url, data, signature)
+        except Exception:  # malformed input and validator errors fail closed
+            logger.exception(
+                'Twilio signature validation failed unexpectedly for %s',
+                httprequest.path,
+            )
+            return False
+        if not request_valid:
+            if httprequest.url.startswith('http:'):
+                logger.error('Twilio requires HTTPS to be configured.')
+            else:
+                account_sid = settings._twilio_param(
+                    'connect_twilio.account_sid', 'account_sid') or ''
+                logger.error(
+                    'Twilio request signature is invalid for %s; '
+                    'signature_header_present=%s signature_len=%s '
+                    'account=%s…',
+                    httprequest.path,
+                    bool(signature),
+                    len(signature),
+                    account_sid[:8],
+                )
+        return request_valid
 
     @api.model
     def get_client(self):

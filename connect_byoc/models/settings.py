@@ -1,16 +1,9 @@
-from odoo import models, api
+from odoo import models
 from odoo.exceptions import ValidationError
-from ..migrators import BYOCMigrator
 
 
 class Settings(models.Model):
     _inherit = "connect.settings"
-
-    @api.model
-    def _get_account_migrators(self):
-        # After DomainMigrator: trunks bind from_domain_sid and the domain's
-        # credential list, which exist on the target only once domains migrated.
-        return super()._get_account_migrators() + [BYOCMigrator]
 
     def sync(self):
         super().sync()

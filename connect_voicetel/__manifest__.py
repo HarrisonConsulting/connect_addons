@@ -18,7 +18,6 @@ VoiceTel provider for Connect
 Adds VoiceTel as a telephony provider in Connect settings:
 - VoiceTel-labeled credentials (Account SID, API Key, API Secret, REST host)
 - Routes the Connect REST client to the VoiceML API
-- Migration uses Connect's native Migrate Account wizard, no external tooling
 - Browser softphone (SIP.js over WSS) in the same transport registry as Twilio
     """,
     'depends': ['connect', 'connect_twilio'],

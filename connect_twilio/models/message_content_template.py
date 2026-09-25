@@ -43,6 +43,9 @@ WHATSAPP_CATEGORIES = [
 ]
 
 
+_CONTENT_FIELDS = {'friendly_name', 'language', 'variables', 'content_type', 'body', 'actions', 'category'}
+
+
 class ConnectMessageContentTemplate(models.Model):
     _name = 'connect.message_content_template'
     _description = 'WhatsApp Content Template (Twilio Content API)'
@@ -297,12 +300,20 @@ class ConnectMessageContentTemplate(models.Model):
         self.delete_in_twilio()
         return super().unlink()
 
+    def _load_records_write(self, values):
+        """Keep submitted provider content when module data reloads the template."""
+        self.ensure_one()
+        # Precedent: /mnt/19/odoo/odoo/orm/models.py calls this for an existing XMLID.
+        if self.env.context.get('install_mode') and self.status not in ('unsubmitted', 'rejected'):
+            values = {key: value for key, value in values.items() if key not in _CONTENT_FIELDS}
+        return super()._load_records_write(values)
+
     def write(self, vals):
         if self.env.context.get('skip_check') or self.env.context.get('install_mode'):
             return super().write(vals)
         # Prevent changing content unless status is unsubmitted or rejected.
         # Exception: allow changing 'category' when status is 'approved' AND allow_category_change is True.
-        content_fields = {'friendly_name', 'language', 'variables', 'content_type', 'body', 'actions', 'category'}
+        content_fields = _CONTENT_FIELDS
         if any(f in vals for f in content_fields):
             for rec in self:
                 # Non-category fields are always restricted to unsubmitted/rejected

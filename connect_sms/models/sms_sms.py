@@ -56,7 +56,7 @@ class SmsSms(models.Model):
                 if from_number_rec:
                     from_number = from_number_rec.number
             if not from_number:
-                default_callerid = self.env['connect.outgoing_callerid'].sudo().search(
+                default_callerid = self.env['connect.twilio.outgoing_callerid'].sudo().search(
                     [('is_default', '=', True)], limit=1,
                 )
                 from_number = default_callerid.number if default_callerid else ''

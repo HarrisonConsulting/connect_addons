@@ -23,5 +23,5 @@ def _post_init_hook(env):
         _logger.warning(
             'connect_sms: no Twilio credentials in connect.settings, skipping sync'
         )
-    # Sync phone numbers from connect.outgoing_callerid to sms.twilio.number
-    env['connect.outgoing_callerid'].sudo()._sync_to_sms_twilio_numbers()
+    # Sync phone numbers from connect.twilio.outgoing_callerid to sms.twilio.number
+    env['connect.twilio.outgoing_callerid'].sudo()._sync_to_sms_twilio_numbers()

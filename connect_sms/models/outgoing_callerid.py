@@ -16,7 +16,7 @@ class OutgoingCallerID(models.Model):
 
     @api.model
     def _sync_to_sms_twilio_numbers(self):
-        """Populate sms.twilio.number from connect.outgoing_callerid DID numbers.
+        """Populate sms.twilio.number from connect.twilio.outgoing_callerid DID numbers.
 
         Only DID numbers (callerid_type='number') are synced because they are
         actual Twilio incoming phone numbers capable of sending SMS. Plain

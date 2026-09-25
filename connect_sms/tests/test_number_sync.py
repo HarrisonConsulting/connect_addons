@@ -12,7 +12,7 @@ class TestNumberSync(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.CallerID = cls.env['connect.outgoing_callerid']
+        cls.CallerID = cls.env['connect.twilio.outgoing_callerid']
         cls.TwilioNumber = cls.env['sms.twilio.number']
         cls.company = cls.env.company
         cls.company.sudo().write({'sms_provider': 'twilio'})

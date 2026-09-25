@@ -4,9 +4,9 @@
     <record id="connect_stripe_settings_form_inherit" model="ir.ui.view">
         <field name="name">connect_stripe_settings_form_inherit</field>
         <field name="model">connect.settings</field>
-        <field name="inherit_id" ref="connect.connect_settings_form"/>
+        <field name="inherit_id" ref="connect_twilio.connect_settings_form_twilio"/>
         <field name="arch" type="xml">
-            <page name="keys" position="after">
+            <page name="twilio_api" position="after">
                 <page name="stripe" string="Stripe">
                     <separator string="Stripe Phone Payments"/>
 

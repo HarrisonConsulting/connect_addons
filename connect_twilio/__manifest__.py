@@ -1,0 +1,60 @@
+{
+    'name': 'Oduist Connect Twilio',
+    'version': '19.0.2.4.1',
+    'author': 'Oduist',
+    'category': 'Phone',
+    'summary': 'Twilio integration for Oduist Connect',
+    'depends': ['connect'],
+    'external_dependencies': {
+        'python': ['twilio'],
+    },
+    'data': [
+        'security/access_rules.xml',
+        'views/menu.xml',
+        'views/settings_views.xml',
+        'views/twiml_views.xml',
+        'views/domain_views.xml',
+        'views/user_views.xml',
+        'views/exten_views.xml',
+        'views/callflow_views.xml',
+        'views/number_views.xml',
+        'views/call_views.xml',
+        'views/message_views.xml',
+        'views/message_configuration_views.xml',
+        'views/outgoing_callerid_views.xml',
+        'views/whatsapp_sender_views.xml',
+        'views/message_content_template_views.xml',
+        'wizard/whatsapp_composer_views.xml',
+        'wizard/sms_composer_views.xml',
+        'data/twiml.xml',
+        'data/ir_cron.xml',
+        'data/whatsapp_templates.xml',
+    ],
+    'assets': {
+        'web.assets_backend': [
+            'connect_twilio/static/src/icomoon/style.css',
+            'connect_twilio/static/src/components/phone/*/*',
+            'connect_twilio/static/src/js/main.js',
+            'connect_twilio/static/src/js/utils.js',
+            'connect_twilio/static/src/widgets/phone_field/*',
+            'connect_twilio/static/src/services/actions/*',
+            'connect_twilio/static/src/services/errors/*',
+            'connect_twilio/static/src/services/mail/*',
+            # The globs above would otherwise sweep the dark overrides into
+            # the light bundle and darken the panel for everyone.
+            ('remove', 'connect_twilio/static/src/**/*.dark.scss'),
+        ],
+        # Odoo serves this bundle instead of web.assets_web when the user's
+        # colour scheme is dark; it includes the light one first, so these
+        # files are pure overrides. The softphone follows the backend theme
+        # with no toggle of its own.
+        'web.assets_web_dark': [
+            'connect_twilio/static/src/**/*.dark.scss',
+        ],
+    },
+    'post_init_hook': 'post_init_hook',
+    'images': ['static/description/icon.png'],
+    'installable': True,
+    'application': False,
+    'license': 'Other proprietary',
+}

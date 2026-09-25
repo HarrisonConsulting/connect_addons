@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record model="ir.actions.server" id="connect_settings_action">
+        <field name="type">ir.actions.server</field>
+        <field name="name">General Settings</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="model_connect_settings"/>
+        <field name="code">action = model.open_settings_form()</field>
+    </record>
+
+    <menuitem id="menu_connect_settings_general"
+              name="Settings"
+              parent="menu_connect_settings"
+              action="connect_settings_action"
+              groups="connect.group_admin"
+              sequence="10"/>
+
+    <record id="connect_settings_form" model="ir.ui.view">
+        <field name="name">connect.settings.form</field>
+        <field name="model">connect.settings</field>
+        <field name="type">form</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <sheet>
+                    <notebook>
+                        <page name="general" string="General">
+                            <group>
+                                <group string="Call Settings">
+                                    <field name="debug_mode"/>
+                                    <field name="number_search_operation"/>
+                                    <field name="proxy_recordings"/>
+                                </group>
+                                <group string="API">
+                                    <field name="api_url" readonly="1"/>
+                                    <field name="web_base_url" readonly="1"/>
+                                    <field name="instance_uid" readonly="1"/>
+                                    <field name="call_duration_limit" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page name="transcription" string="Transcription">
+                            <group>
+                                <group string="Transcription Settings">
+                                    <field name="transcript_calls"/>
+                                    <field name="delete_recording_after_transcription"/>
+                                    <field name="transcript_provider"/>
+                                    <field name="register_summary"/>
+                                </group>
+                                <group string="OpenAI">
+                                    <field name="display_openai_api_key" string="API Key"/>
+                                    <field name="openai_summary_model" string="Summary Model"/>
+                                </group>
+                            </group>
+                            <group string="Summary Prompt">
+                                <field name="summary_prompt" nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

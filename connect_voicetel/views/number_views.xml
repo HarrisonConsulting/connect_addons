@@ -46,6 +46,7 @@
         <field name="name">Numbers</field>
         <field name="res_model">connect.voicetel.number</field>
         <field name="view_mode">list,form</field>
+        <field name="path">voicetel-number</field>
     </record>
 
     <menuitem id="menu_voicetel_numbers"

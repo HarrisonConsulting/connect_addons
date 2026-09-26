@@ -40,6 +40,7 @@
         <field name="name">Caller IDs</field>
         <field name="res_model">connect.voicetel.outgoing_callerid</field>
         <field name="view_mode">list,form</field>
+        <field name="path">voicetel-outgoing-callerid</field>
     </record>
 
     <menuitem id="menu_voicetel_outgoing_callerids"

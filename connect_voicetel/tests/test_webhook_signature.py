@@ -8,12 +8,13 @@ webhook validation accepts — even though connect_voicetel never imports the
 ``twilio`` package itself.
 """
 
-import unittest
 
 from odoo.addons.connect_voicetel.models import webhook
+from odoo.tests import TransactionCase, tagged
 
 
-class TestWebhookSignature(unittest.TestCase):
+@tagged('post_install', '-at_install')
+class TestWebhookSignature(TransactionCase):
 
     def test_canonical_twilio_example(self):
         # Twilio's documented "Validating requests" example, verified against
@@ -68,6 +69,3 @@ class TestWebhookSignature(unittest.TestCase):
             'https://example.com/x',
         )
 
-
-if __name__ == '__main__':
-    unittest.main()

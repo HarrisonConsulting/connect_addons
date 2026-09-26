@@ -43,8 +43,12 @@ class TestNumberRouting(TransactionCase):
         })
         xml = self.env['connect.voicetel.number'].route_call({
             'Called': '+18005551234',
+            'To': '+18005551234',
+            'Caller': '+15551234567',
+            'From': '+15551234567',
             'CallSid': 'CAtest1',
-            'CallStatus': 'completed',
+            'CallStatus': 'ringing',
+            'CallDuration': '0',
             'Direction': 'inbound',
         })
         self.assertIn('<Hangup', xml)

@@ -11,7 +11,7 @@ form-encoded field names. No live VoiceTel account, no Odoo database.
 
 This is the connect_voicetel port of the standalone script the source
 branch shipped as tools/rest_contract.py: a runnable script is not a test a
-gate can run, so this is a unittest.TestCase colocated with the module
+gate can run, so this is a TransactionCase colocated with the module
 instead, scoped to exactly the calls this module's ported code makes (it
 drops the source script's routes_v2 assertions — nothing in this module
 calls client.routes_v2).
@@ -19,18 +19,14 @@ calls client.routes_v2).
 
 import base64
 import threading
-import unittest
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
 
-try:
-    from voiceml import Client
-    from voiceml.models import CreateApplicationRequest, CreateCallRequest
-    VOICEML_AVAILABLE = True
-except ImportError:
-    VOICEML_AVAILABLE = False
+from voiceml import Client
+from voiceml.models import CreateApplicationRequest, CreateCallRequest
+from odoo.tests import TransactionCase, tagged
 
 ACCOUNT_SID = 'AC_TEST_ACCOUNT_SID'
 API_KEY = 'test-api-key'
@@ -94,8 +90,8 @@ def _parse_form(body):
     return urllib.parse.parse_qs(body)
 
 
-@unittest.skipUnless(VOICEML_AVAILABLE, 'voiceml package not importable in this environment')
-class TestVoicetelRestContract(unittest.TestCase):
+@tagged('post_install', '-at_install')
+class TestVoicetelRestContract(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
@@ -271,6 +267,3 @@ class TestVoicetelRestContract(unittest.TestCase):
         self.assertIsNotNone(self._find(
             self.root + '/OutgoingCallerIds/{}.json'.format(SIDS['ocid']), 'DELETE'))
 
-
-if __name__ == '__main__':
-    unittest.main()

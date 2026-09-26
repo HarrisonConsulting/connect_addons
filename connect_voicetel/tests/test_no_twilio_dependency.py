@@ -14,9 +14,9 @@ this file's own source.
 
 import ast
 import os
-import unittest
 
 import odoo.addons.connect_voicetel as connect_voicetel
+from odoo.tests import TransactionCase, tagged
 
 FORBIDDEN = ('connect_twilio', 'connect.twilio')
 SCANNED_DIRS = ('controllers', 'data', 'migrations', 'models', 'security', 'views')
@@ -60,7 +60,8 @@ def _find_live_references(source, path):
     return offenses
 
 
-class TestNoTwilioDependency(unittest.TestCase):
+@tagged('post_install', '-at_install')
+class TestNoTwilioDependency(TransactionCase):
 
     def test_no_python_file_imports_or_references_connect_twilio(self):
         root = os.path.dirname(connect_voicetel.__file__)
@@ -90,6 +91,3 @@ class TestNoTwilioDependency(unittest.TestCase):
             manifest_dict = ast.literal_eval(f.read())
         self.assertEqual(manifest_dict.get('depends'), ['connect'])
 
-
-if __name__ == '__main__':
-    unittest.main()

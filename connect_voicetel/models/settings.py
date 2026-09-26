@@ -42,7 +42,7 @@ class VoicetelSettings(models.Model):
     _inherit = 'connect.settings'
 
     voicetel_account_sid = fields.Char(
-        string='Account SID',
+        string='VoiceTel Account SID',
         help="Account SID from your VoiceTel account; identifies your "
              "account on the VoiceML REST API.")
     # Never grant this to connect.group_webhook: the webhook user is the

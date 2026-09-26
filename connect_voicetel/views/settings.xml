@@ -1,27 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="connect_settings_form_voicetel" model="ir.ui.view">
+        <field name="name">connect.settings.form.voicetel</field>
+        <field name="model">connect.settings</field>
+        <field name="inherit_id" eval="False"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <sheet>
+                    <notebook>
+                        <page name="voicetel_api" string="VoiceTel API">
+                            <group>
+                                <group string="VoiceTel Credentials" name="voicetel_api">
+                                    <div colspan="2">
+                                        <small>Enter the Account SID and API key from your
+                                            VoiceTel account. The API key is both the VoiceML
+                                            SDK auth token and the webhook signature key —
+                                            VoiceTel issues no separate webhook secret.</small>
+                                    </div>
+                                    <field name="voicetel_account_sid" string="Account SID"/>
+                                    <field name="display_voicetel_api_key" string="API Key" password="1"/>
+                                    <field name="voicetel_rest_host" string="REST API Host"/>
+                                    <field name="voicetel_wss_url" string="WebRTC WSS URL"/>
+                                    <field name="voicetel_auto_sync" groups="base.group_no_one"/>
+                                    <button colspan="2" name="sync_voicetel" type="object"
+                                            string="SYNC VOICETEL ACCOUNT" class="btn btn-primary"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Development" groups="base.group_no_one" name="voicetel_dev">
+                            <group>
+                                <group>
+                                    <field name="voicetel_verify_requests"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
 
-  <record id="connect_voicetel_settings_form" model="ir.ui.view">
-    <field name="name">connect_voicetel_settings_form</field>
-    <field name="model">connect.settings</field>
-    <field name="inherit_id" ref="connect_twilio.connect_settings_form_twilio"/>
-    <field name="arch" type="xml">
-      <xpath expr="//group[@name='twilio_api']" position="attributes">
-        <attribute name="invisible">rest_provider == 'voicetel'</attribute>
-      </xpath>
-      <xpath expr="//group[@name='twilio_api']" position="after">
-        <group string="VoiceTel" name="voicetel_api" invisible="rest_provider != 'voicetel'">
-          <div colspan="2">
-            <small><strong>Enter the credentials from your VoiceTel account. No Twilio region, edge or API Key SID needed.</strong></small>
-          </div>
-          <field name="voicetel_account_sid" string="Account SID"/>
-          <field name="display_voicetel_api_key" string="API Key" password="1"/>
-          <field name="display_voicetel_api_secret" string="API Secret" password="1"/>
-          <field name="voicetel_rest_host" string="REST API Host"/>
-          <button colspan="2" name="sync" type="object" string="SYNC VOICETEL ACCOUNT" class="btn btn-primary"/>
-        </group>
-      </xpath>
-    </field>
-  </record>
+    <record model="ir.actions.server" id="voicetel_settings_action">
+        <field name="type">ir.actions.server</field>
+        <field name="name">VoiceTel Settings</field>
+        <field name="model_id" ref="connect.model_connect_settings"/>
+        <field name="binding_model_id" ref="connect.model_connect_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model.open_settings_form('connect_voicetel.connect_settings_form_voicetel', 'VoiceTel Settings')</field>
+    </record>
 
+    <menuitem id="menu_voicetel_settings"
+              name="Settings"
+              parent="menu_voicetel_config"
+              action="voicetel_settings_action"
+              sequence="10"/>
 </odoo>

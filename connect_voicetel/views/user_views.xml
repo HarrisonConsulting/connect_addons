@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_connect_user_voicetel_list" model="ir.ui.view">
+        <field name="name">connect.user.voicetel.list</field>
+        <field name="model">connect.user</field>
+        <field name="inherit_id" ref="connect.view_connect_user_tree"/>
+        <field name="arch" type="xml">
+            <field name="user" position="after">
+                <field name="voicetel_exten_number"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_connect_user_voicetel_form" model="ir.ui.view">
+        <field name="name">connect.user.voicetel.form</field>
+        <field name="model">connect.user</field>
+        <field name="inherit_id" ref="connect.view_connect_user_form"/>
+        <field name="arch" type="xml">
+            <notebook position="inside">
+                <page name="voicetel" string="VoiceTel">
+                    <group>
+                        <group string="SIP / Web Phone">
+                            <field name="voicetel_sip_enabled"/>
+                            <field name="voicetel_client_enabled"/>
+                            <field name="voicetel_username"/>
+                            <field name="voicetel_domain"/>
+                            <field name="voicetel_password" password="1"/>
+                            <field name="voicetel_uri"/>
+                            <field name="voicetel_application"/>
+                            <field name="voicetel_sip_ring_timeout"/>
+                            <field name="voicetel_client_ring_timeout"/>
+                        </group>
+                        <group string="Caller ID">
+                            <field name="voicetel_outgoing_callerid"/>
+                        </group>
+                    </group>
+                </page>
+            </notebook>
+        </field>
+    </record>
+</odoo>

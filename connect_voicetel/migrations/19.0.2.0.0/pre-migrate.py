@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """connect_voicetel 19.0.2.0.0 — standalone provider.
 
-Three forward-only, idempotent moves, each guarded so a re-run is a no-op:
+Four forward-only, idempotent moves, each guarded so a re-run is a no-op:
 
 1. The old settings screen stored its account under
    ``ir.config_parameter`` keys (``connect_voicetel.account_sid`` etc, the
@@ -17,6 +17,9 @@ Three forward-only, idempotent moves, each guarded so a re-run is a no-op:
    ``ir_model``, ``ir_model_fields`` and their ``ir_model_data`` xmlids move
    from ``connect.user_browser_credential`` to
    ``connect.voicetel.browser_credential`` in lockstep.
+4. Existing users were served by Twilio, the only provider until now; their
+   empty click-to-call and messaging choices become ``twilio`` so adding
+   VoiceTel's key does not make them ambiguous.
 """
 
 _ICP_COPIES = (
@@ -105,7 +108,28 @@ def _rename_browser_credential_model(cr):
          'field_' + _OLD_MODEL.replace('.', '_') + '__%'))
 
 
+def _pin_existing_users_to_twilio(cr):
+    """Installing VoiceTel beside Twilio makes the provider choice explicit.
+
+    Until now Twilio was the only click-to-call and messaging provider, so an
+    empty choice meant Twilio. With VoiceTel's key added, an empty choice
+    becomes ambiguous and click-to-call refuses to guess. Every existing
+    user was served by Twilio, so record that.
+    """
+    cr.execute(
+        "SELECT 1 FROM ir_module_module"
+        " WHERE name = 'connect_twilio' AND state = 'installed'")
+    if not cr.fetchone():
+        return
+    for column in ('originate_provider', 'message_provider'):
+        if _column_exists(cr, 'connect_user', column):
+            cr.execute(
+                "UPDATE connect_user SET {} = 'twilio'"
+                " WHERE {} IS NULL".format(column, column))
+
+
 def migrate(cr, version):
     _migrate_icp_credentials(cr)
     _drop_api_secret_columns(cr)
     _rename_browser_credential_model(cr)
+    _pin_existing_users_to_twilio(cr)

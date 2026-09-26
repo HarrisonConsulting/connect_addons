@@ -214,6 +214,7 @@ class TestGetClientToken(ConnectTestCase):
             'username': 'tokenuser',
             'domain': cls.domain.id,
             'client_enabled': True,
+            'originate_provider': 'twilio',
             'user': cls.env.user.id,
         })
         # Token issuance is gated on connect group membership

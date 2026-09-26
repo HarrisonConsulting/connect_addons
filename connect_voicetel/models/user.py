@@ -302,21 +302,13 @@ class VoicetelUser(models.Model):
 
     @api.model
     def get_client_token(self, nonce=False):
-        """The browser softphone's provider credential — the single RPC
-        entry point every provider hangs off (see connect/static/src/
-        components/phone/phone.js). connect_twilio defines this same method
-        with no super() call of its own, so this only takes over for a
-        VoiceTel-configured user and otherwise defers up the MRO — falling
-        back to {'token': False} rather than crashing when no other
-        provider module is installed at all.
-        """
+        """The browser phone's VoiceTel SIP credential for a VoiceTel user."""
+        if self._get_phone_provider() != 'voicetel':
+            return super().get_client_token(nonce)
         user = self.search([('user', '=', self.env.user.id)], limit=1)
-        if user and user.voicetel_client_enabled and user.voicetel_username and user.voicetel_domain:
-            return user._get_voicetel_client_token(nonce)
-        parent = super()
-        if hasattr(parent, 'get_client_token'):
-            return parent.get_client_token(nonce)
-        return {'token': False}
+        if not (user.voicetel_client_enabled and user.voicetel_username and user.voicetel_domain):
+            return {'token': False}
+        return user._get_voicetel_client_token(nonce)
 
     def _get_voicetel_client_token(self, nonce=False):
         """Mint (or rotate) this browser tab's VoiceTel SIP credential.

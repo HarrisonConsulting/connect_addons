@@ -700,6 +700,8 @@ class User(models.Model):
         it with every request; a Twilio token is minted per user, not per tab,
         so it is accepted and not used here.
         """
+        if self._get_phone_provider() != 'twilio':
+            return super().get_client_token(nonce)
         try:
             has_user_group = self.env.user.has_group(
                 'connect.group_user'

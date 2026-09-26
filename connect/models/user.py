@@ -49,6 +49,29 @@ class User(models.Model):
         help='Messaging module used to send SMS/WhatsApp for this user. '
              'Leave empty when only one messaging module is installed.')
 
+    @api.model
+    def _get_phone_provider(self):
+        """Provider key whose browser phone serves the current user.
+
+        The user's click-to-call provider, or the only installed one. False
+        when several are installed and the user has none selected, so the
+        phone stays offline instead of guessing.
+        """
+        connect_user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
+        if connect_user.originate_provider:
+            return connect_user.originate_provider
+        options = self._fields['originate_provider'].get_values(self.env)
+        return options[0] if len(options) == 1 else False
+
+    @api.model
+    def get_client_token(self, nonce=False):
+        """The browser phone's credential for the current user's provider.
+
+        Provider modules override this: they answer when _get_phone_provider()
+        returns their key, otherwise they fall through to super().
+        """
+        return {'token': False}
+
     if release.version_info[0] >= 19:
         _user_uniq = Constraint('UNIQUE("user")', 'This Odoo user account is already defined!')
     else:

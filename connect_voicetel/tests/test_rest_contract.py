@@ -169,8 +169,8 @@ class TestVoicetelRestContract(unittest.TestCase):
         _call(lambda: client.sip.domains.auth.calls.credential_list_mappings(
             SIDS['domain']).create(credential_list_sid=SIDS['cred_list']))
 
-        # models/user.py: _create_sip_account() / _update_sip_password() /
-        # delete_sip_account() / _get_voicetel_client_token()
+        # models/user.py: _create_voicetel_sip_account() / _update_voicetel_sip_password() /
+        # delete_voicetel_sip_account() / _get_voicetel_client_token()
         _call(lambda: client.sip.credential_lists.credentials(SIDS['cred_list']).create(
             username='1001', password='s3cret-pass'))
         _call(lambda: client.sip.credential_lists.credentials(SIDS['cred_list']).update(

@@ -201,10 +201,10 @@ class VoicetelSettings(models.Model):
                     'Check your API key!')
             raise
 
-    def compute_sip_uri(self, user):
+    def compute_voicetel_sip_uri(self, user):
         return 'sip:{}'.format(user.connect_user.voicetel_uri)
 
-    def get_external_call_route(self, number, callerId, status_url):
+    def get_voicetel_external_call_route(self, number, callerId, status_url):
         call_duration_limit = int(self.sudo().get_param('call_duration_limit'))
         response = VoiceResponse()
         dial = response.append(Dial(callerId=callerId, timeLimit=call_duration_limit))
@@ -240,7 +240,7 @@ class VoicetelSettings(models.Model):
             user = self.env.user
         if not user.connect_user:
             raise ValidationError('User does not have a SIP username defined!')
-        to = self.compute_sip_uri(user)
+        to = self.compute_voicetel_sip_uri(user)
         exten = self.env['connect.voicetel.exten'].search(
             [('number', '=', number)], limit=1)
         status_url = self._webhook_url('voicetel/webhook/callstatus')
@@ -253,7 +253,7 @@ class VoicetelSettings(models.Model):
             callerId = (
                 user.connect_user.voicetel_outgoing_callerid.number
                 or default_number.number)
-            twiml = self.get_external_call_route(number, callerId, status_url)
+            twiml = self.get_voicetel_external_call_route(number, callerId, status_url)
         debug(self, 'Originate destination VoiceTel XML: {}'.format(twiml))
         record = self.calls_are_recorded(user=user.connect_user)
         record_status_url = self._webhook_url('voicetel/webhook/recordingstatus')

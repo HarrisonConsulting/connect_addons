@@ -179,7 +179,7 @@ class VoicetelUser(models.Model):
         random.shuffle(password_chars)
         return ''.join(password_chars)
 
-    def _create_sip_account(self, username, password, client=None):
+    def _create_voicetel_sip_account(self, username, password, client=None):
         self.ensure_one()
         try:
             client = client or self.env['connect.settings']._voicetel_client()
@@ -192,7 +192,7 @@ class VoicetelUser(models.Model):
         except Exception as e:
             raise ValidationError(format_connect_response(str(e)))
 
-    def _update_sip_password(self, password):
+    def _update_voicetel_sip_password(self, password):
         self.ensure_one()
         if not self.voicetel_sid:
             return
@@ -204,7 +204,7 @@ class VoicetelUser(models.Model):
         except Exception as e:
             raise ValidationError(format_connect_response(str(e)))
 
-    def delete_sip_account(self):
+    def delete_voicetel_sip_account(self):
         self.ensure_one()
         if not self.voicetel_sid:
             return
@@ -224,7 +224,7 @@ class VoicetelUser(models.Model):
                 try:
                     if rec.voicetel_sip_enabled and rec.voicetel_password:
                         if not self.env.context.get('skip_create_credential'):
-                            rec.voicetel_sid = rec._create_sip_account(
+                            rec.voicetel_sid = rec._create_voicetel_sip_account(
                                 username=rec.voicetel_username, password=rec.voicetel_password)
                 except Exception as e:
                     raise ValidationError(format_connect_response(str(e)))
@@ -240,16 +240,16 @@ class VoicetelUser(models.Model):
         for rec in self:
             if vals.get('voicetel_password') and self.env['connect.settings'].get_param('voicetel_auto_sync'):
                 if rec.voicetel_sid:
-                    rec._update_sip_password(vals['voicetel_password'])
+                    rec._update_voicetel_sip_password(vals['voicetel_password'])
                 else:
-                    vals['voicetel_sid'] = rec._create_sip_account(
+                    vals['voicetel_sid'] = rec._create_voicetel_sip_account(
                         rec.voicetel_username, vals['voicetel_password'])
         return super().write(vals)
 
     def unlink(self):
         for rec in self:
             if self.env['connect.settings'].get_param('voicetel_auto_sync'):
-                rec.delete_sip_account()
+                rec.delete_voicetel_sip_account()
         return super().unlink()
 
     # --- Rendering (call-control XML for VoiceTel) ---
@@ -260,14 +260,6 @@ class VoicetelUser(models.Model):
     # would fully replace the other's — silently breaking every user of
     # whichever provider lost. Every VoiceTel call site below invokes this
     # name explicitly, so it can never be shadowed by another provider.
-
-    def _get_caller_id(self, request, params):
-        caller_user = self.env['connect.user'].get_user_by_uri(request.get('Caller'))
-        return caller_user.voicetel_caller_id() if caller_user else request.get('Caller')
-
-    def _get_caller_name(self, request, params):
-        caller_user = self.env['connect.user'].get_user_by_uri(request.get('Caller'))
-        return params.get('CallerName') or (caller_user.name if caller_user else '')
 
     def get_voicetel_greeting_message(self, response):
         if self.greeting_message:
@@ -353,12 +345,12 @@ class VoicetelUser(models.Model):
                     existing.sid).update(password=password)
             except Exception as e:
                 if 'not found' in str(e):
-                    sid = self._create_sip_account(username, password, client=client)
+                    sid = self._create_voicetel_sip_account(username, password, client=client)
                     existing.write({'sid': sid})
                 else:
                     raise ValidationError(format_connect_response(e))
         else:
-            sid = self._create_sip_account(username, password, client=client)
+            sid = self._create_voicetel_sip_account(username, password, client=client)
             Credential.create({'user': self.id, 'nonce': nonce_key, 'sid': sid})
             self._prune_browser_credentials(client)
         return {

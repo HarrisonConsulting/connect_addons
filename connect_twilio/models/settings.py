@@ -5,7 +5,6 @@ from urllib.parse import urljoin, urlparse
 
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
-from twilio.http.http_client import TwilioHttpClient
 from twilio.request_validator import RequestValidator
 from twilio.rest import Client
 
@@ -18,28 +17,6 @@ ODUIST_MODULES.append('connect_twilio')
 logger = logging.getLogger(__name__)
 
 TWILIO_LOG_LEVEL = logging.WARNING
-
-
-def _is_twilio_host(host):
-    return host == 'twilio.com' or host.endswith('.twilio.com')
-
-
-class ProviderHttpClient(TwilioHttpClient):
-    """Send every Twilio API request to a Twilio-compatible provider host.
-
-    The provider serves Twilio's API unchanged, so only the hostname moves;
-    scheme, path and query stay exactly as the Twilio SDK built them.
-    """
-
-    def __init__(self, host, **kwargs):
-        super().__init__(**kwargs)
-        self.provider_host = host
-
-    def request(self, method, url, *args, **kwargs):
-        parsed = urlparse(url)
-        if _is_twilio_host((parsed.hostname or '').lower()):
-            url = parsed._replace(scheme='https', netloc=self.provider_host).geturl()
-        return super().request(method, url, *args, **kwargs)
 
 MAX_EXTEN_LEN = 4
 
@@ -137,28 +114,15 @@ class Settings(models.Model):
         and the proxy logs the upstream status).
         """
         host = (urlparse(media_url or '').hostname or '').lower()
-        provider_host = (self._get_rest_api_host() or '').lower()
-        on_provider = provider_host and (
-            host == provider_host or host.endswith('.' + provider_host))
-        if not (on_provider or _is_twilio_host(host)):
+        if host != 'twilio.com' and not host.endswith('.twilio.com'):
             return super().get_media_auth(media_url)
-        account_sid, auth_token = self._get_client_credentials()
+        account_sid = self._twilio_param(
+            'connect_twilio.account_sid', 'account_sid')
+        auth_token = self._twilio_param(
+            'connect_twilio.auth_token', 'auth_token')
         if not (account_sid and auth_token):
             return super().get_media_auth(media_url)
         return (account_sid, auth_token)
-
-    @api.model
-    def _get_client_credentials(self):
-        """(account SID, auth token) for the active telephony provider."""
-        return (
-            self._twilio_param('connect_twilio.account_sid', 'account_sid'),
-            self._twilio_param('connect_twilio.auth_token', 'auth_token'),
-        )
-
-    @api.model
-    def _get_rest_api_host(self):
-        """Hostname of a Twilio-compatible provider, or False for Twilio."""
-        return (self.sudo().get_param('rest_api_host') or '').strip() or False
 
     @api.model
     def _validate_twilio_request(self, httprequest, data):
@@ -180,7 +144,8 @@ class Settings(models.Model):
                 'disabled; rejecting the request.'
             )
             return False
-        account_sid, auth_token = settings._get_client_credentials()
+        auth_token = settings._twilio_param(
+            'connect_twilio.auth_token', 'auth_token')
         if not auth_token:
             logger.critical(
                 'SECURITY: Twilio webhook signature verification has no '
@@ -202,7 +167,8 @@ class Settings(models.Model):
             if httprequest.url.startswith('http:'):
                 logger.error('Twilio requires HTTPS to be configured.')
             else:
-                account_sid = account_sid or ''
+                account_sid = settings._twilio_param(
+                    'connect_twilio.account_sid', 'account_sid') or ''
                 logger.error(
                     'Twilio request signature is invalid for %s; '
                     'signature_header_present=%s signature_len=%s '
@@ -217,14 +183,12 @@ class Settings(models.Model):
     @api.model
     def get_client(self):
         try:
-            # connect.settings is admin-only. The credential hooks read with
-            # sudo, so no caller-level model access check is needed here.
-            account_sid, auth_token = self._get_client_credentials()
-            host = self._get_rest_api_host()
-            if host:
-                return Client(
-                    account_sid, auth_token,
-                    http_client=ProviderHttpClient(host, logger=logger))
+            # connect.settings is admin-only. _twilio_param reads with sudo,
+            # so no caller-level model access check is needed here.
+            account_sid = self._twilio_param(
+                "connect_twilio.account_sid", "account_sid")
+            auth_token = self._twilio_param(
+                "connect_twilio.auth_token", "auth_token")
             client = Client(account_sid, auth_token)
             twilio_region = self._twilio_param(
                 "connect_twilio.region", "twilio_region")
@@ -238,12 +202,15 @@ class Settings(models.Model):
             return client
         except Exception as e:
             if "Credentials are required" in str(e):
-                raise ValidationError("Set the provider API credentials first!")
+                raise ValidationError("Set Twilio API keys first!")
             else:
                 raise
 
     def sync(self):
-        if not all(self._get_client_credentials()):
+        if not (
+            self._twilio_param("connect_twilio.account_sid", "account_sid")
+            and self._twilio_param("connect_twilio.auth_token", "auth_token")
+        ):
             raise ValidationError("You must set account SID and Auth token!")
         api_url_check = self.check_api_url()
         if api_url_check:
@@ -255,12 +222,11 @@ class Settings(models.Model):
             self.env["connect.twilio.outgoing_callerid"].sync()
             self.env["connect.whatsapp_sender"].sync()
             self.env["connect.message_content_template"].sync()
-            self.connect_notify("Account synced successfully", title="Sync Complete")
+            self.connect_notify("Twilio account synced successfully", title="Sync Complete")
         except Exception as e:
             if 'errors/20003' in str(e):
                 raise ValidationError(
-                    'Error authenticating requests to the provider API! '
-                    'Check your account SID and auth token!'
+                    'Error authenticating requests to the Twilio API! Check your Auth Key!'
                 )
             else:
                 raise

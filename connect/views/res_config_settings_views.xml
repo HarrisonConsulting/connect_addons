@@ -15,7 +15,7 @@
                         <setting string="Twilio" help="Calls, numbers, and the browser phone.">
                             <field name="module_connect_twilio"/>
                         </setting>
-                        <setting string="VoiceTel" help="The Twilio API, connected to VoiceTel.">
+                        <setting string="VoiceTel" help="Calls, numbers, and the browser phone, on VoiceTel's own account.">
                             <field name="module_connect_voicetel"/>
                         </setting>
                         <setting string="Bring your own carrier" help="Your carrier, on top of Twilio.">

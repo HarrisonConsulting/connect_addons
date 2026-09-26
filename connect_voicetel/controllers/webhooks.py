@@ -31,7 +31,7 @@ class ConnectVoicetelController(Controller):
     @route('/voicetel/webhook/callstatus', methods=['POST'], type='http', auth='public', csrf=False)
     def callstatus_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         res = request.env['connect.call'].with_user(
             request.env.ref('connect.user_connect_webhook')).on_call_status_voicetel(kw)
         return '{}'.format(res)
@@ -47,7 +47,7 @@ class ConnectVoicetelController(Controller):
     @route('/voicetel/webhook/outgoing_callerid', methods=['POST'], type='http', auth='public', csrf=False)
     def outgoing_callerid_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         outgoing_callerid = request.env['connect.voicetel.outgoing_callerid'].with_user(
             request.env.ref('connect.user_connect_webhook'))
         return '{}'.format(outgoing_callerid.update_status(kw))
@@ -78,7 +78,7 @@ class ConnectVoicetelController(Controller):
     @route('/voicetel/webhook/recordingstatus', methods=['POST'], type='http', auth='public', csrf=False)
     def recording_status_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         recording = request.env['connect.recording'].with_user(request.env.ref('connect.user_connect_webhook'))
         return '{}'.format(recording.on_recording_status_voicetel(kw))
 
@@ -107,7 +107,7 @@ class ConnectVoicetelController(Controller):
     @route('/voicetel/webhook/message_status', methods=['POST'], type='http', auth='public', csrf=False)
     def message_status_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         request.env['connect.message'].with_user(
             request.env.ref('connect.user_connect_webhook')).receive_voicetel(kw)
         return 'OK'

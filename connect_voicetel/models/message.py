@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 
-from odoo import models, fields, api, SUPERUSER_ID
+from odoo import models, api, SUPERUSER_ID
 from odoo.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -9,9 +9,6 @@ logger = logging.getLogger(__name__)
 
 class VoicetelMessage(models.Model):
     _inherit = 'connect.message'
-
-    account_sid = fields.Char('Account SID')
-    messaging_service_sid = fields.Char('Messaging Service SID')
 
     @api.model
     def _own_numbers(self):
@@ -70,7 +67,6 @@ class VoicetelMessage(models.Model):
         partner = self.env['res.partner'].get_partner_by_number(recipient)
         self.env['connect.message'].sudo().create({
             'message_sid': message.sid,
-            'account_sid': getattr(message, 'account_sid', ''),
             'from_number': sender,
             'to_number': recipient,
             'body': body,

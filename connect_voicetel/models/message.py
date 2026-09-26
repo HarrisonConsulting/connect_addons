@@ -10,27 +10,14 @@ logger = logging.getLogger(__name__)
 class VoicetelMessage(models.Model):
     _inherit = 'connect.message'
 
-    message_sid = fields.Char('Message SID')
     account_sid = fields.Char('Account SID')
     messaging_service_sid = fields.Char('Messaging Service SID')
 
-    # _compute_direction cannot be namespaced — it must keep the exact name
-    # the 'direction' field's compute= names in connect/models/message.py.
-    # connect_twilio overrides the same method the same way (checking its
-    # own number tables, not this module's); with both installed only the
-    # ORM's final merged implementation runs. This is the same shared-risk
-    # shape every pair of telephony provider modules already has here, not
-    # something new to this port.
-    @api.depends('status', 'sender_user')
-    def _compute_direction(self):
-        for rec in self:
-            if rec.sender_user:
-                rec.direction = 'outgoing'
-            elif rec.status == 'received':
-                rec.direction = 'incoming'
-            else:
-                our_numbers = self.env['connect.voicetel.number'].search([]).mapped('phone_number')
-                rec.direction = 'outgoing' if rec.from_number in set(our_numbers) else 'incoming'
+    @api.model
+    def _own_numbers(self):
+        """VoiceTel numbers this database sends from."""
+        return super()._own_numbers() | set(
+            self.env['connect.voicetel.number'].search([]).mapped('phone_number'))
 
     # receive() is namespaced _voicetel: connect_twilio's own receive() is a
     # different SMS-webhook parser on this same shared model, with no

@@ -18,26 +18,14 @@ class ConnectMessage(models.Model):
     account_sid = fields.Char('Account SID')
     messaging_service_sid = fields.Char('Messaging Service SID')
 
-    @api.depends('status', 'sender_user')
-    def _compute_direction(self):
-        """Override: check Twilio numbers and WhatsApp senders for direction."""
-        for rec in self:
-            if rec.sender_user:
-                rec.direction = 'outgoing'
-            elif rec.status == 'received':
-                rec.direction = 'incoming'
-            else:
-                our_numbers = self.env['connect.twilio.number'].search([]).mapped(
-                    'phone_number'
-                )
-                our_whatsapp = self.env[
-                    'connect.whatsapp_sender'
-                ].search([]).mapped('number')
-                all_our_numbers = set(our_numbers) | set(our_whatsapp)
-                if rec.from_number in all_our_numbers:
-                    rec.direction = 'outgoing'
-                else:
-                    rec.direction = 'incoming'
+    @api.model
+    def _own_numbers(self):
+        """Twilio numbers and WhatsApp senders this database sends from."""
+        return (
+            super()._own_numbers()
+            | set(self.env['connect.twilio.number'].search([]).mapped('phone_number'))
+            | set(self.env['connect.whatsapp_sender'].search([]).mapped('number'))
+        )
 
     @api.model
     def receive(self, params):

@@ -96,13 +96,22 @@ class ConnectMessage(models.Model):
 
     @api.depends('status', 'sender_user')
     def _compute_direction(self):
+        own_numbers = None
         for rec in self:
             if rec.sender_user:
                 rec.direction = 'outgoing'
             elif rec.status == 'received':
                 rec.direction = 'incoming'
             else:
-                rec.direction = 'incoming'
+                if own_numbers is None:
+                    own_numbers = self._own_numbers()
+                rec.direction = 'outgoing' if rec.from_number in own_numbers else 'incoming'
+
+    @api.model
+    def _own_numbers(self):
+        """Numbers and senders this database sends from, across every
+        installed provider. Provider modules add theirs to super()'s set."""
+        return set()
 
     @api.depends('direction')
     def _compute_direction_display(self):

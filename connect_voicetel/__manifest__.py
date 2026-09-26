@@ -41,7 +41,6 @@ Adds VoiceTel as a standalone telephony provider in Connect:
         'views/callflow_views.xml',
         'views/number_views.xml',
         'views/call_views.xml',
-        'views/message_views.xml',
         'views/outgoing_callerid_views.xml',
         # Data
         'data/application.xml',

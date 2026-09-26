@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_voicetel_outgoing_callerid_list" model="ir.ui.view">
+        <field name="name">connect.voicetel.outgoing_callerid.list</field>
+        <field name="model">connect.voicetel.outgoing_callerid</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="number"/>
+                <field name="friendly_name"/>
+                <field name="callerid_type"/>
+                <field name="status"/>
+                <field name="is_default"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_voicetel_outgoing_callerid_form" model="ir.ui.view">
+        <field name="name">connect.voicetel.outgoing_callerid.form</field>
+        <field name="model">connect.voicetel.outgoing_callerid</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="number"/>
+                        <field name="friendly_name"/>
+                        <field name="callerid_type"/>
+                        <field name="status"/>
+                        <field name="is_default"/>
+                        <field name="sid"/>
+                    </group>
+                    <group invisible="callerid_type != 'outgoing_callerid'">
+                        <button name="validate" type="object" string="Validate" class="btn btn-primary"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_voicetel_outgoing_callerid" model="ir.actions.act_window">
+        <field name="name">Caller IDs</field>
+        <field name="res_model">connect.voicetel.outgoing_callerid</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_voicetel_outgoing_callerids"
+              name="Caller IDs"
+              parent="menu_connect_voicetel"
+              action="action_voicetel_outgoing_callerid"
+              sequence="40"/>
+</odoo>

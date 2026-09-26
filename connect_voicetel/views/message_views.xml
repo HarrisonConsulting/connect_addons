@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_connect_message_voicetel_form" model="ir.ui.view">
+        <field name="name">connect.message.voicetel.form</field>
+        <field name="model">connect.message</field>
+        <field name="inherit_id" ref="connect.view_connect_message_form"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="message_sid"/>
+            </field>
+        </field>
+    </record>
+</odoo>

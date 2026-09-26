@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_voicetel_domain_list" model="ir.ui.view">
+        <field name="name">connect.voicetel.domain.list</field>
+        <field name="model">connect.voicetel.domain</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="domain_name"/>
+                <field name="friendly_name"/>
+                <field name="sid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_voicetel_domain_form" model="ir.ui.view">
+        <field name="name">connect.voicetel.domain.form</field>
+        <field name="model">connect.voicetel.domain</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="domain_name"/>
+                        <field name="friendly_name"/>
+                        <field name="subdomain"/>
+                        <field name="sid"/>
+                        <field name="cred_list_sid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_voicetel_domain" model="ir.actions.act_window">
+        <field name="name">SIP Domains</field>
+        <field name="res_model">connect.voicetel.domain</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_voicetel_domains"
+              name="SIP Domains"
+              parent="menu_connect_voicetel"
+              action="action_voicetel_domain"
+              sequence="60"/>
+</odoo>

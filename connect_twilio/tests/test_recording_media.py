@@ -19,9 +19,13 @@ class TestRecordingMedia(TwilioTestCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # The Settings screen stores the account in ir.config_parameter,
+        # which wins over the connect.settings columns: a database with a
+        # configured account would otherwise answer with its own.
+        cls.icp = cls.env['ir.config_parameter'].sudo()
+        cls.icp.set_param('connect_twilio.account_sid', ACCOUNT_SID)
+        cls.icp.set_param('connect_twilio.auth_token', AUTH_TOKEN)
         cls.settings = cls.env['connect.settings'].sudo()
-        cls.settings.set_param('account_sid', ACCOUNT_SID)
-        cls.settings.set_param('auth_token', AUTH_TOKEN)
 
     def test_twilio_media_is_fetched_with_the_account_credentials(self):
         auth = self.settings.get_media_auth(
@@ -44,6 +48,7 @@ class TestRecordingMedia(TwilioTestCommon):
         self.assertIsNone(auth)
 
     def test_no_credentials_configured_means_anonymous(self):
+        self.icp.set_param('connect_twilio.auth_token', False)
         self.settings.set_param('auth_token', False)
 
         auth = self.settings.get_media_auth(

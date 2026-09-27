@@ -37,7 +37,7 @@ def _iter_bodies(tree):
             yield node.body
 
 
-def _find_live_references(source, path):
+def _find_live_references(source, path, literals_allowed=False):
     tree = ast.parse(source, filename=path)
     docstring_nodes = set()
     for body in _iter_bodies(tree):
@@ -53,7 +53,7 @@ def _find_live_references(source, path):
                 if name and any(f in name for f in FORBIDDEN):
                     offenses.append('import: {}'.format(name))
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if id(node) in docstring_nodes:
+            if literals_allowed or id(node) in docstring_nodes:
                 continue  # documentation, not a dependency
             if any(f in node.value for f in FORBIDDEN):
                 offenses.append('string literal: {!r}'.format(node.value))
@@ -77,7 +77,11 @@ class TestNoTwilioDependency(TransactionCase):
                     full_path = os.path.join(dirpath, name)
                     with open(full_path, encoding='utf-8') as f:
                         source = f.read()
-                    offenses = _find_live_references(source, full_path)
+                    # A migration reads the database it upgrades, so it may name
+                    # connect_twilio in SQL to ask whether it is installed; it
+                    # still may not import it.
+                    offenses = _find_live_references(
+                        source, full_path, literals_allowed=(sub == 'migrations'))
                     if offenses:
                         offenders[os.path.relpath(full_path, root)] = offenses
         self.assertFalse(

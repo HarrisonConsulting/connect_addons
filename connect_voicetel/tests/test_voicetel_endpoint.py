@@ -6,6 +6,8 @@ from odoo.tests import TransactionCase, tagged
 
 from ..models.webhook import sign_request
 
+SETTINGS_LOGGER = 'odoo.addons.connect_voicetel.models.settings'
+
 
 @tagged('post_install', '-at_install')
 class TestVoicetelEndpoint(TransactionCase):
@@ -42,8 +44,10 @@ class TestVoicetelEndpoint(TransactionCase):
     def test_tampered_signature_is_rejected(self):
         data = {'CallSid': 'CA1', 'CallStatus': 'completed'}
         request = self._request(data=data, signature='bogus-signature')
-        self.assertFalse(
-            self.settings._validate_voicetel_request(request, data))
+        with self.assertLogs(SETTINGS_LOGGER, 'ERROR') as logs:
+            self.assertFalse(
+                self.settings._validate_voicetel_request(request, data))
+        self.assertIn('signature is not valid', logs.output[0])
 
     def test_missing_api_key_fails_closed(self):
         self.settings.with_context(skip_protected_fields=True).write({
@@ -51,8 +55,10 @@ class TestVoicetelEndpoint(TransactionCase):
         })
         data = {'CallSid': 'CA1'}
         request = self._request(data=data, signature='irrelevant')
-        self.assertFalse(
-            self.settings._validate_voicetel_request(request, data))
+        with self.assertLogs(SETTINGS_LOGGER, 'CRITICAL') as logs:
+            self.assertFalse(
+                self.settings._validate_voicetel_request(request, data))
+        self.assertIn('has no API key', logs.output[0])
 
     def test_verification_disabled_fails_closed(self):
         """Unlike connect_twilio's own switch, disabling verification here
@@ -61,5 +67,7 @@ class TestVoicetelEndpoint(TransactionCase):
         self.settings.write({'voicetel_verify_requests': False})
         data = {'CallSid': 'CA1'}
         request = self._request(data=data, signature='irrelevant')
-        self.assertFalse(
-            self.settings._validate_voicetel_request(request, data))
+        with self.assertLogs(SETTINGS_LOGGER, 'CRITICAL') as logs:
+            self.assertFalse(
+                self.settings._validate_voicetel_request(request, data))
+        self.assertIn('verification is disabled', logs.output[0])

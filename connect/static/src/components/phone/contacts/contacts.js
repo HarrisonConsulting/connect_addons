@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import {useService} from "@web/core/utils/hooks"
+import {useBus, useService} from "@web/core/utils/hooks"
 import {setFocus} from "@connect/js/utils"
 import {Component, useState, useRef, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 
@@ -45,10 +45,8 @@ export class Contacts extends Component {
             users: this.users,
         })
 
-        onWillStart(async () => {
-            this.bus.addEventListener('busContactSetState', ({detail}) => this._busContactSetState(detail))
-            this.bus.addEventListener('busContactSearchQuery', ({detail}) => this._busContactSearchQuery(detail))
-        })
+        useBus(this.bus, 'busContactSetState', ({detail}) => this._busContactSetState(detail))
+        useBus(this.bus, 'busContactSearchQuery', ({detail}) => this._busContactSearchQuery(detail))
 
         onMounted(() => {
             this._presenceHandler = (payload) => this._onPresenceUpdate(payload)
@@ -57,6 +55,7 @@ export class Contacts extends Component {
 
         onWillUnmount(() => {
             clearTimeout(this._searchDebounce)
+            this.busService.unsubscribe('presence_update', this._presenceHandler)
         })
     }
 

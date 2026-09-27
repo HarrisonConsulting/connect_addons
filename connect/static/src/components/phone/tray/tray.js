@@ -1,6 +1,6 @@
 /** @odoo-module **/
 "use strict"
-import {useService} from "@web/core/utils/hooks"
+import {useBus, useService} from "@web/core/utils/hooks"
 import {browser} from "@connect/js/utils"
 import {Component, useState, onMounted, onWillStart, markup} from "@odoo/owl"
 
@@ -57,13 +57,14 @@ export class PhoneSysTray extends Component {
         // this.permissionsChecked = localStorage.getItem('connect_permissions_checked')
         this.permissionsChecked = 'true'
 
+        useBus(this.bus, 'busTraySetState', ({detail}) => {
+            Object.assign(this.state, detail)
+        })
+        useBus(this.bus, 'busTraySetException', ({detail: {exception}}) => {
+            this.state.exception = exception
+        })
+
         onMounted(() => {
-            this.bus.addEventListener('busTraySetState', ({detail}) => {
-                Object.assign(this.state, detail)
-            })
-            this.bus.addEventListener('busTraySetException', ({detail: {exception}}) => {
-                this.state.exception = exception
-            })
             if (this.permissionsChecked) return
             // Check sound permission
             this.testPlayer.play().then(() => {

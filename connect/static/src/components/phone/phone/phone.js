@@ -1,6 +1,6 @@
 /** @odoo-module **/
 "use strict"
-import {useService} from "@web/core/utils/hooks"
+import {useBus, useService} from "@web/core/utils/hooks"
 import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
@@ -268,23 +268,17 @@ export class Phone extends Component {
             ],
         )
 
+        useBus(this.bus, 'busPhoneMakeCall', ({detail}) => this.prepareCall(detail))
+        useBus(this.bus, 'busPhoneMakeTransfer', ({detail}) => this._busPhoneMakeTransfer(detail))
+        useBus(this.bus, 'busPhoneAddParticipant', ({detail}) => this._busPhoneAddParticipant(detail))
+        useBus(this.bus, 'busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
+        useBus(this.bus, 'busPhoneHangUp', ({detail}) => this._busPhoneHangUp(detail))
+        useBus(this.bus, 'busPhoneReconnect', () => this._reconnect())
+
         onWillStart(async () => {
             await this._getTransportClass(this.provider).loadDependencies()
 
-            // EVENTS
-            this.bus.addEventListener('busPhoneMakeCall', ({detail}) => this.prepareCall(detail))
-
-            this.bus.addEventListener('busPhoneMakeTransfer', ({detail}) => this._busPhoneMakeTransfer(detail))
-
-            this.bus.addEventListener('busPhoneAddParticipant', ({detail}) => this._busPhoneAddParticipant(detail))
-
-            this.bus.addEventListener('busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
-
-            this.bus.addEventListener('busPhoneHangUp', ({detail}) => this._busPhoneHangUp(detail))
-
-            this.bus.addEventListener('busPhoneReconnect', () => this._reconnect())
-
-            window.addEventListener("beforeunload", (event) => {
+            this._beforeUnloadHandler = (event) => {
                 if (this.session) {
                     event = event || window.event
                     const message = "You're in call! Are you sure you want to close?"
@@ -293,9 +287,10 @@ export class Phone extends Component {
                     }
                     return message
                 }
-            })
+            }
+            window.addEventListener("beforeunload", this._beforeUnloadHandler)
 
-            window.addEventListener("unload", (event) => {
+            this._unloadHandler = () => {
                 // Best-effort presence offline on tab close
                 this._updatePresence('offline')
                 if (this.session) {
@@ -304,7 +299,8 @@ export class Phone extends Component {
                     this.bc.postMessage({event: "tbcCloseTab", params: {id: this.id}})
                     this.session.disconnect()
                 }
-            })
+            }
+            window.addEventListener("unload", this._unloadHandler)
         })
 
         onMounted(() => {
@@ -330,20 +326,22 @@ export class Phone extends Component {
             setupAudioUnlock()
 
             // Subscribe to bus events for park slot notifications
-            this.busService.subscribe("reload_view", (payload) => {
+            this._reloadViewHandler = (payload) => {
                 if (payload && payload.model === "connect.park_slot") {
                     this.audioNotification.play("park")
                 }
-            })
+            }
+            this.busService.subscribe("reload_view", this._reloadViewHandler)
 
             // When an auto-recording starts (record-from-answer-dual via TwiML), Twilio
             // sends an in-progress callback that we relay here. Refresh state immediately
             // so the UI shows "Recording" without waiting for retry polling to succeed.
-            this.busService.subscribe("recording_started", () => {
+            this._recordingStartedHandler = () => {
                 if (this.call_sid) {
                     this._fetchRecordingState()
                 }
-            })
+            }
+            this.busService.subscribe("recording_started", this._recordingStartedHandler)
 
             // Handle tab visibility changes: when user returns to an idle tab,
             // the browser may have closed IDB connections and Twilio websocket.
@@ -566,6 +564,14 @@ export class Phone extends Component {
         })
 
         onWillUnmount(() => {
+            window.removeEventListener("beforeunload", this._beforeUnloadHandler)
+            window.removeEventListener("unload", this._unloadHandler)
+            if (this._reloadViewHandler) {
+                this.busService.unsubscribe("reload_view", this._reloadViewHandler)
+            }
+            if (this._recordingStartedHandler) {
+                this.busService.unsubscribe("recording_started", this._recordingStartedHandler)
+            }
             if (this._twilioRejectionHandler) {
                 window.removeEventListener('unhandledrejection', this._twilioRejectionHandler)
             }

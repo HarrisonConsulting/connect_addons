@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import {useService} from "@web/core/utils/hooks"
+import {useBus, useService} from "@web/core/utils/hooks"
 import {Component, useState, onWillStart} from "@odoo/owl"
 import {user} from "@web/core/user"
 
@@ -112,9 +112,10 @@ export class Calls extends Component {
             hasMore: false,
         })
 
+        useBus(this.bus, 'busCallsGetCalls', (ev) => this._getCalls(ev))
+        useBus(this.bus, 'busCallsGetFavorites', (ev) => this._getFavorites(ev))
+
         onWillStart(async () => {
-            this.bus.addEventListener('busCallsGetCalls', (ev) => this._getCalls(ev))
-            this.bus.addEventListener('busCallsGetFavorites', (ev) => this._getFavorites(ev))
             this._getFavorites()
         })
     }

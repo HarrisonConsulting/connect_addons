@@ -1,5 +1,5 @@
 /** @odoo-module **/
-import {useService} from "@web/core/utils/hooks"
+import {useBus, useService} from "@web/core/utils/hooks"
 
 import {Component, useState} from "@odoo/owl"
 
@@ -22,7 +22,7 @@ export class ConnectActiveCallsPopup extends Component {
         super.setup()
         this.orm = useService('orm')
         this.action = useService('action')
-        this.props.bus.addEventListener('connect_active_calls_toggle_display', (ev) => this.toggleDisplay(ev))
+        useBus(this.props.bus, 'connect_active_calls_toggle_display', (ev) => this.toggleDisplay(ev))
     }
 
     async getCalls() {

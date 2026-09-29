@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '19.0.2.0.1',
+    'version': '19.0.2.0.2',
     'author': 'Oduist',
     'maintainer': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
@@ -17,6 +17,7 @@ VoiceTel provider for Connect
 =============================
 
 Adds VoiceTel as a standalone telephony provider in Connect:
+
 - Its own PBX configuration models (numbers, extensions, call flows,
   applications, SIP domains, caller IDs) in a VoiceTel submenu
 - Its own REST client (the voiceml SDK) and call-control XML builder

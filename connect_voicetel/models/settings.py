@@ -68,6 +68,19 @@ class VoicetelSettings(models.Model):
              "Required before any user enables the VoiceTel web phone. "
              "VoiceTel's registrar nodes: east-1 3.220.193.70, "
              "east-2 3.12.226.65, west-1 52.9.10.85, all on port 8443.")
+    voicetel_softphone = fields.Selection(
+        [
+            ('sipjs', 'SIP.js'),
+            ('jssip', 'JsSIP'),
+        ],
+        default='sipjs',
+        required=True,
+        string='Browser Softphone',
+        help="Which SIP stack the in-Odoo VoiceTel phone loads. Both stacks "
+             "register the same per-tab SIP credential against the WebRTC "
+             "WSS URL. SIP.js is the stack this module ships as the default. "
+             "JsSIP is the stack exercised against the VoiceTel OpenSIPS "
+             "edge. Change this and reload the browser to swap.")
     voicetel_verify_requests = fields.Boolean(
         default=True, string='Verify VoiceTel Requests',
         help="Reject inbound VoiceTel webhooks whose X-Twilio-Signature "
@@ -101,6 +114,15 @@ class VoicetelSettings(models.Model):
         if '://' in host:
             return host.rstrip('/')
         return 'https://{}'.format(host)
+
+    @api.model
+    def _voicetel_softphone_transport(self):
+        """Registry key phone.js uses for the account's chosen SIP stack."""
+        stack = self.sudo().get_param('voicetel_softphone') or 'sipjs'
+        return {
+            'sipjs': 'voicetel',
+            'jssip': 'voicetel_jssip',
+        }.get(stack, 'voicetel')
 
     @api.model
     def _voicetel_client(self):

@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '19.0.2.0.2',
+    'version': '19.0.2.1.0',
     'author': 'Oduist',
     'maintainer': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
@@ -22,8 +22,9 @@ Adds VoiceTel as a standalone telephony provider in Connect:
   applications, SIP domains, caller IDs) in a VoiceTel submenu
 - Its own REST client (the voiceml SDK) and call-control XML builder
 - Webhooks signed and verified with the VoiceTel API key
-- Browser softphone (SIP.js over WSS) in the same transport registry as
-  every other Connect provider
+- Browser softphone in the same transport registry as every other Connect
+  provider. The account chooses SIP.js or JsSIP; both register the same
+  VoiceTel SIP credential against the WebRTC WSS URL
     """,
     'depends': ['connect'],
     'external_dependencies': {

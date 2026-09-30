@@ -354,7 +354,7 @@ class VoicetelUser(models.Model):
             Credential.create({'user': self.id, 'nonce': nonce_key, 'sid': sid})
             self._prune_browser_credentials(client)
         return {
-            'provider': 'voicetel',
+            'provider': self.env['connect.settings']._voicetel_softphone_transport(),
             'sip_uri': self.voicetel_uri,
             'username': username,
             # Plaintext SIP password reaches the browser here — same trust

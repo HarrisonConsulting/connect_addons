@@ -49,6 +49,14 @@ class TestVoicetelSettings(TransactionCase):
         auth = self.settings.get_media_auth('https://bucket.s3.amazonaws.com/rec.wav')
         self.assertIsNone(auth)
 
+    def test_softphone_stack_selects_the_transport(self):
+        self.assertEqual(self.settings._voicetel_softphone_transport(), 'voicetel')
+        self.settings.write({'voicetel_softphone': 'jssip'})
+        self.assertEqual(
+            self.settings._voicetel_softphone_transport(), 'voicetel_jssip')
+        self.settings.write({'voicetel_softphone': 'sipjs'})
+        self.assertEqual(self.settings._voicetel_softphone_transport(), 'voicetel')
+
     def test_sync_requires_credentials(self):
         self.settings.with_context(skip_protected_fields=True).write({
             'voicetel_account_sid': False,

@@ -156,6 +156,7 @@ class TestSyncSafety(ConnectTestCase):
         with patch.object(type(self.Settings), '_get_client_credentials',
                           return_value=('AC4df298' + '0' * 26, 'SECRET-TOKEN')):
             context = self.Settings._provider_log_context()
+        provider = self.Settings.get_param('rest_provider') or 'unconfigured'
         self.assertIn('account=AC4df298…', context)
-        self.assertIn('provider=twilio', context)
+        self.assertIn('provider=%s' % provider, context)
         self.assertNotIn('SECRET-TOKEN', context)

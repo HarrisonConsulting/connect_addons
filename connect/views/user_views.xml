@@ -26,8 +26,8 @@
                     <group>
                         <group string="User Info" name="user_info">
                             <field name="user"/>
-                            <field name="originate_provider"/>
-                            <field name="message_provider"/>
+                            <field name="originate_provider" invisible="1"/>
+                            <field name="message_provider" invisible="1"/>
                             <field name="active"/>
                         </group>
                         <group string="Call Settings" name="call_settings">
@@ -40,6 +40,16 @@
                         </group>
                     </group>
                     <notebook>
+                        <page name="tools" string="Tools">
+                            <field name="tool_assignment_ids">
+                                <list editable="bottom">
+                                    <field name="sequence"/>
+                                    <field name="tool_id"/>
+                                    <field name="role"/>
+                                    <field name="use"/>
+                                </list>
+                            </field>
+                        </page>
                         <page name="organization" string="Organization">
                             <group string="Voicemail Prompt">
                                 <field name="voicemail_prompt" nolabel="1" colspan="2"/>

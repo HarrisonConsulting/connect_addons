@@ -291,4 +291,66 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
+    <!-- connect.tool access -->
+    <record id="access_tool_user" model="ir.model.access">
+        <field name="name">connect.tool user</field>
+        <field name="model_id" ref="model_connect_tool"/>
+        <field name="group_id" ref="group_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="access_tool_admin" model="ir.model.access">
+        <field name="name">connect.tool admin</field>
+        <field name="model_id" ref="model_connect_tool"/>
+        <field name="group_id" ref="group_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_tool_webhook" model="ir.model.access">
+        <field name="name">connect.tool webhook</field>
+        <field name="model_id" ref="model_connect_tool"/>
+        <field name="group_id" ref="group_webhook"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- connect.user.tool access -->
+    <record id="access_user_tool_user" model="ir.model.access">
+        <field name="name">connect.user.tool user</field>
+        <field name="model_id" ref="model_connect_user_tool"/>
+        <field name="group_id" ref="group_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="access_user_tool_admin" model="ir.model.access">
+        <field name="name">connect.user.tool admin</field>
+        <field name="model_id" ref="model_connect_user_tool"/>
+        <field name="group_id" ref="group_admin"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_user_tool_webhook" model="ir.model.access">
+        <field name="name">connect.user.tool webhook</field>
+        <field name="model_id" ref="model_connect_user_tool"/>
+        <field name="group_id" ref="group_webhook"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
 </odoo>

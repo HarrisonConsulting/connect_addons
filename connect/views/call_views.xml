@@ -42,6 +42,7 @@
                         <group string="Call Info">
                             <field name="direction"/>
                             <field name="call_type"/>
+                            <field name="tool_id" readonly="1"/>
                             <field name="caller" widget="phone"/>
                             <field name="called" widget="phone"/>
                             <field name="partner"/>

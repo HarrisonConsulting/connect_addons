@@ -48,20 +48,76 @@ class User(models.Model):
         selection=[], string='Messaging Provider',
         help='Messaging module used to send SMS/WhatsApp for this user. '
              'Leave empty when only one messaging module is installed.')
+    tool_assignment_ids = fields.One2many(
+        'connect.user.tool', 'user_id',
+        help='Systems this person uses. Active rows run together. '
+             'The next row is the backup.',
+    )
 
     @api.model
     def _get_phone_provider(self):
         """Provider key whose browser phone serves the current user.
 
-        The user's click-to-call provider, or the only installed one. False
-        when several are installed and the user has none selected, so the
-        phone stays offline instead of guessing.
+        An explicit system in context wins, then the first voice system
+        whose adapter is a selection key, then the stored selection or the
+        only installed one. False when several are installed and nothing
+        is chosen, so the phone stays offline instead of guessing.
         """
+        options = self._fields['originate_provider'].get_values(self.env)
+        tool_id = self.env.context.get('connect_tool_id')
+        if tool_id:
+            tool = self.env['connect.tool'].sudo().browse(tool_id).exists()
+            if tool.adapter in options:
+                return tool.adapter
         connect_user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
+        if connect_user:
+            adapter = connect_user.first_tool('voice').adapter
+            if adapter in options:
+                return adapter
         if connect_user.originate_provider:
             return connect_user.originate_provider
-        options = self._fields['originate_provider'].get_values(self.env)
         return options[0] if len(options) == 1 else False
+
+    def ordered_tools(self, use):
+        """Rows for this use or both: active, then backup, then sequence, id."""
+        self.ensure_one()
+        rows = self.tool_assignment_ids.filtered(
+            lambda row: row.use in (use, 'both'))
+        return rows.sorted(key=lambda row: (
+            0 if row.role == 'active' else 1, row.sequence, row.id))
+
+    def first_tool(self, use):
+        """Tool on the first ordered row, or an empty recordset."""
+        self.ensure_one()
+        return self.ordered_tools(use)[:1].tool_id
+
+    def _sync_provider_mirror(self):
+        """Mirror the first active system onto the stored selections.
+
+        Assignment create, write, and unlink are the writers. The context
+        flag stops that write from calling this again. sip is not a
+        selection key, so it is stored as empty.
+        """
+        if self.env.context.get('connect_skip_provider_mirror'):
+            return
+        voice_values = set(self._fields['originate_provider'].get_values(self.env))
+        message_values = set(self._fields['message_provider'].get_values(self.env))
+        for user in self:
+            voice_tool = user.ordered_tools('voice').filtered(
+                lambda row: row.role == 'active')[:1].tool_id
+            message_tool = user.ordered_tools('message').filtered(
+                lambda row: row.role == 'active')[:1].tool_id
+            voice_key = (
+                voice_tool.adapter if voice_tool.adapter in voice_values else False)
+            message_key = (
+                message_tool.adapter if message_tool.adapter in message_values else False)
+            vals = {}
+            if user.originate_provider != voice_key:
+                vals['originate_provider'] = voice_key
+            if user.message_provider != message_key:
+                vals['message_provider'] = message_key
+            if vals:
+                user.with_context(connect_skip_provider_mirror=True).sudo().write(vals)
 
     @api.model
     def get_client_token(self, nonce=False):

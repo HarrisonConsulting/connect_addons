@@ -7,6 +7,7 @@ from . import channel
 from . import message
 from . import recording
 from . import user
+from . import tool
 from . import user_callflow
 from . import number
 from . import outgoing_callerid

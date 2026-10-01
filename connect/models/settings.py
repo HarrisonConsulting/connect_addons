@@ -235,16 +235,47 @@ class Settings(models.Model):
             'module (Twilio, FreeSWITCH, Asterisk) and select a click-to-call '
             'provider on the Connect user.')
 
+    def _context_provider_key(self, selection_values):
+        """Adapter from context when it is one of selection_values.
+
+        connect_tool_id wins. connect_campaign_id is used only when that
+        model is loaded and its tool points at a voice system. Anything
+        else, including sip, falls through.
+        """
+        tool_id = self.env.context.get('connect_tool_id')
+        if tool_id:
+            tool = self.env['connect.tool'].sudo().browse(tool_id).exists()
+            if tool.adapter in selection_values:
+                return tool.adapter
+        campaign_id = self.env.context.get('connect_campaign_id')
+        if campaign_id and 'connect.campaign' in self.env:
+            campaign_model = self.env['connect.campaign'].sudo()
+            tool_field = campaign_model._fields.get('tool_id')
+            if (tool_field and tool_field.type == 'many2one'
+                    and tool_field.comodel_name == 'connect.tool'):
+                campaign = campaign_model.browse(campaign_id).exists()
+                adapter = campaign.tool_id.adapter
+                if adapter in selection_values:
+                    return adapter
+        return False
+
     @api.model
     def _get_originate_provider(self, user=None):
         """Resolve the provider key used to originate calls for the user."""
+        options = self.env['connect.user']._fields['originate_provider'].get_values(self.env)
+        context_key = self._context_provider_key(options)
+        if context_key:
+            return context_key
         odoo_user = user or self.env.user
         connect_user = self.env['connect.user'].sudo().search(
             [('user', '=', odoo_user.id)], limit=1)
+        if connect_user:
+            adapter = connect_user.first_tool('voice').adapter
+            if adapter in options:
+                return adapter
         provider = connect_user.originate_provider
         if provider:
             return provider
-        options = self.env['connect.user']._fields['originate_provider'].get_values(self.env)
         if len(options) == 1:
             return options[0]
         if not options:
@@ -274,13 +305,20 @@ class Settings(models.Model):
     @api.model
     def _get_message_provider(self, user=None):
         """Resolve the provider key used to send messages for the user."""
+        options = self.env['connect.user']._fields['message_provider'].get_values(self.env)
+        context_key = self._context_provider_key(options)
+        if context_key:
+            return context_key
         odoo_user = user or self.env.user
         connect_user = self.env['connect.user'].sudo().search(
             [('user', '=', odoo_user.id)], limit=1)
+        if connect_user:
+            adapter = connect_user.first_tool('message').adapter
+            if adapter in options:
+                return adapter
         provider = connect_user.message_provider
         if provider:
             return provider
-        options = self.env['connect.user']._fields['message_provider'].get_values(self.env)
         if len(options) == 1:
             return options[0]
         if not options:

@@ -16,3 +16,5 @@ from . import schedule
 from . import settings
 from . import settings_hc
 from . import user
+from . import tool
+from . import user_tool

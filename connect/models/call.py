@@ -29,6 +29,10 @@ class Call(models.Model):
     caller = fields.Char(readonly=True)
     parent_call = fields.Many2one('connect.call', ondelete='cascade', readonly=True)
     partner = fields.Many2one('res.partner', ondelete='set null')
+    tool_id = fields.Many2one(
+        'connect.tool', ondelete='set null', string='System',
+        help='The system that carried this call.',
+    )
     partner_img = fields.Binary(related='partner.image_1920', string='Partner Image')
     direction = fields.Char(index=True, readonly=True)
     call_type = fields.Selection([
@@ -129,6 +133,16 @@ class Call(models.Model):
             else:
                 record.duration_minutes = 0
                 record.duration_human = "00:00"
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        tool_id = self.env.context.get('connect_tool_id')
+        if tool_id:
+            vals_list = [
+                vals if vals.get('tool_id') else {**vals, 'tool_id': tool_id}
+                for vals in vals_list
+            ]
+        return super().create(vals_list)
 
     def write(self, vals):
         return super().write(vals)

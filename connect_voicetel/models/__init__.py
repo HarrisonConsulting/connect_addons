@@ -10,6 +10,7 @@ from . import callflow
 from . import number
 from . import outgoing_callerid
 from . import user
+from . import tool
 from . import call
 from . import channel
 from . import message

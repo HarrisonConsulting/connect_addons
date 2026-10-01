@@ -5,7 +5,7 @@ Exercises the full call lifecycle — creation, status webhooks, channel
 management, finalization, and error handling — using Twilio test
 credentials and magic phone numbers.  Zero cost.
 
-Run with: gdo test -d <db> -i connect -T live_twilio
+Run with: gdo test <db> -i connect_twilio -T live_twilio
 """
 
 import logging

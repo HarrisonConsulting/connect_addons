@@ -98,6 +98,18 @@ class TestTwilioConfigParameter(TransactionCase):
             'False',
         )
 
+    def test_twilio_settings_keys_live_on_this_module(self):
+        settings = self.env['connect.settings'].sudo()
+        fields = settings._fields
+        self.assertIn('twilio', fields['rest_provider'].get_values(settings))
+        self.assertIn('twilio', fields['webrtc_provider'].get_values(settings))
+        self.assertIn('twilio', fields['recording_storage'].get_values(settings))
+        self.assertIn('disabled', fields['webrtc_provider'].get_values(settings))
+        self.assertIn('odoo_filestore', fields['recording_storage'].get_values(settings))
+        self.assertIn('region_auth_token', fields)
+        self.assertIn('display_region_auth_token', fields)
+        self.assertFalse(fields['rest_provider'].required)
+
     def test_client_credentials_and_log_context_keep_the_secret_private(self):
         """Twilio supplies its credentials; the log context names only the account."""
         settings = self.env['connect.settings'].sudo()

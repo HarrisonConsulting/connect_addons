@@ -7,7 +7,7 @@ without making actual calls or incurring charges.
 Setup:
     1. Copy .env.test.example to .env.test
     2. Add your Twilio test credentials (Console → Test Credentials)
-    3. Run: gdo test -d <db> -i connect -T live_twilio
+    3. Run: gdo test <db> -i connect_twilio -T live_twilio
 
 Credentials are loaded from environment or .env.test file.
 Never committed to the repository.

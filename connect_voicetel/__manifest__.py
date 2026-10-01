@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect VoiceTel',
-    'version': '19.0.2.1.1',
+    'version': '19.0.2.1.2',
     'author': 'Oduist',
     'maintainer': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',

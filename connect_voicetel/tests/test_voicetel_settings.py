@@ -49,6 +49,15 @@ class TestVoicetelSettings(TransactionCase):
         auth = self.settings.get_media_auth('https://bucket.s3.amazonaws.com/rec.wav')
         self.assertIsNone(auth)
 
+    def test_rest_provider_accepts_voicetel_without_a_carrier_default(self):
+        field = self.settings._fields['rest_provider']
+        self.assertFalse(field.required)
+        self.assertIn('voicetel', field.get_values(self.settings))
+        previous = self.settings.get_param('rest_provider')
+        self.settings.set_param('rest_provider', 'voicetel')
+        self.assertEqual(self.settings.get_param('rest_provider'), 'voicetel')
+        self.settings.set_param('rest_provider', previous)
+
     def test_softphone_stack_selects_the_transport(self):
         self.assertEqual(self.settings._voicetel_softphone_transport(), 'voicetel')
         self.settings.write({'voicetel_softphone': 'jssip'})

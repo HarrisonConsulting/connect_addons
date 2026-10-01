@@ -7,7 +7,7 @@ Tests exercise real Twilio test credentials for:
 - Webhook signature validation (RequestValidator)
 - TwiML rendering and Twilio syntax validation
 
-Run with: gdo test -d <db> -i connect -T live_twilio
+Run with: gdo test <db> -i connect_twilio -T live_twilio
 """
 
 import hashlib

@@ -4,7 +4,7 @@
 These tests exercise the actual Twilio REST API using test credentials
 and magic phone numbers. No real calls are made, no charges incurred.
 
-Run with: gdo test -d <db> -i connect -T live_twilio
+Run with: gdo test <db> -i connect_twilio -T live_twilio
 Skipped by default in normal test runs.
 """
 

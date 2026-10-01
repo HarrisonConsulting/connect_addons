@@ -12,11 +12,6 @@ from . import test_error_handling
 from . import test_domain
 from . import test_user
 from . import test_customer_portal
-from . import live_common
-from . import test_live_twilio
-from . import test_live_messaging
-from . import test_live_sip
-from . import test_live_call_lifecycle
 from . import test_reload_broadcast
 from . import test_systray_tour
 from . import test_sync_safety

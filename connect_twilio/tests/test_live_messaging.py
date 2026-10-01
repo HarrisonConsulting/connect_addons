@@ -4,7 +4,7 @@
 Tests exercise Twilio test API for SMS, simulate webhook payloads for
 message/recording processing, and verify budget guard accounting.
 
-Run with: gdo test -d <db> -i connect -T live_twilio
+Run with: gdo test <db> -i connect_twilio -T live_twilio
 """
 
 import logging

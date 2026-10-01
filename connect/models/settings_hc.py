@@ -31,10 +31,10 @@ class Settings(models.Model):
         help='Record every phone call from the moment it is answered. '
              'A stop during the call keeps the rest of that call silent.',
     )
+    # Provider modules add their key via selection_add. Empty when none is
+    # installed, so Connect does not require a carrier.
     rest_provider = fields.Selection(
-        [('twilio', 'Twilio')],
-        default='twilio',
-        required=True,
+        selection=[],
         string='Telephony Provider',
         help='REST API provider used for calls, numbers and SIP.',
     )
@@ -51,32 +51,20 @@ class Settings(models.Model):
         help='Audio URL for conference hold and call park wait music.',
     )
     webrtc_provider = fields.Selection(
-        [
-            ('twilio', 'Twilio WebRTC (browser phone)'),
-            ('disabled', 'Disabled (SIP phones only)'),
-        ],
-        default='twilio',
+        [('disabled', 'Disabled (SIP phones only)')],
+        default='disabled',
         required=True,
         string='Browser Phone',
-        help='The in-Odoo softphone uses Twilio WebRTC.',
-    )
-    region_auth_token = fields.Char(
-        groups='base.group_erp_manager,connect.group_webhook',
-        help='Regional Twilio auth token when not using us1.',
-    )
-    display_region_auth_token = fields.Char(
-        help='Masked regional auth token shown in the form.',
+        help='Offers an in-Odoo softphone. Disabled keeps SIP phones only. '
+             'A provider module adds its own browser phone.',
     )
     openai_base_url = fields.Char(
         string='OpenAI Base URL',
         help='Custom base URL for an OpenAI-compatible API. Leave empty for default.',
     )
     recording_storage = fields.Selection(
-        [
-            ('twilio', 'Twilio (default)'),
-            ('odoo_filestore', 'Odoo Filestore'),
-        ],
-        default='twilio',
+        [('odoo_filestore', 'Odoo Filestore')],
+        default='odoo_filestore',
         required=True,
         string='Recording Storage',
         help='Where to store call recordings and voicemails.',

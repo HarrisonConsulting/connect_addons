@@ -86,6 +86,25 @@ class Settings(models.Model):
         string="Fetch Call Prices",
         help="Enable fetching call prices from Twilio API after call completion."
     )
+    rest_provider = fields.Selection(
+        selection_add=[('twilio', 'Twilio')],
+        ondelete={'twilio': 'set null'},
+    )
+    webrtc_provider = fields.Selection(
+        selection_add=[('twilio', 'Twilio WebRTC (browser phone)')],
+        ondelete={'twilio': 'set default'},
+    )
+    recording_storage = fields.Selection(
+        selection_add=[('twilio', 'Twilio')],
+        ondelete={'twilio': 'set default'},
+    )
+    region_auth_token = fields.Char(
+        groups='base.group_erp_manager,connect.group_webhook',
+        help='Regional Twilio auth token when not using us1.',
+    )
+    display_region_auth_token = fields.Char(
+        help='Masked regional auth token shown in the form.',
+    )
 
     @api.model
     def _twilio_param(self, key, legacy):

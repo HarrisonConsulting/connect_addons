@@ -18,3 +18,8 @@ from . import test_license_catalog
 from . import test_whatsapp_originate
 from . import test_message_content_template
 from . import test_twiml_sync
+from . import live_common
+from . import test_live_twilio
+from . import test_live_messaging
+from . import test_live_sip
+from . import test_live_call_lifecycle

@@ -41,6 +41,10 @@ def strip_number(number):
 class VoicetelSettings(models.Model):
     _inherit = 'connect.settings'
 
+    rest_provider = fields.Selection(
+        selection_add=[('voicetel', 'VoiceTel')],
+        ondelete={'voicetel': 'set null'},
+    )
     voicetel_account_sid = fields.Char(
         string='VoiceTel Account SID',
         help="Account SID from your VoiceTel account; identifies your "

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_connect_user_form_lines" model="ir.ui.view">
+        <field name="name">connect.user.form.lines</field>
+        <field name="model">connect.user</field>
+        <field name="inherit_id" ref="connect.view_connect_user_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="lines" string="Lines">
+                    <field name="account_desk_ids" readonly="1" nolabel="1">
+                        <list create="0" edit="0" delete="0">
+                            <field name="slot"/>
+                            <field name="tool_id"/>
+                            <field name="sip_user"/>
+                            <field name="registration"/>
+                            <field name="endpoint_id"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

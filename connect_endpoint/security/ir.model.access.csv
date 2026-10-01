@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_connect_endpoint_admin,connect.endpoint admin,model_connect_endpoint,connect.group_admin,1,1,1,1
+access_connect_endpoint_user,connect.endpoint user,model_connect_endpoint,connect.group_user,1,1,1,0
+access_connect_endpoint_account_admin,connect.endpoint.account admin,model_connect_endpoint_account,connect.group_admin,1,1,1,1
+access_connect_endpoint_account_user,connect.endpoint.account user,model_connect_endpoint_account,connect.group_user,1,1,1,0
+access_connect_endpoint_line_admin,connect.endpoint.line admin,model_connect_endpoint_line,connect.group_admin,1,1,1,1
+access_connect_endpoint_line_user,connect.endpoint.line user,model_connect_endpoint_line,connect.group_user,1,1,1,0

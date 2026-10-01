@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_connect_endpoint"
+              name="Desk phones"
+              parent="connect.menu_connect_root"
+              action="action_connect_endpoint"
+              sequence="25"/>
+</odoo>

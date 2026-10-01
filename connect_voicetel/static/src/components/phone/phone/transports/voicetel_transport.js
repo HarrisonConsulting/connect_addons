@@ -17,9 +17,10 @@ import {TelephonyTransport, TelephonyCall} from "@connect/components/phone/phone
  * single-page app with its own ad-hoc UI wiring, not a reusable transport).
  */
 export class VoiceTelCall extends TelephonyCall {
-    constructor(sipSession) {
+    constructor(sipSession, options) {
         super()
         this._session = sipSession
+        this._incoming = !!(options && options.incoming)
         this._terminated = false
         this._remoteAudioEl = null
         this._wireSession()
@@ -105,19 +106,28 @@ export class VoiceTelCall extends TelephonyCall {
     }
 
     reject() {
-        this._safeSessionOp(
-            () => this._session.reject({statusCode: 486, reasonPhrase: "Busy Here"}),
-            'reject')
+        this._safeSessionOp(() => {
+            this._session.reject({statusCode: 486, reasonPhrase: "Busy Here"})
+            this._terminate('reject')
+        }, 'reject')
     }
 
     disconnect() {
+        // An answered dialog ends with BYE. An unanswered incoming dialog is
+        // a decline, including hangup and tab close while it is still ringing.
+        // CANCEL belongs only to an outgoing INVITE this side sent.
+        const answered = !!this._session.hasAnswer
+        const eventName = answered ? 'disconnect' : (this._incoming ? 'reject' : 'cancel')
         this._safeSessionOp(() => {
-            if (this._session.hasAnswer) {
+            if (answered) {
                 this._session.bye()
+            } else if (this._incoming) {
+                this._session.reject({statusCode: 486, reasonPhrase: "Busy Here"})
             } else {
                 this._session.cancel()
             }
-        }, this._session.hasAnswer ? 'disconnect' : 'cancel')
+            this._terminate(eventName)
+        }, eventName)
     }
 
     mute(shouldMute) {
@@ -272,7 +282,16 @@ export class VoiceTelTransport extends TelephonyTransport {
             this._sipState = 'unregistered'
             this._emit('error', error)
         })
-        this._ua.on('invite', (session) => this._emit('incoming', this._trackCall(new VoiceTelCall(session))))
+        this._ua.on('invite', (session) => {
+            try {
+                if (session.progressable) {
+                    session.progress()
+                }
+            } catch (e) {
+                console.warn('Connect: VoiceTelTransport: 180 Ringing was not sent:', e)
+            }
+            this._emit('incoming', this._trackCall(new VoiceTelCall(session, {incoming: true})))
+        })
     }
 
     /** Synchronous by design — see ITelephonyTransport#init() note. */

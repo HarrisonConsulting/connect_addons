@@ -9,6 +9,7 @@ const NOTIFICATION_SOUNDS = {
     queue_join: { name: "Caller Joined Queue", default_frequency: 700, default_pattern: "single_beep" },
     error: { name: "Error", default_frequency: 300, default_pattern: "triple_beep" },
     connected: { name: "Connected", default_frequency: 900, default_pattern: "single_beep" },
+    incoming: { name: "Incoming Call", default_frequency: 440, default_pattern: "double_beep" },
 }
 
 const PATTERNS = {

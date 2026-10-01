@@ -11,13 +11,15 @@ import {TelephonyTransport, TelephonyCall} from "@connect/components/phone/phone
  * The UA options follow the VoiceTel softphone that registers a JsSIP user
  * agent against the OpenSIPS WSS edge: one socket, the user's SIP AOR, the
  * browser credential as authorization_user, and the domain as the auth realm.
- * Incoming sessions are handed to phone.js. This transport does not answer
- * them itself.
+ * Incoming sessions are handed to phone.js unanswered. JsSIP sends 180
+ * Ringing when the session is created. session.answer() runs only when the
+ * user accepts.
  */
 export class VoiceTelJsSIPCall extends TelephonyCall {
     constructor(session) {
         super()
         this._session = session
+        this._incoming = session.direction === 'incoming'
         this._terminated = false
         this._answered = false
         this._remoteAudioEl = null
@@ -41,8 +43,12 @@ export class VoiceTelJsSIPCall extends TelephonyCall {
         session.on('ended', () => this._terminate(this._answered ? 'disconnect' : 'cancel'))
         session.on('failed', (data) => {
             const cause = data && data.cause
-            if (!this._answered && (cause === 'Rejected' || cause === 'Canceled')) {
-                this._terminate(cause === 'Rejected' ? 'reject' : 'cancel')
+            if (!this._answered && (cause === 'Rejected' || cause === 'Busy' || cause === 'Unavailable')) {
+                this._terminate('reject')
+                return
+            }
+            if (!this._answered && cause === 'Canceled') {
+                this._terminate('cancel')
                 return
             }
             this._terminate(this._answered ? 'disconnect' : 'cancel')
@@ -87,16 +93,24 @@ export class VoiceTelJsSIPCall extends TelephonyCall {
 
     reject() {
         this._safeSessionOp(() => {
-            this._terminate('reject')
             this._session.terminate({status_code: 486, reason_phrase: 'Busy Here'})
+            this._terminate('reject')
         }, 'reject')
     }
 
     disconnect() {
-        const eventName = this._answered ? 'disconnect' : 'cancel'
+        // Answered dialogs end with BYE. An unanswered incoming dialog is a
+        // decline (486). Bare terminate() on an early incoming dialog would
+        // send 480, and on an outgoing dialog it sends CANCEL.
+        const answered = this._answered
+        const eventName = answered ? 'disconnect' : (this._incoming ? 'reject' : 'cancel')
         this._safeSessionOp(() => {
+            if (!answered && this._incoming) {
+                this._session.terminate({status_code: 486, reason_phrase: 'Busy Here'})
+            } else {
+                this._session.terminate()
+            }
             this._terminate(eventName)
-            this._session.terminate()
         }, eventName)
     }
 

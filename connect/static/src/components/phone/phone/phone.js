@@ -291,8 +291,21 @@ export class Phone extends Component {
             window.addEventListener("beforeunload", this._beforeUnloadHandler)
 
             this._unloadHandler = () => {
-                // Best-effort presence offline on tab close
+                // The page is going away, so every live dialog has to end.
+                // An unanswered incoming dialog is declined; a waiting dialog
+                // is declined on its own and is not promoted into the panel.
+                this._unloading = true
+                this._stopIncomingRing()
                 this._updatePresence('offline')
+                const waiting = this.waitingSession
+                if (waiting) {
+                    this.waitingSession = null
+                    try {
+                        waiting.reject()
+                    } catch (e) {
+                        console.warn('Connect: reject waiting call on unload failed:', e)
+                    }
+                }
                 if (this.session) {
                     const params = {id: this.id, action: 'pop'}
                     this.bc.postMessage({event: 'tbcSipSession', params})
@@ -532,6 +545,7 @@ export class Phone extends Component {
                 } else if (event === 'tbcSoundMute') {
                     self.state.isSoundMute = params.mute
                     self.setIncomingVolume()
+                    self._syncIncomingRing()
                 } else if (event === 'tbcSync') {
                     if (self.state.inCall === false) {
                         self.state.callerId = params.callerId
@@ -564,6 +578,7 @@ export class Phone extends Component {
         })
 
         onWillUnmount(() => {
+            this._stopIncomingRing()
             window.removeEventListener("beforeunload", this._beforeUnloadHandler)
             window.removeEventListener("unload", this._unloadHandler)
             if (this._reloadViewHandler) {
@@ -1071,6 +1086,7 @@ export class Phone extends Component {
                         hasWaitingCall: true,
                         waitingCallerId: {...self.state.waitingCallerId},
                     }})
+                    self._syncIncomingRing()
                     return
                 }
                 // Call waiting: store the incoming call instead of rejecting
@@ -1095,13 +1111,16 @@ export class Phone extends Component {
                     hasWaitingCall: true,
                     waitingCallerId: {...self.state.waitingCallerId},
                 }})
+                self._syncIncomingRing()
 
-                // Set up handlers for the waiting call
+                // Set up handlers for the waiting call. Once it is promoted
+                // to the foreground panel these listeners no longer own it.
                 call.on('cancel', () => {
-                    // Caller hung up before we answered
+                    if (self.waitingSession !== call) return
                     self.waitingSession = null
                     self.state.hasWaitingCall = false
                     self.state.waitingCallerId = {}
+                    self._syncIncomingRing()
                     self.notify('Waiting call ended', {type: 'info'})
                     self.bc.postMessage({event: "tbcWaitingCall", params: {
                         hasWaitingCall: false,
@@ -1110,15 +1129,15 @@ export class Phone extends Component {
                 })
 
                 call.on('disconnect', () => {
-                    if (self.waitingSession === call) {
-                        self.waitingSession = null
-                        self.state.hasWaitingCall = false
-                        self.state.waitingCallerId = {}
-                        self.bc.postMessage({event: "tbcWaitingCall", params: {
-                            hasWaitingCall: false,
-                            waitingCallerId: {},
-                        }})
-                    }
+                    if (self.waitingSession !== call) return
+                    self.waitingSession = null
+                    self.state.hasWaitingCall = false
+                    self.state.waitingCallerId = {}
+                    self._syncIncomingRing()
+                    self.bc.postMessage({event: "tbcWaitingCall", params: {
+                        hasWaitingCall: false,
+                        waitingCallerId: {},
+                    }})
                 })
 
                 return
@@ -1150,48 +1169,7 @@ export class Phone extends Component {
             self.state.inIncoming = true
             self.state.isDialingPanel = true
             self.startCall()
-            // incoming call here
-            call.on("accept", async function (data) {
-                // Store CallSid for forward functionality
-                self.call_sid = call.params.CallSid || null
-                self.createCallCounter(phoneNumber)
-                self.state.phone_status = self.status.accepted
-                self._updatePresence('on_call')
-                self._attachQualityMonitor(call)
-                await self.setCallStatus("Answered")
-                self._fetchRecordingState()
-            })
-            call.on("disconnect", async function (data) {
-                self.state.phone_status = self.status.ended
-                await self.setCallStatus("Canceled")
-                await self.endCall()
-                self.session = null
-                if (self.suppressBroadcastChannel) {
-                    self.suppressBroadcastChannel = false
-                } else {
-                    self.bc.postMessage({event: "tbcEndCall"})
-                }
-            })
-            call.on("cancel", async function (data) {
-                self.state.phone_status = self.status.ended
-                await self.setCallStatus("Canceled")
-                const index = self.sipSessions.indexOf(self.id)
-                self.sipSessions.splice(index, 1)
-                const params = {id: self.id, action: 'pop'}
-                self.bc.postMessage({event: 'tbcSipSession', params})
-                self.session = null
-                await self.endCall()
-            })
-            call.on("reject", async function (data) {
-                self.state.phone_status = self.status.ended
-                await self.setCallStatus("Rejected")
-                const index = self.sipSessions.indexOf(self.id)
-                self.sipSessions.splice(index, 1)
-                const params = {id: self.id, action: 'pop'}
-                self.bc.postMessage({event: 'tbcSipSession', params})
-                self.session = null
-                await self.endCall()
-            })
+            self._attachIncomingCall(call, phoneNumber)
 
             if (autoAnswer === 'yes') {
                 call.accept()
@@ -1199,6 +1177,7 @@ export class Phone extends Component {
                 self.state.inIncoming = false
                 self.startCall()
             }
+            self._syncIncomingRing()
         })
 
         // Register with exponential backoff retry (3 attempts: 2s, 4s, 8s)
@@ -1351,41 +1330,78 @@ export class Phone extends Component {
         }
 
         self.session = await self.transport.dial(params)
+        const call = self.session
 
-        self.session.on("accept", async function () {
-            // Store CallSid for forward functionality
-            self.call_sid = self.session.params.CallSid || null
+        call.on("accept", async function () {
+            if (self.session !== call) return
+            self.call_sid = call.params.CallSid || null
             self.createCallCounter(phoneNumber)
             self.state.phone_status = self.status.accepted
             self._updatePresence('on_call')
-            self._attachQualityMonitor(self.session)
+            self._attachQualityMonitor(call)
             self.audioNotification.play('connected')
             await self.setCallStatus("Answered")
             const params = self.getJsonCallData()
             self.bc.postMessage({event: "tbcAnswerCall", params})
             self._fetchRecordingState()
         })
-        self.session.on("disconnect", async function () {
-            self.state.phone_status = self.status.ended
-            await self.setCallStatus('Disconnect')
-            await self.endCall()
-            self.session = null
-            if (self.suppressBroadcastChannel) {
-                self.suppressBroadcastChannel = false
-            } else {
-                self.bc.postMessage({event: "tbcEndCall"})
+        call.on("disconnect", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
             }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            const wasAnswered = self.state.phone_status === self.status.accepted
+            ;(async () => {
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus(wasAnswered ? "Terminated" : "Canceled")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
         })
-        self.session.on("cancel", async function () {
-            self.state.phone_status = self.status.ended
-            await self.setCallStatus('Cancel')
-            await self.endCall()
-            self.session = null
-            if (self.suppressBroadcastChannel) {
-                self.suppressBroadcastChannel = false
-            } else {
-                self.bc.postMessage({event: "tbcEndCall"})
+        call.on("cancel", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
             }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Canceled")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
+        })
+        call.on("reject", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Rejected")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
         })
     }
 
@@ -1402,7 +1418,165 @@ export class Phone extends Component {
         requestAnimationFrame(() => this._ensureWithinViewport())
     }
 
+    _claimCallEnd(call) {
+        if (!call) return true
+        if (call._connectSettled) return false
+        call._connectSettled = true
+        return true
+    }
+
+    _voiceTelRinging() {
+        return this.provider === 'voicetel' || this.provider === 'voicetel_jssip'
+    }
+
+    _stopIncomingRing() {
+        if (this._incomingRingTimer) {
+            clearInterval(this._incomingRingTimer)
+            this._incomingRingTimer = null
+        }
+    }
+
+    _syncIncomingRing() {
+        const should = this._voiceTelRinging()
+            && !this.state.isSoundMute
+            && (this.state.inIncoming || this.state.hasWaitingCall)
+        if (!should) {
+            this._stopIncomingRing()
+            return
+        }
+        if (this._incomingRingTimer) return
+        const ring = () => {
+            if (this.state.isSoundMute || (!this.state.inIncoming && !this.state.hasWaitingCall)) {
+                this._stopIncomingRing()
+                return
+            }
+            this.audioNotification.play('incoming')
+        }
+        ring()
+        this._incomingRingTimer = setInterval(ring, 3000)
+    }
+
+    _attachIncomingCall(call, phoneNumber) {
+        const self = this
+        call.on("accept", async function () {
+            if (self.session !== call) return
+            self._stopIncomingRing()
+            self.call_sid = call.params.CallSid || null
+            self.createCallCounter(phoneNumber)
+            self.state.phone_status = self.status.accepted
+            self._updatePresence('on_call')
+            self._attachQualityMonitor(call)
+            await self.setCallStatus("Answered")
+            self._fetchRecordingState()
+        })
+        call.on("disconnect", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            const wasAnswered = self.state.phone_status === self.status.accepted
+            ;(async () => {
+                self._stopIncomingRing()
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus(wasAnswered ? "Terminated" : "Canceled")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
+        })
+        call.on("cancel", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self._stopIncomingRing()
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Canceled")
+                const index = self.sipSessions.indexOf(self.id)
+                if (index > -1) self.sipSessions.splice(index, 1)
+                self.bc.postMessage({event: 'tbcSipSession', params: {id: self.id, action: 'pop'}})
+                if (self.session === call) self.session = null
+                await self.endCall()
+            })()
+        })
+        call.on("reject", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self._stopIncomingRing()
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Rejected")
+                const index = self.sipSessions.indexOf(self.id)
+                if (index > -1) self.sipSessions.splice(index, 1)
+                self.bc.postMessage({event: 'tbcSipSession', params: {id: self.id, action: 'pop'}})
+                if (self.session === call) self.session = null
+                await self.endCall()
+            })()
+        })
+    }
+
+    _releaseHeldCall() {
+        this.heldSession = null
+        this.heldCallSid = null
+        this.heldCallId = null
+        this.heldCallerId = null
+        this.state.isOnHold = false
+        this.notify('Held call ended', {type: 'info'})
+        this.bc.postMessage({event: "tbcHold", params: {isOnHold: false}})
+    }
+
+    async _promoteWaitingCall(call) {
+        const info = {...(this.state.waitingCallerId || {})}
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+        this.session = call
+        this.sipSessions = [this.id]
+        const phoneNumber = info.phoneNumber || (call.params && call.params.From) || ''
+        this.state.callPhoneNumber = phoneNumber
+        this.state.phone_status = this.status.incoming
+        this.state.inIncoming = true
+        if (info.partnerId) {
+            this.state.isPartner = true
+            this.state.callerId = {
+                partnerId: parseInt(info.partnerId),
+                partnerName: info.partnerName,
+                partnerIconUrl: this.computePartnerIconUrl(info.partnerId),
+                partnerUrl: this.computePartnerUrl(info.partnerId),
+                phoneNumber,
+            }
+        } else {
+            this.state.isPartner = false
+            this.state.callerId = {phoneNumber}
+            this.searchPartner(phoneNumber)
+        }
+        this.startCall()
+        this._attachIncomingCall(call, phoneNumber)
+        this._syncIncomingRing()
+        this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
+        this.bc.postMessage({event: "tbcStartCall", params: this.getJsonCallData()})
+        this.notify('Incoming call from ' + (info.partnerName || phoneNumber), {type: 'info'})
+    }
+
     async endCall() {
+        if (this._endingCall) return
+        this._endingCall = true
+        const waiting = this._unloading ? null : this.waitingSession
+        try {
+        this._stopIncomingRing()
         this._updatePresence(this.sipRegistered ? 'available' : 'offline')
         this.call_sid = null
         this.recording_sid = null
@@ -1439,21 +1613,33 @@ export class Phone extends Component {
             this.getCalls()
         }
         const self = this
-        setTimeout(() => self.state.inCall = false, 100)
+        setTimeout(() => {
+            if (!self.state.inIncoming) {
+                self.state.inCall = false
+            }
+        }, 100)
 
         this.destroyCallCounter()
         this.sipSessions = []
         this.state.xTransferTo = ''
         this.state.xTransferInfo = ''
         this.state.xTransferPartner = false
-        // Clear call waiting state
-        this.waitingSession = null
-        this.state.hasWaitingCall = false
-        this.state.waitingCallerId = {}
+        const promote = waiting && !this._unloading
+        if (!promote) {
+            this.waitingSession = null
+            this.state.hasWaitingCall = false
+            this.state.waitingCallerId = {}
+        }
         this.heldSession = null
         this.heldCallSid = null
         this.heldCallId = null
         this.heldCallerId = null
+        if (promote) {
+            this._promoteWaitingCall(waiting)
+        }
+        } finally {
+            this._endingCall = false
+        }
     }
 
     _openPartner(id) {
@@ -1871,6 +2057,7 @@ export class Phone extends Component {
         localStorage.setItem('connect_is_sound_mute', `${this.state.isSoundMute}`)
         this.bc.postMessage({event: "tbcSoundMute", params: {mute: this.state.isSoundMute}})
         this.setIncomingVolume()
+        this._syncIncomingRing()
     }
 
     _onClickAudioSettings(ev) {
@@ -1904,10 +2091,13 @@ export class Phone extends Component {
     }
 
     async _onClickEndCall(ev) {
-        if (this.session) {
+        const call = this.session
+        const wasAnswered = this.state.phone_status === this.status.accepted
+        const wasIncoming = this.state.inIncoming
+        if (call) {
             this.suppressBroadcastChannel = true
             try {
-                this.session.disconnect()
+                call.disconnect()
             } catch (e) {
                 // An already-ended session is not a failed hang-up. The
                 // cleanup below must run regardless, or the UI is left on a
@@ -1915,15 +2105,21 @@ export class Phone extends Component {
                 console.warn('Connect: disconnect on ended session:', e)
             }
         }
+        this._stopIncomingRing()
         this.bc.postMessage({event: "tbcEndCall"})
         this.state.phone_status = this.status.ended
-        await this.endCall()
-        if (this.lastActiveTab === this.tabs.phone) {
-            setFocus(this.phoneInput.el)
+        if (this._claimCallEnd(call)) {
+            const label = wasAnswered ? "Terminated" : (wasIncoming ? "Rejected" : "Canceled")
+            await this.setCallStatus(label)
+            await this.endCall()
+            if (this.lastActiveTab === this.tabs.phone) {
+                setFocus(this.phoneInput.el)
+            }
         }
     }
 
     _onClickAcceptIncoming(ev) {
+        this._stopIncomingRing()
         if (this.session) {
             this.session.accept()
         }
@@ -1936,53 +2132,87 @@ export class Phone extends Component {
     }
 
     async _onClickRejectIncoming(ev) {
-        if (this.session) {
+        const call = this.session
+        if (call) {
             this.suppressBroadcastChannel = true
             try {
-                this.session.reject()
+                call.reject()
             } catch (e) {
                 // Caller already gone == nothing left to reject; still run
                 // the cleanup below.
                 console.warn('Connect: reject on ended session:', e)
             }
         }
+        this._stopIncomingRing()
         this.bc.postMessage({event: "tbcEndCall"})
         this.state.inIncoming = false
-        await this.endCall()
-        if (this.lastActiveTab === this.tabs.phone) {
-            setFocus(this.phoneInput.el)
+        if (this._claimCallEnd(call)) {
+            await this.setCallStatus("Rejected")
+            await this.endCall()
+            if (this.lastActiveTab === this.tabs.phone) {
+                setFocus(this.phoneInput.el)
+            }
         }
     }
 
     async _onClickAcceptWaiting() {
         if (!this.waitingSession) return
 
-        // Put current call on hold first
+        // Hold has to succeed before the second call is answered. A failed
+        // hold used to be logged and then ignored, which left both dialogs live.
         const callSid = this.session?.params?.CallSid || this.call_sid
-        if (callSid) {
-            try {
-                await this.orm.call('connect.call', 'hold_call', [callSid])
-                this.state.isOnHold = true
-            } catch (e) {
-                console.error('Connect: Failed to hold current call:', e)
-            }
+        if (!callSid) {
+            this.notify('The current call cannot be held, so the new one keeps waiting.', {type: 'warning'})
+            return
         }
+        let held = false
+        try {
+            const result = await this.orm.call('connect.call', 'hold_call', [callSid])
+            held = result !== false && !(result && result.success === false)
+        } catch (e) {
+            console.error('Connect: Failed to hold current call:', e)
+            held = false
+        }
+        if (!held) {
+            this.notify('Could not hold the current call, so the new one keeps waiting.', {type: 'warning'})
+            return
+        }
+        if (!this.waitingSession) return
+        this.state.isOnHold = true
 
-        // Store current session info for potential swap-back
+        const info = {...(this.state.waitingCallerId || {})}
+        const next = this.waitingSession
         this.heldSession = this.session
         this.heldCallSid = this.call_sid
         this.heldCallId = this.call_id
         this.heldCallerId = {...this.state.callerId}
 
-        // Accept the waiting call
-        this.session = this.waitingSession
+        const phoneNumber = info.phoneNumber || (next.params && next.params.From) || ''
+        this.session = next
         this.waitingSession = null
         this.state.hasWaitingCall = false
         this.state.waitingCallerId = {}
-
-        this.session.accept()
-        this.state.phone_status = this.status.accepted
+        this.state.callPhoneNumber = phoneNumber
         this.state.inIncoming = false
+        if (info.partnerId) {
+            this.state.isPartner = true
+            this.state.callerId = {
+                partnerId: parseInt(info.partnerId),
+                partnerName: info.partnerName,
+                partnerIconUrl: this.computePartnerIconUrl(info.partnerId),
+                partnerUrl: this.computePartnerUrl(info.partnerId),
+                phoneNumber,
+            }
+        } else {
+            this.state.isPartner = false
+            this.state.callerId = {phoneNumber}
+            this.searchPartner(phoneNumber)
+        }
+        this.destroyCallCounter()
+        this._attachIncomingCall(next, phoneNumber)
+        this._syncIncomingRing()
+        next.accept()
+        this.state.phone_status = this.status.accepted
         this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
         this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
     }

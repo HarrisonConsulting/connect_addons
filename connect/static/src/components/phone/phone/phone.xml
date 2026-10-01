@@ -302,8 +302,8 @@
                     <button aria-label="Take call" t-attf-class="{{ state.inIncoming ? '' : 'o_hide' }} flex-item" title="Accept" t-on-click="_onClickAcceptIncoming">
                         <i class="icon-call call"/>
                     </button>
-                    <button aria-label="Reject call" t-attf-class="{{ state.inIncoming ? '' : 'o_hide' }} flex-item" title="Reject">
-                        <i class="icon-call_end reject-call" t-on-click="_onClickRejectIncoming"/>
+                    <button aria-label="Reject call" t-attf-class="{{ state.inIncoming ? '' : 'o_hide' }} flex-item" title="Reject" t-on-click="_onClickRejectIncoming">
+                        <i class="icon-call_end reject-call"/>
                     </button>
                 </div>
             </div>

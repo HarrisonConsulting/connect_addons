@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect Desk Phones',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
@@ -12,6 +12,7 @@
     'data': [
         'security/ir.model.access.csv',
         'views/endpoint_views.xml',
+        'views/caller_views.xml',
         'views/menu.xml',
     ],
     'installable': True,

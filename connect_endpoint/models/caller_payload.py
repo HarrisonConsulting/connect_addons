@@ -1,5 +1,3 @@
-# wire: models/__init__.py imports caller_payload; manifest data adds views/caller_views.xml
-
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -55,7 +53,7 @@ class UserLines(models.Model):
         this list.
         """
         self.ensure_one()
-        tools = self.ordered_tools('voice')
+        tools = self.ordered_tools('voice').mapped('tool_id')
         accounts = self.env['connect.endpoint.account'].search([
             ('user_id', '=', self.id),
             ('tool_id', 'in', tools.ids),

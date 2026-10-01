@@ -10,10 +10,12 @@ class TestGrandstreamCeiling(TransactionCase):
     def test_grandstream_ceiling_and_registration(self):
         self.assertTrue(connect_endpoint)
         tool = self.env['connect.tool'].create({
+            'name': 'Lab registrar',
             'adapter': 'sip',
             'sip_server': 'pbx.example.test',
         })
         endpoint = self.env['connect.endpoint'].create({
+            'name': 'GRP2670',
             'vendor': 'grandstream',
         })
         self.assertEqual(endpoint.account_ceiling(), 16)
@@ -40,6 +42,9 @@ class TestGrandstreamCeiling(TransactionCase):
         endpoint.apply_registration_event(account, 'register-failed')
         self.assertEqual(account.registration, 'failed')
 
-        plain = self.env['connect.endpoint'].create({'vendor': False})
+        plain = self.env['connect.endpoint'].create({
+            'name': 'Plain desk',
+            'vendor': False,
+        })
         self.assertEqual(plain.account_ceiling(), 0)
         self.assertEqual(plain.line_ceiling(), 0)

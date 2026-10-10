@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+from datetime import timezone
 
 from odoo import fields, models, api
 
@@ -28,7 +29,13 @@ class Recording(models.Model):
         ]:
             data[field] = getattr(rec, field)
             if field in ['start_time', 'date_created', 'date_updated']:
-                data[field] = data[field].utcnow()
+                value = data[field]
+                if not value:
+                    data[field] = False
+                elif value.tzinfo is not None:
+                    data[field] = value.astimezone(timezone.utc).replace(
+                        tzinfo=None
+                    )
         channel = self.env['connect.channel'].search(
             [('sid', '=', rec.call_sid)]
         )

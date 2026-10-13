@@ -1,6 +1,6 @@
 {
     'name': 'Oduist Connect Twilio',
-    'version': '19.0.2.4.14',
+    'version': '19.0.2.4.15',
     'author': 'Oduist',
     'category': 'Phone',
     'summary': 'Twilio integration for Oduist Connect',
@@ -34,21 +34,13 @@
     'assets': {
         'web.assets_backend': [
             'connect_twilio/static/src/icomoon/style.css',
-            # connect/static/src/js/main.js registers ConnectPhoneService.
-            # This module's js/main.js adds the same name and throws on load,
-            # and nothing else imports the legacy phone components.
+            # The softphone and its ConnectPhoneService are bundled by connect;
+            # this module bundles only the helpers, widgets and services below.
             'connect_twilio/static/src/js/utils.js',
             'connect_twilio/static/src/widgets/phone_field/*',
             'connect_twilio/static/src/services/actions/*',
             'connect_twilio/static/src/services/errors/*',
             'connect_twilio/static/src/services/mail/*',
-        ],
-        # Odoo serves this bundle instead of web.assets_web when the user's
-        # colour scheme is dark; it includes the light one first, so these
-        # files are pure overrides. The softphone follows the backend theme
-        # with no toggle of its own.
-        'web.assets_web_dark': [
-            'connect_twilio/static/src/**/*.dark.scss',
         ],
     },
     'post_init_hook': 'post_init_hook',

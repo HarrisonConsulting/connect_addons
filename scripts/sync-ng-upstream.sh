@@ -50,7 +50,7 @@ KNOWN_HOTSPOTS=(
   'connect/__manifest__.py'              # the softphone bundle is ours and lives in connect
   'connect/static/src/'
   'connect_twilio/__manifest__.py'
-  'connect_twilio/static/src/components/phone/'  # NG phone, not bundled here
+  'connect_twilio/static/src/components/phone/'  # removed here; an upstream sync that brings it back must drop it again
   'connect_twilio/controllers/twilio_webhooks.py'  # signature validation is owned here
   'connect_twilio/models/ir_http.py'
   'connect_twilio/models/settings.py'

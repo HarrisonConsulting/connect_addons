@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.4.23',
+    'version': '19.0.4.4.24',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -40,6 +40,8 @@
     ],
     'assets': {
         'web.assets_backend': [
+            '/connect/static/src/js/idb_error_handler.js',
+            '/connect/static/src/services/audio_notification.js',
             '/connect/static/src/components/license_banner/*',
             '/connect/static/src/services/active_calls/*',
             # Leaf modules before the components that import them, and those
@@ -54,7 +56,17 @@
             '/connect/static/src/components/phone/phone/phone.xml',
             '/connect/static/src/components/phone/phone/phone.scss',
             '/connect/static/src/components/phone/tray/*',
+            '/connect/static/src/components/chat/*',
             '/connect/static/src/js/main.js',
+        ],
+        # Dark-mode overrides for the softphone and the chat thread.
+        'web.assets_web_dark': [
+            '/connect/static/src/scss/phone.dark.scss',
+            '/connect/static/src/components/chat/chat_thread.dark.scss',
+        ],
+        'web.assets_tests': [
+            '/connect/static/tests/helpers/loopback_transport.js',
+            '/connect/static/tests/tours/**/*.js',
         ],
     },
     'post_init_hook': 'post_init_hook',

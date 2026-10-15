@@ -32,7 +32,7 @@ deployment. Store every secret outside git.
 
 ## FreeSWITCH image
 
-FreeSWITCH is built from source (`v1.10.12`) with only the modules needed
+FreeSWITCH is built from source (`v1.11.3`) with only the modules needed
 for Odoo integration.
 
 Includes [mod_piper_tts](https://github.com/aks-devs/mod_piper_tts) for

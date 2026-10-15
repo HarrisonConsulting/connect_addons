@@ -3,7 +3,7 @@
 ###############################################################################
 FROM debian:bookworm AS builder
 
-ARG FS_VERSION=v1.10.12
+ARG FS_VERSION=v1.11.3
 ARG PIPER_VERSION=1.2.0
 ARG MOD_PIPER_TTS_VERSION=v1.0.2
 
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential autoconf automake libtool libtool-bin pkg-config cmake \
     git ca-certificates curl wget python3 yasm \
     # FreeSWITCH core
-    libssl-dev libcurl4-openssl-dev libpcre3-dev libsqlite3-dev \
+    libssl-dev libcurl4-openssl-dev libpcre2-dev libsqlite3-dev \
     libedit-dev zlib1g-dev uuid-dev libspeex-dev libspeexdsp-dev \
     # Module deps
     libopus-dev libsndfile1-dev libtiff-dev libjpeg-dev \
@@ -27,7 +27,7 @@ RUN git clone --depth 2 --branch v2.0.10 https://github.com/signalwire/libks.git
     && make -j$(nproc) && make install
 
 # ── Build sofia-sip (removed from FS tree since v1.10.4) ────────────────────
-RUN git clone --depth 1 https://github.com/freeswitch/sofia-sip.git /usr/src/sofia-sip \
+RUN git clone --depth 1 --branch v1.13.18 https://github.com/freeswitch/sofia-sip.git /usr/src/sofia-sip \
     && cd /usr/src/sofia-sip \
     && ./bootstrap.sh \
     && ./configure --prefix=/usr \

@@ -31,7 +31,7 @@ unsafe listener defaults. Use a derived image for a reviewed static override.
 The image is not an unmodified upstream FreeSWITCH build. The deployment
 currently carries these deliberate changes:
 
-1. FreeSWITCH is built from the pinned `v1.10.12` source tag with the module
+1. FreeSWITCH is built from the pinned `v1.11.3` source tag with the module
    list declared in `../Dockerfile`.
 2. `../patches/mod_xml_rpc-loopback.patch` changes upstream `mod_xml_rpc` to
    create its Abyss socket on `127.0.0.1:8080`. Upstream exposes only an

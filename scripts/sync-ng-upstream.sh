@@ -84,7 +84,7 @@ ensure_remote() {
 
 manifest_version() {  # <rev> <module>
   git show "$1:$2/__manifest__.py" 2>/dev/null \
-    | grep -oP "['\"]version['\"]\s*:\s*['\"]\K[^'\"]+" | head -1
+    | grep -oP "['\"]version['\"]\s*:\s*['\"]\K[^'\"]+" | head -1 || true
 }
 
 version_gt() {  # a > b as Odoo stores them: up to three parts read as 19.0.<version>
@@ -258,7 +258,7 @@ if [ "$mode" = dry-run ]; then
 fi
 
 branch=$(git branch --show-current)
-case "$branch" in gdo/*) ;; *) echo "--apply runs on a gdo/* branch, not '$branch'" >&2; exit 2 ;; esac
+case "$branch" in gdo/*|*/sprint/*|*/feat/*|*/fix/*) ;; *) echo "--apply runs on a gdo/* or <worktree>/<kind>/<slug> branch, not '$branch'" >&2; exit 2 ;; esac
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "working tree is dirty" >&2; exit 2; }
 git config rerere.enabled true
 git config rerere.autoupdate true

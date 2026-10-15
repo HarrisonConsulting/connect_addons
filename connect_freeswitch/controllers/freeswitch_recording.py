@@ -26,6 +26,7 @@ class FreeSwitchRecordingController(http.Controller):
     ``.wav`` would break it (ADR-025).
     """
 
+    # preflight-ignore-next-line: auth-none -- FreeSWITCH machine webhook; check_fs_webhook_auth enforces the shared token fail-closed before any write
     @http.route(
         '/freeswitch/webhook/recording/<string:token>/<string:filename>',
         type='http', auth='none', methods=['PUT', 'POST'], csrf=False,
@@ -40,6 +41,7 @@ class FreeSwitchRecordingController(http.Controller):
         return self._upload_audio(
             token, filename, source='freeswitch', is_voicemail=False)
 
+    # preflight-ignore-next-line: auth-none -- FreeSWITCH machine webhook; check_fs_webhook_auth enforces the shared token fail-closed before any write
     @http.route(
         '/freeswitch/webhook/voicemail/<string:token>/<string:filename>',
         type='http', auth='none', methods=['PUT', 'POST'], csrf=False,

@@ -17,6 +17,7 @@ class FreeSwitchCDRController(http.Controller):
     Receives CDR data from mod_xml_cdr after each call ends.
     """
 
+    # preflight-ignore-next-line: csrf-off-public-write -- FreeSWITCH machine webhook; check_fs_webhook_auth enforces the shared token fail-closed before any write
     @http.route(
         '/freeswitch/webhook/cdr',
         type='http', auth='public', methods=['POST'], csrf=False,

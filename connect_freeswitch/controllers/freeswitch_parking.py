@@ -23,6 +23,8 @@ class FreeSwitchParkingController(http.Controller):
     Both events are idempotent — replays are safe.
     """
 
+    # preflight-ignore-next-line: open-sudo -- FreeSWITCH machine webhook; check_fs_webhook_auth enforces the shared token fail-closed before any write
+    # preflight-ignore-next-line: auth-none -- FreeSWITCH machine webhook; check_fs_webhook_auth enforces the shared token fail-closed before any write
     @http.route(
         '/freeswitch/webhook/parking',
         type='http', auth='none', methods=['GET', 'POST'], csrf=False,

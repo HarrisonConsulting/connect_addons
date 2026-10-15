@@ -30,6 +30,7 @@ class FreeSwitchXMLController(http.Controller):
     FreeSWITCH sends POST requests with section parameter to fetch configuration.
     """
 
+    # preflight-ignore-next-line: auth-none -- FreeSWITCH machine webhook; check_fs_webhook_auth enforces the shared token fail-closed before any write
     @http.route('/freeswitch/xml', type='http', auth='none', methods=['POST'], csrf=False)
     def freeswitch_xml(self, **kwargs):
         """

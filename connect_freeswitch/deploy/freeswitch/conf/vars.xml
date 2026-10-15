@@ -1,0 +1,49 @@
+<include>
+  <X-PRE-PROCESS cmd="set" data="default_password=CHANGE_ME"/>
+
+  <!-- Odoo integration: read from OS environment variables -->
+  <X-PRE-PROCESS cmd="env-set" data="odoo_url=$ODOO_URL"/>
+  <!-- Shared secret for every FreeSWITCH -> Odoo HTTP call (xml_curl,
+       xml_cdr). Must match the FreeSWITCH Webhook Token in Odoo
+       settings; unset means Odoo rejects the requests (ADR-025). -->
+  <X-PRE-PROCESS cmd="env-set" data="webhook_token=$FS_WEBHOOK_TOKEN"/>
+  <!--
+  <X-PRE-PROCESS cmd="env-set" data="domain=$FS_DOMAIN"/>
+  <X-PRE-PROCESS cmd="set" data="domain_name=$${domain}"/>
+  -->
+  <X-PRE-PROCESS cmd="exec-set" data="domain=echo $FS_DOMAIN"/>
+  <X-PRE-PROCESS cmd="exec-set" data="domain_name=echo $FS_DOMAIN"/>
+
+  <X-PRE-PROCESS cmd="set" data="global_codec_prefs=OPUS,G722,PCMU,PCMA,H264,VP8"/>
+  <X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=OPUS,G722,PCMU,PCMA,H264,VP8"/>
+
+  <X-PRE-PROCESS cmd="stun-set" data="external_rtp_ip=stun:stun.freeswitch.org"/>
+  <X-PRE-PROCESS cmd="stun-set" data="external_sip_ip=stun:stun.freeswitch.org"/>
+
+  <X-PRE-PROCESS cmd="set" data="internal_sip_port=65060"/>
+  <X-PRE-PROCESS cmd="set" data="internal_tls_port=65061"/>
+  <X-PRE-PROCESS cmd="set" data="internal_ssl_enable=false"/>
+  <X-PRE-PROCESS cmd="set" data="internal_auth_calls=true"/>
+
+  <!--
+    Hold music feeds mod_fifo's queue MoH, the bridge-on-hold prompt, etc.
+    `local_stream://moh` streams the royalty-free music package downloaded by
+    the entrypoint (see SOUND_TYPES=music in the Dockerfile). Override here
+    or per-call (e.g. `set fifo_music=...`) when the operator wants a
+    different source.
+  -->
+  <X-PRE-PROCESS cmd="set" data="hold_music=local_stream://moh"/>
+  <X-PRE-PROCESS cmd="set" data="use_profile=internal"/>
+  <!--
+    Ringback tone played to the caller while a bridge target rings. The
+    image wipes FreeSWITCH's stock configs, so the usual `us-ring` global
+    must be (re)defined here or the dialplan's `ringback=${us-ring}` would
+    expand to an empty string. Standard US ring cadence: 2s on / 4s off,
+    440+480 Hz. Change here for a local cadence (e.g. Swiss %(1000,4000,425)).
+    See ADR-029 / issue #113.
+  -->
+  <X-PRE-PROCESS cmd="set" data="us-ring=%(2000,4000,440,480)"/>
+  <!-- Log levels: read from Docker env vars (defaults in Dockerfile) -->
+  <X-PRE-PROCESS cmd="env-set" data="core_loglevel=$FS_LOG_LEVEL"/>
+  <X-PRE-PROCESS cmd="env-set" data="sofia_loglevel=$FS_SOFIA_LOG_LEVEL"/>
+</include>

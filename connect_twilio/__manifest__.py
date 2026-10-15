@@ -1,6 +1,6 @@
 {
     'name': 'Oduist Connect Twilio',
-    'version': '19.0.2.4.15',
+    'version': '19.0.2.5.0',
     'author': 'Oduist',
     'category': 'Phone',
     'summary': 'Twilio integration for Oduist Connect',
@@ -13,6 +13,7 @@
         'views/menu.xml',
         'views/settings_views.xml',
         'views/res_config_settings_views.xml',
+        'views/s3_settings_views.xml',
         'views/twiml_views.xml',
         'views/domain_views.xml',
         'views/user_views.xml',

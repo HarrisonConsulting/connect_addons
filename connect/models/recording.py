@@ -2,6 +2,7 @@ import base64
 import io
 import logging
 import os
+import re
 import wave
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from tempfile import NamedTemporaryFile
@@ -13,6 +14,12 @@ from odoo import fields, models, api, release, SUPERUSER_ID
 from odoo.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
+
+# A transcript with fewer words than this is not worth summarizing: the model
+# only answers "the transcript is too short to summarize", which then lands in
+# every linked chatter as noise.
+MIN_SUMMARY_WORDS = 8
+TIMESTAMP_RE = re.compile(r'\b\d{1,2}:\d{2}:\d{2}\b')
 
 
 def silence_wav_spans(wav_bytes, spans):
@@ -199,8 +206,8 @@ class Recording(models.Model):
     def _fetch_media_to(self, temp_file):
         """Write this recording's audio into an open binary file object.
 
-        Seam: storage add-ons (connect_s3) override this to read the audio
-        from their own backend instead of the provider's URL.
+        Seam: storage add-ons (connect_twilio's S3 storage) override this to
+        read the audio from their own backend instead of the provider's URL.
         """
         self.ensure_one()
         if self.recording_attachment:
@@ -213,8 +220,9 @@ class Recording(models.Model):
         # Bounded download: media_url points at the provider's
         # recording store; without a timeout a hung endpoint
         # pins the worker.
-        auth = self.env['connect.settings'].sudo().get_media_auth(self.media_url)
-        with requests.get(self.media_url, auth=auth, stream=True, timeout=30) as response:
+        url = self._get_media_download_url()
+        auth = self.env['connect.settings'].sudo().get_media_auth(url)
+        with requests.get(url, auth=auth, stream=True, timeout=30) as response:
             response.raise_for_status()
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
@@ -262,7 +270,8 @@ class Recording(models.Model):
                 ts = f"{int(seconds // 3600):02d}:{int((seconds % 3600) // 60):02d}:{int(seconds % 60):02d}"
                 segments += '{} {}\n'.format(ts, s.text)
             result['transcript'] = segments
-            result.update(self.make_summary(client, summary_prompt, result['transcript']))
+            if self._is_summarizable(segments):
+                result.update(self.make_summary(client, summary_prompt, segments))
             result.setdefault('transcription_error', False)
         except Exception as e:
             logger.exception(f'Transcribe error: {e}')
@@ -352,6 +361,12 @@ class Recording(models.Model):
             logger.exception(f'Summary error: {e}')
             return {'transcription_error': str(e)}
 
+    @api.model
+    def _is_summarizable(self, transcript):
+        """True when the transcript has enough words to summarize."""
+        words = re.findall(r'\w+', TIMESTAMP_RE.sub(' ', transcript or ''))
+        return len(words) >= MIN_SUMMARY_WORDS
+
     def get_transcript(self, fail_silently=False):
         self.ensure_one()
         openai_key = self.env['connect.settings'].sudo().get_param('openai_api_key')
@@ -374,7 +389,9 @@ class Recording(models.Model):
             'transcription_price': self._format_transcription_price(
                 data.get('transcription_price')
             ),
-            'summary': data.get('summary'),
+            'summary': (
+                data.get('summary')
+                if self._is_summarizable(data.get('transcript')) else False),
             'transcription_token': False,
             'transcription_error': data.get('transcription_error'),
             'transcription_pending': False,
@@ -424,8 +441,8 @@ class Recording(models.Model):
     def _get_media_src(self, proxy_recordings):
         """Return the URL the player should point at, '' when there is none.
 
-        Seam: storage add-ons (connect_s3) override this to hand out a
-        backend-specific URL, e.g. an S3 presigned URL.
+        Seam: storage add-ons (connect_twilio's S3 storage) override this to
+        hand out a backend-specific URL, e.g. an S3 presigned URL.
         """
         self.ensure_one()
         if self.recording_attachment:
@@ -435,6 +452,18 @@ class Recording(models.Model):
                 return '/connect/recording/{}'.format(self.id)
             return self.media_url
         return ''
+
+    def _get_media_download_url(self):
+        """Return the provider URL to download this recording from now.
+
+        Called only when the audio is actually fetched (proxy playback and
+        transcription), never while rendering a list or form, so a provider
+        override may call its API here. Seam: providers whose stored link is
+        short-lived (connect_telnyx: 10-minute signed URLs) override this to
+        request a fresh link.
+        """
+        self.ensure_one()
+        return self.media_url
 
     def get_attachment_media_url(self):
         self.ensure_one()

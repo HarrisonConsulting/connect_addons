@@ -24,13 +24,14 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <group>
                         <field name="name"/>
                         <field name="ip_or_cidr"/>
                         <field name="active"/>
                     </group>
                     <group string="Notes">
-                        <field name="note" nolabel="1"/>
+                        <field name="note" nolabel="1" colspan="2"/>
                     </group>
                 </sheet>
             </form>
@@ -45,6 +46,7 @@
             <p class="o_view_nocontent_smiling_face">No whitelist entries yet.</p>
             <p>Whitelisted IPs and subnets bypass all automatic banning logic.</p>
         </field>
+        <field name="path">freeswitch-firewall-whitelist</field>
     </record>
 
     <!-- ============================================================ -->
@@ -70,13 +72,14 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <group>
                         <field name="name"/>
                         <field name="ip_or_cidr"/>
                         <field name="active"/>
                     </group>
                     <group string="Notes">
-                        <field name="note" nolabel="1"/>
+                        <field name="note" nolabel="1" colspan="2"/>
                     </group>
                 </sheet>
             </form>
@@ -91,6 +94,7 @@
             <p class="o_view_nocontent_smiling_face">No permanent bans yet.</p>
             <p>Add an IP or subnet here to block it permanently. Temporary auto-bans live in the kernel only and are visible in the firewall dashboard.</p>
         </field>
+        <field name="path">freeswitch-firewall-blacklist</field>
     </record>
 
     <!-- ============================================================ -->
@@ -143,7 +147,7 @@
                         </group>
                     </group>
                     <group string="Details">
-                        <field name="details" nolabel="1"/>
+                        <field name="details" nolabel="1" colspan="2"/>
                     </group>
                 </sheet>
             </form>
@@ -179,6 +183,7 @@
         <field name="res_model">connect.firewall.event</field>
         <field name="view_mode">list</field>
         <field name="search_view_id" ref="view_firewall_event_search"/>
+        <field name="path">freeswitch-firewall-event</field>
     </record>
 
     <!-- ============================================================ -->

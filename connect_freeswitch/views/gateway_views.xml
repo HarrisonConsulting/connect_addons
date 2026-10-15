@@ -21,6 +21,7 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_title">
                         <h1><field name="name" placeholder="Gateway Name"/></h1>
                     </div>
@@ -41,7 +42,7 @@
                         </group>
                     </group>
                     <group string="Inbound IP Whitelist" colspan="2">
-                        <field name="inbound_ips" nolabel="1"
+                        <field name="inbound_ips" nolabel="1" colspan="2"
                                placeholder="One IP or CIDR per line, e.g.&#10;185.3.68.0/24&#10;212.51.140.20"/>
                     </group>
                 </sheet>
@@ -53,6 +54,7 @@
         <field name="name">SIP Gateways</field>
         <field name="res_model">connect.freeswitch.gateway</field>
         <field name="view_mode">list,form</field>
+        <field name="path">freeswitch-gateway</field>
     </record>
 
     <menuitem id="menu_freeswitch_gateway"

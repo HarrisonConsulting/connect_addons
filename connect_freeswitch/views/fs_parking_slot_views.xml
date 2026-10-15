@@ -40,6 +40,7 @@
                             string="Sync from FreeSWITCH"/>
                 </header>
                 <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_title">
                         <h1><field name="name" placeholder="Slot 701"/></h1>
                     </div>
@@ -93,6 +94,7 @@
                from any phone by dialing the slot extension. BLF-capable SIP phones
                show occupied/free state on DSS keys subscribed to the slot.</p>
         </field>
+        <field name="path">freeswitch-parking-slot</field>
     </record>
 
     <menuitem id="menu_fs_parking_slot"

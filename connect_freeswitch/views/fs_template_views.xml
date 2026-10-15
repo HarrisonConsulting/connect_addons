@@ -56,6 +56,7 @@
         <field name="name">XML Templates</field>
         <field name="res_model">connect.freeswitch.template</field>
         <field name="view_mode">list,form</field>
+        <field name="path">freeswitch-template</field>
     </record>
 
     <menuitem id="menu_freeswitch_template"

@@ -9,6 +9,7 @@ from odoo import api, fields, models, release
 from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
+TOKEN_CLOCK_SKEW_SECONDS = 300
 
 PUBLIC_KEY_PARAM = "oduist_license.public_key"
 ODUIST_MODULES = []
@@ -204,6 +205,7 @@ class OduistLicense(models.Model):
                 public_key,
                 algorithms=["RS256"],
                 options={"verify_signature": True},
+                leeway=TOKEN_CLOCK_SKEW_SECONDS,
             )
 
             instance_uid = self.sudo().get_param("instance_uid")

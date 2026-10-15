@@ -39,10 +39,8 @@ class FreeSwitchParkingSlot(models.Model):
     is_occupied = fields.Boolean(
         compute='_compute_is_occupied', store=True)
 
-    _sql_constraints = [
-        ('exten_unique', 'unique(exten)',
-         'A parking slot with this extension already exists.'),
-    ]
+    _exten_unique = models.Constraint(
+        'unique(exten)', 'A parking slot with this extension already exists.')
 
     @api.depends('parked_uuid')
     def _compute_is_occupied(self):

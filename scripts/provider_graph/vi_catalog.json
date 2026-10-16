@@ -1,0 +1,5858 @@
+{
+ "seen": "2026-10-13",
+ "sources": [
+  {
+   "title": "Wholesale SIP Trunking - Data Objects",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+   "status": "ok",
+   "note": "26 objects; REST api content endpoint"
+  },
+  {
+   "title": "All API 3.0 Methods",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+   "status": "ok",
+   "note": "93 numbered sections; 10DLC returns blank; getLocations/addLocation/provisionLocation/removeLocation absent"
+  },
+  {
+   "title": "Appendix",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662143046",
+   "status": "ok",
+   "note": "status codes A-C"
+  },
+  {
+   "title": "Response Objects",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662732804",
+   "status": "ok",
+   "note": ""
+  },
+  {
+   "title": "SMS (Wholesale Carrier Services - SMS) index",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656048325",
+   "status": "ok",
+   "note": "index only"
+  },
+  {
+   "title": "Wholesale SMS - SMS on DIDs",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/665845768",
+   "status": "ok",
+   "note": ""
+  },
+  {
+   "title": "Wholesale SMS - API Methods for 10DLC Registration",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/666435623",
+   "status": "ok",
+   "note": ""
+  },
+  {
+   "title": "STIR/SHAKEN (Service Provider guide, Call Signing Service)",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/663355448",
+   "status": "ok",
+   "note": "guide page 662962235 body is a download link; summary 663519332 ok; no API"
+  },
+  {
+   "title": "Endpoint Groups",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/658866325",
+   "status": "ok",
+   "note": "index only; Endpoint Group Management 659423247 fetched, UI-level"
+  },
+  {
+   "title": "CDRs / CDR Format",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656965680",
+   "status": "ok",
+   "note": "CDR index 659357793 is link list"
+  },
+  {
+   "title": "Introduction To Apidaze / Programmable Telco",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656703489",
+   "status": "ok",
+   "note": ""
+  },
+  {
+   "title": "CNAM API / Robocall Mitigation",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656310298",
+   "status": "ok",
+   "note": ""
+  },
+  {
+   "title": "APIService WSDL",
+   "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+   "status": "ok",
+   "note": "126 operations, anonymous fetch via curl; authoritative for signatures"
+  },
+  {
+   "title": "dev.voipinnovations.com/API/Index.aspx",
+   "url": "https://dev.voipinnovations.com/API/Index.aspx",
+   "status": "error",
+   "note": "ECONNREFUSED 64.136.164.71:443 (WebFetch); curl ?WSDL timed out/no connect. Sandbox likely IP-restricted"
+  },
+  {
+   "title": "apidaze.io/docs",
+   "url": "https://apidaze.io/docs",
+   "status": "error",
+   "note": "301 to sangoma.com products page; docs.apidaze.io, developers.apidaze.io, apidocs.voipinnovations.com unreachable (no connect)"
+  },
+  {
+   "title": "Apidaze Node SDK (github apidaze/sdk-node)",
+   "url": "https://github.com/apidaze/sdk-node",
+   "status": "ok",
+   "note": "used as Apidaze REST/XML evidence"
+  },
+  {
+   "title": "Wholesale SIP Trunking - Porting & Provisioning etc.",
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/663060550",
+   "status": "ok",
+   "note": "fetched, index only"
+  }
+ ],
+ "objects": [
+  {
+   "name": "DID",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "String",
+     "description": "Telephone number"
+    },
+    {
+     "name": "availability",
+     "type": "String",
+     "description": "Defines the status of the returned TN"
+    },
+    {
+     "name": "rewrite",
+     "type": "String",
+     "description": "Used in rewriting the DNIS for the TN if assigned to you or reserved by you"
+    },
+    {
+     "name": "status",
+     "type": "String",
+     "description": "This is the status of a request, for example \u2018Success\u2019"
+    },
+    {
+     "name": "statusCode",
+     "type": "String",
+     "description": "Each status has a matching numerical value, for example, a \u2018Success\u2019 status has a \u2018100\u2019 statusCode"
+    },
+    {
+     "name": "tier",
+     "type": "String",
+     "description": "Pricing tier on which the number resides"
+    },
+    {
+     "name": "refId",
+     "type": "String",
+     "description": "This is the customer-defined Reference ID that is associated with this request. This field is purely for the benefit of the API user, and could potentially be used to associate a Customer ID, Order ID, or any other Reference ID to an API Request."
+    },
+    {
+     "name": "cnamName",
+     "type": "String",
+     "description": "CNAM Storage Display Name"
+    },
+    {
+     "name": "state",
+     "type": "String",
+     "description": "State"
+    },
+    {
+     "name": "rateCenter",
+     "type": "String",
+     "description": "Rate Center that services the DID"
+    },
+    {
+     "name": "didGroupID",
+     "type": "String",
+     "description": "ID number of the DID Group as can be found in the Back Office under Groups -> DID Groups"
+    },
+    {
+     "name": "network",
+     "type": "String",
+     "description": "The network on which the DID resides"
+    },
+    {
+     "name": "endpointId",
+     "type": "Int",
+     "description": "This will return an integer that defines which endpoint group ID this TN will route to if the TN is assigned to you or reserved by you. This can be changed by performing a configDID request"
+    },
+    {
+     "name": "has411",
+     "type": "String",
+     "description": "Indicates if the DID currently has a 411-registered address"
+    },
+    {
+     "name": "has911",
+     "type": "String",
+     "description": "Indicates if the DID currently has an e911 registered address"
+    },
+    {
+     "name": "cnam",
+     "type": "Boolean",
+     "description": "Denotes whether inbound CNAM dip is or is not active for the DID"
+    },
+    {
+     "name": "cnamStorageActive",
+     "type": "Boolean",
+     "description": "Denotes whether a CNAM Storage record is or is not on file in our database for the DID"
+    },
+    {
+     "name": "cnamStorageAvailablility",
+     "type": "Boolean",
+     "description": "Denotes if a DID supports CNAM Storage capability or not"
+    },
+    {
+     "name": "t38",
+     "type": "Boolean",
+     "description": "Denotes if a DID is T38 capable"
+    },
+    {
+     "name": "failover",
+     "type": "String",
+     "description": "Failover number (if set) on the DID. This field is only included with the GetDIDFailover method."
+    },
+    {
+     "name": "forward",
+     "type": "String",
+     "description": "Forward number (if set) on the DID. This field is only included with the GetDIDForward method."
+    },
+    {
+     "name": "didGroupId",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Network",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "minRelease",
+     "type": "dateTime",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "expireDate",
+     "type": "dateTime",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "cnamStorageAvailability",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A DID is \u2018Direct Inward Dial\u2019 and is a telephone number.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DIDLocator",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "String",
+     "description": "Telephone number of the DID matching your search criteria"
+    },
+    {
+     "name": "rateCenter",
+     "type": "String",
+     "description": "The name of the Rate Center that matches your search criteria"
+    },
+    {
+     "name": "state",
+     "type": "String",
+     "description": "Two-letter state abbreviation that matches your search criteria"
+    },
+    {
+     "name": "tier",
+     "type": "String",
+     "description": "Pricing tier on which the number in your search criteria"
+    },
+    {
+     "name": "network",
+     "type": "String",
+     "description": "The ULC that the DID currently belongs with"
+    },
+    {
+     "name": "lataId",
+     "type": "Int",
+     "description": "The LATA that matches your search criteria"
+    },
+    {
+     "name": "outboundCNAM",
+     "type": "Boolean",
+     "description": "Denotes if the DID in your search criteria supports CNAM Storage"
+    },
+    {
+     "name": "t38",
+     "type": "Boolean",
+     "description": "Denotes if the DID in your search criteria is T38 capable"
+    },
+    {
+     "name": "sms",
+     "type": "Boolean",
+     "description": "Denotes if the DID in your search criteria supports SMS"
+    }
+   ],
+   "description": "A DIDLocator is a representation of DID information in our database.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DIDParam",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "String",
+     "description": "Telephone Number"
+    },
+    {
+     "name": "locationId",
+     "type": "String",
+     "description": "ID generated by our 911 provider associated with the location"
+    },
+    {
+     "name": "cnam",
+     "type": "String",
+     "description": "This is the bit value \u201c0\u201d or \u201c1\u201d for setting inbound CNAM dips inactive (0) or active (1)"
+    },
+    {
+     "name": "refId",
+     "type": "String",
+     "description": "This is the customer-defined reference ID associated with this request. This field is purely for the benefit of the API user and could potentially be used to associate a customer ID, Order ID, or any other Reference ID to an API request."
+    },
+    {
+     "name": "epg",
+     "type": "int",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A DIDParam defines values for modifying a DID",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DID911",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "locationId",
+     "type": "String",
+     "description": "The location ID that is populated"
+    },
+    {
+     "name": "tn",
+     "type": "String",
+     "description": "The tn that you are querying"
+    },
+    {
+     "name": "callerName",
+     "type": "String",
+     "description": "The caller name that was entered for the e911 address"
+    },
+    {
+     "name": "address1",
+     "type": "String",
+     "description": "Street and house number"
+    },
+    {
+     "name": "address2",
+     "type": "String",
+     "description": "Any additional information such as \u201cApartment 1\u201d or \u201cSuite 100\u201d etc."
+    },
+    {
+     "name": "city",
+     "type": "String",
+     "description": "City"
+    },
+    {
+     "name": "state",
+     "type": "String",
+     "description": "State"
+    },
+    {
+     "name": "zipCode",
+     "type": "String",
+     "description": "Zip code"
+    },
+    {
+     "name": "latitude",
+     "type": "String",
+     "description": "Latitude coordinate of the address on file"
+    },
+    {
+     "name": "longitude",
+     "type": "String",
+     "description": "Longitude coordinate of the address on file"
+    },
+    {
+     "name": "statusCode",
+     "type": "String",
+     "description": "The status code provided for the query ran"
+    },
+    {
+     "name": "statusDescription",
+     "type": "String",
+     "description": "The description associated with the status code"
+    },
+    {
+     "name": "activatedTime",
+     "type": "DateTime",
+     "description": "The time the e911 address was activated or provisioned"
+    },
+    {
+     "name": "dateAdded",
+     "type": "DateTime",
+     "description": "Date/Time the location was registered"
+    },
+    {
+     "name": "alerts",
+     "type": "ArrayOfAlert911",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "hasAlerts",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "DID911 defines data stored in our database pertaining to a 911 registration for a DID",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Status911",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "statusCode",
+     "type": "String",
+     "description": "Used to determine the status of the database call"
+    },
+    {
+     "name": "statusDescription",
+     "type": "String",
+     "description": "Describes the status of the database call"
+    },
+    {
+     "name": "code",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "description",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A Status911 defines the status code and status description of a modified 911 location or DID",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "VILocation",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "locationId",
+     "type": "String",
+     "description": "ID generated by 911 provider (DASH) associated with the location"
+    },
+    {
+     "name": "address1",
+     "type": "String",
+     "description": "Street and house number"
+    },
+    {
+     "name": "address2",
+     "type": "String",
+     "description": "Any additional address information such as \u201cApt 1\u201d or \u201cSTE 100\u201d"
+    },
+    {
+     "name": "city",
+     "type": "String",
+     "description": "City or community name"
+    },
+    {
+     "name": "state",
+     "type": "String",
+     "description": "Two letter state abbreviation"
+    },
+    {
+     "name": "zipCode",
+     "type": "String",
+     "description": "5-digit zip code"
+    },
+    {
+     "name": "plusFour",
+     "type": "String",
+     "description": "4-digit zip code extension"
+    },
+    {
+     "name": "callerName",
+     "type": "String",
+     "description": "Caller Name"
+    },
+    {
+     "name": "latitude",
+     "type": "String",
+     "description": "Latitudinal Coordinates"
+    },
+    {
+     "name": "longitude",
+     "type": "String",
+     "description": "Longitudinal Coordinates"
+    },
+    {
+     "name": "statusCode",
+     "type": "String",
+     "description": "GEOCODED or PROVISIONED. Old locations may be VERFIED or UNVERIFIED"
+    },
+    {
+     "name": "statusDescription",
+     "type": "String",
+     "description": "Describes the statusCode"
+    },
+    {
+     "name": "orderID",
+     "type": "String",
+     "description": "The order ID that was generated for the location."
+    },
+    {
+     "name": "activatedTime",
+     "type": "DateTime",
+     "description": "Date in which the location was provisioned"
+    },
+    {
+     "name": "updateTime",
+     "type": "DateTime",
+     "description": "Date in which the location was last updated"
+    },
+    {
+     "name": "orderId",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A VILocation defines data that is stored in our database for a location registered to a DID",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DIDCount",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "didCount",
+     "type": "String",
+     "description": "The number of available DIDs in a specified tier for a rate center"
+    },
+    {
+     "name": "rateCenter",
+     "type": "String",
+     "description": "Name of the rate center matching the search criteria"
+    },
+    {
+     "name": "state",
+     "type": "String",
+     "description": "Two letter state abbreviation matching the search criteria"
+    },
+    {
+     "name": "tier",
+     "type": "String",
+     "description": "The tier in which the numbers reside"
+    },
+    {
+     "name": "lataId",
+     "type": "Int",
+     "description": "The LATA matching the search criteria"
+    },
+    {
+     "name": "cnam",
+     "type": "Boolean",
+     "description": "Returns TRUE or FALSE, indicates if the numbers have CNAM Storage"
+    },
+    {
+     "name": "t38",
+     "type": "Boolean",
+     "description": "Returns TRUE or FALSE, indicates if the numbers are T.38 fax capable"
+    },
+    {
+     "name": "sms",
+     "type": "Boolean",
+     "description": "Returns TRUE or FALSE, indicates if the numbers are capable of SMS messaging"
+    }
+   ],
+   "description": "A DIDCount gives information about a Rate Center and the number of available DIDs by tier",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "PortDetail",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "id",
+     "type": "Integer",
+     "description": "The port identification number"
+    },
+    {
+     "name": "status",
+     "type": "String",
+     "description": "The status of the port"
+    },
+    {
+     "name": "endUser",
+     "type": "String",
+     "description": "The end user associated with the port"
+    },
+    {
+     "name": "billingTN",
+     "type": "String",
+     "description": "The BTN associated with this port"
+    },
+    {
+     "name": "portingFrom",
+     "type": "String",
+     "description": "The carrier or network from which the port is taking place"
+    },
+    {
+     "name": "salesRep",
+     "type": "String",
+     "description": "The account manager for the account"
+    },
+    {
+     "name": "submittedDate",
+     "type": "DateTime",
+     "description": "The date and time that the port was submitted"
+    },
+    {
+     "name": "focDate",
+     "type": "DateTime",
+     "description": "The date currently set for this port to FOC"
+    },
+    {
+     "name": "requestedFocDate",
+     "type": "DateTime",
+     "description": "The requested FOC date for this port"
+    },
+    {
+     "name": "dids",
+     "type": "Array",
+     "description": "Returns an ArrayOfPortDID"
+    },
+    {
+     "name": "defaultEndpointGroup",
+     "type": "Integer",
+     "description": "The endpoint group to which the DIDs in this port will be assigned to upon"
+    },
+    {
+     "name": "custOrderRef",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "notes",
+     "type": "ArrayOfPortNote",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A PortDetail gives information about a port",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Country",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "name",
+     "type": "String",
+     "description": "The full name for the country"
+    },
+    {
+     "name": "abbrev",
+     "type": "String",
+     "description": "The two-letter abbreviation for this country"
+    },
+    {
+     "name": "cities",
+     "type": "Array",
+     "description": "Returns an ArrayOfCity"
+    }
+   ],
+   "description": "A Country contains general information regarding the country for international numbers. This is used to obtain a cityID so you can assign an international DID",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "IntlDID",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "String",
+     "description": "The full telephone number that has been assigned"
+    },
+    {
+     "name": "country",
+     "type": "String",
+     "description": "The full country name of the assigned DID"
+    },
+    {
+     "name": "city",
+     "type": "String",
+     "description": "The full city name of the assigned DID"
+    },
+    {
+     "name": "tier",
+     "type": "String",
+     "description": "The tier of the IntlDID"
+    },
+    {
+     "name": "status",
+     "type": "String",
+     "description": "The status of the IntlDID"
+    },
+    {
+     "name": "sms",
+     "type": "Boolean",
+     "description": "True or False if the DID has SMS capabilities"
+    }
+   ],
+   "description": "An IntlDID is returned after a successful assignIntlDID method call. This contains the assigned international DID along with the country and city in which is resides.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DIDGroup",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "id",
+     "type": "Int",
+     "description": "Database ID of the group"
+    },
+    {
+     "name": "name",
+     "type": "String",
+     "description": "Name of the group"
+    },
+    {
+     "name": "ID",
+     "type": "int",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Name",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A DID group is a collection of DIDs. This feature is for your convenience to assist in tracking usage and spending for this collection of numbers on your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ConferenceLine",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "Enabled",
+     "type": "Boolean",
+     "description": "Specifies if the DID has the conference line feature enabled"
+    },
+    {
+     "name": "PIN",
+     "type": "String",
+     "description": "The PIN number for this conference. This will only be included if Enabled is True"
+    },
+    {
+     "name": "TN",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "A ConferenceLine object is returned along with a standard DIDResponse in response to a GetConferenceLine method call.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SMSDID",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "String",
+     "description": "The DID with SMS capability"
+    },
+    {
+     "name": "forwardEmail",
+     "type": "String",
+     "description": "If the DID has Forward to Email enabled"
+    },
+    {
+     "name": "editable",
+     "type": "Boolean",
+     "description": "Specifies if the DID is editable"
+    },
+    {
+     "name": "enabled",
+     "type": "Boolean",
+     "description": "Specifies if the DID has SMS turned on/off"
+    },
+    {
+     "name": "DestinationType",
+     "type": "String",
+     "description": "NONE, SIP, EMAIL, FORWARD, POST, GET, PROGTELCO, APPFONE"
+    },
+    {
+     "name": "Destination",
+     "type": "String",
+     "description": "The destination we would send a SMS message to. This could be by API, Forward, etc."
+    },
+    {
+     "name": "APIAuthToken",
+     "type": "String",
+     "description": "If the destination type is API Get or Post, you are going to need an Authtoken."
+    },
+    {
+     "name": "TN",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "ForwardEmail",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Editable",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Enabled",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "DLR",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "OffNetwork",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "CampaignID",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "CampaignName",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Is10DLCRegistered",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Failed10DLCNote",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "The SMSDID object is returned after using a method such as ConfigSMS and various information regarding SMS is returned",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "IsPortable",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "IsPortable",
+     "type": "Boolean",
+     "description": "True or False"
+    }
+   ],
+   "description": "The IsPortable object is returned as either True or False stating if the TN is portable.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Email",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "Email",
+     "type": "String",
+     "description": "The email(s) that is associated with the service of the TN"
+    }
+   ],
+   "description": "The Email object is returned with email to fax and fax to email methods.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "FaxToEmail",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "TN",
+     "type": "String",
+     "description": "A DID that has Fax to Email enabled"
+    },
+    {
+     "name": "Email",
+     "type": "String",
+     "description": "The email that is associated with the TN"
+    }
+   ],
+   "description": "The FaxToEmail object is returned with the AuditFaxToEmails method",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "CallerID",
+   "group": "cnam",
+   "fields": [
+    {
+     "name": "CallerID",
+     "type": "String",
+     "description": "The DID whose email you are looking for that is associated with the email to fax feature"
+    }
+   ],
+   "description": "The CallerID object is returned for the GetEmailToFax.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DisplayName",
+   "group": "cnam",
+   "fields": [
+    {
+     "name": "DisplayName",
+     "type": "String",
+     "description": "The Display Name that has been entered for the TN"
+    }
+   ],
+   "description": "The DisplayName object is returned for the UpdateCNAMDisplay and GetCNAMDisplay method.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Alerts",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "Alerts",
+     "type": "String",
+     "description": "The Display Name that has been entered for the TN"
+    }
+   ],
+   "description": "The Alerts object is returned for the Query911Alert method.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Amount",
+   "group": "account",
+   "fields": [
+    {
+     "name": "Amount",
+     "type": "Decimal",
+     "description": "The Amount that is on the Prepaid Balance of your account"
+    }
+   ],
+   "description": "The Amount object is returned for the GetPrepaidBalance method.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "TNs",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "TNs",
+     "type": "String",
+     "description": "The TNs that are returned by the method, so either TNs that are in your personal inventory or your list of unconfigured DIDs."
+    }
+   ],
+   "description": "The TNs object is returned for GetInventoryTNs and GetUnconfiguredTNs.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Client",
+   "group": "account",
+   "fields": [
+    {
+     "name": "ID",
+     "type": "Int",
+     "description": "The ID of the Client"
+    },
+    {
+     "name": "Name",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Note",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "HostedBillingCustomer",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "EndpointGroups",
+     "type": "ArrayOfEndpointGroup",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "DIDGroups",
+     "type": "ArrayOfDIDGroup",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "E911Groups",
+     "type": "ArrayOfE911Group",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "The Client object is returned for AuditClients.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "EndpointGroup",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "ID",
+     "type": "Int",
+     "description": "The ID of the endpoint group"
+    },
+    {
+     "name": "Name",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Client",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Port",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "Prepend",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "RateDeck",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "StripPlus",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "StripCountryCode",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "International",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "OrigCallsMTD",
+     "type": "int",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "OrigMinutesMTD",
+     "type": "decimal",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "OrigCostMTD",
+     "type": "decimal",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "TermCallsMTD",
+     "type": "int",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "TermMinutesMTD",
+     "type": "decimal",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "TermCostMTD",
+     "type": "decimal",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "TotalCostMTD",
+     "type": "decimal",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "IPs",
+     "type": "ArrayOfString",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "The EndpointGroup object is returned for AuditEndpointGroups and AuditEndpointGroup.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DIDFailover",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "TN",
+     "type": "String",
+     "description": "A DID that has failover enabled"
+    },
+    {
+     "name": "FailoverTN",
+     "type": "String",
+     "description": "The destination set for the TN to failover to"
+    }
+   ],
+   "description": "The DIDFailover object is returned for AuditDIDFailovers.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "DIDForward",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "TN",
+     "type": "String",
+     "description": "A DID that has DIDForwarding enabled"
+    },
+    {
+     "name": "ForwardTN",
+     "type": "String",
+     "description": "The destination set for the DID to forward to"
+    },
+    {
+     "name": "RemovalEPG",
+     "type": "int",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "The DIDForward object is returned for AuditDIDForwards.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ProgrammableTelcoScript",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "ScriptID",
+     "type": "String",
+     "description": "The ID for the programmable telco script"
+    },
+    {
+     "name": "ScriptName",
+     "type": "String",
+     "description": "The name of the script"
+    },
+    {
+     "name": "APIKey",
+     "type": "String",
+     "description": "The API key associated with the script"
+    },
+    {
+     "name": "APISecret",
+     "type": "String",
+     "description": "The API secret that is associated with the script"
+    },
+    {
+     "name": "AccountID",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "ScriptURL",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "IsVoice",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "IsSMS",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "AddHeaders",
+     "type": "boolean",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "SMSURL",
+     "type": "string",
+     "note": "present in WSDL, absent from data objects page"
+    },
+    {
+     "name": "TNs",
+     "type": "ArrayOfString",
+     "note": "present in WSDL, absent from data objects page"
+    }
+   ],
+   "description": "The ProgrammableTelcoScript object is returned for methods related to programmable telco.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   },
+   "provenance_wsdl": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "cnam",
+   "group": "cnam",
+   "fields": [
+    {
+     "name": "cnam",
+     "type": "Boolean",
+     "description": "Inbound CNAM dip active for the DID (DID.cnam; DIDParam.cnam '0'/'1')"
+    },
+    {
+     "name": "tn",
+     "type": "String"
+    }
+   ],
+   "description": "Inbound CNAM dip setting on a DID. baseline, unconfirmed as a standalone object; fields drawn from DID/DIDParam",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "cnamStorage",
+   "group": "cnam",
+   "fields": [
+    {
+     "name": "cnamName",
+     "type": "String",
+     "description": "CNAM Storage Display Name"
+    },
+    {
+     "name": "cnamStorageActive",
+     "type": "Boolean"
+    },
+    {
+     "name": "cnamStorageAvailablility",
+     "type": "Boolean"
+    }
+   ],
+   "description": "Outbound CNAM (CNAM Storage) record for a DID. baseline, unconfirmed as a standalone object; fields drawn from DID, DisplayName",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "EndUserPort",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "BillingTN",
+     "type": "string"
+    },
+    {
+     "name": "PortingTNs",
+     "type": "ArrayOfString"
+    },
+    {
+     "name": "PartialPort",
+     "type": "boolean"
+    },
+    {
+     "name": "PartialNewBTN",
+     "type": "string"
+    },
+    {
+     "name": "ContainsWireless",
+     "type": "boolean"
+    },
+    {
+     "name": "WirelessDetails",
+     "type": "WirelessDetails"
+    },
+    {
+     "name": "EndUser",
+     "type": "EndUserDetails"
+    },
+    {
+     "name": "ContactEmail",
+     "type": "string"
+    },
+    {
+     "name": "didGroupId",
+     "type": "string"
+    },
+    {
+     "name": "scriptId",
+     "type": "string"
+    },
+    {
+     "name": "requestedFoc",
+     "type": "dateTime"
+    },
+    {
+     "name": "Errors",
+     "type": "ArrayOfString"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "WirelessDetails",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "AccountNumber",
+     "type": "string"
+    },
+    {
+     "name": "AccountPIN",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "EndUserDetails",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "AuthName",
+     "type": "string"
+    },
+    {
+     "name": "Business",
+     "type": "boolean"
+    },
+    {
+     "name": "BusinessName",
+     "type": "string"
+    },
+    {
+     "name": "OrderReference",
+     "type": "string"
+    },
+    {
+     "name": "FirstName",
+     "type": "string"
+    },
+    {
+     "name": "LastName",
+     "type": "string"
+    },
+    {
+     "name": "ServiceAddress",
+     "type": "string"
+    },
+    {
+     "name": "ServiceCity",
+     "type": "string"
+    },
+    {
+     "name": "ServiceStateAbbrev",
+     "type": "string"
+    },
+    {
+     "name": "ServicePostalCode",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "PortDID",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "string"
+    },
+    {
+     "name": "tier",
+     "type": "string"
+    },
+    {
+     "name": "rateCenter",
+     "type": "string"
+    },
+    {
+     "name": "state",
+     "type": "string"
+    },
+    {
+     "name": "lata",
+     "type": "string"
+    },
+    {
+     "name": "endpointGroup",
+     "type": "int"
+    },
+    {
+     "name": "cnam",
+     "type": "boolean"
+    },
+    {
+     "name": "e911",
+     "type": "boolean"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "PortNote",
+   "group": "porting",
+   "fields": [
+    {
+     "name": "author",
+     "type": "string"
+    },
+    {
+     "name": "postDate",
+     "type": "dateTime"
+    },
+    {
+     "name": "note",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Response911",
+   "group": "other",
+   "fields": [
+    {
+     "name": "responseCode",
+     "type": "int"
+    },
+    {
+     "name": "responseMessage",
+     "type": "string"
+    },
+    {
+     "name": "Statuses",
+     "type": "ArrayOfStatus911"
+    },
+    {
+     "name": "DID911s",
+     "type": "ArrayOfDID911"
+    },
+    {
+     "name": "VILocations",
+     "type": "ArrayOfVILocation"
+    },
+    {
+     "name": "Alerts",
+     "type": "ArrayOfString"
+    },
+    {
+     "name": "Suggestions",
+     "type": "ArrayOfSuggestedAddress"
+    },
+    {
+     "name": "PsapContacts",
+     "type": "ArrayOfPsapContact"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Alert911",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "EmailAddress",
+     "type": "string"
+    },
+    {
+     "name": "ShowAddress",
+     "type": "boolean"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SuggestedAddress",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "addr1",
+     "type": "string"
+    },
+    {
+     "name": "addr2",
+     "type": "string"
+    },
+    {
+     "name": "city",
+     "type": "string"
+    },
+    {
+     "name": "state",
+     "type": "string"
+    },
+    {
+     "name": "postalCode",
+     "type": "string"
+    },
+    {
+     "name": "postalCodePlus4",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "PsapContact",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "psapName",
+     "type": "string"
+    },
+    {
+     "name": "fccId",
+     "type": "string"
+    },
+    {
+     "name": "stateProvRef",
+     "type": "string"
+    },
+    {
+     "name": "countyName",
+     "type": "string"
+    },
+    {
+     "name": "contactDisplayName",
+     "type": "string"
+    },
+    {
+     "name": "contactPhone",
+     "type": "string"
+    },
+    {
+     "name": "contactEmail",
+     "type": "string"
+    },
+    {
+     "name": "confirmationStatus",
+     "type": "string"
+    },
+    {
+     "name": "confirmationDt",
+     "type": "string"
+    },
+    {
+     "name": "psapContactPurposeType",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "City",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "name",
+     "type": "string"
+    },
+    {
+     "name": "id",
+     "type": "int"
+    },
+    {
+     "name": "prefix",
+     "type": "string"
+    },
+    {
+     "name": "tier",
+     "type": "string"
+    },
+    {
+     "name": "activationFee",
+     "type": "decimal"
+    },
+    {
+     "name": "sms",
+     "type": "boolean"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "IntlLocation",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "Country",
+     "type": "string"
+    },
+    {
+     "name": "CountryName",
+     "type": "string"
+    },
+    {
+     "name": "CityID",
+     "type": "string"
+    },
+    {
+     "name": "City",
+     "type": "string"
+    },
+    {
+     "name": "Prefix",
+     "type": "string"
+    },
+    {
+     "name": "Tier",
+     "type": "string"
+    },
+    {
+     "name": "MonthlyFee",
+     "type": "string"
+    },
+    {
+     "name": "ActivationFee",
+     "type": "string"
+    },
+    {
+     "name": "Rate",
+     "type": "string"
+    },
+    {
+     "name": "ActivationRequirement",
+     "type": "boolean"
+    },
+    {
+     "name": "ProofOfAddress",
+     "type": "boolean"
+    },
+    {
+     "name": "ProofOfID",
+     "type": "boolean"
+    },
+    {
+     "name": "SMS",
+     "type": "boolean"
+    },
+    {
+     "name": "AddressType",
+     "type": "string"
+    },
+    {
+     "name": "DIDType",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "IntlPurchaseRequest",
+   "group": "numbers",
+   "fields": [
+    {
+     "name": "CityID",
+     "type": "string"
+    },
+    {
+     "name": "Quantity",
+     "type": "int"
+    },
+    {
+     "name": "RoutingType",
+     "type": "RoutingType"
+    },
+    {
+     "name": "RoutingValue",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "TNAlerts",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "TN",
+     "type": "string"
+    },
+    {
+     "name": "E911Alerts",
+     "type": "ArrayOfE911Alert"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "E911Alert",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "EmailAddress",
+     "type": "string"
+    },
+    {
+     "name": "ShowAddress",
+     "type": "boolean"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "MsgDetails",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "success",
+     "type": "boolean"
+    },
+    {
+     "name": "code",
+     "type": "string"
+    },
+    {
+     "name": "data",
+     "type": "string"
+    },
+    {
+     "name": "status",
+     "type": "string"
+    },
+    {
+     "name": "uuid",
+     "type": "string"
+    },
+    {
+     "name": "remote_ids",
+     "type": "ArrayOfString"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "MMSFile",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "FileName",
+     "type": "string"
+    },
+    {
+     "name": "FileContent",
+     "type": "base64Binary"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "E911Group",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "ID",
+     "type": "int"
+    },
+    {
+     "name": "Name",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ProgrammableTelcoAccount",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "AccountID",
+     "type": "string"
+    },
+    {
+     "name": "APIKey",
+     "type": "string"
+    },
+    {
+     "name": "APISecret",
+     "type": "string"
+    },
+    {
+     "name": "Email",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Enumerations",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "EntityTypes",
+     "type": "ArrayOfString"
+    },
+    {
+     "name": "Verticals",
+     "type": "ArrayOfVertical"
+    },
+    {
+     "name": "AltBusinessTypes",
+     "type": "ArrayOfString"
+    },
+    {
+     "name": "StockExchanges",
+     "type": "ArrayOfString"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Vertical",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "VerticalId",
+     "type": "string"
+    },
+    {
+     "name": "DisplayName",
+     "type": "string"
+    },
+    {
+     "name": "Description",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SMSCustomer",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "CustomerId",
+     "type": "string"
+    },
+    {
+     "name": "LegalName",
+     "type": "string"
+    },
+    {
+     "name": "BrandName",
+     "type": "string"
+    },
+    {
+     "name": "OrganizationType",
+     "type": "string"
+    },
+    {
+     "name": "RegistrationCountry",
+     "type": "string"
+    },
+    {
+     "name": "EIN",
+     "type": "string"
+    },
+    {
+     "name": "EINCountry",
+     "type": "string"
+    },
+    {
+     "name": "AltBusinessIdType",
+     "type": "string"
+    },
+    {
+     "name": "AltBusinessId",
+     "type": "string"
+    },
+    {
+     "name": "Vertical",
+     "type": "string"
+    },
+    {
+     "name": "Address",
+     "type": "string"
+    },
+    {
+     "name": "City",
+     "type": "string"
+    },
+    {
+     "name": "State",
+     "type": "string"
+    },
+    {
+     "name": "PostalCode",
+     "type": "string"
+    },
+    {
+     "name": "Website",
+     "type": "string"
+    },
+    {
+     "name": "StockSymbol",
+     "type": "string"
+    },
+    {
+     "name": "StockExchange",
+     "type": "string"
+    },
+    {
+     "name": "EmailAddress",
+     "type": "string"
+    },
+    {
+     "name": "PhoneNumber",
+     "type": "string"
+    },
+    {
+     "name": "FirstName",
+     "type": "string"
+    },
+    {
+     "name": "LastName",
+     "type": "string"
+    },
+    {
+     "name": "ReferenceID",
+     "type": "string"
+    },
+    {
+     "name": "MobilePhone",
+     "type": "string"
+    },
+    {
+     "name": "BusinessContactEmail",
+     "type": "string"
+    },
+    {
+     "name": "IdentityStatus",
+     "type": "string"
+    },
+    {
+     "name": "Tag",
+     "type": "string"
+    },
+    {
+     "name": "CreateDate",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SMSCampaign",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "CampaignId",
+     "type": "string"
+    },
+    {
+     "name": "DisplayName",
+     "type": "string"
+    },
+    {
+     "name": "Description",
+     "type": "string"
+    },
+    {
+     "name": "Vertical",
+     "type": "string"
+    },
+    {
+     "name": "CustomerId",
+     "type": "string"
+    },
+    {
+     "name": "CustomerName",
+     "type": "string"
+    },
+    {
+     "name": "CustomerTag",
+     "type": "string"
+    },
+    {
+     "name": "MessageFlow",
+     "type": "string"
+    },
+    {
+     "name": "SampleMessage1",
+     "type": "string"
+    },
+    {
+     "name": "SampleMessage2",
+     "type": "string"
+    },
+    {
+     "name": "SampleMessage3",
+     "type": "string"
+    },
+    {
+     "name": "SampleMessage4",
+     "type": "string"
+    },
+    {
+     "name": "SampleMessage5",
+     "type": "string"
+    },
+    {
+     "name": "EmbeddedLinkSample",
+     "type": "string"
+    },
+    {
+     "name": "PrivacyLink",
+     "type": "string"
+    },
+    {
+     "name": "TermsLink",
+     "type": "string"
+    },
+    {
+     "name": "ShareStatus",
+     "type": "string"
+    },
+    {
+     "name": "DeclineReason",
+     "type": "string"
+    },
+    {
+     "name": "UseBrandEmail",
+     "type": "boolean"
+    },
+    {
+     "name": "IsExternal",
+     "type": "boolean"
+    },
+    {
+     "name": "CreateDate",
+     "type": "string"
+    },
+    {
+     "name": "ResubmitDate",
+     "type": "string"
+    },
+    {
+     "name": "Usecase",
+     "type": "CampaignUsecase"
+    },
+    {
+     "name": "TNs",
+     "type": "ArrayOfString"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "CampaignUsecase",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "UsecaseId",
+     "type": "string"
+    },
+    {
+     "name": "Display",
+     "type": "string"
+    },
+    {
+     "name": "Description",
+     "type": "string"
+    },
+    {
+     "name": "MonthlyFee",
+     "type": "double"
+    },
+    {
+     "name": "MinSubUsecases",
+     "type": "int"
+    },
+    {
+     "name": "MaxSubUsecases",
+     "type": "int"
+    },
+    {
+     "name": "SubUsecases",
+     "type": "ArrayOfCampaignUsecase"
+    },
+    {
+     "name": "ContentAttributes",
+     "type": "ContentAttributes"
+    },
+    {
+     "name": "MnoMetadata",
+     "type": "ArrayOfMnoMetadata"
+    },
+    {
+     "name": "ChargeType",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ContentAttributes",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "SubscriberOptIn",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "SubscriberOptOut",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "SubscriberHelp",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "NumberPooling",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "DirectLending",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "EmbeddedLink",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "EmbeddedPhone",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "AffiliateMarketing",
+     "type": "ContentAttribute"
+    },
+    {
+     "name": "AgeGated",
+     "type": "ContentAttribute"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ContentAttribute",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "Display",
+     "type": "string"
+    },
+    {
+     "name": "Description",
+     "type": "string"
+    },
+    {
+     "name": "RequiredValue",
+     "type": "boolean"
+    },
+    {
+     "name": "SelectedValue",
+     "type": "boolean"
+    },
+    {
+     "name": "Message",
+     "type": "string"
+    },
+    {
+     "name": "Keywords",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "MnoMetadata",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "mnoId",
+     "type": "string"
+    },
+    {
+     "name": "mno",
+     "type": "string"
+    },
+    {
+     "name": "mnoSupport",
+     "type": "boolean"
+    },
+    {
+     "name": "mnoReview",
+     "type": "boolean"
+    },
+    {
+     "name": "qualify",
+     "type": "boolean"
+    },
+    {
+     "name": "minMsgSamples",
+     "type": "int"
+    },
+    {
+     "name": "reqSubscriberOptin",
+     "type": "boolean"
+    },
+    {
+     "name": "reqSubscriberOptout",
+     "type": "boolean"
+    },
+    {
+     "name": "reqSubscriberHelp",
+     "type": "boolean"
+    },
+    {
+     "name": "noEmbeddedLink",
+     "type": "boolean"
+    },
+    {
+     "name": "noEmbeddedPhone",
+     "type": "boolean"
+    },
+    {
+     "name": "msgClass",
+     "type": "string"
+    },
+    {
+     "name": "tpm",
+     "type": "int"
+    },
+    {
+     "name": "tpmScope",
+     "type": "string"
+    },
+    {
+     "name": "brandTier",
+     "type": "string"
+    },
+    {
+     "name": "brandDailyCap",
+     "type": "int"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "FeedbackDetails",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "CategoryId",
+     "type": "string"
+    },
+    {
+     "name": "Description",
+     "type": "string"
+    },
+    {
+     "name": "Errors",
+     "type": "ArrayOfFeedbackError"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "FeedbackError",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "Code",
+     "type": "string"
+    },
+    {
+     "name": "Message",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Unreg911DID",
+   "group": "e911",
+   "fields": [
+    {
+     "name": "tn",
+     "type": "string"
+    },
+    {
+     "name": "termCalls",
+     "type": "int"
+    },
+    {
+     "name": "portId",
+     "type": "string"
+    }
+   ],
+   "description": "Complex type in APIService WSDL; not described on the data objects page",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "CDR",
+   "group": "account",
+   "fields": [
+    {
+     "name": "CallType",
+     "type": "String"
+    },
+    {
+     "name": "StartTime",
+     "type": "String"
+    },
+    {
+     "name": "StopTime",
+     "type": "String"
+    },
+    {
+     "name": "CallDuration",
+     "type": "String"
+    },
+    {
+     "name": "BillDuration",
+     "type": "String"
+    },
+    {
+     "name": "CallIncrement",
+     "type": "String"
+    },
+    {
+     "name": "CallMinimum",
+     "type": "String"
+    },
+    {
+     "name": "BasePrice",
+     "type": "String"
+    },
+    {
+     "name": "CallPrice",
+     "type": "String"
+    },
+    {
+     "name": "TransactionId",
+     "type": "String"
+    },
+    {
+     "name": "CustomerIP",
+     "type": "String"
+    },
+    {
+     "name": "ANI",
+     "type": "String"
+    },
+    {
+     "name": "ANIState",
+     "type": "String"
+    },
+    {
+     "name": "DNIS",
+     "type": "String"
+    },
+    {
+     "name": "LRN",
+     "type": "String"
+    },
+    {
+     "name": "DNISState",
+     "type": "String"
+    },
+    {
+     "name": "DNISLATA",
+     "type": "String"
+    },
+    {
+     "name": "DNISOCN",
+     "type": "String"
+    },
+    {
+     "name": "OrigTier",
+     "type": "String"
+    },
+    {
+     "name": "TermRateDeck",
+     "type": "String"
+    },
+    {
+     "name": "TermCarrier",
+     "type": "String"
+    },
+    {
+     "name": "VIIP",
+     "type": "String"
+    },
+    {
+     "name": "EPG",
+     "type": "String"
+    }
+   ],
+   "description": "Semicolon-separated call detail record file (YYYYMMDD_YYYYMMDD.CDR) served over FTP/HTTP from cdrs.globalpopsvoip.com, retained ~6 months; includes SMS and origination/termination call types. Not exposed via API 3.0.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656965680",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "CNAMLookup",
+   "group": "cnam",
+   "fields": [
+    {
+     "name": "login",
+     "type": "string"
+    },
+    {
+     "name": "password",
+     "type": "string"
+    },
+    {
+     "name": "caller_number",
+     "type": "string"
+    },
+    {
+     "name": "callee_number",
+     "type": "string"
+    },
+    {
+     "name": "calling_name_status",
+     "type": "string"
+    },
+    {
+     "name": "calling_name",
+     "type": "string"
+    },
+    {
+     "name": "presentation_indicator",
+     "type": "string"
+    },
+    {
+     "name": "call_treatment",
+     "type": "string"
+    },
+    {
+     "name": "fraud_score",
+     "type": "int"
+    },
+    {
+     "name": "original_calling_name",
+     "type": "string"
+    },
+    {
+     "name": "callId",
+     "type": "string"
+    }
+   ],
+   "description": "REST CNAM API request/response with robocall fraud score 0-100 (60-79 prepend ROBO?, 80-98 SPAM?, 99-100 'Fraudulent Call'); 50 calls/s per source IP; per-DIP billing and a billing CDR per lookup.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656310298",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SMSMessage",
+   "group": "sms",
+   "fields": [
+    {
+     "name": "sender",
+     "type": "String"
+    },
+    {
+     "name": "recipient",
+     "type": "String"
+    },
+    {
+     "name": "message",
+     "type": "String"
+    },
+    {
+     "name": "files",
+     "type": "ArrayOfMMSFile",
+     "description": "MMS only"
+    }
+   ],
+   "description": "Outbound SMS/MMS submitted via SendSMS/SendMMS (160 char limit per segment); inbound delivered to the DID's SMS destination (SIP, EMAIL, FORWARD, POST, GET, PROGTELCO). Email-to-SMS uses F<ANI>-T<DNIS>@mysmsforward.com.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/665845768",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "StirShakenSigning",
+   "group": "other",
+   "fields": [],
+   "description": "Hosted STIR/SHAKEN call-signing server for voice service providers (dedicated server, own certificate, from $300/month); VI also signs unsigned outbound calls free as intermediate provider (attestation B/C, A for direct enterprise customers). No API 3.0 method found for it.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/663355448",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ApidazeApplication",
+   "group": "routing",
+   "fields": [
+    {
+     "name": "api_key",
+     "type": "string"
+    },
+    {
+     "name": "api_secret",
+     "type": "string"
+    },
+    {
+     "name": "external_script_url",
+     "type": "string"
+    }
+   ],
+   "description": "Apidaze/Programmable Telco app (Back Office Apps > Developer Services); script inline or external URL; DID bound via ProgramDID/RouteDIDToApp; 15-20 min propagation.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656703489",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ApidazeCall",
+   "group": "routing",
+   "fields": [],
+   "description": "Apidaze REST resource inferred from SDK endpoint name; fields not documented in fetched sources",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/rest",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ApidazeRecording",
+   "group": "routing",
+   "fields": [],
+   "description": "Apidaze REST resource inferred from SDK endpoint name; fields not documented in fetched sources",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/rest",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ApidazeMediaFile",
+   "group": "routing",
+   "fields": [],
+   "description": "Apidaze REST resource inferred from SDK endpoint name; fields not documented in fetched sources",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/rest",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ApidazeSipUser",
+   "group": "routing",
+   "fields": [],
+   "description": "Apidaze REST resource inferred from SDK endpoint name; fields not documented in fetched sources",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/rest",
+    "seen": "2026-10-13"
+   }
+  }
+ ],
+ "methods": [
+  {
+   "name": "SubmitEndUserPort",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "SubmitEndUserPort(login: string, secret: string, portDetails: EndUserPort)",
+   "reads": [],
+   "writes": [
+    "EndUserPort",
+    "PortDetail"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "CancelEndUserPort",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "CancelEndUserPort(login: string, secret: string, id: string)",
+   "reads": [],
+   "writes": [
+    "PortDetail"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "CancelPort",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "CancelPort(login: string, secret: string, id: string)",
+   "reads": [],
+   "writes": [
+    "PortDetail"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "addLocation",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "addLocation(login: string, secret: string, did: string, address1: string, address2: string, city: string, state: string, zip: string, plusFour: string, callerName: string)",
+   "reads": [
+    "VILocation"
+   ],
+   "writes": [
+    "VILocation"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662732804",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "Named in the Response911 object list; absent from the All API 3.0 Methods page; present in WSDL"
+  },
+  {
+   "name": "assignDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "assignDID(login: string, secret: string, didParams: ArrayOfDIDParam)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method assigns an available or reserved DID to a valid endpoint group on your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "assignDIDExtended",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "assignDIDExtended(login: string, secret: string, didParams: ArrayOfDIDParam)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method assigns an available or reserved DID from our Extended Inventory to a valid endpoint group on your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "AssignDIDWithSource",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "AssignDIDWithSource(login: string, secret: string, didParams: ArrayOfDIDParam, orderSource: string)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "audit911",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "audit911(login: string, secret: string)",
+   "reads": [
+    "DID911"
+   ],
+   "writes": [],
+   "description": "This method returns the 911 information you have added/updated for all DIDs (including not currently owned a.k.a. off-net DIDs).",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "auditDIDs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "auditDIDs(login: string, secret: string)",
+   "reads": [
+    "DID",
+    "ConferenceLine"
+   ],
+   "writes": [],
+   "description": "This method returns all DIDs that the client currently owns, as well as key information regarding each of those DIDs.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditDIDGroup",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "AuditDIDGroup(login: string, secret: string, groupId: int)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [],
+   "description": "This method returns all DIDs within the specified group ID, as well as key information regarding each of those DIDs.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "configDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "configDID(login: string, secret: string, didParams: ArrayOfDIDParam)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method configures the endpoint group and cnam for DIDs which are assigned to your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "getDIDCount",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "getDIDCount(login: string, secret: string, state: string, lata: string, rateCenter: string, npa: string, nxx: string, tier: string, t38: string, cnam: string, orderby: string, sms: string, network: string)",
+   "reads": [
+    "DIDCount"
+   ],
+   "writes": [],
+   "description": "This method allows the user to search the inventory of available DIDs by one or more, and returns the number of DIDs available at each rate center per ties. At least one search criteria must be passed. Pass an empty String or null for criteria not being searched on.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "getDIDs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "getDIDs(login: string, secret: string, state: string, lata: string, rateCenter: string, npa: string, nxx: string, tier: string, t38: string, cnam: string, sms: string, network: string)",
+   "reads": [
+    "DIDLocator"
+   ],
+   "writes": [],
+   "description": "This method allows the user to search the inventory of available DIDs, and returns all DIDs that meet the desired criteria. At least one search criteria must be passed. Pass an empty String or null for criteria not being searched on.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "getDIDsExtended",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "getDIDsExtended(login: string, secret: string, state: string, lata: string, rateCenter: string, npa: string, nxx: string, tier: string, t38: string, cnam: string, sms: string, network: string)",
+   "reads": [
+    "DIDLocator"
+   ],
+   "writes": [],
+   "description": "This method allows the user to search our Extended Inventory of available DIDs by one or more, and returns all DIDs that meet the desired criteria. At least one search criteria must be passed. Pass an empty String or null for criteria not being searched on.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "getPortDetails",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "getPortDetails(login: string, secret: string, portId: int)",
+   "reads": [
+    "PortDetail",
+    "IsPortable"
+   ],
+   "writes": [],
+   "description": "Returns the details of a specified port ID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetPortHistory",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "GetPortHistory(login: string, secret: string, tn: string)",
+   "reads": [
+    "PortDetail"
+   ],
+   "writes": [],
+   "description": "This method will return full port history for a specified DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "getActivePorts",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "getActivePorts(login: string, secret: string, status: string)",
+   "reads": [
+    "PortDetail"
+   ],
+   "writes": [],
+   "description": "This method will return information related to all the active ports on your account. This includes the port id, submittedDate, focDate, requestedFocDate, defaultEndpointGroup.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AddPortNote",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "AddPortNote(login: string, secret: string, portId: int, note: string)",
+   "reads": [],
+   "writes": [
+    "PortNote"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "getProvisioningHistory",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "getProvisioningHistory(login: string, secret: string, did: string)",
+   "reads": [
+    "VILocation"
+   ],
+   "writes": [],
+   "description": "This method gets the provisioning history for a DID. The records returned are from the 911 service provider.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "insert911",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "insert911(login: string, secret: string, did: string, address1: string, address2: string, city: string, state: string, zip: string, plusFour: string, callerName: string)",
+   "reads": [
+    "Status911"
+   ],
+   "writes": [
+    "DID911",
+    "VILocation"
+   ],
+   "description": "This method adds and provisions a 911location for a DID that is currently registered with your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "provisionLocation",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "provisionLocation(login: string, secret: string, did: string, locationId: string)",
+   "reads": [
+    "Status911"
+   ],
+   "writes": [
+    "VILocation",
+    "DID911"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662732804",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "Named in the Response911 object list; absent from the All API 3.0 Methods page; present in WSDL"
+  },
+  {
+   "name": "query911",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "query911(login: string, secret: string, did: string)",
+   "reads": [
+    "DID911",
+    "VILocation"
+   ],
+   "writes": [],
+   "description": "This method returns the 911 information for the provisioned location of the specified DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "queryDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "queryDID(login: string, secret: string, did: string)",
+   "reads": [
+    "DID",
+    "ConferenceLine"
+   ],
+   "writes": [],
+   "description": "This method returns key information regarding the DID being queried. If the DID is owned by the client, the function will return various parameters pertaining to the DID. If the DID is available to purchase or not available, the function will return such information instead.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "releaseDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "releaseDID(login: string, secret: string, didParams: ArrayOfDIDParam)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method is used to release DIDs from an account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "remove911",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "remove911(login: string, secret: string, did: string)",
+   "reads": [
+    "Status911"
+   ],
+   "writes": [
+    "DID911"
+   ],
+   "description": "This method removes the 911 information associated with a DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "removeLocation",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "removeLocation(login: string, secret: string, locationId: string, did: string)",
+   "reads": [
+    "Status911"
+   ],
+   "writes": [
+    "VILocation"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662732804",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "Named in the Response911 object list; absent from the All API 3.0 Methods page; present in WSDL"
+  },
+  {
+   "name": "reserveDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "reserveDID(login: string, secret: string, didParams: ArrayOfDIDParam)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method will reserve an available DID for a maximum of 30 minutes. If the reserved DID is not assigned before the time expires, it will be released back into inventory.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "update911",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "update911(login: string, secret: string, did: string, address1: string, address2: string, city: string, state: string, zip: string, plusFour: string, callerName: string)",
+   "reads": [
+    "Status911"
+   ],
+   "writes": [
+    "DID911",
+    "VILocation"
+   ],
+   "description": "This method updates the provisioned 911location information for a DID that is currently registered with your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "validate911",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "validate911(login: string, secret: string, address1: string, address2: string, city: string, state: string, zip: string, plusFour: string, callerName: string)",
+   "reads": [
+    "SuggestedAddress"
+   ],
+   "writes": [],
+   "description": "This method checks the validity of an address to be used for 911.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "isPortable",
+   "api": "vi3",
+   "group": "porting",
+   "signature": "isPortable(login: string, secret: string, tn: string)",
+   "reads": [
+    "IsPortable"
+   ],
+   "writes": [],
+   "description": "This method allows the user to determine if a telephone number is portable.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetAssignedTNs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetAssignedTNs(login: string, secret: string, didType: string)",
+   "reads": [
+    "TNs"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "InventoryDIDs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "InventoryDIDs(login: string, secret: string, dids: ArrayOfString)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method accepts a list of TNs (strings) to be assigned to Personal Inventory.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "InventoryDeactivate",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "InventoryDeactivate(login: string, secret: string, dids: ArrayOfString)",
+   "reads": [],
+   "writes": [
+    "DID"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "InventoryActivate",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "InventoryActivate(login: string, secret: string, tn: string)",
+   "reads": [],
+   "writes": [
+    "DID"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetInventoryTNs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetInventoryTNs(login: string, secret: string, didType: string)",
+   "reads": [
+    "TNs"
+   ],
+   "writes": [],
+   "description": "This method will display all DIDs stored in personal inventory on a client\u2019s account. didType can be LOCAL, TF, INTL, or ALL. Any other didType will return all TNs.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetUnconfiguredTNs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetUnconfiguredTNs(login: string, secret: string, didType: string)",
+   "reads": [
+    "TNs"
+   ],
+   "writes": [],
+   "description": "This method will display all unconfigured DIDs on a client\u2019s account. didType can be LOCAL, TF, INTL, or ALL. Any other didType will return all TNs.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ActivateEndpointGroup",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "ActivateEndpointGroup(login: string, secret: string, groupId: string)",
+   "reads": [],
+   "writes": [
+    "EndpointGroup"
+   ],
+   "description": "This method will allow you to set an endpoint group to an active status.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "DeactivateEndpointGroup",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "DeactivateEndpointGroup(login: string, secret: string, groupId: string)",
+   "reads": [],
+   "writes": [
+    "EndpointGroup"
+   ],
+   "description": "This method will allow you to set an endpoint group to an inactive status.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "GlobalDIDSearch",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GlobalDIDSearch(login: string, secret: string, CountryCode: string, CityID: string, AreaCode: string, ActivationRequirements: boolean, SMS: boolean)",
+   "reads": [
+    "IntlDID",
+    "Country"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "PurchaseInternationalDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "PurchaseInternationalDID(login: string, secret: string, purchase: IntlPurchaseRequest)",
+   "reads": [
+    "IntlDID"
+   ],
+   "writes": [
+    "IntlDID"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetCountries",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetCountries(login: string, secret: string)",
+   "reads": [
+    "Country"
+   ],
+   "writes": [],
+   "description": "(Not Currently In Use) This method returns a list of available countries and city codes from which international DIDs can be selected.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AssignIntlDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "AssignIntlDID(login: string, secret: string, cityID: int, epgID: int)",
+   "reads": [
+    "IntlDID",
+    "Country"
+   ],
+   "writes": [
+    "IntlDID"
+   ],
+   "description": "(Currently Not in Use) This method assigns an available International DID to a valid endpoint group on your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "ReleaseIntlDID",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "ReleaseIntlDID(login: string, secret: string, tn: string)",
+   "reads": [],
+   "writes": [
+    "IntlDID"
+   ],
+   "description": "This method removes an International DID from your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "AuditIntlDIDs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "AuditIntlDIDs(login: string, secret: string)",
+   "reads": [
+    "IntlDID"
+   ],
+   "writes": [],
+   "description": "This method returns all International DIDs currently assigned to your account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetCNAMDisplay",
+   "api": "vi3",
+   "group": "cnam",
+   "signature": "GetCNAMDisplay(login: string, secret: string, tn: string)",
+   "reads": [
+    "DisplayName",
+    "cnamStorage"
+   ],
+   "writes": [],
+   "description": "This method gets caller ID display name on file for the DID you query.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "UpdateCNAMDisplay",
+   "api": "vi3",
+   "group": "cnam",
+   "signature": "UpdateCNAMDisplay(login: string, secret: string, tn: string, name: string)",
+   "reads": [
+    "DisplayName"
+   ],
+   "writes": [
+    "cnamStorage"
+   ],
+   "description": "This method updates caller ID display name for a specific DID (DID must support CNAM storage).",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "RemoveCNAM",
+   "api": "vi3",
+   "group": "cnam",
+   "signature": "RemoveCNAM(login: string, secret: string, tn: string)",
+   "reads": [],
+   "writes": [
+    "cnamStorage"
+   ],
+   "description": "This method removes the caller ID display name (Outbound CallerID) on the specified DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "SetFaxToEmail",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "SetFaxToEmail(login: string, secret: string, tn: string, email: string)",
+   "reads": [
+    "Email"
+   ],
+   "writes": [
+    "FaxToEmail"
+   ],
+   "description": "This method sets the fax to email feature on a DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "GetFaxToEmail",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetFaxToEmail(login: string, secret: string, tn: string)",
+   "reads": [
+    "Email"
+   ],
+   "writes": [],
+   "description": "This method returns the fax to email recipient for a given DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AddEmailToFax",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AddEmailToFax(login: string, secret: string, tn: string, email: string)",
+   "reads": [],
+   "writes": [
+    "Email"
+   ],
+   "description": "This method will allow you to add an email address to a DID for the Email to Fax service.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "RemoveEmailToFax",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "RemoveEmailToFax(login: string, secret: string, email: string)",
+   "reads": [],
+   "writes": [
+    "Email"
+   ],
+   "description": "This method will allow you to remove an email from the email to fax service for a DID in the Back Office.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetEmailToFax",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetEmailToFax(login: string, secret: string, tn: string)",
+   "reads": [
+    "Email",
+    "CallerID"
+   ],
+   "writes": [],
+   "description": "This method will list all emails that are associated with the email to fax service for this DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "RemoveFaxToEmail",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "RemoveFaxToEmail(login: string, secret: string, tn: string)",
+   "reads": [
+    "Email"
+   ],
+   "writes": [
+    "FaxToEmail"
+   ],
+   "description": "This method removes fax to email from a specific DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "ConfigFaxToEmailNotifications",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "ConfigFaxToEmailNotifications(login: string, secret: string, tn: string, enabled: boolean)",
+   "reads": [],
+   "writes": [
+    "FaxToEmail"
+   ],
+   "description": "This method will enable to disable \u201cReceive Failure Notifications\u201d for DIDs with Fax-to-Email enabled. If a specified DID is not found on the account or does not have Fax-to-Email enabled, then the \u201cNo records found\u201d response (code 101) is returned.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "Add911Alert",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "Add911Alert(login: string, secret: string, tn: string, email: string)",
+   "reads": [],
+   "writes": [
+    "Alerts"
+   ],
+   "description": "This method adds an alert contact to the DID. When 911 is dialed from the number an alert is generated and sent to the provided contact information.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "Remove911Alert",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "Remove911Alert(login: string, secret: string, tn: string, email: string)",
+   "reads": [],
+   "writes": [
+    "Alerts"
+   ],
+   "description": "This method removes the alert contact information from the DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "Query911Alert",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "Query911Alert(login: string, secret: string, tn: string)",
+   "reads": [
+    "Alerts"
+   ],
+   "writes": [],
+   "description": "This method returns DID and emails regarding the 911Alert being queried.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "Add911AlertsBulk",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "Add911AlertsBulk(login: string, secret: string, tnAlerts: ArrayOfTNAlerts)",
+   "reads": [],
+   "writes": [
+    "Alerts"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "Remove911AlertsBulk",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "Remove911AlertsBulk(login: string, secret: string, tnAlerts: ArrayOfTNAlerts)",
+   "reads": [],
+   "writes": [
+    "Alerts"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "UpdateDIDFailover",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "UpdateDIDFailover(login: string, secret: string, tn: string, failover: string)",
+   "reads": [],
+   "writes": [
+    "DIDFailover"
+   ],
+   "description": "This method is used to set or update the DID to utilize a failover number. In event that the server goes down, calls to this DID will automatically be sent to the failover number once there is no response received from its specified endpoint group.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "GetDIDFailover",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetDIDFailover(login: string, secret: string, tn: string)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [],
+   "description": "This method returns the failover number for the specified DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetDIDForward",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetDIDForward(login: string, secret: string, tn: string)",
+   "reads": [
+    "DID"
+   ],
+   "writes": [],
+   "description": "This method returns the forward number (if set) for a specified DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SetDIDForward",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "SetDIDForward(login: string, secret: string, tn: string, forward: string)",
+   "reads": [],
+   "writes": [
+    "DIDForward"
+   ],
+   "description": "This method will set the forward number for a specified DID. Calls to DIDs with forwarding enabled are not sent to an endpoint group on your account, instead, they are sent to a server on VoIP Innovations that forwards the call to the specified number.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "SetDIDForwards",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "SetDIDForwards(login: string, secret: string, dids: ArrayOfDIDForward)",
+   "reads": [],
+   "writes": [
+    "DIDForward"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "RemoveDIDForward",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "RemoveDIDForward(login: string, secret: string, tn: string, epgId: string)",
+   "reads": [],
+   "writes": [
+    "DIDForward"
+   ],
+   "description": "This method will remove any forwarding set on the DID. The DID will then be pointed to the specified Endpoint Group.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "CreateDIDGroup",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "CreateDIDGroup(login: string, secret: string, name: string)",
+   "reads": [],
+   "writes": [
+    "DIDGroup"
+   ],
+   "description": "This method will create a new DID group.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "DeleteDIDGroup",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "DeleteDIDGroup(login: string, secret: string, groupId: int)",
+   "reads": [],
+   "writes": [
+    "DIDGroup"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetDIDGroup",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetDIDGroup(login: string, secret: string, tn: string)",
+   "reads": [
+    "DIDGroup"
+   ],
+   "writes": [],
+   "description": "This method gets the DID group (if any) that the tn is assigned to.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SetDIDGroup",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "SetDIDGroup(login: string, secret: string, tn: string, groupId: int)",
+   "reads": [],
+   "writes": [
+    "DID",
+    "DIDGroup"
+   ],
+   "description": "This method will move the tn to the DID group with the specified groupId.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "RemoveDIDGroup",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "RemoveDIDGroup(login: string, secret: string, tn: string)",
+   "reads": [],
+   "writes": [
+    "DID",
+    "DIDGroup"
+   ],
+   "description": "This method will remove the specified tn from the assigned DID group.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "GetDIDGroups",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetDIDGroups(login: string, secret: string)",
+   "reads": [
+    "DIDGroup"
+   ],
+   "writes": [],
+   "description": "This method gets all DID groups.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "SetConferenceLine",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "SetConferenceLine(login: string, secret: string, tn: string, pin: string)",
+   "reads": [],
+   "writes": [
+    "ConferenceLine"
+   ],
+   "description": "This method will enable conference line/update conference PIN for the specified TN.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "GetConferenceLine",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetConferenceLine(login: string, secret: string, tn: string)",
+   "reads": [
+    "ConferenceLine"
+   ],
+   "writes": [],
+   "description": "This method gets the conference line status and associated PIN for the specified telephone number .",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "RemoveConferenceLine",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "RemoveConferenceLine(login: string, secret: string, tn: string)",
+   "reads": [],
+   "writes": [
+    "ConferenceLine"
+   ],
+   "description": "This method will disable conference line for the specified TN.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "GetPrepaidBalance",
+   "api": "vi3",
+   "group": "account",
+   "signature": "GetPrepaidBalance(login: string, secret: string)",
+   "reads": [
+    "Amount"
+   ],
+   "writes": [],
+   "description": "This method gets the prepaid balance currently on the account.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetAvailableStates",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetAvailableStates(login: string, secret: string)",
+   "reads": [
+    "DIDLocator"
+   ],
+   "writes": [],
+   "description": "This method will allow you to see what our available coverage by State.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetAvailableRateCenters",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetAvailableRateCenters(login: string, secret: string, state: string)",
+   "reads": [
+    "DIDLocator"
+   ],
+   "writes": [],
+   "description": "This method will allow you to view rate centers which we have coverage for. This rate center may not have DIDs available.\u00a0Please see the getDIDs or getDIDCount methods to see the available rate centers.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetAvailableNPAs",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetAvailableNPAs(login: string, secret: string, state: string, ratecenter: string)",
+   "reads": [
+    "DIDLocator"
+   ],
+   "writes": [],
+   "description": "This method will allow you to see what NPAs we have coverage for.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "TFRouteInvalidANIs",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "TFRouteInvalidANIs(login: string, secret: string, tns: ArrayOfString, allow: boolean)",
+   "reads": [],
+   "writes": [
+    "DID"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "AuditSMS",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "AuditSMS(login: string, secret: string, tn: string)",
+   "reads": [
+    "SMSDID"
+   ],
+   "writes": [],
+   "description": "This method is used to display all DIDs on the account and their current SMS status. All DIDs will display if a Forward is specified and if SMS is active/inactive on each DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ConfigSMS",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "ConfigSMS(login: string, secret: string, tn: string, enable: boolean, forwardEmail: string)",
+   "reads": [
+    "SMSDID"
+   ],
+   "writes": [
+    "SMSDID"
+   ],
+   "description": "(Deprecated. Please use ConfigSMSDestination). This method is used to enable or disable the SMS feature on 3 DIDs. It can also be used to manage our SMS forwarding feature (Forward to Email or TN). If this forwardEmail string is null or empty, any forwards will be removed.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "ConfigSMSDestination",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "ConfigSMSDestination(login: string, secret: string, tn: string, destinationType: DestinationType, destination: string, authToken: string)",
+   "reads": [
+    "SMSDID"
+   ],
+   "writes": [
+    "SMSDID"
+   ],
+   "description": "This method allows you to configure a DID with SMS but also to assign a specific destination type to the DID.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "SendSMS",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "SendSMS(login: string, secret: string, sender: string, recipient: string, message: string)",
+   "reads": [],
+   "writes": [
+    "SMSMessage"
+   ],
+   "description": "This method is used to send outbound SMS messages.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "SendSMSWithDLR",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "SendSMSWithDLR(login: string, secret: string, sender: string, recipient: string, message: string)",
+   "reads": [],
+   "writes": [
+    "SMSMessage"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "SendMMS",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "SendMMS(login: string, secret: string, sender: string, recipient: string, message: string, files: ArrayOfMMSFile)",
+   "reads": [],
+   "writes": [
+    "SMSMessage"
+   ],
+   "description": "This method is used to send outbound MMS messages.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "SendMMSWithDLR",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "SendMMSWithDLR(login: string, secret: string, sender: string, recipient: string, message: string, files: ArrayOfMMSFile)",
+   "reads": [],
+   "writes": [
+    "SMSMessage"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "UpdateSMSDLR",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "UpdateSMSDLR(login: string, secret: string, tns: ArrayOfString, dlr: boolean)",
+   "reads": [],
+   "writes": [
+    "SMSDID"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "AuditClients",
+   "api": "vi3",
+   "group": "account",
+   "signature": "AuditClients(login: string, secret: string)",
+   "reads": [
+    "Client"
+   ],
+   "writes": [],
+   "description": "This method will return information related to Clients on your account. This is basically the same information that is populated in the clients section of the VI Back Office. This include any endpoint groups, DID groups, E911 groups, usage, associated Hosted Billing customers, failovers, forwards, conference lines, and fax to email DIDs.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditEndpointGroups",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AuditEndpointGroups(login: string, secret: string)",
+   "reads": [
+    "EndpointGroup"
+   ],
+   "writes": [],
+   "description": "This method will return information related to the endpoint groups on your account. This includes the endpoint group ID (number), name, associated client, port, prepend setting, rate deck, strip plus setting, strip country code setting, international setting, month-to-date usage, and IP addresses contained within.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditEndpointGroup",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AuditEndpointGroup(login: string, secret: string, groupId: int)",
+   "reads": [
+    "EndpointGroup"
+   ],
+   "writes": [],
+   "description": "This method will return information related to one specific endpoint group on your account. This includes the endpoint group ID (number), name, associated client, port, prepend setting, rate deck, strip plus setting, strip country code setting, international setting, month-to-date usage, and IP addresses contained within.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditConferenceLines",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AuditConferenceLines(login: string, secret: string)",
+   "reads": [
+    "ConferenceLine"
+   ],
+   "writes": [],
+   "description": "This method will return information related to DIDs on your account with the Conference Line feature enabled. This includes the TN (DID), Enabled status (True or False), and PIN (if applicable).",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditFaxToEmails",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AuditFaxToEmails(login: string, secret: string)",
+   "reads": [
+    "FaxToEmail"
+   ],
+   "writes": [],
+   "description": "This method will return information related to DIDs on your account with the Fax to Email feature enabled. This includes the TN (DID), and Email(s) associated.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditDIDFailovers",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AuditDIDFailovers(login: string, secret: string)",
+   "reads": [
+    "DIDFailover"
+   ],
+   "writes": [],
+   "description": "This method will return information related to DIDs on your account with the Failover feature enabled. This includes the TN (DID), and FailoverTN.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "AuditDIDForwards",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "AuditDIDForwards(login: string, secret: string)",
+   "reads": [
+    "DIDForward"
+   ],
+   "writes": [],
+   "description": "This method will return information related to DIDs on your account with the Call Forwarding feature enabled. This includes the TN (DID), and ForwardTN.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "GetApidazeAccounts",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetApidazeAccounts(login: string, secret: string)",
+   "reads": [
+    "ProgrammableTelcoAccount"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "CreateApidazeAccount",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "CreateApidazeAccount(login: string, secret: string, email: string)",
+   "reads": [],
+   "writes": [
+    "ProgrammableTelcoAccount"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetScripts",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "GetScripts(login: string, secret: string)",
+   "reads": [
+    "ProgrammableTelcoScript"
+   ],
+   "writes": [],
+   "description": "This method will allow you to pull a list of your scripts entered the Apidaze / Programmable Telco section ofthe Back Office.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "ProgramDID",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "ProgramDID(login: string, secret: string, did: string, scriptId: string)",
+   "reads": [],
+   "writes": [
+    "DID",
+    "ProgrammableTelcoScript"
+   ],
+   "description": "This method will assign a DID to a script entered in the Programmable Telco section of the Back Office",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "UnprogramDID",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "UnprogramDID(login: string, secret: string, did: string, endpointGroupId: string)",
+   "reads": [],
+   "writes": [
+    "DID"
+   ],
+   "description": "This method will unassign a DID from a programmable telco script and reassign the DID to an endpoint group.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "RouteDIDToApp",
+   "api": "vi3",
+   "group": "routing",
+   "signature": "RouteDIDToApp(login: string, secret: string, tn: string, apiKey: string)",
+   "reads": [],
+   "writes": [
+    "DID",
+    "ApidazeApplication"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "Get911PsapContacts",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "Get911PsapContacts(login: string, secret: string)",
+   "reads": [
+    "PsapContact"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetSMSCustomers",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSCustomers(login: string, secret: string)",
+   "reads": [
+    "SMSCustomer"
+   ],
+   "writes": [],
+   "description": "This method will display a list of all registered customers for 10DLC SMS.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetSMSCustomersByTag",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSCustomersByTag(login: string, secret: string, tag: string)",
+   "reads": [
+    "SMSCustomer"
+   ],
+   "writes": [],
+   "description": "Lists 10DLC SMS customers filtered by tag (doc text truncated).",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "CheckSMSCustomerStatus",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "CheckSMSCustomerStatus(login: string, secret: string, customerId: string)",
+   "reads": [
+    "SMSCustomer"
+   ],
+   "writes": [],
+   "description": "This method will provide additional information as to a 10DLC SMS customer\u2019s verification status.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetSMSCampaigns",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSCampaigns(login: string, secret: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [],
+   "description": "This method will display a list of all registered campaigns for 10DLC SMS.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetSMSCampaignsByTag",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSCampaignsByTag(login: string, secret: string, tag: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetCampaignRejectionReason",
+   "api": "vi3",
+   "group": "numbers",
+   "signature": "GetCampaignRejectionReason(login: string, secret: string, campaignId: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [],
+   "description": "This method will provide more information as to why a campaign was rejected by The Campaign Registry.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "AssignToSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "AssignToSMSCampaign(login: string, secret: string, tns: ArrayOfString, campaignId: string)",
+   "reads": [],
+   "writes": [
+    "SMSCampaign",
+    "DID"
+   ],
+   "description": "This method will assign one or more DIDs to a registered 10DLC SMS campaign.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "RemoveFromSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "RemoveFromSMSCampaign(login: string, secret: string, tns: ArrayOfString)",
+   "reads": [],
+   "writes": [
+    "SMSCampaign",
+    "DID"
+   ],
+   "description": "This method will remove one or more DIDs from a registered 10DLC SMS campaign.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "DeleteSMSCustomer",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "DeleteSMSCustomer(login: string, secret: string, customerId: string)",
+   "reads": [
+    "SMSCustomer"
+   ],
+   "writes": [
+    "SMSCustomer"
+   ],
+   "description": "This method will delete an existing customer (brand) for 10DLC SMS registration.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "DeleteSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "DeleteSMSCampaign(login: string, secret: string, campaignId: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "This method will remove an existing 10DLC SMS campaign.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetSMSEnumerations",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSEnumerations(login: string, secret: string)",
+   "reads": [
+    "Enumerations"
+   ],
+   "writes": [],
+   "description": "This method will provide additional information for 10DLC SMS customer creation, such as Entity Types and Verticals.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetSMSCustomerFeedback",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSCustomerFeedback(login: string, secret: string, customerId: string)",
+   "reads": [
+    "FeedbackDetails"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "GetSMSUsecaseOptions",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSUsecaseOptions(login: string, secret: string, customerId: string)",
+   "reads": [
+    "CampaignUsecase"
+   ],
+   "writes": [],
+   "description": "This method will provide additional information for the specified customer, such as name/address details and campaign information.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "CreateSMSCustomer",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "CreateSMSCustomer(login: string, secret: string, customer: SMSCustomer)",
+   "reads": [
+    "SMSCustomer"
+   ],
+   "writes": [
+    "SMSCustomer"
+   ],
+   "description": "This method will create a new customer (brand) for 10DLC SMS registration.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "TriggerSMSOTP",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "TriggerSMSOTP(login: string, secret: string, customerId: string)",
+   "reads": [],
+   "writes": [
+    "SMSCustomer"
+   ],
+   "description": "This method will trigger an SMS OTP for customer verification.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "CreateSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "CreateSMSCampaign(login: string, secret: string, customerId: string, description: string, displayName: string, vertical: string, messageFlow: string, sampleMsg1: string, sampleMsg2: string, subOptIn: boolean, subOptOut: boolean, subHelp: boolean, numPooling: boolean, directLending: boolean, embeddedLink: boolean, embeddedPhone: boolean, affMarketing: boolean, ageGated: boolean, optOutMessage: string, helpMessage: string, usecaseId: string, subUsecaseIds: ArrayOfString)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "This method will create a new 10DLC SMS Campaign/Use-Case.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": false
+  },
+  {
+   "name": "CreateSMS10DLCCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "CreateSMS10DLCCampaign(login: string, secret: string, customerId: string, description: string, displayName: string, vertical: string, messageFlow: string, sampleMsg1: string, sampleMsg2: string, subOptIn: boolean, subOptOut: boolean, subHelp: boolean, numPooling: boolean, directLending: boolean, embeddedLink: boolean, embeddedPhone: boolean, affMarketing: boolean, ageGated: boolean, optOutMessage: string, helpMessage: string, usecaseId: string, subUsecaseIds: ArrayOfString, optionals: Optionals)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "UpdateSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "UpdateSMSCampaign(login: string, secret: string, campaignId: string, helpMessage: string, optOutMessage: string, messageFlow: string, description: string, sampleMsg1: string, sampleMsg2: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "This method will update a 10DLC SMS campaign.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "UpdateSMS10DLCCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "UpdateSMS10DLCCampaign(login: string, secret: string, campaignId: string, helpMessage: string, optOutMessage: string, messageFlow: string, description: string, sampleMsg1: string, sampleMsg2: string, optionals: Optionals)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "ResubmitExternalSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "ResubmitExternalSMSCampaign(login: string, secret: string, campaignId: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "This method will allow the resubmission of an external SMS campaign (from The Campaign Registry).",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetSMSCampaignRejectionEmail",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "GetSMSCampaignRejectionEmail(login: string, secret: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "SetSMSCampaignRejectionEmail",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "SetSMSCampaignRejectionEmail(login: string, secret: string, email: string)",
+   "reads": [],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "UpdateSMSCustomer",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "UpdateSMSCustomer(login: string, secret: string, customer: SMSCustomer)",
+   "reads": [
+    "SMSCustomer"
+   ],
+   "writes": [
+    "SMSCustomer"
+   ],
+   "description": "This method will update an existing 10 DLC SMS customer.",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "RegisterExternalSMSCampaign",
+   "api": "vi3",
+   "group": "sms",
+   "signature": "RegisterExternalSMSCampaign(login: string, secret: string, campaignId: string, displayName: string)",
+   "reads": [
+    "SMSCampaign"
+   ],
+   "writes": [
+    "SMSCampaign"
+   ],
+   "description": "This method will allow the registration of an external SMS campaign (from The Campaign Registry).",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true
+  },
+  {
+   "name": "GetUnregistered911Traffic",
+   "api": "vi3",
+   "group": "e911",
+   "signature": "GetUnregistered911Traffic(login: string, secret: string)",
+   "reads": [
+    "Unreg911DID"
+   ],
+   "writes": [],
+   "description": "In APIService WSDL; not described in the All API 3.0 Methods page.",
+   "provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "wsdl_provenance": {
+    "url": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+    "seen": "2026-10-13"
+   },
+   "inferred": true,
+   "note": "WSDL only; reads/writes inferred from name and WSDL return type"
+  },
+  {
+   "name": "getLocations",
+   "api": "vi3",
+   "group": "e911",
+   "signature": null,
+   "reads": [
+    "VILocation"
+   ],
+   "writes": [],
+   "description": "Named in the Response911 methods list (populates VILocations); not in the methods page or WSDL",
+   "note": "baseline, unconfirmed",
+   "inferred": true,
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/662634497",
+    "seen": "2026-10-13"
+   }
+  }
+ ],
+ "apidaze": [
+  {
+   "name": "calls.place",
+   "kind": "rest",
+   "description": "POST calls: ring origin (number or sipaccount) first then run the external script with destination; params callerId, origin, destination, type",
+   "reads": [],
+   "writes": [
+    "ApidazeCall"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "calls.list",
+   "kind": "rest",
+   "description": "GET calls: active calls",
+   "reads": [
+    "ApidazeCall"
+   ],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "calls.get",
+   "kind": "rest",
+   "description": "GET calls/{uuid}",
+   "reads": [
+    "ApidazeCall"
+   ],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "calls.hangup",
+   "kind": "rest",
+   "description": "DELETE calls/{uuid}",
+   "reads": [],
+   "writes": [
+    "ApidazeCall"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "calls.transfer",
+   "kind": "rest",
+   "description": "POST calls/{uuid}/transfer with dial-plan payload",
+   "reads": [],
+   "writes": [
+    "ApidazeCall"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "calls.intercept",
+   "kind": "rest",
+   "description": "POST calls/{uuid}/intercept (interceptUuid, liveMonitor)",
+   "reads": [],
+   "writes": [
+    "ApidazeCall"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "messages.send",
+   "kind": "rest",
+   "description": "POST sms/send (from, to, body)",
+   "reads": [],
+   "writes": [
+    "SMSMessage"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "externalScripts.get/list/update",
+   "kind": "rest",
+   "description": "GET/PUT externalscripts[/id]: script id, url, name",
+   "reads": [
+    "ApidazeApplication"
+   ],
+   "writes": [
+    "ApidazeApplication"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "applications.list/find",
+   "kind": "rest",
+   "description": "GET applications filtered by key/value, apiKey, name, id",
+   "reads": [
+    "ApidazeApplication"
+   ],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "cdrHandlers.list/create/update",
+   "kind": "rest",
+   "description": "GET/POST/PUT cdrhttphandlers: URL receiving call detail records",
+   "reads": [
+    "CDR"
+   ],
+   "writes": [
+    "CDR"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "recordings.list/get/delete",
+   "kind": "rest",
+   "description": "GET/DELETE recordings[/fileName]",
+   "reads": [
+    "ApidazeRecording"
+   ],
+   "writes": [
+    "ApidazeRecording"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "mediaFiles.list/get/upload/delete",
+   "kind": "rest",
+   "description": "GET/POST/DELETE mediafiles[/id]",
+   "reads": [
+    "ApidazeMediaFile"
+   ],
+   "writes": [
+    "ApidazeMediaFile"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "sipUsers.list/create/get/update/delete/status/password",
+   "kind": "rest",
+   "description": "CRUD sipusers plus /{id}/status and /{id}/password",
+   "reads": [
+    "ApidazeSipUser"
+   ],
+   "writes": [
+    "ApidazeSipUser"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "misc.validates",
+   "kind": "rest",
+   "description": "GET validates: credential check",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/blob/master/README.md",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<answer>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'answer' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<bind>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'bind' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<conference>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'conference' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<dial>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'dial' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<echo>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'echo' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<hangup>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'hangup' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<intercept>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'intercept' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<number>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'number' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<playback>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'playback' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<record>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'record' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<ringback>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'ringback' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<sipaccount>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'sipaccount' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<sipuri>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'sipuri' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<speak>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'speak' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<wait>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'wait' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "<work>",
+   "kind": "xml_script",
+   "description": "XML call-control element 'work' exposed by the Apidaze Node SDK ScriptBuilder; scripts are served from an external URL or inline under <document><work>",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://github.com/apidaze/sdk-node/tree/master/lib/builder/nodes",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "webrtc.client",
+   "kind": "webrtc",
+   "description": "apidaze-js npm client: caller dials a number that runs an External Script (audio conferences, automated responses); no WebRTC doc page fetched",
+   "reads": [],
+   "writes": [],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://www.npmjs.com/package/apidaze-js",
+    "seen": "2026-10-13"
+   }
+  },
+  {
+   "name": "programmableTelco.console",
+   "kind": "xml_script",
+   "description": "VI Back Office Apps > Developer Services: create dev app with inline <speak>/<dial> script or external script URL; assign DID (15-20 min propagation)",
+   "reads": [
+    "ApidazeApplication"
+   ],
+   "writes": [
+    "ApidazeApplication"
+   ],
+   "availability": "unverified",
+   "provenance": {
+    "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/656703489",
+    "seen": "2026-10-13"
+   }
+  }
+ ],
+ "transport": {
+  "protocol": "SOAP",
+  "endpoint": "https://backoffice.voipinnovations.com/Services/APIService.asmx",
+  "wsdl": "https://backoffice.voipinnovations.com/Services/APIService.asmx?wsdl",
+  "auth": "login and secret (API user from Back Office Add-Ons > API Users) as first two parameters of every method; response objects carry responseCode/responseMessage",
+  "ip_whitelist": true,
+  "sandbox": "dev.voipinnovations.com/API/Index.aspx unreachable; code 999 = method unavailable in sandbox",
+  "other": {
+   "cnam_rest": "POST https://cnam-api.voipinnovations.com/CNAM JSON login/password/caller_number/callee_number, IP-whitelisted, 50 req/s per IP"
+  },
+  "provenance": {
+   "url": "https://sangomakb.atlassian.net/wiki/spaces/WCS/pages/659685378",
+   "seen": "2026-10-13"
+  }
+ }
+}

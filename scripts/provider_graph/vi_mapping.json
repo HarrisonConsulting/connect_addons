@@ -1,0 +1,476 @@
+{
+ "_doc": "Design input: which VI capability each computed interface slot depends on. 'vi' names methods or Apidaze capabilities from vi_catalog.json; 'internal' marks Odoo-side work with no VI call. A slot absent here is reported unmapped. Edit this file, then re-run scripts/provider_graph.py.",
+ "slots": {
+  "asset:web.assets_backend": {
+   "internal": "Softphone and settings UI assets ship with the module."
+  },
+  "define:connect.{provider}.callflow": {
+   "vi": [
+    "<bind>",
+    "<speak>",
+    "<playback>",
+    "externalScripts.get/list/update"
+   ]
+  },
+  "define:connect.{provider}.callflow_choice": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "define:connect.{provider}.domain": {
+   "vi": [
+    "AuditEndpointGroups",
+    "ActivateEndpointGroup"
+   ],
+   "note": "The VI endpoint group plays the part of the provider SIP domain."
+  },
+  "define:connect.{provider}.exten": {
+   "internal": "Extensions are Odoo-side records."
+  },
+  "define:connect.{provider}.number": {
+   "vi": [
+    "GetAssignedTNs",
+    "auditDIDs",
+    "queryDID",
+    "configDID"
+   ]
+  },
+  "define:connect.{provider}.outgoing_callerid": {
+   "vi": [
+    "GetAssignedTNs",
+    "GetCNAMDisplay",
+    "UpdateCNAMDisplay"
+   ]
+  },
+  "field:connect.settings.{provider}_api_key": {
+   "internal": "Store the VI API login and secret (Back Office > Add-Ons > API Users)."
+  },
+  "field:connect.settings.{provider}_auto_sync": {
+   "vi": [
+    "GetAssignedTNs",
+    "auditDIDs"
+   ]
+  },
+  "field:connect.settings.{provider}_verify_requests": {
+   "vi": [
+    "ConfigSMSDestination"
+   ]
+  },
+  "field:connect.user.{provider}_exten": {
+   "internal": "Odoo-side extension link on the user."
+  },
+  "field:connect.user.{provider}_exten_number": {
+   "internal": "Odoo-side extension number on the user."
+  },
+  "field:connect.user.{provider}_outgoing_callerid": {
+   "vi": [
+    "GetCNAMDisplay"
+   ]
+  },
+  "inherit:connect.call": {
+   "vi": [
+    "calls.get",
+    "cdrHandlers.list/create/update"
+   ],
+   "note": "Live call state and CDR push come only from Apidaze; VI CDRs are files, not an API method."
+  },
+  "inherit:connect.channel": {
+   "vi": [
+    "calls.get",
+    "calls.hangup",
+    "calls.transfer"
+   ]
+  },
+  "inherit:connect.message": {
+   "vi": [
+    "SendSMS",
+    "SendMMS",
+    "SendSMSWithDLR"
+   ]
+  },
+  "inherit:connect.recording": {
+   "vi": [
+    "recordings.list/get/delete",
+    "<record>"
+   ]
+  },
+  "inherit:connect.settings": {
+   "vi": [
+    "AuditClients",
+    "GetPrepaidBalance"
+   ],
+   "note": "login/secret on every SOAP call; AuditClients doubles as a credential check."
+  },
+  "inherit:connect.tool": {
+   "internal": "Tool adapter wiring is Odoo-side."
+  },
+  "inherit:connect.user": {
+   "vi": [
+    "sipUsers.list/create/get/update/delete/status/password"
+   ],
+   "note": "VI endpoint groups are trunk IPs, not per-user SIP accounts; per-user registration needs Apidaze SIP users."
+  },
+  "inherit:connect.{provider}.number": {
+   "internal": "PBX/BYOC add-ons extend the provider number model; VI would carry the same audio-referrer hooks on its own number model."
+  },
+  "inherit:ir.http": {
+   "vi": [
+    "ConfigSMSDestination"
+   ],
+   "note": "VI signs nothing; webhook auth rests on the authToken set by ConfigSMSDestination plus an IP allowlist."
+  },
+  "js:connect.telephony_transports/{provider}": {
+   "vi": [
+    "webrtc.client"
+   ]
+  },
+  "method:connect.channel._map_{provider}_params": {
+   "vi": [
+    "calls.get"
+   ]
+  },
+  "method:connect.message._own_numbers": {
+   "vi": [
+    "GetAssignedTNs",
+    "AuditSMS"
+   ]
+  },
+  "method:connect.message.send": {
+   "vi": [
+    "SendSMS",
+    "SendMMS",
+    "SendSMSWithDLR"
+   ]
+  },
+  "method:connect.settings._validate_{provider}_request": {
+   "vi": [
+    "ConfigSMSDestination"
+   ]
+  },
+  "method:connect.settings.get_external_call_route": {
+   "vi": [
+    "GetDIDForward",
+    "GetDIDFailover"
+   ]
+  },
+  "method:connect.settings.get_media_auth": {
+   "vi": [
+    "recordings.list/get/delete",
+    "mediaFiles.list/get/upload/delete"
+   ]
+  },
+  "method:connect.settings.originate_call": {
+   "vi": [
+    "calls.place"
+   ]
+  },
+  "method:connect.settings.sync": {
+   "vi": [
+    "GetAssignedTNs",
+    "AuditEndpointGroups",
+    "AuditSMS"
+   ]
+  },
+  "method:connect.settings.write": {
+   "internal": "Settings write hook is Odoo-side."
+  },
+  "method:connect.user._check_{provider}_account": {
+   "vi": [
+    "sipUsers.list/create/get/update/delete/status/password"
+   ]
+  },
+  "method:connect.user._default_{provider}_domain": {
+   "vi": [
+    "AuditEndpointGroups"
+   ]
+  },
+  "method:connect.user._pbx_number_fields": {
+   "internal": "Field list helper, Odoo-side."
+  },
+  "method:connect.user.create": {
+   "vi": [
+    "sipUsers.list/create/get/update/delete/status/password"
+   ]
+  },
+  "method:connect.user.generate_{provider}_password": {
+   "vi": [
+    "sipUsers.list/create/get/update/delete/status/password"
+   ]
+  },
+  "method:connect.user.get_client_token": {
+   "vi": [
+    "webrtc.client"
+   ]
+  },
+  "method:connect.user.get_user_by_uri": {
+   "internal": "Resolve an inbound SIP URI to a user, Odoo-side."
+  },
+  "method:connect.user.unlink": {
+   "vi": [
+    "sipUsers.list/create/get/update/delete/status/password"
+   ]
+  },
+  "method:connect.user.write": {
+   "vi": [
+    "sipUsers.list/create/get/update/delete/status/password"
+   ]
+  },
+  "method:connect.user.{provider}_caller_id": {
+   "vi": [
+    "GetCNAMDisplay"
+   ]
+  },
+  "method:connect.{provider}.callflow._get_gather_action_url": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "method:connect.{provider}.callflow._get_gather_hints": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "method:connect.{provider}.callflow._get_language_selection": {
+   "vi": [
+    "<speak>"
+   ]
+  },
+  "method:connect.{provider}.callflow.create_extension": {
+   "internal": "Creates the Odoo-side extension for a callflow."
+  },
+  "method:connect.{provider}.callflow.gather_action": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "method:connect.{provider}.callflow.get_gather_invalid_input_message": {
+   "vi": [
+    "<speak>",
+    "<playback>"
+   ]
+  },
+  "method:connect.{provider}.callflow.get_prompt_message": {
+   "vi": [
+    "<speak>",
+    "<playback>"
+   ]
+  },
+  "method:connect.{provider}.callflow.get_voicemail_prompt_message": {
+   "vi": [
+    "<speak>",
+    "<playback>",
+    "<record>"
+   ]
+  },
+  "method:connect.{provider}.callflow.on_call_action": {
+   "vi": [
+    "<bind>",
+    "<dial>"
+   ]
+  },
+  "method:connect.{provider}.callflow.render": {
+   "vi": [
+    "<bind>",
+    "<speak>",
+    "<playback>",
+    "<dial>"
+   ]
+  },
+  "method:connect.{provider}.domain.create": {
+   "vi": [
+    "ActivateEndpointGroup"
+   ]
+  },
+  "method:connect.{provider}.domain.create_domain": {
+   "vi": [
+    "ActivateEndpointGroup"
+   ]
+  },
+  "method:connect.{provider}.domain.originate_external_call": {
+   "vi": [
+    "calls.place"
+   ]
+  },
+  "method:connect.{provider}.domain.route_call": {
+   "vi": [
+    "RouteDIDToApp",
+    "<dial>",
+    "<sipaccount>"
+   ]
+  },
+  "method:connect.{provider}.domain.sync": {
+   "vi": [
+    "AuditEndpointGroups"
+   ]
+  },
+  "method:connect.{provider}.domain.unlink": {
+   "vi": [
+    "DeactivateEndpointGroup"
+   ]
+  },
+  "method:connect.{provider}.exten._check_number_available": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._dst_exten_field": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._get_dst": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._get_model_friendly": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._get_name": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._link_dst": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._set_dst": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten._stored_dst": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten.create": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten.create_extension": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten.render": {
+   "vi": [
+    "<dial>"
+   ]
+  },
+  "method:connect.{provider}.exten.unlink": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.exten.write": {
+   "internal": "Extension bookkeeping, Odoo-side."
+  },
+  "method:connect.{provider}.number._get_{provider}_urls": {
+   "vi": [
+    "RouteDIDToApp",
+    "externalScripts.get/list/update"
+   ]
+  },
+  "method:connect.{provider}.number.render": {
+   "vi": [
+    "<dial>",
+    "<playback>"
+   ]
+  },
+  "method:connect.{provider}.number.route_call": {
+   "vi": [
+    "<dial>",
+    "<sipaccount>"
+   ]
+  },
+  "method:connect.{provider}.number.sync": {
+   "vi": [
+    "GetAssignedTNs",
+    "auditDIDs"
+   ]
+  },
+  "method:connect.{provider}.number.write": {
+   "vi": [
+    "configDID"
+   ]
+  },
+  "method:connect.{provider}.outgoing_callerid.sync": {
+   "vi": [
+    "GetAssignedTNs"
+   ]
+  },
+  "method:connect.{provider}.outgoing_callerid.unlink": {
+   "internal": "Removes the Odoo record only."
+  },
+  "method:connect.{provider}.outgoing_callerid.update_status": {
+   "vi": [
+    "GetCNAMDisplay"
+   ]
+  },
+  "method:connect.{provider}.outgoing_callerid.validate": {
+   "vi": [
+    "queryDID"
+   ]
+  },
+  "route:/{provider}/webhook/<string:model_name>/call_action/<int:record_id>": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "route:/{provider}/webhook/callaction": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "route:/{provider}/webhook/callflow/<int:flow_id>/gather": {
+   "vi": [
+    "<bind>"
+   ]
+  },
+  "route:/{provider}/webhook/callstatus": {
+   "vi": [
+    "cdrHandlers.list/create/update"
+   ]
+  },
+  "route:/{provider}/webhook/domain": {
+   "vi": [
+    "externalScripts.get/list/update",
+    "<sipaccount>"
+   ]
+  },
+  "route:/{provider}/webhook/message": {
+   "vi": [
+    "ConfigSMSDestination"
+   ],
+   "note": "Inbound SMS is posted to the destination set per DID."
+  },
+  "route:/{provider}/webhook/message_status": {
+   "vi": [
+    "SendSMSWithDLR",
+    "UpdateSMSDLR"
+   ]
+  },
+  "route:/{provider}/webhook/number": {
+   "vi": [
+    "RouteDIDToApp",
+    "externalScripts.get/list/update"
+   ]
+  },
+  "route:/{provider}/webhook/recordingstatus": {
+   "vi": [
+    "recordings.list/get/delete",
+    "<record>"
+   ]
+  },
+  "route:/{provider}/webhook/vm_recordingstatus": {
+   "vi": [
+    "recordings.list/get/delete",
+    "<record>"
+   ]
+  },
+  "selection:connect.settings.rest_provider": {
+   "internal": "Add the voip_innovations key; the SOAP APIService client answers as the REST provider."
+  },
+  "selection:connect.tool.adapter": {
+   "internal": "Add the voip_innovations adapter key to connect.tool."
+  },
+  "selection:connect.user.message_provider": {
+   "vi": [
+    "SendSMS",
+    "SendMMS",
+    "ConfigSMSDestination"
+   ],
+   "note": "VI messaging is documented API 3.0 SOAP."
+  },
+  "selection:connect.user.originate_provider": {
+   "vi": [
+    "calls.place"
+   ],
+   "note": "API 3.0 has no originate method; click-to-call needs Apidaze REST calls."
+  }
+ }
+}

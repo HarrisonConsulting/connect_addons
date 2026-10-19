@@ -88,6 +88,16 @@ export class TelephonyTransport extends Emitter {
     }
 
     /**
+     * Whether the backend implements hold, attended transfer and add
+     * participant for this provider (connect.channel
+     * `_softphone_<action>_<provider>`). The phone hides those buttons when
+     * false; the backend refuses in words either way.
+     */
+    static get supportsCallControl() {
+        return false
+    }
+
+    /**
      * @param {Object} connData - provider-specific connection data, e.g.
      *   {token, edge} for Twilio or {sip_uri, username, password, wss_server}
      *   for VoiceTel.

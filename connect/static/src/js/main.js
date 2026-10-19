@@ -13,8 +13,8 @@ import {EventBus} from "@odoo/owl"
 // Identifies this browser tab across the get_client_token() calls it makes
 // over its lifetime (initial mount here, plus phone.js's later reconnect/
 // token-refresh calls, which reuse the same value via the Phone prop below).
-// VoiceTel-only: a VoiceTel SIP credential is stateful, unlike a Twilio JWT,
-// so without a stable per-tab identity two tabs of the same user would
+// For a provider whose SIP credential is stateful, unlike a Twilio JWT,
+// without a stable per-tab identity two tabs of the same user would
 // rotate one shared SIP password out from under each other. sessionStorage
 // is per-tab (unlike localStorage), so this survives reloads within a tab
 // but not across tabs or after the tab closes.
@@ -36,7 +36,7 @@ export const phoneService = {
             const browserSessionNonce = getBrowserSessionNonce()
             const token_data = await orm.call(
                 'connect.user', 'get_client_token', [], {nonce: browserSessionNonce})
-            // Twilio responses carry 'token', VoiceTel responses carry
+            // Twilio responses carry 'token', a SIP provider's responses carry
             // 'password' instead (no 'token' key at all) — either means a
             // usable credential was minted and the phone should mount.
             if (token_data.token || token_data.password) {

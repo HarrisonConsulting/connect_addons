@@ -69,10 +69,9 @@ export class Phone extends Component {
         super(...arguments)
         this.bus = this.props.bus
         // Identifies this tab across every get_client_token() call it makes
-        // (initial mount in main.js, plus reconnect/updateToken below) so a
-        // VoiceTel user's concurrent tabs each rotate their own SIP
-        // credential instead of racing over one shared password. Unused on
-        // the Twilio path (JWTs are stateless — no cross-tab collision).
+        // (initial mount in main.js, plus reconnect/updateToken below), for
+        // a provider whose credential is stateful per tab. Unused on the
+        // Twilio path (JWTs are stateless — no cross-tab collision).
         this.browserSessionNonce = this.props.browserSessionNonce
         // Last-write-wins queue for connect.user.update_presence. The
         // method is async but every call site is fire-and-forget; concurrent
@@ -87,9 +86,8 @@ export class Phone extends Component {
         // (byte-identical contract, see backend task notes) — default to
         // 'twilio' when absent.
         this.provider = this.props.token_data.provider || 'twilio'
-        // VoiceTel-specific connection fields (get_client_token()'s 'voicetel'
-        // response shape — see connect.user._get_voicetel_client_token()).
-        // Unused when provider === 'twilio'.
+        // SIP connection fields, for a provider whose get_client_token()
+        // response carries a SIP credential. Unused when provider === 'twilio'.
         this.sipUri = this.props.token_data.sip_uri
         this.sipUsername = this.props.token_data.username
         this.sipPassword = this.props.token_data.password
@@ -925,8 +923,8 @@ export class Phone extends Component {
 
     /**
      * Extension point: providers register their transport class into the
-     * "connect.telephony_transports" registry (see twilio_transport.js's/
-     * voicetel_transport.js's own registry.category(...).add(...) calls) —
+     * "connect.telephony_transports" registry (see twilio_transport.js's
+     * own registry.category(...).add(...) call) —
      * nothing here, or anywhere else in this file, needs to change to add a
      * further provider. A provider module that isn't installed simply never
      * registers, and is never imported by this file either.
@@ -949,7 +947,7 @@ export class Phone extends Component {
      * component (set by the constructor or a prior _applyTokenData()).
      * Delegated to the active provider's transport class — see
      * TelephonyTransport.buildConnData()'s default and each transport's
-     * override (e.g. VoiceTelTransport.buildConnData()).
+     * override.
      */
     _buildConnData(tokenData) {
         const data = tokenData || {
@@ -1453,8 +1451,9 @@ export class Phone extends Component {
         return true
     }
 
-    _voiceTelRinging() {
-        return this.provider === 'voicetel' || this.provider === 'voicetel_jssip'
+    _ringsInApp() {
+        const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
+        return !!(TransportClass && TransportClass.ringsInApp)
     }
 
     _stopIncomingRing() {
@@ -1465,7 +1464,7 @@ export class Phone extends Component {
     }
 
     _syncIncomingRing() {
-        const should = this._voiceTelRinging()
+        const should = this._ringsInApp()
             && !this.state.isSoundMute
             && (this.state.inIncoming || this.state.hasWaitingCall)
         if (!should) {

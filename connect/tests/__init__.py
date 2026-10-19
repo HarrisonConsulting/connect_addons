@@ -19,6 +19,7 @@ from . import test_systray_tour
 from . import test_sync_safety
 from . import test_ng_recording_media
 from . import test_migration_model_references
+from . import test_migration_recording_attachment
 from . import test_elevenlabs_tool_auth
 from . import test_js_bus_listener_cleanup
 from . import test_ring_policy

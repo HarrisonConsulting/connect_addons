@@ -5,6 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -29,6 +30,8 @@ class TestNgRecordingMedia(TransactionCase):
         response.iter_content.return_value = [b'RIFF', b'audio']
         with patch.object(type(self.env['connect.settings']), '_get_media_auth',
                           return_value=('account', 'secret')) as auth, \
+                patch.object(type(self.env['connect.settings']), '_is_trusted_media_url',
+                             return_value=True), \
                 patch('odoo.addons.connect.models.recording.requests.get', return_value=response) as get:
             data = BytesIO()
             recording._fetch_media_to(data)
@@ -36,6 +39,13 @@ class TestNgRecordingMedia(TransactionCase):
         auth.assert_called_once_with(recording.media_url)
         self.assertEqual(get.call_args.kwargs['auth'], ('account', 'secret'))
         response.__exit__.assert_called_once()
+
+    def test_untrusted_media_host_is_refused_before_download(self):
+        recording = self._recording(media_url='https://evil.example.com/recording.wav')
+        with patch('odoo.addons.connect.models.recording.requests.get') as get:
+            with self.assertRaisesRegex(UserError, 'not a trusted provider host'):
+                recording._fetch_media_to(BytesIO())
+        get.assert_not_called()
 
     def test_failed_materialization_removes_partial_file(self):
         recording = self._recording()

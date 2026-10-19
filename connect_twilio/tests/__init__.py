@@ -5,6 +5,7 @@ from . import test_config_parameter
 from . import test_domain_whatsapp_routing
 from . import test_exten
 from . import test_forward_call
+from . import test_hold_call
 from . import test_outgoing_callerid
 from . import test_recording_controls
 from . import test_recording_media

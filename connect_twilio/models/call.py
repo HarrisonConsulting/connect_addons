@@ -2,12 +2,15 @@
 import json
 import logging
 import re
+import time
 from datetime import timedelta
+
+from psycopg2 import errors as pg_errors
 
 from odoo import fields, models, api
 from odoo.exceptions import ValidationError
 
-from twilio.twiml.voice_response import VoiceResponse
+from twilio.twiml.voice_response import Dial, VoiceResponse
 
 from odoo.addons.connect.models.settings import debug
 from odoo.addons.connect.models.call import CALL_END_STATUSES
@@ -23,9 +26,106 @@ class Call(models.Model):
     @api.model
     def on_call_action(self, params):
         debug(self, 'On call action: %s' % params)
+        rejoin = self._conference_rejoin_twiml(params)
+        if rejoin:
+            return rejoin
         response = VoiceResponse()
         response.hangup()
         return response.to_xml()
+
+    # Conference call control (hold / attended transfer / add participant).
+    # Column names match the pre-NG connect.call fields so a database that
+    # still has them reuses the columns, and connect_stripe's /resume route
+    # can find the room again.
+    conference_name = fields.Char(
+        string='Conference Name', readonly=True, copy=False,
+        help='Twilio conference friendly name once the call is promoted.')
+    conference_sid = fields.Char(
+        string='Conference SID', readonly=True, copy=False,
+        help='Twilio Conference SID, resolved lazily from the name.')
+    is_on_hold = fields.Boolean(
+        string='On Hold', default=False, copy=False,
+        help='Whether the remote party is currently on hold.')
+    conference_pending = fields.Boolean(
+        string='Conference Pending', default=False, copy=False,
+        help='Set while the child leg has been moved into the conference '
+             'and the parent leg has not rejoined it yet through its <Dial> '
+             'action.')
+
+    def _conference_state_commit(self, vals):
+        """Write `vals` on this call in its own, committed transaction.
+
+        The <Dial> action webhook that makes the parent leg rejoin arrives in
+        another request while the softphone RPC is still open, so a write in
+        the RPC's own transaction would be invisible to it. The RPC therefore
+        never writes the call row itself: every conference-state change goes
+        through here, which also keeps the two transactions from tripping
+        over the same row.
+        """
+        self.ensure_one()
+        for attempt in range(3):
+            try:
+                with self.env.registry.cursor() as cr:
+                    self.with_env(self.env(cr=cr, su=True)).with_context(
+                        tracking_disable=True).write(vals)
+                return
+            except pg_errors.SerializationFailure:
+                if attempt == 2:
+                    raise
+                time.sleep(0.1 * (attempt + 1))
+
+    @api.model
+    def _conference_join_twiml(self, conference_name, agent):
+        """`<Dial><Conference>` for one leg of a promoted call.
+
+        The agent leaving ends the room; the customer leaving does not, so a
+        held or transferred customer keeps the conference alive.
+        """
+        response = VoiceResponse()
+        dial = Dial()
+        dial.conference(
+            conference_name,
+            startConferenceOnEnter=True,
+            endConferenceOnExit=bool(agent),
+            beep=False,
+        )
+        response.append(dial)
+        return response.to_xml()
+
+    @api.model
+    def _conference_rejoin_twiml(self, request):
+        """TwiML that puts a parent leg into its pending conference, or None.
+
+        Promotion redirects only the child leg. That completes the parent's
+        <Dial>, and Twilio asks the <Dial action> what to do next: while the
+        call carries `conference_pending`, the answer is to join the same
+        room. Every parent-<Dial> action handler calls this first and keeps
+        its own behaviour when it returns None.
+        """
+        request = request or {}
+        if request.get('CallStatus') != 'in-progress':
+            return None
+        Channel = self.env['connect.channel'].sudo()
+        channel = Channel.search(
+            [('sid', '=', request.get('CallSid'))], order='id desc', limit=1)
+        call = channel.call
+        if not call and request.get('DialCallSid'):
+            call = Channel.search(
+                [('sid', '=', request.get('DialCallSid'))],
+                order='id desc', limit=1).call
+        call = call.sudo()
+        if not call or not call.conference_pending or not call.conference_name:
+            return None
+        # The parent is the agent on an outbound call (their softphone dialled
+        # out) and the customer on an inbound one.
+        agent = bool(channel.caller_pbx_user) if channel else (
+            call.direction == 'outgoing')
+        call.with_context(tracking_disable=True).write(
+            {'conference_pending': False})
+        logger.info(
+            'Parent leg %s rejoins conference %s of call %s',
+            request.get('CallSid'), call.conference_name, call.id)
+        return self._conference_join_twiml(call.conference_name, agent)
 
     call_sid = fields.Char(
         string='Twilio Call SID', readonly=True,
@@ -247,57 +347,3 @@ class Call(models.Model):
                     'Error fetching price for call %s: %s', call.id, e
                 )
         debug(self, 'Batch price fetch completed')
-
-    def transfer(self, user=None):
-        from twilio.twiml.voice_response import VoiceResponse, Dial, Sip, Conference
-        import uuid
-
-        self.ensure_one()
-        # Get the PBX user doing transfer
-        if not user:
-            user = self.env.user.connect_user
-            user = (
-                self.channels[0].caller_pbx_user
-                or self.channels[0].called_pbx_user
-            )
-        user_channel = self.channels.filtered(
-            lambda x: (
-                x.caller_pbx_user == user or x.called_pbx_user == user
-            )
-        )
-        if not user_channel:
-            logger.warning(
-                'Cannot get user channel for call %s for user %s',
-                self.id,
-                user.name,
-            )
-            return
-        other_channel = self.channels - user_channel
-        if len(other_channel) != 1:
-            logger.warning(
-                'Cannot transfer call, number of other channels: %s',
-                len(other_channel),
-            )
-            return
-        client = self.env['connect.settings'].get_client()
-        conf_id = uuid.uuid4().hex
-
-        def transfer_other():
-            response = VoiceResponse()
-            response.say('Transfer')
-            dial = Dial()
-            dial.conference('user-{}-{}'.format(user.id, conf_id))
-            response.append(dial)
-            client.calls(other_channel.sid).update(twiml=response)
-
-        def transfer_user():
-            response = VoiceResponse()
-            response.say('Transfer')
-            dial = Dial()
-            sip = Sip('sip:user@devmax17.sip.twilio.com')
-            dial.append(sip)
-            response.append(dial)
-            client.calls(user_channel.sid).update(twiml=response)
-
-        transfer_user()
-        transfer_other()

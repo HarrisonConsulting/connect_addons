@@ -205,6 +205,9 @@ class CallFlow(models.Model):
 
     @api.model
     def on_call_action(self, flow_id, request):
+        rejoin = self.env['connect.call']._conference_rejoin_twiml(request)
+        if rejoin:
+            return rejoin
         response = VoiceResponse()
         if request.get('DialCallStatus') != 'completed':
             callflow = self.browse(flow_id)

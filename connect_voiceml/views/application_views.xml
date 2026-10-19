@@ -31,7 +31,7 @@
                         </group>
                     </group>
                     <group string="TwiML" invisible="code_type != 'twiml'">
-                        <field name="twiml" nolabel="1"/>
+                        <field name="twiml" nolabel="1" colspan="2"/>
                     </group>
                 </sheet>
             </form>

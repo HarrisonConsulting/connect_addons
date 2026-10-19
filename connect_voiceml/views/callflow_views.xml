@@ -39,7 +39,7 @@
                         <field name="voicemail_prompt" invisible="not voicemail_enabled"/>
                     </group>
                     <group string="Choices">
-                        <field name="choices" nolabel="1">
+                        <field name="choices" nolabel="1" colspan="2">
                             <list>
                                 <field name="choice_digits"/>
                                 <field name="speech"/>

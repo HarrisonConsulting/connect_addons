@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Webhook handlers are not RPC endpoints.
+"""Webhook handlers are not RPC endpoints, and the voicemail proxy only
+fetches provider media.
 
 The handlers trust their params because the controller checked the Twilio
 signature first. Over /web/dataset/call_kw nothing checks it, so any
-logged-in user (portal included) could forge a call event.
+logged-in user (portal included) could forge a call event or plant a
+voicemail URL the proxy would then fetch server-side.
 """
 from odoo.exceptions import AccessError
 from odoo.service.model import get_public_method
@@ -43,3 +45,40 @@ class TestWebhookHandlersArePrivate(TwilioTestCommon):
                 with self.assertRaises(AccessError):
                     get_public_method(self.env[model_name], method)
 
+
+@tagged('at_install', '-post_install')
+class TestVoicemailMediaHost(TwilioTestCommon):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.settings = cls.env['connect.settings'].sudo()
+
+    def test_twilio_media_host_is_trusted(self):
+        for url in (
+            'https://api.twilio.com/2010-04-01/Accounts/AC1/Recordings/RE1',
+            'https://media.twiliocdn.twilio.com/RE1',
+        ):
+            with self.subTest(url=url):
+                self.assertTrue(self.settings._is_trusted_media_url(url))
+
+    def test_other_media_hosts_are_refused(self):
+        for url in (
+            'https://evil.example/RE1',
+            'https://api.twilio.com.evil.example/RE1',
+            'https://eviltwilio.com/RE1',
+            'http://api.twilio.com/2010-04-01/Recordings/RE1',
+            'https://user:pw@api.twilio.com/2010-04-01/Recordings/RE1',
+            'http://169.254.169.254/latest/meta-data/',
+            'http://localhost:8069/web/database/list',
+            '/web/content/1',
+            '',
+            False,
+        ):
+            with self.subTest(url=url):
+                self.assertFalse(self.settings._is_trusted_media_url(url))
+
+    def test_s3_bucket_is_trusted_only_when_s3_recordings_are_on(self):
+        url = 'https://acme-rec.s3.us-east-1.amazonaws.com/RE1.wav'
+        self.settings.set_param('s3_recordings_enabled', False)
+        self.assertFalse(self.settings._is_trusted_media_url(url))

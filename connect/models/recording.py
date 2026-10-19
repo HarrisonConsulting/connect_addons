@@ -10,8 +10,8 @@ from urllib.parse import quote
 
 import requests
 from markupsafe import escape
-from odoo import fields, models, api, release, SUPERUSER_ID
-from odoo.exceptions import ValidationError
+from odoo import _, fields, models, api, release, SUPERUSER_ID
+from odoo.exceptions import UserError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +225,8 @@ class Recording(models.Model):
         # recording store; without a timeout a hung endpoint
         # pins the worker.
         url = self._get_media_download_url()
+        if not self.env['connect.settings'].sudo()._is_trusted_media_url(url):
+            raise UserError(_("Recording media host is not a trusted provider host."))
         auth = self.env['connect.settings'].sudo()._get_media_auth(url)
         with requests.get(url, auth=auth, stream=True, timeout=30) as response:
             response.raise_for_status()

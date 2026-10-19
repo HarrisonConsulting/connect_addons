@@ -7,6 +7,11 @@ connect_voicetel_* model tables are not touched: Odoo leaves the table of
 a model that is no longer in the registry, so they stay as they are.
 
 Exact column allowlists, guarded by existence. Never DROP.
+
+The old module's views, actions and menus stay in the database until the
+end-of-update cleanup. Dependents such as connect_pbx re-validate their
+parent views first and fail on a stale child that names a removed field.
+So the records the old module owned are deleted here, after the archive.
 """
 
 import logging
@@ -48,6 +53,21 @@ ARCHIVES = {
         ),
     ),
 }
+
+# Tables of the records the old module owned that name removed fields or
+# models. Children of a view go with it through inherit_id ON DELETE CASCADE.
+# Menus first: they point at the actions. Models, fields and the
+# connect_voicetel_* data rows are left to Odoo's own cleanup.
+OWNED_RECORDS = (
+    ('ir.ui.menu', 'ir_ui_menu'),
+    ('ir.ui.view', 'ir_ui_view'),
+    ('ir.actions.act_window', 'ir_act_window'),
+    ('ir.actions.server', 'ir_act_server'),
+    ('ir.cron', 'ir_cron'),
+    ('ir.rule', 'ir_rule'),
+    ('ir.model.access', 'ir_model_access'),
+    ('ir.filters', 'ir_filters'),
+)
 
 
 def _existing_columns(cr, table, columns):
@@ -96,3 +116,36 @@ def migrate(cr, version):
     for (table,) in cr.fetchall():
         cr.execute('SELECT count(*) FROM "{}"'.format(table))
         _logger.info('connect_voicetel: %s keeps %s rows', table, cr.fetchone()[0])
+
+
+    _drop_owned_records(cr)
+
+
+def _drop_owned_records(cr):
+    for model, table in OWNED_RECORDS:
+        if not _table_exists(cr, table):
+            continue
+        cr.execute(
+            "SELECT res_id FROM ir_model_data"
+            " WHERE module = 'connect_voicetel' AND model = %s"
+            " AND res_id IS NOT NULL", (model,))
+        ids = [row[0] for row in cr.fetchall()]
+        if ids:
+            if model == 'ir.ui.view':
+                # delete the whole inherit tree under the owned views
+                cr.execute(
+                    "WITH RECURSIVE tree AS ("
+                    " SELECT id FROM ir_ui_view WHERE id IN %s"
+                    " UNION SELECT v.id FROM ir_ui_view v"
+                    " JOIN tree t ON v.inherit_id = t.id)"
+                    " SELECT id FROM tree", (tuple(ids),))
+                ids = [row[0] for row in cr.fetchall()]
+            cr.execute('DELETE FROM "{}" WHERE id IN %s'.format(table), (tuple(ids),))
+            _logger.info(
+                'connect_voicetel: deleted %s %s records of the retired module',
+                cr.rowcount, model)
+        else:
+            _logger.info('connect_voicetel: no %s records to delete', model)
+        cr.execute(
+            "DELETE FROM ir_model_data"
+            " WHERE module = 'connect_voicetel' AND model = %s", (model,))

@@ -83,5 +83,5 @@
               name="Endpoints"
               parent="menu_freeswitch_root"
               action="action_freeswitch_endpoint"
-              sequence="40"/>
+              sequence="50"/>
 </odoo>

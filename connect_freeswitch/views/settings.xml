@@ -98,9 +98,9 @@
 
     <menuitem id="menu_freeswitch_settings"
               name="Settings"
-              parent="menu_freeswitch_config"
+              parent="menu_freeswitch_root"
               action="freeswitch_settings_action"
               groups="connect.group_admin"
-              sequence="40"/>
+              sequence="10"/>
 
 </odoo>

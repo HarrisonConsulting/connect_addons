@@ -59,9 +59,9 @@
 
     <menuitem id="menu_freeswitch_gateway"
               name="SIP Gateways"
-              parent="menu_freeswitch_config"
+              parent="menu_freeswitch_root"
               action="action_freeswitch_gateway"
-              sequence="10"
+              sequence="90"
               groups="connect.group_admin"/>
 
 </odoo>

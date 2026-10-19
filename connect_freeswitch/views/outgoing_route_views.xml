@@ -51,9 +51,9 @@
 
     <menuitem id="menu_freeswitch_outgoing_route"
               name="Outgoing Routes"
-              parent="menu_freeswitch_config"
+              parent="menu_freeswitch_root"
               action="action_freeswitch_outgoing_route"
-              sequence="20"
+              sequence="100"
               groups="connect.group_admin"/>
 
 </odoo>

@@ -120,7 +120,7 @@ class ParkSlot(models.Model):
         """Park the current call on a numbered slot.
 
         Moves the remote party into a Twilio conference with hold music,
-        then hangs up the user's leg. Any user can later pick up the call
+        after which the user's leg ends with the <Dial>. Any user can later pick up the call
         from this slot.
         """
         slot_number = int(slot_number)
@@ -168,12 +168,10 @@ class ParkSlot(models.Model):
                 waitUrl=hold_music_url,
             )
             response.append(dial)
-            client.calls(other_channel.sid).update(twiml=str(response))
 
-            # Hang up user's leg
-            client.calls(user_channel.sid).update(status='completed')
-
-            # Create or update slot record
+            # Record the slot before any REST call: once the other leg is
+            # redirected the caller sits in the room, and a slot pointing at
+            # it must already exist whatever Twilio says next.
             slot = self.search([('name', '=', slot_number)], limit=1)
             if not slot:
                 slot = self.create({'name': slot_number})
@@ -184,6 +182,15 @@ class ParkSlot(models.Model):
                 'parked_by': self.env.user.id,
                 'parked_at': fields.Datetime.now(),
             })
+            try:
+                client.calls(other_channel.sid).update(twiml=str(response))
+            except Exception:
+                # Nothing moved, so the slot must not claim a caller.
+                slot._clear_slot()
+                raise
+
+            # Our own leg is not hung up here: the redirect ends the <Dial>
+            # and tears it down, as the forward in connect_twilio does.
 
             logger.info('park_call: Call %s parked on slot %s by %s',
                         call.id, slot_number, self.env.user.login)

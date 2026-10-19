@@ -6,6 +6,7 @@ from odoo import fields, models, api
 from odoo.exceptions import ValidationError
 
 from odoo.addons.connect.models.settings import debug
+from .settings import MAX_EXTEN_LEN, strip_number
 
 logger = logging.getLogger(__name__)
 
@@ -96,18 +97,40 @@ class Domain(models.Model):
             if domain.sid:
                 rec.sid = domain.sid
 
+    @api.model
     def _route_call(self, request, params={}):
-        """Inbound call to this SIP domain: route by SIP username (extension)
-        or, for E.164, to the matching number's render chain."""
-        self.ensure_one()
+        """Inbound call from a SIP or web phone on a VoiceML SIP domain.
+
+        The controller and the seeded SIP-domain application call this on
+        an empty recordset, so the domain is resolved from the To host.
+        The To user part is a VoiceML username, an extension number, or a
+        PSTN number that is dialled out with the caller's caller ID.
+        """
         debug(self, 'Route domain call: {}'.format(request))
-        # SIP username arrives in From: sip:<user>@<domain>.
+        # The dialled target arrives in To: sip:<user>@<domain>.
         to = request.get('To', '')
-        uri_user = to.split('@')[0].split(':')[-1] if '@' in to else ''
-        if uri_user:
-            user = self.env['connect.user'].sudo().search(
-                [('voiceml_username', '=', uri_user)], limit=1
-            )
-            if user:
-                return user.render_voiceml(request, params)
+        uri_user, _sep, host = to.split(':', 1)[-1].partition('@')
+        host = host.split(';')[0].split(':')[0].lower()
+        if not (uri_user and host and self.sudo().search(
+                [('domain_name', '=ilike', host)], limit=1)):
+            return '<Response><Say>Number not found. Goodbye!</Say></Response>'
+        user = self.env['connect.user'].sudo().search(
+            [('voiceml_username', '=', uri_user)], limit=1)
+        if user:
+            return user.render_voiceml(request, params)
+        exten = self.env['connect.voiceml.exten'].sudo().search(
+            [('number', '=', uri_user)], limit=1)
+        if exten:
+            return exten.render(request=request, params=params)
+        number = strip_number(uri_user)
+        if number.isdigit() and len(number) > MAX_EXTEN_LEN:
+            settings = self.env['connect.settings'].sudo()
+            caller = self.env['connect.user'].sudo().get_user_by_uri(request.get('From'))
+            caller_id = caller.voiceml_caller_id() if caller else ''
+            if not caller_id:
+                return ('<Response><Say>You must configure a caller ID number!'
+                        '</Say></Response>')
+            return settings.get_voiceml_external_call_route(
+                '+{}'.format(number), caller_id,
+                settings._voiceml_webhook_url('voiceml/webhook/callstatus'))
         return '<Response><Say>Number not found. Goodbye!</Say></Response>'

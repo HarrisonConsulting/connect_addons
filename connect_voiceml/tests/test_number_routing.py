@@ -59,3 +59,12 @@ class TestNumberRouting(TransactionCase):
         })
         xml = number.render()
         self.assertIn('Number not configured', xml)
+
+    def test_domain_route_on_empty_recordset(self):
+        # The /voiceml/webhook/domain controller calls this on an empty
+        # recordset; an unknown To host must answer, not raise.
+        xml = self.env['connect.voiceml.domain']._route_call({
+            'To': 'sip:1001@unknown.example.com',
+            'From': 'sip:alice@unknown.example.com',
+        })
+        self.assertIn('Number not found', xml)

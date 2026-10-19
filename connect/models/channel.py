@@ -333,6 +333,69 @@ class Channel(models.Model):
                 'Forwarding a call is not supported by this provider.')
         return getattr(self, method)(payload)
 
+    # ------------------------------------------------------------------
+    # Hold, attended transfer, add participant
+    # ------------------------------------------------------------------
+    # Same contract as forward_softphone_call: core owns the entry points,
+    # each provider implements `_softphone_<action>_<provider>`. A provider
+    # without the method refuses in words; the softphone hides the buttons
+    # for such providers, so this is the backstop, not the UX.
+
+    CALL_CONTROL_ACTIONS = (
+        'hold', 'resume', 'attended_start', 'attended_complete',
+        'attended_cancel', 'add_participant',
+    )
+
+    @api.model
+    def _dispatch_softphone_call_control(self, payload, action):
+        payload = payload or {}
+        provider = payload.get('provider')
+        if not provider:
+            raise UserError('Missing telephony provider.')
+        method = '_softphone_{}_{}'.format(action, provider)
+        if not hasattr(self, method):
+            raise UserError(
+                'Hold, attended transfer and adding a participant are not '
+                'supported by this provider.')
+        return getattr(self, method)(payload)
+
+    @api.model
+    def softphone_call_control_supported(self, provider):
+        """Whether `provider` implements every call-control action."""
+        return all(
+            hasattr(self, '_softphone_{}_{}'.format(action, provider))
+            for action in self.CALL_CONTROL_ACTIONS)
+
+    @api.model
+    def hold_softphone_call(self, payload):
+        """Put the other party on this softphone's call on hold."""
+        return self._dispatch_softphone_call_control(payload, 'hold')
+
+    @api.model
+    def resume_softphone_call(self, payload):
+        """Take the other party off hold."""
+        return self._dispatch_softphone_call_control(payload, 'resume')
+
+    @api.model
+    def attended_transfer_softphone_call(self, payload):
+        """Attended transfer, one step at a time.
+
+        `payload['step']` is `start` (hold the caller so the user can
+        consult), `complete` (connect the caller to `payload['number']` and
+        drop out) or `cancel` (take the caller off hold).
+        """
+        payload = payload or {}
+        step = payload.get('step')
+        if step not in ('start', 'complete', 'cancel'):
+            raise UserError('Unknown attended transfer step.')
+        return self._dispatch_softphone_call_control(
+            payload, 'attended_{}'.format(step))
+
+    @api.model
+    def add_softphone_participant(self, payload):
+        """Bring `payload['number']` into this softphone's call."""
+        return self._dispatch_softphone_call_control(payload, 'add_participant')
+
     def _recording_was_stopped(self):
         self.ensure_one()
         if self.recording_state == 'stopped':

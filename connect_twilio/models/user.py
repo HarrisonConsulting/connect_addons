@@ -913,6 +913,11 @@ class User(models.Model):
 
     @api.model
     def on_call_action(self, record_id, request):
+        # A child leg moved into a hold/transfer conference ends this <Dial>
+        # too; the caller has to follow it there rather than walk on.
+        rejoin = self.env['connect.call']._conference_rejoin_twiml(request)
+        if rejoin:
+            return rejoin
         user = self.browse(record_id)
         user._record_done_callflows(request)
         if user._is_call_action_final(request):

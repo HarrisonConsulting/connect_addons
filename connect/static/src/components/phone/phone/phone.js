@@ -686,7 +686,8 @@ export class Phone extends Component {
             return
         }
         try {
-            const result = await this.orm.call('connect.call', 'initiate_attended_transfer', [callSid])
+            const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
+                this._callControlPayload(callSid, {step: 'start'})])
             if (result.success) {
                 this.state.isAttendedTransfer = true
                 this.state.isOnHold = true
@@ -694,13 +695,11 @@ export class Phone extends Component {
                 this.state.xTransferInfo = 'Caller on hold — dial ' + phoneNumber + ' to consult'
                 this.notify('Caller on hold. Dial the consult target.', {type: 'info'})
             } else {
-                this._setOperationError(result.error || 'Failed to hold caller')
-                this.notify(result.error || 'Failed to hold caller', {type: 'warning'})
+                this._callControlFailed(result, 'Failed to hold caller')
             }
         } catch (e) {
             console.error('Attended transfer error:', e)
-            this._setOperationError('Failed to initiate attended transfer')
-            this.notify('Failed to initiate attended transfer', {type: 'warning'})
+            this._callControlFailed(e, 'Failed to initiate attended transfer')
         }
     }
 
@@ -712,19 +711,20 @@ export class Phone extends Component {
             return
         }
         try {
-            const result = await this.orm.call('connect.call', 'complete_attended_transfer', [callSid, consultTarget])
+            const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
+                this._callControlPayload(callSid, {step: 'complete', number: consultTarget})])
             if (result.success) {
                 this.notify('Transfer completed', {type: 'success'})
                 this.audioNotification.play('transfer_complete')
                 this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber: consultTarget}})
                 this.endCall()
             } else {
-                this.notify(result.error || 'Transfer completion failed', {type: 'warning'})
+                this._callControlFailed(result, 'Transfer completion failed')
                 this.audioNotification.play('transfer_failed')
             }
         } catch (e) {
             console.error('Complete transfer error:', e)
-            this.notify('Transfer completion failed', {type: 'warning'})
+            this._callControlFailed(e, 'Transfer completion failed')
             this.audioNotification.play('transfer_failed')
         }
     }
@@ -733,7 +733,8 @@ export class Phone extends Component {
         const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) return
         try {
-            const result = await this.orm.call('connect.call', 'cancel_attended_transfer', [callSid])
+            const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
+                this._callControlPayload(callSid, {step: 'cancel'})])
             if (result.success) {
                 this.state.isAttendedTransfer = false
                 this.state.isOnHold = false
@@ -741,13 +742,11 @@ export class Phone extends Component {
                 this.state.xTransferInfo = ''
                 this.notify('Transfer cancelled, caller resumed', {type: 'info'})
             } else {
-                this._setOperationError(result.error || 'Cancel failed')
-                this.notify(result.error || 'Cancel failed', {type: 'warning'})
+                this._callControlFailed(result, 'Cancel failed')
             }
         } catch (e) {
             console.error('Cancel transfer error:', e)
-            this._setOperationError('Cancel transfer failed')
-            this.notify('Cancel transfer failed', {type: 'warning'})
+            this._callControlFailed(e, 'Cancel transfer failed')
         }
     }
 
@@ -758,17 +757,16 @@ export class Phone extends Component {
             return
         }
         try {
-            const result = await this.orm.call('connect.call', 'add_conference_participant', [callSid, phoneNumber])
+            const result = await this.orm.call('connect.channel', 'add_softphone_participant', [
+                this._callControlPayload(callSid, {number: phoneNumber})])
             if (result.success) {
                 this.notify('Adding participant...', {type: 'info'})
             } else {
-                this._setOperationError(result.error || 'Failed to add participant')
-                this.notify(result.error || 'Failed to add participant', {type: 'warning'})
+                this._callControlFailed(result, 'Failed to add participant')
             }
         } catch (e) {
             console.error('Add participant error:', e)
-            this._setOperationError('Failed to add participant')
-            this.notify('Failed to add participant', {type: 'warning'})
+            this._callControlFailed(e, 'Failed to add participant')
         }
         this.state.isAddParticipant = false
         this.state.isContacts = false
@@ -850,6 +848,27 @@ export class Phone extends Component {
         this.state.lastOperationError = message
         if (this._errorTimeout) clearTimeout(this._errorTimeout)
         this._errorTimeout = setTimeout(() => { this.state.lastOperationError = false }, 10000)
+    }
+
+    /** Hold, attended transfer and add participant need provider support. */
+    get callControlSupported() {
+        const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
+        return !!(TransportClass && TransportClass.supportsCallControl)
+    }
+
+    _callControlPayload(callSid, extra = {}) {
+        return {provider: this.provider, channel_sid: callSid, ...extra}
+    }
+
+    /**
+     * Surface a call-control failure in the server's words. A UserError
+     * arrives as an RPC error carrying data.message; a {success: false}
+     * result carries error. The fallback is for errors with neither.
+     */
+    _callControlFailed(error, fallback) {
+        const message = error?.data?.message ?? error?.error ?? error?.message ?? fallback
+        this._setOperationError(message)
+        this.notify(message, {type: 'warning'})
     }
 
     async prepareCall(props) {
@@ -1612,7 +1631,10 @@ export class Phone extends Component {
         this.state.isMicrophoneMute = false
         this.state.isPartner = false
         this.state.isWhatsapp = false
-        this.state.lastOperationError = false
+        // lastOperationError is left alone: a hold that fails as the agent
+        // leg drops lands right here, and the banner is the only place the
+        // user learns the customer is still waiting. _setOperationError
+        // clears it on its own timer.
         this.state.callerId = {}
         this.state.phoneNumber = ''
         this.state.xPhoneInfoDisplay = ''
@@ -1917,7 +1939,8 @@ export class Phone extends Component {
         }
         try {
             if (this.state.isOnHold) {
-                const result = await this.orm.call('connect.call', 'resume_call', [callSid])
+                const result = await this.orm.call('connect.channel', 'resume_softphone_call', [
+                    this._callControlPayload(callSid)])
                 if (result.success) {
                     this.state.isOnHold = false
                     this._updatePresence('on_call')
@@ -1925,11 +1948,11 @@ export class Phone extends Component {
                     this.audioNotification.play('unpark')
                     this.bc.postMessage({event: "tbcHold", params: {isOnHold: false}})
                 } else {
-                    this._setOperationError(result.error || 'Resume failed')
-                    this.notify(result.error || 'Resume failed', {type: 'warning'})
+                    this._callControlFailed(result, 'Resume failed')
                 }
             } else {
-                const result = await this.orm.call('connect.call', 'hold_call', [callSid])
+                const result = await this.orm.call('connect.channel', 'hold_softphone_call', [
+                    this._callControlPayload(callSid)])
                 if (result.success) {
                     this.state.isOnHold = true
                     this._updatePresence('on_hold')
@@ -1937,14 +1960,12 @@ export class Phone extends Component {
                     this.audioNotification.play('park')
                     this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
                 } else {
-                    this._setOperationError(result.error || 'Hold failed')
-                    this.notify(result.error || 'Hold failed', {type: 'warning'})
+                    this._callControlFailed(result, 'Hold failed')
                 }
             }
         } catch (e) {
             console.error('Hold error:', e)
-            this._setOperationError('Hold operation failed')
-            this.notify('Hold operation failed', {type: 'warning'})
+            this._callControlFailed(e, 'Hold operation failed')
         } finally {
             this.state.holdInProgress = false
         }
@@ -2175,15 +2196,18 @@ export class Phone extends Component {
             return
         }
         let held = false
+        let holdError = null
         try {
-            const result = await this.orm.call('connect.call', 'hold_call', [callSid])
+            const result = await this.orm.call('connect.channel', 'hold_softphone_call', [
+                this._callControlPayload(callSid)])
             held = result !== false && !(result && result.success === false)
+            if (!held) holdError = result
         } catch (e) {
             console.error('Connect: Failed to hold current call:', e)
-            held = false
+            holdError = e
         }
         if (!held) {
-            this.notify('Could not hold the current call, so the new one keeps waiting.', {type: 'warning'})
+            this._callControlFailed(holdError, 'Could not hold the current call, so the new one keeps waiting.')
             return
         }
         if (!this.waitingSession) return

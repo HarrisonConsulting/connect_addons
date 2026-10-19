@@ -92,6 +92,11 @@ export class TwilioTransport extends TelephonyTransport {
         await loadJS('/connect/static/src/lib/twilio.min.js')
     }
 
+    // connect_twilio implements hold / attended transfer / add participant.
+    static get supportsCallControl() {
+        return true
+    }
+
     // hasCredential()/buildConnData() use TelephonyTransport's defaults —
     // Twilio's get_client_token() response already matches the {token, edge}
     // base shape.

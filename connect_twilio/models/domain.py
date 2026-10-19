@@ -600,17 +600,23 @@ class Domain(models.Model):
         edge = self.env['connect.settings'].get_param('twilio_edge')
         status_url = urljoin(api_url, "twilio/webhook/callstatus#e={}".format(edge))
         record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
+        # The action keeps the agent's leg alive when the callee's leg is
+        # moved into a conference (hold / attended transfer): Twilio then asks
+        # this URL what to run next instead of ending the call.
+        action_url = urljoin(api_url, "twilio/webhook/callaction#e={}".format(edge))
         call_duration_limit = int(self.env['connect.settings'].sudo().get_param('call_duration_limit'))
         if self.env['connect.settings'].sudo().calls_are_recorded(user=user):
             dial = Dial(
                 timeout=60,
                 callerId=callerId,
                 timeLimit=call_duration_limit,
+                action=action_url,
                 record="record-from-answer",
                 recordingStatusCallback=record_status_url,
             )
         else:
-            dial = Dial(timeout=60, callerId=callerId, timeLimit=call_duration_limit)
+            dial = Dial(timeout=60, callerId=callerId, timeLimit=call_duration_limit,
+                        action=action_url)
         dial.number(
             number,
             statusCallback=status_url,
@@ -636,6 +642,10 @@ class Domain(models.Model):
         edge = self.env['connect.settings'].get_param('twilio_edge')
         status_url = urljoin(api_url, "twilio/webhook/callstatus#e={}".format(edge))
         record_status_url = urljoin(api_url, "twilio/webhook/recordingstatus#e={}".format(edge))
+        # The action keeps the agent's leg alive when the callee's leg is
+        # moved into a conference (hold / attended transfer): Twilio then asks
+        # this URL what to run next instead of ending the call.
+        action_url = urljoin(api_url, "twilio/webhook/callaction#e={}".format(edge))
         call_duration_limit = int(self.env['connect.settings'].sudo().get_param('call_duration_limit'))
         # Reuse recording preference from user's settings if available
         record_calls = self.env['connect.settings'].sudo().calls_are_recorded(
@@ -645,11 +655,13 @@ class Domain(models.Model):
                 timeout=60,
                 callerId=f"whatsapp:{caller_number}",
                 timeLimit=call_duration_limit,
+                action=action_url,
                 record="record-from-answer",
                 recordingStatusCallback=record_status_url,
             )
         else:
-            dial = Dial(timeout=60, callerId=f"whatsapp:{caller_number}", timeLimit=call_duration_limit)
+            dial = Dial(timeout=60, callerId=f"whatsapp:{caller_number}", timeLimit=call_duration_limit,
+                        action=action_url)
         dial.number(
             f"whatsapp:{number}",
             statusCallback=status_url,

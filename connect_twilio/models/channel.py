@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+import time
+import uuid
 from urllib.parse import urlencode, urljoin, urlsplit, urlunsplit
 
 from markupsafe import escape
@@ -8,6 +10,7 @@ from markupsafe import escape
 from odoo import models, api, release
 from odoo.exceptions import UserError
 
+from twilio.base.exceptions import TwilioRestException
 from twilio.twiml.voice_response import VoiceResponse
 
 from odoo.addons.connect.models.channel import CALL_END_STATUSES
@@ -21,6 +24,16 @@ logger = logging.getLogger(__name__)
 # running recording shows up as 'processing' (or 'in-progress'/'paused'
 # depending on how it was started), so all three count as live.
 TWILIO_LIVE_RECORDING_STATUSES = ('in-progress', 'processing', 'paused')
+
+HOLD_MUSIC_URL = 'http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical'
+
+# A promoted call's room exists only once the moved leg has joined it, and
+# the parent leg joins a beat later through its <Dial action>. Conference and
+# participant lookups retry over this schedule (seconds) before giving up.
+CONFERENCE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0, 3.0)
+
+# Twilio error codes that mean "that leg is not live any more".
+TWILIO_LEG_GONE_CODES = (21220, 20404)
 
 
 class Channel(models.Model):
@@ -335,6 +348,313 @@ class Channel(models.Model):
 
         debug(self, 'Forwarded channel %s to %s' % (other_sid, number))
         return {'forwarded_to': number, 'channel_sid': other_sid}
+
+    # ------------------------------------------------------------------
+    # Hold, attended transfer, add participant (child-leg-first promotion)
+    # ------------------------------------------------------------------
+
+    def _twilio_bridge_legs(self, client):
+        """Return `(our_sid, other_sid, child_sid)` for this softphone leg.
+
+        A `<Dial>` bridge has a parent (the leg running the `<Dial>`) and a
+        child (the dialled leg). Only the child may be redirected: moving it
+        completes the parent's `<Dial>`, whose action then rejoins the parent
+        to the same room. Redirecting the parent would hang the child up.
+
+        The ledger answers from `technical_direction` -- `inbound` is the
+        parent, `outbound-dial` the child, our leg being the agent's in both
+        directions. Twilio is asked only when the ledger cannot say.
+        """
+        self.ensure_one()
+        other_sid = self._forward_target_sid(client)
+        other = self.sudo().search([('sid', '=', other_sid)], limit=1)
+        if self.technical_direction == 'outbound-dial' or (
+                other and other.technical_direction == 'inbound'):
+            child_sid = self.sid
+        elif self.technical_direction == 'inbound' or (
+                other and other.technical_direction == 'outbound-dial'):
+            child_sid = other_sid
+        else:
+            try:
+                parent = getattr(
+                    client.calls(self.sid).fetch(), 'parent_call_sid', None)
+            except Exception as e:
+                logger.exception('Could not ask Twilio about leg %s', self.sid)
+                raise UserError(
+                    'Could not work out how this call is connected: '
+                    '{}'.format(e))
+            child_sid = self.sid if parent else other_sid
+        return self.sid, other_sid, child_sid
+
+    @api.model
+    def _twilio_call_control_error(self, error, doing):
+        """A sentence for the user; the Twilio text stays in the log."""
+        code = getattr(error, 'code', None)
+        if code in TWILIO_LEG_GONE_CODES:
+            return 'The call ended before it could be {}.'.format(doing)
+        return 'The call could not be {}: {}'.format(
+            doing, getattr(error, 'msg', None) or error)
+
+    def _promote_to_conference_twilio(self, client):
+        """Move this call into a conference room, child leg first.
+
+        Returns `(call, conference_name, customer_sid)`. The room name and the
+        `conference_pending` marker are committed before Twilio is touched,
+        because the parent leg's `<Dial action>` webhook -- a separate
+        request -- must find them while this RPC is still running.
+        """
+        self.ensure_one()
+        call = self.call.sudo()
+        if not call:
+            raise UserError('This call is not in the call log yet.')
+        our_sid, other_sid, child_sid = self._twilio_bridge_legs(client)
+        if call.conference_name:
+            return call, call.conference_name, other_sid
+
+        conference_name = 'callcontrol-{}-{}'.format(call.id, uuid.uuid4().hex)
+        call._conference_state_commit({
+            'conference_name': conference_name,
+            'conference_sid': False,
+            'conference_pending': True,
+            'is_on_hold': False,
+        })
+        twiml = call._conference_join_twiml(
+            conference_name, agent=(child_sid == our_sid))
+        try:
+            client.calls(child_sid).update(twiml=twiml)
+        except Exception as e:
+            logger.exception(
+                'Could not move leg %s into conference %s',
+                child_sid, conference_name)
+            # Never leave a stored room that only one leg could reach.
+            call._conference_state_commit({
+                'conference_name': False,
+                'conference_pending': False,
+            })
+            raise UserError(self._twilio_call_control_error(e, 'held'))
+        logger.info(
+            'Call %s promoted to conference %s (moved child leg %s)',
+            call.id, conference_name, child_sid)
+        return call, conference_name, other_sid
+
+    @api.model
+    def _twilio_conference_sid(self, client, call, conference_name):
+        """Resolve the room's SID by name, waiting for Twilio to create it."""
+        if call.conference_sid:
+            return call.conference_sid
+        for attempt, delay in enumerate(CONFERENCE_RETRY_DELAYS, 1):
+            try:
+                rooms = client.conferences.list(
+                    friendly_name=conference_name, status='in-progress',
+                    limit=1)
+            except Exception:
+                logger.warning(
+                    'Conference lookup %s failed (attempt %s)',
+                    conference_name, attempt, exc_info=True)
+                rooms = []
+            if rooms:
+                sid = rooms[0].sid
+                call._conference_state_commit({'conference_sid': sid})
+                return sid
+            if attempt < len(CONFERENCE_RETRY_DELAYS):
+                time.sleep(delay)
+        return None
+
+    @api.model
+    def _twilio_update_participant(self, client, conference_sid, call_sid, **kwargs):
+        """`participants(call_sid).update(...)`, waiting for the leg to join.
+
+        On an inbound call the customer is the parent and reaches the room
+        only after its `<Dial action>` has run, so a 404 straight after the
+        promotion means "not yet", not "never".
+        """
+        for attempt, delay in enumerate(CONFERENCE_RETRY_DELAYS, 1):
+            try:
+                return client.conferences(conference_sid).participants(
+                    call_sid).update(**kwargs)
+            except TwilioRestException as e:
+                if e.status != 404 or attempt == len(CONFERENCE_RETRY_DELAYS):
+                    raise
+            time.sleep(delay)
+
+    def _twilio_set_hold(self, hold):
+        """Hold or resume the other party. Shared by hold/resume/attended."""
+        self.ensure_one()
+        client = self.env['connect.settings'].get_client()
+        if hold:
+            call, conference_name, customer_sid = (
+                self._promote_to_conference_twilio(client))
+        else:
+            call = self.call.sudo()
+            conference_name = call.conference_name
+            if not conference_name:
+                raise UserError('This call is not on hold.')
+            _ours, customer_sid, _child = self._twilio_bridge_legs(client)
+        conference_sid = self._twilio_conference_sid(
+            client, call, conference_name)
+        if not conference_sid:
+            raise UserError(
+                'The caller is waiting in conference {} but it could not be '
+                'reached to {} them.'.format(
+                    conference_name, 'hold' if hold else 'resume'))
+        kwargs = {'hold': bool(hold)}
+        if hold:
+            kwargs['hold_url'] = HOLD_MUSIC_URL
+        try:
+            self._twilio_update_participant(
+                client, conference_sid, customer_sid, **kwargs)
+        except Exception as e:
+            logger.exception(
+                'Could not %s %s in conference %s',
+                'hold' if hold else 'resume', customer_sid, conference_name)
+            if hold:
+                raise UserError(
+                    'Customer is waiting in conference {} but could not be '
+                    'put on hold: {}'.format(
+                        conference_name,
+                        self._twilio_call_control_error(e, 'held')))
+            raise UserError(self._twilio_call_control_error(e, 'resumed'))
+        call._conference_state_commit({'is_on_hold': bool(hold)})
+        return {
+            'success': True,
+            'is_on_hold': bool(hold),
+            'conference_name': conference_name,
+            'channel_sid': self.sid,
+        }
+
+    def _twilio_participant_target(self, number):
+        """`to` and `from_` for adding `number` to a conference."""
+        self.ensure_one()
+        number = (number or '').strip()
+        if not number:
+            raise UserError('No number to add to the call.')
+        pbx_user = (
+            self.caller_pbx_user or self.called_pbx_user
+            or self.env.user.connect_user)
+        caller_id = pbx_user.twilio_outgoing_callerid.number if pbx_user else False
+        if not caller_id:
+            caller_id = self.env['connect.twilio.outgoing_callerid'].sudo().search(
+                [('is_default', '=', True)], limit=1).number
+        if not caller_id:
+            raise UserError('Select a default number for caller ID first.')
+        if number.startswith('+'):
+            return number, caller_id
+        exten = self.env['connect.twilio.exten'].sudo().search(
+            [('number', '=', number)], limit=1)
+        if exten and exten.dst and exten.dst._name == 'connect.user':
+            return 'client:{}'.format(exten.dst.get_client_identity()), caller_id
+        if number.isdigit() and len(number) > MAX_EXTEN_LEN:
+            return '+{}'.format(number), caller_id
+        raise UserError(
+            'Extension {} is not a user and cannot join a call.'.format(number))
+
+    def _twilio_add_to_conference(self, number, end_on_exit):
+        self.ensure_one()
+        to, caller_id = self._twilio_participant_target(number)
+        client = self.env['connect.settings'].get_client()
+        call, conference_name, customer_sid = (
+            self._promote_to_conference_twilio(client))
+        conference_sid = self._twilio_conference_sid(
+            client, call, conference_name)
+        if not conference_sid:
+            raise UserError(
+                'The caller is waiting in conference {} but it could not be '
+                'reached to add {}.'.format(conference_name, number))
+        settings = self.env['connect.settings'].sudo()
+        status_url = urljoin(
+            settings.get_param('api_url') or '',
+            'twilio/webhook/callstatus#e={}'.format(
+                settings.get_param('twilio_edge') or ''))
+        try:
+            client.conferences(conference_sid).participants.create(
+                from_=caller_id,
+                to=to,
+                end_conference_on_exit=end_on_exit,
+                beep=False,
+                status_callback=status_url,
+                status_callback_event=['initiated', 'ringing', 'answered',
+                                       'completed'],
+            )
+        except Exception as e:
+            logger.exception(
+                'Could not add %s to conference %s', to, conference_name)
+            raise UserError('Could not add {} to the call: {}'.format(
+                number, getattr(e, 'msg', None) or e))
+        return call, conference_sid, customer_sid
+
+    @api.model
+    def _softphone_hold_twilio(self, payload):
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        return channel._twilio_set_hold(True)
+
+    @api.model
+    def _softphone_resume_twilio(self, payload):
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        return channel._twilio_set_hold(False)
+
+    @api.model
+    def _softphone_attended_start_twilio(self, payload):
+        """Hold the caller so the user can consult the transfer target."""
+        return self._softphone_hold_twilio(payload)
+
+    @api.model
+    def _softphone_attended_cancel_twilio(self, payload):
+        """The consult went nowhere: back to the caller."""
+        return self._softphone_resume_twilio(payload)
+
+    @api.model
+    def _softphone_attended_complete_twilio(self, payload):
+        """Bring the target into the room, release the caller, drop out."""
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        number = (payload.get('number') or '').strip()
+        call, conference_sid, customer_sid = channel._twilio_add_to_conference(
+            number, end_on_exit=True)
+        client = self.env['connect.settings'].get_client()
+        if call.is_on_hold:
+            try:
+                self._twilio_update_participant(
+                    client, conference_sid, customer_sid, hold=False)
+                call._conference_state_commit({'is_on_hold': False})
+            except Exception:
+                logger.exception(
+                    'Could not take %s off hold in %s',
+                    customer_sid, conference_sid)
+        # Leave the room. Our leg joined with endConferenceOnExit, so drop
+        # that first or leaving would end the call we just handed over. And
+        # staying would let the user listen in, so fall back to hanging up.
+        try:
+            participant = client.conferences(conference_sid).participants(
+                channel.sid)
+            participant.update(end_conference_on_exit=False)
+            participant.delete()
+        except Exception:
+            logger.warning(
+                'Could not remove %s from %s; hanging the leg up',
+                channel.sid, conference_sid, exc_info=True)
+            try:
+                client.calls(channel.sid).update(status='completed')
+            except Exception:
+                logger.exception('Could not hang up %s', channel.sid)
+        return {
+            'success': True,
+            'transferred_to': number,
+            'channel_sid': channel.sid,
+        }
+
+    @api.model
+    def _softphone_add_participant_twilio(self, payload):
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        number = (payload.get('number') or '').strip()
+        channel._twilio_add_to_conference(number, end_on_exit=False)
+        return {
+            'success': True,
+            'added': number,
+            'channel_sid': channel.sid,
+        }
 
     def _forward_target_sid(self, client):
         """The SID of the leg to move: the other party on this call.

@@ -11,11 +11,11 @@
 
   <menuitem id="elevenlabs_menu" parent="connect.menu_connect_settings"
       groups="connect.group_admin"
-      name="ElevenLabs" sequence="1000"/>
+      name="ElevenLabs" sequence="250"/>
 
   <menuitem id="elevenlabs_settings_menu" parent="elevenlabs_menu"
       groups="connect.group_admin"
-      action="elevenlabs_action" name="Settings" sequence="100"/>
+      action="elevenlabs_action" name="Settings" sequence="10"/>
 
   <record id="connect_elevenlabs_settings_form" model="ir.ui.view">
     <field name="name">connect_elevenlabs_settings_form</field>

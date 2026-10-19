@@ -120,6 +120,6 @@
               parent="elevenlabs_menu"
               name="Registered Phones"
               action="action_elevenlabs_phone_registration"
-              sequence="200"/>
+              sequence="50"/>
 
 </odoo>

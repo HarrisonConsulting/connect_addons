@@ -252,10 +252,10 @@ action = {
     <!-- ============================================================ -->
 
     <menuitem id="menu_firewall_root"
-              name="Firewall"
-              parent="menu_freeswitch_root"
+              name="FreeSWITCH Firewall"
+              parent="connect.menu_connect_settings"
               groups="connect.group_admin"
-              sequence="80"/>
+              sequence="240"/>
 
     <menuitem id="menu_firewall_agent"
               name="Agent Status"

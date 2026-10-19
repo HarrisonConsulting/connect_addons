@@ -101,7 +101,7 @@
               name="Parking Slots"
               parent="menu_freeswitch_root"
               action="action_fs_parking_slot"
-              sequence="70"
+              sequence="80"
               groups="connect.group_admin"/>
 
 </odoo>

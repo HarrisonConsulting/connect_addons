@@ -9,8 +9,8 @@
     </record>
 
     <menuitem id="outgoing_rules_menu"
-            sequence="600"
-            parent="connect.connect_voice_menu"
+            sequence="20"
+            parent="menu_connect_byoc"
             name="Outgoing Rules"
             action="outgoing_rule_action"/>
 

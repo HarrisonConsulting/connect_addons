@@ -61,9 +61,9 @@
 
     <menuitem id="menu_freeswitch_template"
               name="XML Templates"
-              parent="menu_freeswitch_config"
+              parent="menu_freeswitch_root"
               action="action_freeswitch_template"
-              sequence="30"
+              sequence="110"
               groups="connect.group_admin"/>
 
 </odoo>

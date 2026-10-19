@@ -79,5 +79,5 @@
               name="Numbers"
               parent="menu_freeswitch_root"
               action="action_freeswitch_number"
-              sequence="10"/>
+              sequence="20"/>
 </odoo>

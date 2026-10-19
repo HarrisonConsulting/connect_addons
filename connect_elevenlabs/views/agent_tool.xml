@@ -9,7 +9,7 @@
     </record>
 
     <menuitem id="connect.elevenlabs_agent_tool_menu"
-              sequence="1300"
+              sequence="30"
               parent="elevenlabs_menu"
               name="Tools"
               action="connect_elevenlabs.agent_tool_action"/>

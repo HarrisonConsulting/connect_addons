@@ -26,7 +26,7 @@
     </record>
 
     <menuitem id="connect.elevenlabs_knowledge_menu"
-              sequence="1400"
+              sequence="70"
               parent="connect_elevenlabs.elevenlabs_menu"
               name="Knowledge"
               action="connect_elevenlabs_knowledge.knowledge_action"/>

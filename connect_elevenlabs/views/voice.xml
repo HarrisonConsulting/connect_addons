@@ -10,5 +10,5 @@
     </record>
 
     <menuitem id="menu_elevenlabs_voice" parent="elevenlabs_menu"
-        name="Voices" action="action_elevenlabs_voice" sequence="1000"/>
+        name="Voices" action="action_elevenlabs_voice" sequence="40"/>
 </odoo>

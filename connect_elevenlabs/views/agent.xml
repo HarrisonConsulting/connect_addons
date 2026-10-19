@@ -34,8 +34,8 @@
 
     <!-- Menu -->
     <menuitem id="connect.elevenlabs_agent_menu"
-        sequence="60"
-        parent="connect.connect_voice_menu"
+        sequence="10"
+        parent="connect.connect_ai_menu"
         name="AI Agents"
         action="connect_elevenlabs.agent_action"/>
 

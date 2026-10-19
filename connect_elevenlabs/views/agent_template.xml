@@ -9,8 +9,8 @@
     </record>
 
     <menuitem id="connect_elevenlabs.agent_template_menu"
-              sequence="65"
-              parent="connect.connect_voice_menu"
+              sequence="20"
+              parent="elevenlabs_menu"
               name="Agent Templates"
               action="connect_elevenlabs.agent_template_action"/>
 

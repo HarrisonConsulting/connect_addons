@@ -9,7 +9,7 @@
         </record>
 
         <menuitem id="park_slot_menu"
-                  sequence="55"
+                  sequence="40"
                   parent="connect.connect_voice_menu"
                   name="Park Slots"
                   action="park_slot_action"/>

@@ -229,11 +229,11 @@
     <!-- ===================== Menus ===================== -->
 
     <menuitem id="connect_voicemails_menu" name="Voicemails"
-        parent="connect.connect_voice_menu" sequence="120"
+        parent="connect.menu_connect_calls" sequence="30"
         action="voicemail_action"/>
 
     <menuitem id="connect_voicemail_stages_menu" name="Voicemail Stages"
-        parent="connect.menu_connect_settings" sequence="80"
+        parent="menu_connect_config_audio" sequence="50"
         groups="connect.group_admin"
         action="voicemail_stage_action"/>
 

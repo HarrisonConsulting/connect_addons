@@ -486,8 +486,11 @@
     <field name="code">action = records.action_refresh_reachability()</field>
   </record>
 
+  <menuitem id="menu_connect_config_audio" name="Audio &amp; Voicemail"
+      parent="connect.menu_connect_settings" sequence="30"/>
+
   <menuitem id="connect_audio_menu" name="Audio"
-      parent="connect.menu_connect_settings" sequence="50"
+      parent="menu_connect_config_audio" sequence="10"
       action="connect_audio_action"/>
 
   <!-- Audio Usage Overview is reached via the Where Used smart button on the
@@ -496,12 +499,12 @@
        access; it is not exposed as a menu. -->
 
   <menuitem id="connect_audio_utterance_menu" name="Utterances"
-      parent="connect.menu_connect_settings" sequence="51"
+      parent="menu_connect_config_audio" sequence="30"
       action="connect_audio_utterance_action"
       groups="base.group_no_one"/>
 
   <menuitem id="connect_voice_menu_item" name="Voices"
-      parent="connect.menu_connect_settings" sequence="52"
+      parent="menu_connect_config_audio" sequence="20"
       action="connect_voice_action"/>
 
 </odoo>

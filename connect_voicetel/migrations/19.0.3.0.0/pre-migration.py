@@ -140,8 +140,6 @@ def _drop_owned_records(cr):
                     " JOIN tree t ON v.inherit_id = t.id)"
                     " SELECT id FROM tree", (tuple(ids),))
                 ids = [row[0] for row in cr.fetchall()]
-            if model in ('ir.actions.act_window', 'ir.actions.server'):
-                table = 'ir_actions'
             cr.execute('DELETE FROM "{}" WHERE id IN %s'.format(table), (tuple(ids),))
             _logger.info(
                 'connect_voicetel: deleted %s %s records of the retired module',

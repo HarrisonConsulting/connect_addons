@@ -135,7 +135,7 @@ class CallFlow(models.Model):
                     response.say('You must configure a default number for caller ID!')
                     return response.to_string()
             dial_kwargs = {'callerId': callerId, 'action': action_url}
-            if self.record_calls:
+            if self.env['connect.settings'].sudo().calls_are_recorded(callflow=self):
                 dial_kwargs.update({
                     'record': 'record-from-answer-dual',
                     'recordingStatusCallback': record_status_url,

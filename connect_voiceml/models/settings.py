@@ -35,6 +35,10 @@ def strip_number(number):
 class Settings(models.Model):
     _inherit = "connect.settings"
 
+    rest_provider = fields.Selection(
+        selection_add=[("voiceml", "VoiceML")],
+        ondelete={"voiceml": "set null"},
+    )
     account_sid = fields.Char(string="Account SID")
     # API key is both the VoiceML SDK auth token and the X-Twilio-Signature
     # verification key for inbound webhooks. Admin-only, like connect_twilio's
@@ -174,7 +178,7 @@ class Settings(models.Model):
             )
             twiml = self.get_external_call_route(number, callerId, status_url)
         debug(self, 'Originate destination TwiML: {}'.format(twiml))
-        record = user.connect_user.record_calls
+        record = self.calls_are_recorded(user=user.connect_user)
         record_status_url = self._webhook_url("voiceml/webhook/recordingstatus")
         channel = client.calls.create(CreateCallRequest(
             to=to,

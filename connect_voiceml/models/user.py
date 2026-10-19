@@ -231,7 +231,7 @@ class User(models.Model):
         status_url = urljoin(api_url, 'voiceml/webhook/callstatus')
         record_status_url = urljoin(api_url, 'voiceml/webhook/recordingstatus')
         dial_kwargs = {'timeout': self.client_ring_timeout}
-        if self.record_calls:
+        if self.env['connect.settings'].sudo().calls_are_recorded(user=self):
             dial_kwargs.update({
                 'recordingStatusCallback': record_status_url,
                 'record': 'record-from-answer-dual',
@@ -268,7 +268,7 @@ class User(models.Model):
             'realm': user.domain.domain_name,
             'wss_url': self.env['connect.settings'].sudo().get_param('voiceml_wss_url'),
             'uri': user.uri,
-            'record_calls': bool(user.record_calls),
+            'record_calls': self.env['connect.settings'].sudo().calls_are_recorded(user=user),
             'exten': user.voiceml_exten_number or '',
             'outgoing_callerid': (
                 user.voiceml_outgoing_callerid.number

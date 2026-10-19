@@ -45,6 +45,10 @@ class Call(models.Model):
         # Credentials come from the recording's own provider, resolved by
         # its host -- never a fixed provider's token sent to another
         # provider's media host.
+        if not self.env['connect.settings'].sudo()._is_trusted_media_url(self.voicemail_url):
+            logger.warning(
+                'Voicemail %s not fetched: media host is not trusted', self.id)
+            return
         auth = self.env['connect.settings'].sudo()._get_media_auth(self.voicemail_url)
         response = requests.get(
             self.voicemail_url, auth=auth,
@@ -149,6 +153,10 @@ class Call(models.Model):
             # Credentials come from the recording's own provider, resolved
             # by its host -- never a fixed provider's token sent to another
             # provider's media host.
+            if not self.env['connect.settings'].sudo()._is_trusted_media_url(self.voicemail_url):
+                logger.warning(
+                    'Voicemail %s not migrated: media host is not trusted', self.id)
+                return
             auth = self.env['connect.settings'].sudo()._get_media_auth(self.voicemail_url)
             resp = requests.get(
                 self.voicemail_url, auth=auth,

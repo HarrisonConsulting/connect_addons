@@ -142,7 +142,7 @@ export class TelephonyTransport extends Emitter {
  * exposes, normalized to a common set of keys so phone.js never reads a
  * provider-shaped object (e.g. Twilio's session.customParameters /
  * session.parameters) directly:
- *   {From, CallerName, Partner, autoAnswer, CallSid}
+ *   {From, CallerName, Partner, autoAnswer, Origin, CallSid}
  * This is an extension beyond the locked accept/reject/disconnect/mute/
  * sendDigits/on surface — it exists to carry the incoming-call metadata
  * phone.js already depended on before this transport-seam extraction.
@@ -159,7 +159,7 @@ export class TelephonyTransport extends Emitter {
  *                  must not assume it ever fires.
  */
 export class TelephonyCall extends Emitter {
-    /** @returns {{From, CallerName, Partner, autoAnswer, CallSid}} */
+    /** @returns {{From, CallerName, Partner, autoAnswer, Origin, CallSid}} */
     get params() {
         throw new Error(`${this.constructor.name}: params getter not implemented`)
     }
@@ -170,6 +170,11 @@ export class TelephonyCall extends Emitter {
 
     reject() {
         throw new Error(`${this.constructor.name}: reject() not implemented`)
+    }
+
+    /** Stop ringing here without answering or ending the call for other devices. */
+    ignore() {
+        throw new Error(`${this.constructor.name}: ignore() not implemented`)
     }
 
     disconnect() {

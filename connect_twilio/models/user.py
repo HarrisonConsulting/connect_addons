@@ -773,8 +773,15 @@ class User(models.Model):
                 incoming_allow=True,
             )
             token.add_grant(voice_grant)
+            first_flow = self.env['connect.twilio.user_callflow'].search([
+                ('user', '=', user.user.id),
+                ('callflow_type', 'in', ['client', 'sip']),
+            ], order='prio', limit=1)
             return {
                 'token': token.to_jwt(),
+                # Click-to-call dials from the browser only when the web
+                # client is the user's first callflow.
+                'first_callflow': first_flow.callflow_type or '',
                 'edge': (
                     user.twilio_edge
                     or self.env['connect.settings']

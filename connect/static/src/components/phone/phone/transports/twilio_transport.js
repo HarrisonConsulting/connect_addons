@@ -45,6 +45,7 @@ export class TwilioCall extends TelephonyCall {
             CallerName: customParam('CallerName'),
             Partner: customParam('Partner'),
             autoAnswer: customParam('autoAnswer'),
+            Origin: customParam('Origin'),
             CallSid: this._call.parameters?.CallSid,
         }
     }
@@ -55,6 +56,10 @@ export class TwilioCall extends TelephonyCall {
 
     reject() {
         this._call.reject()
+    }
+
+    ignore() {
+        this._call.ignore()
     }
 
     disconnect() {

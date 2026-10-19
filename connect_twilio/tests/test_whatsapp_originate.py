@@ -88,3 +88,32 @@ class TestWhatsappOriginate(TwilioTestCommon):
     def test_originate_marks_a_plain_call_as_phone(self):
         self._originate('+37360681783', False)
         self.assertEqual(self._originated_channel().call_type, 'phone')
+
+
+@tagged('at_install', '-post_install')
+class TestOriginateOrigin(TwilioTestCommon):
+    """Click-to-call is answered only by the tab that placed it."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.pbx_user = cls._create_connect_user(
+            'origin_caller', originate_provider='twilio')
+        cls.caller = cls.pbx_user.user
+        cls.settings = cls.env['connect.settings'].sudo()
+
+    def _to(self, **kwargs):
+        fake = MagicMock()
+        fake.calls.create.return_value.sid = 'CAtest0000000000000000000000000002'
+        with patch.object(type(self.settings), 'get_client', return_value=fake):
+            self.settings.with_user(self.caller).originate_call(
+                '+37360681783', **kwargs)
+        return fake.calls.create.call_args.kwargs['to']
+
+    def test_origin_nonce_rides_on_the_client_leg(self):
+        to = self._to(origin_nonce='tab-nonce-1')
+        self.assertTrue(to.startswith('client:'))
+        self.assertIn('&Origin=tab-nonce-1', to)
+
+    def test_no_nonce_leaves_the_client_leg_unchanged(self):
+        self.assertNotIn('Origin=', self._to())

@@ -43,6 +43,11 @@ export const phoneService = {
                 let bus = new EventBus()
                 // Expose the bus globally for the systray component to access
                 window.connectBus = bus
+                // Click-to-call from a form dials in this browser when the
+                // user's first callflow is the web client, and otherwise
+                // asks the server to originate towards this tab's nonce.
+                bus.browserSessionNonce = browserSessionNonce
+                bus.clickToCallLocal = token_data.first_callflow === 'client'
                 sysTrayRegistry.add('connectPhoneSysTray', {Component: PhoneSysTray, props: {bus}})
                 mainComponents.add('connectPhone', {Component: Phone, props: {bus, token_data, browserSessionNonce}})
             }

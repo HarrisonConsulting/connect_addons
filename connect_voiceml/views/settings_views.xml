@@ -56,7 +56,7 @@
 
     <menuitem id="menu_voiceml_settings"
               name="Settings"
-              parent="menu_voiceml_config"
+              parent="menu_connect_voiceml"
               action="voiceml_settings_action"
               sequence="10"/>
 </odoo>

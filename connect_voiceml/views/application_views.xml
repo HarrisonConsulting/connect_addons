@@ -39,14 +39,14 @@
     </record>
 
     <record id="action_voiceml_application" model="ir.actions.act_window">
-        <field name="name">TwiML Apps</field>
+        <field name="name">Applications</field>
         <field name="res_model">connect.voiceml.application</field>
         <field name="view_mode">list,form</field>
     </record>
 
     <menuitem id="menu_voiceml_applications"
-              name="TwiML Apps"
+              name="Applications"
               parent="menu_connect_voiceml"
               action="action_voiceml_application"
-              sequence="50"/>
+              sequence="60"/>
 </odoo>

@@ -36,5 +36,5 @@
               name="Extensions"
               parent="menu_connect_voiceml"
               action="action_voiceml_exten"
-              sequence="20"/>
+              sequence="30"/>
 </odoo>

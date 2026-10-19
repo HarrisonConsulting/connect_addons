@@ -62,5 +62,5 @@
               name="Call Flows"
               parent="menu_connect_voiceml"
               action="action_voiceml_callflow"
-              sequence="30"/>
+              sequence="40"/>
 </odoo>

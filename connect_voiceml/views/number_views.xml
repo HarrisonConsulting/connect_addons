@@ -52,5 +52,5 @@
               name="Numbers"
               parent="menu_connect_voiceml"
               action="action_voiceml_number"
-              sequence="10"/>
+              sequence="20"/>
 </odoo>

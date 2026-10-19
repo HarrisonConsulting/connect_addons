@@ -68,6 +68,9 @@
             '/connect/static/tests/helpers/loopback_transport.js',
             '/connect/static/tests/tours/**/*.js',
         ],
+        'web.assets_unit_tests': [
+            '/connect/static/tests/**/*.test.js',
+        ],
     },
     'post_init_hook': 'post_init_hook',
     'images': ['static/description/icon.png'],

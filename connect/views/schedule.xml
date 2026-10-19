@@ -9,7 +9,7 @@
     </record>
 
     <menuitem id="connect.schedules_menu"
-            sequence="176"
+            sequence="30"
             parent="connect.connect_voice_menu"
             name="Schedules"
             action="connect.schedule_action"/>

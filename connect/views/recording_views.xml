@@ -111,5 +111,5 @@
               name="Recordings"
               parent="menu_connect_calls"
               action="action_connect_recording"
-              sequence="30"/>
+              sequence="20"/>
 </odoo>

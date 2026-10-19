@@ -66,7 +66,7 @@ class Number(models.Model):
         res = super().write(vals)
         if not self.env["connect.settings"].get_param("voiceml_auto_sync"):
             return res
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         for rec in self:
             if not self.env.context.get('skip_voiceml_sync'):
                 rec.update_number(client)
@@ -74,7 +74,7 @@ class Number(models.Model):
 
     @api.model
     def sync(self):
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         numbers = client.incoming_phone_numbers.list().incoming_phone_numbers
         seen = set()
         for number in numbers:
@@ -99,7 +99,7 @@ class Number(models.Model):
         if self.destination == 'application' and self.application:
             return self.application.render(request)
         elif self.destination == 'user' and self.user:
-            return self.user.render(request)
+            return self.user.render_voiceml(request)
         elif self.destination == 'callflow' and self.callflow:
             return self.callflow.render(request)
         else:
@@ -108,7 +108,7 @@ class Number(models.Model):
     @api.model
     def route_call(self, request, params={}):
         debug(self, 'Route number call: %s' % request)
-        self.env['connect.call'].on_call_status(request)
+        self.env['connect.call'].on_call_status_voiceml(request)
         number = self.sudo().search([('phone_number', '=', request.get('Called'))])
         if not number:
             return '<Response><Say>Number not found. Goodbye!</Say></Response>'

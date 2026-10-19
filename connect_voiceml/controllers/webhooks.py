@@ -15,7 +15,7 @@ class ConnectVoiceMLController(Controller):
         settings = request.env['connect.settings'].sudo()
         if not settings.get_param('voiceml_verify_requests'):
             return True
-        secret = settings.get_param('api_key')
+        secret = settings.get_param('voiceml_api_key')
         url = normalize_url(request.httprequest.url)
         signature = request.httprequest.headers.get('X-Twilio-Signature', '')
         params = (
@@ -45,7 +45,7 @@ class ConnectVoiceMLController(Controller):
     def callstatus_webhook(self, **kw):
         if not self.check_signature():
             return ''
-        res = request.env['connect.call'].with_user(request.env.ref("connect.user_connect_webhook")).on_call_status(kw)
+        res = request.env['connect.call'].with_user(request.env.ref("connect.user_connect_webhook")).on_call_status_voiceml(kw)
         return '{}'.format(res)
 
     @route('/voiceml/webhook/number', methods=['POST'], type='http', auth='public', csrf=False)
@@ -74,7 +74,7 @@ class ConnectVoiceMLController(Controller):
         if not self.check_signature():
             return self._fail()
         call = request.env['connect.call'].with_user(request.env.ref("connect.user_connect_webhook"))
-        return '{}'.format(call.on_vm_recording_status(kw))
+        return '{}'.format(call.on_vm_recording_status_voiceml(kw))
 
     @route('/voiceml/webhook/<string:model_name>/call_action/<int:record_id>', methods=['POST'], type='http', auth='public', csrf=False)
     def call_action_edit_webhook(self, model_name, record_id, **kw):
@@ -89,14 +89,14 @@ class ConnectVoiceMLController(Controller):
         if not self.check_signature():
             return ''
         recording = request.env['connect.recording'].with_user(request.env.ref("connect.user_connect_webhook"))
-        return '{}'.format(recording.on_recording_status(kw))
+        return '{}'.format(recording.on_recording_status_voiceml(kw))
 
     @route('/voiceml/webhook/callaction', methods=['POST'], type='http', auth='public', csrf=False)
     def call_action_webhook(self, **kw):
         if not self.check_signature():
             return self._fail()
         call = request.env['connect.call'].with_user(request.env.ref("connect.user_connect_webhook"))
-        return '{}'.format(call.on_call_action(kw))
+        return '{}'.format(call.on_call_action_voiceml(kw))
 
     @route('/voiceml/webhook/application/<int:application_id>', methods=['POST'], type='http', auth='public', csrf=False)
     def application_webhook(self, application_id, **kw):
@@ -110,11 +110,11 @@ class ConnectVoiceMLController(Controller):
         if not self.check_signature():
             return self._fail()
         message = request.env['connect.message'].with_user(request.env.ref("connect.user_connect_webhook"))
-        return '{}'.format(message.receive(kw))
+        return '{}'.format(message.receive_voiceml(kw))
 
     @route('/voiceml/webhook/message_status', methods=['POST'], type='http', auth='public', csrf=False)
     def message_status_webhook(self, **kw):
         if not self.check_signature():
             return ''
-        request.env['connect.message'].with_user(request.env.ref("connect.user_connect_webhook")).receive(kw)
+        request.env['connect.message'].with_user(request.env.ref("connect.user_connect_webhook")).receive_voiceml(kw)
         return 'OK'

@@ -20,13 +20,15 @@
                 <page name="voiceml" string="VoiceML">
                     <group>
                         <group string="SIP / Web Phone">
-                            <field name="sip_enabled"/>
-                            <field name="client_enabled"/>
-                            <field name="username"/>
-                            <field name="domain"/>
-                            <field name="password" password="1"/>
-                            <field name="uri"/>
-                            <field name="application"/>
+                            <field name="voiceml_sip_enabled"/>
+                            <field name="voiceml_client_enabled"/>
+                            <field name="voiceml_username"/>
+                            <field name="voiceml_domain"/>
+                            <field name="voiceml_password" password="1"/>
+                            <field name="voiceml_uri"/>
+                            <field name="voiceml_application"/>
+                            <field name="voiceml_sip_ring_timeout"/>
+                            <field name="voiceml_client_ring_timeout"/>
                         </group>
                         <group string="Caller ID">
                             <field name="voiceml_outgoing_callerid"/>

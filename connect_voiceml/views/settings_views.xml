@@ -22,12 +22,12 @@
                                             immediately; it is both the SDK auth token and the
                                             webhook signature key.</small>
                                     </div>
-                                    <field name="account_sid"/>
-                                    <field name="display_api_key" string="API Key" password="1"/>
+                                    <field name="voiceml_account_sid" string="Account SID"/>
+                                    <field name="display_voiceml_api_key" string="API Key" password="1"/>
                                     <field name="voiceml_base_url" string="API URL"/>
                                     <field name="voiceml_wss_url" string="WebRTC WSS URL"/>
                                     <field name="voiceml_auto_sync" groups="base.group_no_one"/>
-                                    <button colspan="2" name="sync" type="object"
+                                    <button colspan="2" name="sync_voiceml" type="object"
                                             string="SYNC VOICEML ACCOUNT" class="btn btn-primary"/>
                                 </group>
                             </group>

@@ -11,14 +11,14 @@ class TestSettingsClient(TransactionCase):
         if not self.settings:
             self.settings = self.Settings.create({})
         self.settings.with_context(skip_protected_fields=True).sudo().write({
-            'account_sid': 'AC_TEST_ACCOUNT_SID',
-            'api_key': 'a' * 64,
+            'voiceml_account_sid': 'AC_TEST_ACCOUNT_SID',
+            'voiceml_api_key': 'a' * 64,
             'voiceml_base_url': 'https://voiceml.example.com',
         })
 
-    def test_get_client_base_url(self):
+    def test_voiceml_client_base_url(self):
         import voiceml
-        client = self.Settings.get_client()
+        client = self.Settings._voiceml_client()
         self.assertIsInstance(client, voiceml.Client)
         self.assertEqual(client.base_url, 'https://voiceml.example.com')
 

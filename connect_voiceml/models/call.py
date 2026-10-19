@@ -14,8 +14,12 @@ IGNORE_ERROR_CODES = ['32009']
 class Call(models.Model):
     _inherit = 'connect.call'
 
+    # connect_twilio defines the unsuffixed handler names on this shared
+    # model without super(), so Odoo would run only whichever module merged
+    # last for both providers' webhooks. VoiceML's handlers carry _voiceml.
+
     @api.model
-    def on_call_action(self, params):
+    def on_call_action_voiceml(self, params):
         from .twiml_builder import TwiMLResponse
         debug(self, 'On call action: %s' % params)
         response = TwiMLResponse()
@@ -23,10 +27,10 @@ class Call(models.Model):
         return response.to_string()
 
     @api.model
-    def on_call_status(self, params):
+    def on_call_status_voiceml(self, params):
         """VoiceML webhook adapter: map params, delegate to core."""
         self = self.sudo()
-        channel = self.env['connect.channel'].on_call_status(params)
+        channel = self.env['connect.channel'].on_call_status_voiceml(params)
         if not channel:
             logger.error('No channel returned from on_call_status!')
             return False
@@ -53,7 +57,7 @@ class Call(models.Model):
         return call_id
 
     @api.model
-    def on_vm_recording_status(self, params):
+    def on_vm_recording_status_voiceml(self, params):
         debug(self.sudo(), 'On voicemail recording status: %s' % json.dumps(params, indent=2))
         channel = self.sudo().env['connect.channel'].search(
             [('sid', '=', params['CallSid'])])

@@ -10,19 +10,19 @@ logger = logging.getLogger(__name__)
 class ConnectMessage(models.Model):
     _inherit = 'connect.message'
 
-    @api.depends('status', 'sender_user')
-    def _compute_direction(self):
-        for rec in self:
-            if rec.sender_user:
-                rec.direction = 'outgoing'
-            elif rec.status == 'received':
-                rec.direction = 'incoming'
-            else:
-                our_numbers = self.env['connect.voiceml.number'].search([]).mapped('phone_number')
-                rec.direction = 'outgoing' if rec.from_number in set(our_numbers) else 'incoming'
+    @api.model
+    def _own_numbers(self):
+        """VoiceML numbers this database sends from. Core's
+        _compute_direction asks every provider through this chain."""
+        return super()._own_numbers() | set(
+            self.env['connect.voiceml.number'].search([]).mapped('phone_number'))
+
+    # connect_twilio defines the unsuffixed receive() on this shared
+    # model without super(), so Odoo would run only whichever module merged
+    # last for both providers' webhooks. VoiceML's is receive_voiceml().
 
     @api.model
-    def receive(self, params):
+    def receive_voiceml(self, params):
         # SMS-only for the scaffold; WhatsApp is not yet modelled on VoiceML.
         try:
             if params.get('SmsStatus') == 'received':
@@ -62,7 +62,7 @@ class ConnectMessage(models.Model):
             if not number:
                 raise ValidationError('You dont have an outgoing callerid number!')
             sender = number.number
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         message = client.messages.create(to=recipient, from_=sender, body=body)
         if getattr(message, 'error_code', None):
             raise ValidationError('Unexpected error! Contact admin or maintainer!')

@@ -40,7 +40,7 @@ class TestNumberRouting(TransactionCase):
             'destination': 'application',
             'application': app.id,
         })
-        # route_call feeds connect.call.on_call_status, which expects the full
+        # route_call feeds connect.call.on_call_status_voiceml, which expects the full
         # inbound webhook parameter set, not just the called number.
         xml = self.env['connect.voiceml.number'].route_call({
             'Called': '+18005551234',

@@ -143,7 +143,7 @@ class CallFlow(models.Model):
             dial = response.dial(**dial_kwargs)
             for user in self.ring_users:
                 dial.sip(
-                    'sip:{}'.format(user.uri),
+                    'sip:{}'.format(user.voiceml_uri),
                     statusCallbackEvent='answered completed',
                     statusCallback=status_url,
                 )

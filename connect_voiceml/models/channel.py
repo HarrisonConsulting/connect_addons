@@ -15,14 +15,18 @@ VOICEML_LIVE_RECORDING_STATUSES = ('in-progress', 'processing', 'paused')
 class Channel(models.Model):
     _inherit = 'connect.channel'
 
+    # connect_twilio defines the unsuffixed handler names on this shared
+    # model without super(), so Odoo would run only whichever module merged
+    # last for both providers' webhooks. VoiceML's handlers carry _voiceml.
+
     @api.model
-    def on_call_status(self, params):
+    def on_call_status_voiceml(self, params):
         """VoiceML webhook adapter: map params and delegate to core."""
         debug(self, 'On channel status: %s' % json.dumps(params, indent=2))
         generic = self._map_voiceml_params(params)
         return self.process_channel_event(generic)
 
-    def _strip_exten_plus(self, number):
+    def _strip_voiceml_exten_plus(self, number):
         if not isinstance(number, str) or not number.startswith('+'):
             return number
         candidate = number[1:]
@@ -35,8 +39,8 @@ class Channel(models.Model):
     def _map_voiceml_params(self, params):
         return {
             'sid': params['CallSid'],
-            'caller': self._strip_exten_plus(params.get('Caller')),
-            'called': self._strip_exten_plus(params.get('Called')),
+            'caller': self._strip_voiceml_exten_plus(params.get('Caller')),
+            'called': self._strip_voiceml_exten_plus(params.get('Called')),
             'to': params.get('To'),
             'technical_direction': params.get('Direction'),
             'status': params.get('CallStatus'),

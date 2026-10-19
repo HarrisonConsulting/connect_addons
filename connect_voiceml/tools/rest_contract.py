@@ -161,7 +161,7 @@ def main():
     call(lambda: client.sip.domains.auth.calls.credential_list_mappings(
         SIDS["domain"]).create(credential_list_sid=SIDS["cred_list"]))
 
-    # --- per-user SIP credential (connect.voiceml.user._create_sip_account) --
+    # --- per-user SIP credential (connect.user._create_voiceml_sip_account) 
     call(lambda: client.sip.credential_lists.credentials(SIDS["cred_list"]).create(
         username="1001", password="s3cret-pass"))
     call(lambda: client.sip.credential_lists.credentials(SIDS["cred_list"]).update(

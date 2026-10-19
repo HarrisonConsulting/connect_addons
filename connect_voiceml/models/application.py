@@ -73,7 +73,7 @@ class Application(models.Model):
     def create(self, vals_list):
         if self.env.context.get('install_mode') is True:
             return super().create(vals_list)
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         records = super().create(vals_list)
         for rec in records:
             rec.create_application(client)
@@ -83,14 +83,14 @@ class Application(models.Model):
         res = super().write(vals)
         if not self.env["connect.settings"].get_param("voiceml_auto_sync"):
             return res
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         for rec in self:
             if rec.sid:
                 rec.update_application(client)
         return res
 
     def unlink(self):
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         for rec in self:
             if rec.sid:
                 try:
@@ -101,7 +101,7 @@ class Application(models.Model):
 
     @api.model
     def sync(self):
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         existing = {rec.sid: rec for rec in self.search([('sid', '!=', False)])}
         for application in client.applications.list().applications:
             rec = existing.get(application.sid)

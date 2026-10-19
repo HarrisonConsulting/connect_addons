@@ -37,8 +37,8 @@ class OutgoingCallerId(models.Model):
         """
         settings = self.env['connect.settings'].sudo()
         base = (settings.get_param('voiceml_base_url') or '').rstrip('/')
-        account_sid = settings.get_param('account_sid')
-        api_key = settings.get_param('api_key')
+        account_sid = settings.get_param('voiceml_account_sid')
+        api_key = settings.get_param('voiceml_api_key')
         if not (base and account_sid and api_key):
             raise ValidationError('Set Account SID, API key and VoiceML API URL!')
         return httpx.Client(
@@ -94,7 +94,7 @@ class OutgoingCallerId(models.Model):
 
     @api.model
     def sync(self):
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         # Outgoing caller IDs (raw, see _raw_client docstring).
         seen_sids = set()
         for row in self._list_ocid():

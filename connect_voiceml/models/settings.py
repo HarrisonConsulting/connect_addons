@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 MAX_EXTEN_LEN = 4
 
 VOICEML_PROTECTED_FIELDS = [
-    "display_api_key",
+    "display_voiceml_api_key",
 ]
 
 
@@ -39,12 +39,17 @@ class Settings(models.Model):
         selection_add=[("voiceml", "VoiceML")],
         ondelete={"voiceml": "set null"},
     )
-    account_sid = fields.Char(string="Account SID")
+    # Every field and method this module adds to connect.settings is named
+    # voiceml_* (or *_voiceml): connect_twilio owns account_sid, get_client(),
+    # sync() and friends on this same model, and Odoo merges both classes
+    # into one, so a shared name lets whichever module loads last take over
+    # the other's column or calls.
+    voiceml_account_sid = fields.Char(string="VoiceML Account SID")
     # API key is both the VoiceML SDK auth token and the X-Twilio-Signature
     # verification key for inbound webhooks. Admin-only, like connect_twilio's
     # auth_token: the webhook controllers read it via sudo().
-    api_key = fields.Char(groups="base.group_erp_manager")
-    display_api_key = fields.Char()
+    voiceml_api_key = fields.Char(groups="base.group_erp_manager")
+    display_voiceml_api_key = fields.Char()
     voiceml_base_url = fields.Char(
         string="VoiceML API URL",
         help="Base URL of the VoiceML REST API, e.g. "
@@ -71,17 +76,17 @@ class Settings(models.Model):
         base_host = (urlparse(self.sudo().get_param('voiceml_base_url') or '').hostname or '').lower()
         if not base_host or host != base_host:
             return super().get_media_auth(media_url)
-        account_sid = self.sudo().get_param('account_sid')
-        api_key = self.sudo().get_param('api_key')
+        account_sid = self.sudo().get_param('voiceml_account_sid')
+        api_key = self.sudo().get_param('voiceml_api_key')
         if not (account_sid and api_key):
             return super().get_media_auth(media_url)
         return (account_sid, api_key)
 
     @api.model
-    def get_client(self):
+    def _voiceml_client(self):
         try:
-            account_sid = self.sudo().get_param("account_sid")
-            api_key = self.sudo().get_param("api_key")
+            account_sid = self.sudo().get_param("voiceml_account_sid")
+            api_key = self.sudo().get_param("voiceml_api_key")
             base_url = self.sudo().get_param("voiceml_base_url")
             kwargs = {"account_sid": account_sid, "api_key": api_key}
             if base_url:
@@ -92,14 +97,14 @@ class Settings(models.Model):
                 raise ValidationError("Set VoiceML API keys first!")
             raise
 
-    def _webhook_url(self, path):
+    def _voiceml_webhook_url(self, path):
         api_url = self.sudo().get_param("api_url")
         return urljoin(api_url, path)
 
-    def sync(self):
+    def sync_voiceml(self):
         if not (
-            self.sudo().get_param("account_sid")
-            and self.sudo().get_param("api_key")
+            self.sudo().get_param("voiceml_account_sid")
+            and self.sudo().get_param("voiceml_api_key")
         ):
             raise ValidationError("You must set Account SID and API key!")
         api_url_check = self.check_api_url()
@@ -120,10 +125,10 @@ class Settings(models.Model):
                 )
             raise
 
-    def compute_sip_uri(self, user):
-        return "sip:{}".format(user.connect_user.uri)
+    def compute_voiceml_sip_uri(self, user):
+        return "sip:{}".format(user.connect_user.voiceml_uri)
 
-    def get_external_call_route(self, number, callerId, status_url):
+    def get_voiceml_external_call_route(self, number, callerId, status_url):
         call_duration_limit = int(self.sudo().get_param('call_duration_limit'))
         from .twiml_builder import TwiMLResponse
         response = TwiMLResponse()
@@ -143,7 +148,7 @@ class Settings(models.Model):
         number = strip_number(number)
         if len(number) > MAX_EXTEN_LEN:
             number = "+{}".format(number)
-        client = self.get_client()
+        client = self._voiceml_client()
         partner_id = False
         caller_name = ""
         obj = self.env[res_model].browse(res_id) if res_model and res_id else False
@@ -160,11 +165,11 @@ class Settings(models.Model):
             user = self.env.user
         if not user.connect_user:
             raise ValidationError("User does not have a SIP username defined!")
-        to = self.compute_sip_uri(user)
+        to = self.compute_voiceml_sip_uri(user)
         exten = self.env["connect.voiceml.exten"].search(
             [("number", "=", number)], limit=1
         )
-        status_url = self._webhook_url("voiceml/webhook/callstatus")
+        status_url = self._voiceml_webhook_url("voiceml/webhook/callstatus")
         if exten:
             callerId = user.connect_user.voiceml_caller_id()
             twiml = exten.sudo().render()
@@ -176,10 +181,10 @@ class Settings(models.Model):
                 user.connect_user.voiceml_outgoing_callerid.number
                 or default_number.number
             )
-            twiml = self.get_external_call_route(number, callerId, status_url)
+            twiml = self.get_voiceml_external_call_route(number, callerId, status_url)
         debug(self, 'Originate destination TwiML: {}'.format(twiml))
         record = self.calls_are_recorded(user=user.connect_user)
-        record_status_url = self._webhook_url("voiceml/webhook/recordingstatus")
+        record_status_url = self._voiceml_webhook_url("voiceml/webhook/recordingstatus")
         channel = client.calls.create(CreateCallRequest(
             to=to,
             from_=callerId,
@@ -223,3 +228,4 @@ class Settings(models.Model):
             self.env.registry.clear_cache()
         else:
             self.clear_caches()
+        return res

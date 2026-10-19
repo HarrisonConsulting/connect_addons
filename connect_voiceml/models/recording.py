@@ -12,8 +12,13 @@ logger = logging.getLogger(__name__)
 class Recording(models.Model):
     _inherit = 'connect.recording'
 
+    # connect_twilio defines prepare_data(), sync() and
+    # on_recording_status() on this shared model without super(), so Odoo
+    # would run only whichever module merged last for both providers.
+    # VoiceML's carry voiceml in the name.
+
     @api.model
-    def prepare_data(self, rec):
+    def prepare_voiceml_data(self, rec):
         data = {}
         for field in [
             'sid', 'call_sid', 'media_url', 'price', 'price_unit',
@@ -25,19 +30,19 @@ class Recording(models.Model):
         data['channel'] = channel.id if channel else False
         return data
 
-    def sync(self):
-        client = self.env['connect.settings'].get_client()
+    def sync_voiceml(self):
+        client = self.env['connect.settings']._voiceml_client()
         for rec in self:
             if not rec.sid:
                 continue
             try:
                 recording = client.recordings.get(rec.sid)
-                rec.write(self.prepare_data(recording))
+                rec.write(self.prepare_voiceml_data(recording))
             except Exception as e:
                 logger.exception('Recording fetch error: %s', e)
 
     @api.model
-    def on_recording_status(self, params):
+    def on_recording_status_voiceml(self, params):
         self = self.sudo()
         debug(self, 'On recording status: %s' % json.dumps(params, indent=2))
         data = {
@@ -55,10 +60,10 @@ class Recording(models.Model):
             data['partner'] = call.partner.id
             data['caller_number'] = call.caller
             data['called_number'] = call.called
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         try:
             recording = client.recordings.get(data['sid'])
-            data.update(self.prepare_data(recording))
+            data.update(self.prepare_voiceml_data(recording))
         except Exception as e:
             logger.exception('Recording fetch error: %s', e)
         self.create(data)

@@ -161,4 +161,8 @@ class Exten(models.Model):
         params = dict(params or {})
         params['ExtenID'] = self.id
         params['ExtenNumber'] = self.number
+        if self.dst._name == 'connect.user':
+            # connect.user.render() belongs to connect_twilio on the shared
+            # model; VoiceML's own renderer is render_voiceml().
+            return self.dst.render_voiceml(request=dict(request or {}), params=params)
         return self.dst.render(request=dict(request or {}), params=params)

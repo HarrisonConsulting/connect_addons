@@ -3,7 +3,7 @@
 //
 // Unlike connect_twilio's `Twilio.Device` phone, this registers a JsSIP UA
 // against the VoiceML OpenSIPS WSS edge using the SIP credentials the module
-// provisions (connect.user.get_phone_config). Click-to-call is server-driven
+// provisions (connect.user.get_voiceml_phone_config). Click-to-call is server-driven
 // (connect.settings.originate_call dials the user's SIP URI), so this
 // component's job is: register, answer incoming INVITEs, and carry audio.
 import { Component, useState, useRef, onMounted, onWillUnmount } from "@odoo/owl";
@@ -24,7 +24,7 @@ export class VoiceMLPhone extends Component {
     async _start() {
         let cfg;
         try {
-            cfg = await this.orm.call("connect.user", "get_phone_config", []);
+            cfg = await this.orm.call("connect.user", "get_voiceml_phone_config", []);
         } catch (err) {
             this.state.error = "Could not load softphone configuration.";
             vlog("config error", err);

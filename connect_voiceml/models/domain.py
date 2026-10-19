@@ -62,14 +62,14 @@ class Domain(models.Model):
     def create(self, vals_list):
         if self.env.context.get('install_mode') is True:
             return super().create(vals_list)
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         records = super().create(vals_list)
         for rec in records:
             rec.create_domain(client)
         return records
 
     def unlink(self):
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         for rec in self:
             if rec.sid:
                 try:
@@ -85,7 +85,7 @@ class Domain(models.Model):
 
     @api.model
     def sync(self):
-        client = self.env['connect.settings'].get_client()
+        client = self.env['connect.settings']._voiceml_client()
         for domain in client.sip.domains.list().domains:
             rec = self.search([('domain_name', '=', domain.domain_name)], limit=1)
             if not rec:
@@ -106,8 +106,8 @@ class Domain(models.Model):
         uri_user = to.split('@')[0].split(':')[-1] if '@' in to else ''
         if uri_user:
             user = self.env['connect.user'].sudo().search(
-                [('username', '=', uri_user)], limit=1
+                [('voiceml_username', '=', uri_user)], limit=1
             )
             if user:
-                return user.render(request, params)
+                return user.render_voiceml(request, params)
         return '<Response><Say>Number not found. Goodbye!</Say></Response>'

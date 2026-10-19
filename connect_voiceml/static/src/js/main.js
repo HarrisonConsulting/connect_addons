@@ -13,7 +13,7 @@ export const voiceMLPhoneService = {
     async start(env, { orm }) {
         let cfg;
         try {
-            cfg = await orm.call("connect.user", "get_phone_config", []);
+            cfg = await orm.call("connect.user", "get_voiceml_phone_config", []);
         } catch (err) {
             console.warn("[Connect VoiceML] config error", err);
             return;

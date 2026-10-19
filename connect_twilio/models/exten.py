@@ -30,6 +30,7 @@ class Exten(models.Model):
         ],
         compute='_get_dst', inverse='_set_dst')
     dst_name = fields.Char(compute='_get_dst')
+    is_published = fields.Boolean('Published')
     dialplan = fields.Text('Dialplan', compute='_get_dialplan', readonly=True)
 
     if release.version_info[0] >= 19:

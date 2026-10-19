@@ -63,7 +63,9 @@ class Settings(models.Model):
     )
     voiceml_auto_sync = fields.Boolean(default=True)
     voiceml_verify_requests = fields.Boolean(
-        default=True, string="Verify VoiceML Requests"
+        default=True, string="Verify VoiceML Requests",
+        help="Off rejects every VoiceML webhook. It never lets an "
+        "unsigned request through.",
     )
 
     @api.model

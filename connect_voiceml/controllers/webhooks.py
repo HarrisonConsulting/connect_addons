@@ -12,10 +12,21 @@ class ConnectVoiceMLController(Controller):
 
     @staticmethod
     def check_signature():
+        # Fail closed on every missing precondition, as HC's Twilio and
+        # VoiceTel webhooks do: these routes are auth='public', so the
+        # signature is the only thing between them and the internet.
         settings = request.env['connect.settings'].sudo()
         if not settings.get_param('voiceml_verify_requests'):
-            return True
+            logger.critical(
+                'SECURITY: VoiceML webhook signature verification is '
+                'disabled; rejecting the request.')
+            return False
         secret = settings.get_param('voiceml_api_key')
+        if not secret:
+            logger.critical(
+                'SECURITY: VoiceML webhook signature verification has no '
+                'API key; rejecting the request.')
+            return False
         url = normalize_url(request.httprequest.url)
         signature = request.httprequest.headers.get('X-Twilio-Signature', '')
         params = (

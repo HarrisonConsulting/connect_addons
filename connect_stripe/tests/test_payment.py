@@ -46,6 +46,80 @@ class TestStripePaymentInitiate(StripeTestCase):
             self.assertIn(payment.twilio_session_id, twiml)
 
 
+class TestStripePayLegs(StripeTestCase):
+    """<Pay> takes the customer leg; the agent leg is parked in the room."""
+
+    def _legs(self, direction, parent_sid, child_sid):
+        call = self.env['connect.call'].create({
+            'direction': direction, 'status': 'in-progress',
+            'caller': '+15551234567', 'called': '+15559876543',
+            'call_sid': parent_sid, 'partner': self.partner_1.id,
+        })
+        Channel = self.env['connect.channel'].with_context(tracking_disable=True)
+        for sid, tech in ((parent_sid, 'inbound'), (child_sid, 'outbound-dial')):
+            Channel.create({'sid': sid, 'call': call.id, 'status': 'in-progress',
+                            'technical_direction': tech})
+        return call
+
+    def _initiate(self, call):
+        payment = self.env['connect.stripe.payment'].create(
+            {'call_id': call.id, 'amount': 5.0})
+        with self.mockTwilioClient() as twilio, patch.object(
+                type(call), '_conference_state_commit',
+                lambda rec, vals: rec.sudo().write(vals)):
+            payment.action_initiate()
+        return payment, twilio.calls.updates
+
+    def test_outbound_redirects_only_the_customer_child(self):
+        """Agent is the parent: it must not be redirected, it rejoins."""
+        call = self._legs('outgoing', 'CAAGENT', 'CACUST')
+        payment, updates = self._initiate(call)
+
+        self.assertEqual(list(updates), ['CACUST'])
+        self.assertIn('/connect/stripe/twiml', updates['CACUST']['twiml'])
+        self.assertEqual(payment.twilio_call_sid, 'CACUST')
+        self.assertTrue(call.conference_pending)
+        self.assertTrue(call.conference_name)
+        rejoin = self.env['connect.call']._conference_rejoin_twiml({
+            'CallSid': 'CAAGENT', 'CallStatus': 'in-progress',
+            'DialCallSid': 'CACUST'})
+        self.assertIn(call.conference_name, rejoin)
+        self.assertIn('endConferenceOnExit="true"', rejoin)
+
+    def test_inbound_parks_the_agent_child_then_pays_the_parent(self):
+        """Customer is the parent: the agent child moves first."""
+        call = self._legs('incoming', 'CACUST', 'CAAGENT')
+        payment, updates = self._initiate(call)
+
+        self.assertEqual(list(updates), ['CAAGENT'])
+        twiml = updates['CAAGENT']['twiml']
+        self.assertIn('<Conference', twiml)
+        self.assertIn(call.conference_name, twiml)
+        self.assertEqual(payment.twilio_call_sid, 'CACUST')
+        self.assertTrue(call.conference_pending)
+
+        pay = self.env['connect.call']._conference_rejoin_twiml({
+            'CallSid': 'CACUST', 'CallStatus': 'in-progress',
+            'DialCallSid': 'CAAGENT'})
+        self.assertIn('<Redirect', pay)
+        self.assertIn('/connect/stripe/twiml', pay)
+        self.assertNotIn('<Conference', pay)
+        self.assertFalse(call.conference_pending)
+
+    def test_failed_redirect_clears_the_marker(self):
+        call = self._legs('outgoing', 'CAAGENT', 'CACUST')
+        payment = self.env['connect.stripe.payment'].create(
+            {'call_id': call.id, 'amount': 5.0})
+        with self.mockTwilioClient() as twilio, patch.object(
+                type(call), '_conference_state_commit',
+                lambda rec, vals: rec.sudo().write(vals)), patch.object(
+                type(twilio.calls('x')), 'update', side_effect=RuntimeError('gone')):
+            with self.assertRaises(RuntimeError):
+                payment.action_initiate()
+        self.assertFalse(call.conference_name)
+        self.assertFalse(call.conference_pending)
+
+
 class TestStripePaymentProcess(StripeTestCase):
 
     def _new_captured_payment(self, **overrides):

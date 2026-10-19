@@ -286,16 +286,14 @@ class ConnectStripeController(Controller):
             else None
         )
         if conference_name:
+            # The customer leaving never ends the room; the agent already in
+            # it keeps it open.
             dial = Dial()
-            # If the agent dropped, end the empty conference quickly rather
-            # than holding the customer in silence; start_conference_on_enter
-            # keeps the room idle until both parties present.
             dial.conference(
                 conference_name,
-                start_conference_on_enter='false',
+                start_conference_on_enter='true',
                 end_conference_on_exit='false',
-                wait_url='',
-                max_participants='2',
+                beep='false',
             )
             response.append(dial)
         else:

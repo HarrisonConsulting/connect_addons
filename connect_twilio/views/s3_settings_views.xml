@@ -9,9 +9,9 @@
       <field name="code">action = model.open_s3_form()</field>
   </record>
 
-  <menuitem id="s3_settings_menu" parent="connect.menu_connect_settings"
+  <menuitem id="s3_settings_menu" parent="menu_connect_twilio"
       groups="connect.group_admin"
-      action="s3_settings_action" name="S3 Storage" sequence="1200"/>
+      action="s3_settings_action" name="Recording Storage (S3)" sequence="110"/>
 
   <record id="connect_s3_settings_form" model="ir.ui.view">
     <field name="name">connect_s3_settings_form</field>

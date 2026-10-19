@@ -9,7 +9,7 @@
     </record>
 
     <menuitem id="menu_connect_domains"
-              sequence="60"
+              sequence="70"
               parent="menu_connect_twilio"
               name="SIP Domains"
               action="domain_action"/>

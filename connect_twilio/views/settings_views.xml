@@ -65,7 +65,7 @@
 
     <menuitem id="menu_twilio_settings"
               name="Settings"
-              parent="menu_twilio_config"
+              parent="menu_connect_twilio"
               action="twilio_settings_action"
               groups="connect.group_admin"
               sequence="10"/>

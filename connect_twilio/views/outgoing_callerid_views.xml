@@ -65,5 +65,5 @@
               name="Outgoing Caller IDs"
               parent="menu_connect_twilio"
               action="action_twilio_callerid"
-              sequence="40"/>
+              sequence="50"/>
 </odoo>

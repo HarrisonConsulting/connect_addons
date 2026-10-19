@@ -9,7 +9,7 @@
     </record>
 
     <menuitem id="menu_connect_twiml"
-              sequence="50"
+              sequence="60"
               parent="menu_connect_twilio"
               name="TwiML Apps"
               action="twiml_action"/>

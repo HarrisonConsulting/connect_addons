@@ -196,8 +196,6 @@ class ConnectStripePayment(models.Model):
             self.partner_id = self.call_id.partner
         if not self.twilio_session_id:
             self.twilio_session_id = uuid.uuid4().hex
-        if not self.twilio_call_sid and self.call_id.call_sid:
-            self.twilio_call_sid = self.call_id.call_sid
         self.state = 'capturing'
         self._redirect_call_to_pay()
 
@@ -209,14 +207,76 @@ class ConnectStripePayment(models.Model):
         response.redirect(f'{base_url}{path}?session_id={self.twilio_session_id}')
         return str(response)
 
+    def _pay_legs(self):
+        """Return `(customer_sid, agent_sid, customer_is_child)`.
+
+        A `<Dial>` bridge has a parent (running the `<Dial>`) and a child.
+        The ledger marks the parent `inbound` and the child `outbound-dial`.
+        Outbound the agent is the parent and the customer the child; inbound
+        it is the other way round. A call with no ledger rows falls back to
+        `call.call_sid`, taken as the customer's leg on an inbound call, with
+        no agent leg known.
+        """
+        self.ensure_one()
+        call = self.call_id
+        channels = self.env['connect.channel'].sudo().search(
+            [('call', '=', call.id)], order='id')
+        parent = channels.filtered(lambda c: c.technical_direction == 'inbound')[:1]
+        child = channels.filtered(lambda c: c.technical_direction == 'outbound-dial')[:1]
+        if parent and child:
+            if call.direction == 'outgoing':
+                return child.sid, parent.sid, True
+            return parent.sid, child.sid, False
+        if call.call_sid and call.direction != 'outgoing':
+            return call.call_sid, None, False
+        raise UserError('Cannot tell which Twilio leg is the customer on this call.')
+
     def _redirect_call_to_pay(self):
+        """Send the customer leg to <Pay> and park the agent in the conference.
+
+        Redirecting one leg of a `<Dial>` bridge ends the other, so the leg
+        that is moved first must be the child; the parent then follows
+        through its `<Dial action>`, which finds `conference_pending`.
+        Outbound the customer is the child: it goes straight to <Pay> and the
+        agent (parent) rejoins the room. Inbound the agent is the child: it
+        goes into the room and the customer (parent) is sent to <Pay> by
+        `connect.call._conference_rejoin_twiml`.
+        """
+        self.ensure_one()
         client = self.env['connect.settings'].sudo().get_client()
         if not client:
             raise UserError('Twilio client is not configured. Check Connect settings.')
-        call_sid = self.twilio_call_sid or self.call_id.call_sid
-        if not call_sid:
-            raise UserError('No Twilio call SID found on this call.')
-        client.calls(call_sid).update(twiml=self._build_redirect_twiml('/connect/stripe/twiml'))
+        customer_sid, agent_sid, customer_is_child = self._pay_legs()
+        self.twilio_call_sid = customer_sid
+        pay_twiml = self._build_redirect_twiml('/connect/stripe/twiml')
+        call = self.call_id.sudo()
+
+        if call.conference_name or not agent_sid:
+            # Already in a room (held), or no agent leg to park: the customer
+            # simply goes to <Pay>.
+            client.calls(customer_sid).update(twiml=pay_twiml)
+            return
+
+        call._conference_state_commit({
+            'conference_name': 'callcontrol-{}-{}'.format(call.id, uuid.uuid4().hex),
+            'conference_sid': False,
+            'conference_pending': True,
+            'is_on_hold': False,
+        })
+        call.invalidate_recordset(['conference_name'])
+        try:
+            if customer_is_child:
+                client.calls(customer_sid).update(twiml=pay_twiml)
+            else:
+                client.calls(agent_sid).update(
+                    twiml=call._conference_join_twiml(call.conference_name, agent=True))
+        except Exception:
+            # Never leave a stored room that only one leg could reach.
+            call._conference_state_commit({
+                'conference_name': False,
+                'conference_pending': False,
+            })
+            raise
 
     def action_cancel(self):
         """Cancel an in-flight payment.

@@ -221,7 +221,7 @@ class Recording(models.Model):
         # recording store; without a timeout a hung endpoint
         # pins the worker.
         url = self._get_media_download_url()
-        auth = self.env['connect.settings'].sudo().get_media_auth(url)
+        auth = self.env['connect.settings'].sudo()._get_media_auth(url)
         with requests.get(url, auth=auth, stream=True, timeout=30) as response:
             response.raise_for_status()
             for chunk in response.iter_content(chunk_size=8192):

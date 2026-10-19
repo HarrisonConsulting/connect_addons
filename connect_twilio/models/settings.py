@@ -122,7 +122,7 @@ class Settings(models.Model):
         return self.sudo().get_param(legacy)
 
     @api.model
-    def get_media_auth(self, media_url):
+    def _get_media_auth(self, media_url):
         """Twilio API credentials, and only for Twilio's own hosts.
 
         Recording media needs HTTP Basic auth whenever the account requires
@@ -134,13 +134,13 @@ class Settings(models.Model):
         """
         host = (urlparse(media_url or '').hostname or '').lower()
         if host != 'twilio.com' and not host.endswith('.twilio.com'):
-            return super().get_media_auth(media_url)
+            return super()._get_media_auth(media_url)
         account_sid = self._twilio_param(
             'connect_twilio.account_sid', 'account_sid')
         auth_token = self._twilio_param(
             'connect_twilio.auth_token', 'auth_token')
         if not (account_sid and auth_token):
-            return super().get_media_auth(media_url)
+            return super()._get_media_auth(media_url)
         return (account_sid, auth_token)
 
     @api.model

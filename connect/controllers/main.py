@@ -51,7 +51,7 @@ class ConnectController(http.Controller):
     def _serve_media(self, media_url):
         """Proxy provider media to the browser.
 
-        Credentials come from connect.settings.get_media_auth(), which the
+        Credentials come from connect.settings._get_media_auth(), which the
         provider modules override. A failure here is invisible in the UI --
         the audio element just reports a 0-second recording -- so say what
         went wrong in the log instead of answering a bare 404.
@@ -59,7 +59,7 @@ class ConnectController(http.Controller):
         import requests as req
         # Signed URLs carry a query string; keep it out of the file name.
         media_name = '{}.wav'.format(urlparse(media_url).path.split('/')[-1])
-        auth = http.request.env['connect.settings'].sudo().get_media_auth(
+        auth = http.request.env['connect.settings'].sudo()._get_media_auth(
             media_url)
         try:
             response = req.get(media_url, auth=auth, timeout=30)

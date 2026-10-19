@@ -112,7 +112,7 @@ class Call(models.Model):
         if media_url.scheme != 'https' or media_url.username or media_url.password:
             raise ValidationError(
                 'Voicemail media must use an HTTPS provider URL without user credentials.')
-        auth = self.env['connect.settings'].sudo().get_media_auth(self.voicemail_url)
+        auth = self.env['connect.settings'].sudo()._get_media_auth(self.voicemail_url)
         if not auth:
             raise ValidationError(
                 'Voicemail media must be hosted by the configured provider.')

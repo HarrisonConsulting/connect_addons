@@ -37,7 +37,7 @@
 
     <menuitem id="menu_connect_campaign"
               name="Campaigns"
-              parent="connect_voice_menu"
+              parent="menu_connect_calls"
               action="action_connect_campaign"
-              sequence="40"/>
+              sequence="50"/>
 </odoo>

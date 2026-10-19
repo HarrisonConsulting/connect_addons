@@ -9,13 +9,6 @@
         <field name="code">action = model.open_settings_form()</field>
     </record>
 
-    <menuitem id="menu_connect_settings_general"
-              name="Settings"
-              parent="menu_connect_settings"
-              action="connect_settings_action"
-              groups="connect.group_admin"
-              sequence="10"/>
-
     <record id="connect_settings_form" model="ir.ui.view">
         <field name="name">connect.settings.form</field>
         <field name="model">connect.settings</field>

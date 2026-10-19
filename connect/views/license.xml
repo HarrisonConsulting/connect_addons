@@ -11,7 +11,7 @@
 
     <menuitem id="license_menu" parent="connect.menu_connect_settings"
               groups="connect.group_admin"
-              action="oduist_license_action" name="License" sequence="80"/>
+              action="oduist_license_action" name="License" sequence="950"/>
 
     <record id="oduist_license_form" model="ir.ui.view">
         <field name="name">oduist.license.form</field>

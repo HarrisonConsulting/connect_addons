@@ -53,5 +53,5 @@
               name="Numbers"
               parent="menu_connect_twilio"
               action="action_twilio_number"
-              sequence="10"/>
+              sequence="20"/>
 </odoo>

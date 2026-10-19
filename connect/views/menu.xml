@@ -22,29 +22,29 @@
 
     <!-- HC child menus: connect_pbx / connect_elevenlabs / connect_byoc still parent off these xmlids. -->
     <menuitem id="connect_voice_menu"
-              name="Voice"
-              parent="menu_connect_root"
+              name="Telephony"
+              parent="menu_connect_settings"
               sequence="20"/>
     <menuitem id="connect_messaging_menu"
               name="Messaging"
               parent="menu_connect_root"
-              sequence="30"/>
+              sequence="20"/>
     <menuitem id="connect_ai_menu"
               name="AI"
               parent="menu_connect_root"
               sequence="40"/>
     <menuitem id="connect_reports_menu"
-              name="Reports"
+              name="Reporting"
               parent="menu_connect_root"
               sequence="80"/>
     <menuitem id="connect_debug_menu"
-              name="Debug"
-              parent="menu_connect_root"
+              name="Technical"
+              parent="menu_connect_settings"
               groups="base.group_no_one"
-              sequence="90"/>
+              sequence="900"/>
     <menuitem id="connect_documentation_menu"
               name="Documentation"
-              parent="menu_connect_root"
+              parent="menu_connect_settings"
               groups="base.group_no_one"
-              sequence="95"/>
+              sequence="910"/>
 </odoo>

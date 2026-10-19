@@ -11,7 +11,7 @@
     <menuitem id="connect_conversation_menu"
               name="Conversations"
               action="action_connect_conversation"
-              sequence="60"
+              sequence="20"
               parent="connect.connect_messaging_menu"/>
 
     <!-- Search View -->

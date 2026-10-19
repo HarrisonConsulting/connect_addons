@@ -44,5 +44,5 @@
               name="Extensions"
               parent="menu_connect_twilio"
               action="action_twilio_exten"
-              sequence="20"/>
+              sequence="30"/>
 </odoo>

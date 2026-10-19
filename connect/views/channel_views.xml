@@ -71,5 +71,5 @@
               parent="menu_connect_calls"
               action="action_connect_channel"
               groups="connect.group_admin"
-              sequence="40"/>
+              sequence="90"/>
 </odoo>

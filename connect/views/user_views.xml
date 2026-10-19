@@ -73,7 +73,7 @@
 
     <menuitem id="menu_connect_users"
               name="Users"
-              parent="menu_connect_root"
+              parent="connect_voice_menu"
               action="action_connect_user"
-              sequence="20"/>
+              sequence="10"/>
 </odoo>

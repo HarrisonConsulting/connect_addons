@@ -21,8 +21,8 @@
 
     <menuitem id="menu_connect_debug"
               name="Debug Log"
-              parent="menu_connect_settings"
+              parent="connect_debug_menu"
               action="action_connect_debug"
               groups="connect.group_admin"
-              sequence="30"/>
+              sequence="10"/>
 </odoo>

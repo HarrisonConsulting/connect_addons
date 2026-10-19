@@ -40,8 +40,8 @@
 
     <menuitem id="menu_twilio_message_configuration"
               name="Message Configuration"
-              parent="menu_twilio_messages"
+              parent="menu_connect_twilio"
               action="action_twilio_message_configuration"
               groups="connect.group_admin"
-              sequence="20"/>
+              sequence="80"/>
 </odoo>

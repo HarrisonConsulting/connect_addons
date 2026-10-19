@@ -88,7 +88,7 @@
     </record>
 
     <menuitem id="connect_voicemail_box_menu" name="Voicemail Boxes"
-        parent="connect.menu_connect_settings" sequence="85"
+        parent="menu_connect_config_audio" sequence="40"
         groups="connect.group_admin"
         action="voicemail_box_action"/>
 

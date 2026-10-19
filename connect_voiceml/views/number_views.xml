@@ -46,6 +46,7 @@
         <field name="name">Numbers</field>
         <field name="res_model">connect.voiceml.number</field>
         <field name="view_mode">list,form</field>
+        <field name="path">voiceml-number</field>
     </record>
 
     <menuitem id="menu_voiceml_numbers"

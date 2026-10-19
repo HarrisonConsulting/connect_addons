@@ -30,6 +30,7 @@
         <field name="name">Extensions</field>
         <field name="res_model">connect.voiceml.exten</field>
         <field name="view_mode">list,form</field>
+        <field name="path">voiceml-exten</field>
     </record>
 
     <menuitem id="menu_voiceml_extens"

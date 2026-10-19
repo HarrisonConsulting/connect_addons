@@ -56,6 +56,7 @@
         <field name="name">Call Flows</field>
         <field name="res_model">connect.voiceml.callflow</field>
         <field name="view_mode">list,form</field>
+        <field name="path">voiceml-callflow</field>
     </record>
 
     <menuitem id="menu_voiceml_callflows"

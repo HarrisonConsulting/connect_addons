@@ -34,6 +34,7 @@
         <field name="name">SIP Domains</field>
         <field name="res_model">connect.voiceml.domain</field>
         <field name="view_mode">list,form</field>
+        <field name="path">voiceml-domain</field>
     </record>
 
     <menuitem id="menu_voiceml_domains"

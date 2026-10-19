@@ -40,11 +40,11 @@ class S3MigrateWizard(models.TransientModel):
         res['recording_twilio_count'] = Recording.search_count([
             ('s3_key', '=', False),
             ('media_url', '!=', False),
-            ('attachment_id', '=', False),
+            ('recording_attachment', '=', False),
         ])
         res['recording_filestore_count'] = Recording.search_count([
             ('s3_key', '=', False),
-            ('attachment_id', '!=', False),
+            ('recording_attachment', '!=', False),
         ])
         res['voicemail_count'] = Call.search_count([
             ('voicemail_s3_key', '=', False),

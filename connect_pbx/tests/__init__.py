@@ -13,3 +13,4 @@ from . import test_audio_jinja
 from . import test_audio_archive_wizard
 from . import test_twiml_audio_refs
 from . import test_twiml_audio_fallback
+from . import test_install_keep

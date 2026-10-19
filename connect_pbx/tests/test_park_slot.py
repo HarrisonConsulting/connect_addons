@@ -261,6 +261,41 @@ class TestParkCall(ConnectTestCase):
         self.assertFalse(result['success'])
         self.assertIn('Twilio API error', result['error'])
 
+    def test_park_call_survives_rejected_hangup_of_our_leg(self):
+        """Twilio rejecting a hangup of our (already ended) leg must not
+        leave the parked caller in a room no slot points to."""
+        from twilio.base.exceptions import TwilioRestException
+        ParkSlot = self.env['connect.park_slot']
+        call = self._create_test_call(direction='incoming', status='in-progress')
+        user_ch, other_ch = self._make_channels(call)
+
+        def _calls(sid):
+            leg = MagicMock()
+            if sid == user_ch.sid:
+                leg.update.side_effect = TwilioRestException(
+                    status=400, uri='', code=21220)
+            return leg
+
+        mock_client = MagicMock()
+        mock_client.calls.side_effect = _calls
+
+        with patch.object(
+            self.env['connect.settings'].__class__, 'get_client',
+            return_value=mock_client,
+        ), patch.object(
+            self.env['connect.call'].__class__, '_find_call_channels',
+            return_value=(call, user_ch, other_ch),
+        ), patch.object(
+            self.env['connect.settings'].__class__, 'connect_reload_view',
+        ):
+            result = ParkSlot.park_call('CAxxx', '8')
+
+        self.assertTrue(result['success'])
+        slot = ParkSlot.search([('name', '=', 8)], limit=1)
+        self.assertEqual(slot.call.id, call.id)
+        self.assertEqual(slot.caller_channel_sid, other_ch.sid)
+        self.assertEqual(slot.conference_name, 'park-8')
+
 
 @tagged('post_install', '-at_install')
 class TestUnparkCall(ConnectTestCase):

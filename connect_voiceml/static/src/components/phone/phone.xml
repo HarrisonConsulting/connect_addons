@@ -9,6 +9,15 @@
                 <span class="o_cvm_who" t-out="state.uri or 'VoiceML'"/>
             </div>
             <div t-if="state.error" class="o_cvm_error" t-out="state.error"/>
+            <div t-elif="state.incoming" class="o_cvm_body o_cvm_ringing">
+                <div>Incoming call: <t t-out="state.incoming"/></div>
+                <button class="btn btn-success btn-sm me-1" t-on-click="() => this.accept()">Answer</button>
+                <button class="btn btn-danger btn-sm" t-on-click="() => this.decline()">Decline</button>
+            </div>
+            <div t-elif="state.inCall" class="o_cvm_body">
+                <div>On call</div>
+                <button class="btn btn-danger btn-sm" t-on-click="() => this.decline()">Hang up</button>
+            </div>
             <div t-else="" class="o_cvm_body" t-out="state.registration"/>
         </div>
     </t>

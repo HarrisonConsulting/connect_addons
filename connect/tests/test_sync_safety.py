@@ -105,7 +105,7 @@ class TestSyncSafety(ConnectTestCase):
             self.callerids[0].unlink()
         self.assertIn('Twilio account', str(err.exception))
         self.assertIn('turn off Auto Sync', str(err.exception))
-        with self._as_provider('voicetel'), self.assertRaises(ValidationError) as err:
+        with self._as_provider('voiceml'), self.assertRaises(ValidationError) as err:
             self.callerids[0].unlink()
         self.assertNotIn('Twilio', str(err.exception))
 
@@ -133,7 +133,7 @@ class TestSyncSafety(ConnectTestCase):
         self.Number.create({'phone_number': '+12015550301', 'sid': 'PN' + 'd' * 32})
         self.Settings.set_param('twilio_region', 'us1')
         client = self._client(incoming=[_provider_number('PN' + 'd' * 32, '+12015550301')])
-        with self._as_provider('voicetel'), \
+        with self._as_provider('voiceml'), \
                 patch.object(type(self.Settings), 'get_client', return_value=client), \
                 patch.object(type(self.Settings), 'connect_notify'), \
                 patch.object(type(self.Number), 'update_twilio_number'):

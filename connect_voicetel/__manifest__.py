@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 {
-    'name': 'Connect VoiceTel',
-    'version': '19.0.2.1.3',
+    'name': 'Connect VoiceTel (retired)',
+    'version': '19.0.3.0.0',
     'author': 'Oduist',
     'maintainer': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
@@ -11,48 +11,19 @@
     'support': 'support@oduist.com',
     'license': 'OPL-1',
     'category': 'Phone',
-    'summary': 'VoiceTel provider for Connect',
+    'summary': 'Retired: replaced by connect_voiceml',
     'description': """
-VoiceTel provider for Connect
-=============================
+Connect VoiceTel (retired)
+==========================
 
-Adds VoiceTel as a standalone telephony provider in Connect:
-
-- Its own PBX configuration models (numbers, extensions, call flows,
-  applications, SIP domains, caller IDs) in a VoiceTel submenu
-- Its own REST client (the voiceml SDK) and call-control XML builder
-- Webhooks signed and verified with the VoiceTel API key
-- Browser softphone in the same transport registry as every other Connect
-  provider. The account chooses SIP.js or JsSIP; both register the same
-  VoiceTel SIP credential against the WebRTC WSS URL
+connect_voiceml replaces this module. This release ships no models,
+views, routes or assets. Upgrading to it removes VoiceTel's menus, views
+and fields from the database without calling the VoiceTel API, and keeps
+a copy of the VoiceTel settings and user columns. Uninstall it after the
+upgrade.
     """,
     'depends': ['connect'],
-    'external_dependencies': {
-        'python': ['voiceml'],
-    },
-    'data': [
-        # Security
-        'security/ir.model.access.csv',
-        # Views
-        'views/menu.xml',
-        'views/settings.xml',
-        'views/application_views.xml',
-        'views/domain_views.xml',
-        'views/user_views.xml',
-        'views/exten_views.xml',
-        'views/callflow_views.xml',
-        'views/number_views.xml',
-        'views/call_views.xml',
-        'views/outgoing_callerid_views.xml',
-        # Data
-        'data/application.xml',
-    ],
-    'assets': {
-        'web.assets_backend': [
-            '/connect_voicetel/static/src/components/phone/phone/transports/*',
-        ],
-    },
-    'demo': [],
+    'data': [],
     'installable': True,
     'application': False,
     'auto_install': False,

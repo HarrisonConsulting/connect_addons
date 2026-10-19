@@ -28,13 +28,13 @@ class Emitter {
 
 /**
  * ITelephonyTransport — the contract every browser-softphone provider
- * (Twilio, VoiceTel, ...) implements so phone.js never touches a
+ * (Twilio, ...) implements so phone.js never touches a
  * provider-specific SDK object directly.
  *
  * Lifecycle: init() -> register() -> ...calls happen via dial()/'incoming'...
  * -> unregister()/destroy(). updateAuth() re-credentials an already-init'd
- * transport in place (JWT refresh for Twilio, password rotation for
- * VoiceTel) without a full teardown+rebuild.
+ * transport in place (JWT refresh for Twilio, password rotation for a
+ * SIP provider) without a full teardown+rebuild.
  *
  * init()/updateAuth() are deliberately NOT required to be async: Twilio's
  * Device constructor and Device#updateToken() both throw synchronously on
@@ -68,10 +68,17 @@ export class TelephonyTransport extends Emitter {
     static async loadDependencies() {}
 
     /**
+     * Whether phone.js plays the incoming ring itself. False when the SDK
+     * rings on its own, as Twilio's Device does; a SIP stack that does not
+     * ring sets this to true.
+     */
+    static ringsInApp = false
+
+    /**
      * @param {Object} tokenData - the raw get_client_token() response.
      * @returns {boolean} whether tokenData carries a usable credential for
      *   this provider. Default matches Twilio's {token, ...} shape;
-     *   providers with a differently-shaped response (e.g. VoiceTel's
+     *   providers with a differently-shaped response (e.g. a SIP
      *   {password, ...}, no 'token' key at all) must override this.
      */
     static hasCredential(tokenData) {
@@ -90,7 +97,7 @@ export class TelephonyTransport extends Emitter {
     /**
      * @param {Object} connData - provider-specific connection data, e.g.
      *   {token, edge} for Twilio or {sip_uri, username, password, wss_server}
-     *   for VoiceTel.
+     *   for a SIP provider.
      */
     init(connData) {
         throw new Error(`${this.constructor.name}: init() not implemented`)
@@ -155,7 +162,7 @@ export class TelephonyTransport extends Emitter {
  *   'reject'     - call was rejected
  *   'quality'    - OPTIONAL, Twilio-only. {kind: 'sample'|'warning'|
  *                  'warning-cleared', ...}. Transports that can't measure
- *                  quality (VoiceTel/SIP.js) simply never emit it; callers
+ *                  quality (e.g. a SIP stack) simply never emit it; callers
  *                  must not assume it ever fires.
  */
 export class TelephonyCall extends Emitter {

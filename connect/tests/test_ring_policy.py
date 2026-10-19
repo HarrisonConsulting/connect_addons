@@ -15,11 +15,11 @@ class TestRingPolicy(unittest.TestCase):
     def setUp(self):
         self.recipient = policy.RecipientScope(1, 2, 3, 1)
         self.twilio = policy.AccountBinding('twilio', 10, 1)
-        self.voicetel = policy.AccountBinding('voicetel', 20, 2)
+        self.voiceml = policy.AccountBinding('voiceml', 20, 2)
         self.snapshot = policy.RingPolicySnapshot(
             revision='test-revision', recipient=self.recipient,
             timezone='America/Indiana/Indianapolis',
-            bindings=(self.twilio, self.voicetel),
+            bindings=(self.twilio, self.voiceml),
             intervals=tuple(policy.WeeklyInterval(day, 300, 1200) for day in range(5)),
             closed_dates=(), maximum_clock_uncertainty_seconds=1,
             maximum_event_age_seconds=30, business_tone='business-local')
@@ -84,7 +84,7 @@ class TestRingPolicy(unittest.TestCase):
         self.assertEqual(result.admission, 'deny')
 
     def test_second_carrier_same_schedule(self):
-        self.assertEqual(self.decision(binding=self.voicetel).admission, 'allow')
+        self.assertEqual(self.decision(binding=self.voiceml).admission, 'allow')
 
     def test_wrong_provider_tool_slot(self):
         for binding in (policy.AccountBinding('unknown', 10, 1),
@@ -194,7 +194,7 @@ class TestRingPolicy(unittest.TestCase):
                 replace(self.snapshot, **changes)
 
     def test_duplicate_bindings_rejected(self):
-        for bindings in ((self.twilio, policy.AccountBinding('voicetel', 20, 1)),
+        for bindings in ((self.twilio, policy.AccountBinding('voiceml', 20, 1)),
                          (self.twilio, policy.AccountBinding('twilio', 10, 2))):
             with self.assertRaises(ValueError):
                 replace(self.snapshot, bindings=bindings)

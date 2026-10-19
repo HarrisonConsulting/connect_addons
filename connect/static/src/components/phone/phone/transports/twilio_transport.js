@@ -23,7 +23,7 @@ export class TwilioCall extends TelephonyCall {
         this._call.on('reject', (...args) => this._emit('reject', ...args))
         // Call quality — Twilio-only. Normalized into a single 'quality' event
         // so phone.js's quality monitor stays provider-agnostic; a transport
-        // that can't measure quality (e.g. VoiceTel/SIP.js) simply never
+        // that can't measure quality (e.g. a SIP stack) simply never
         // emits it.
         this._call.on('sample', (sample) => this._emit('quality', {kind: 'sample', sample}))
         this._call.on('warning', (name) => this._emit('quality', {kind: 'warning', name}))
@@ -160,7 +160,7 @@ export class TwilioTransport extends TelephonyTransport {
 
 // Self-registers into the shared transport registry at load time — phone.js
 // looks providers up here rather than importing a specific transport file,
-// so a provider module (e.g. connect_voicetel) can add its own entry without
+// so a provider module can add its own entry without
 // core ever referencing it, and vice versa: core doesn't need to know this
 // file exists for a third provider to work.
 registry.category("connect.telephony_transports").add("twilio", TwilioTransport)

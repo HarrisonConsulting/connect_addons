@@ -39,6 +39,7 @@ TWILIO_LEG_GONE_CODES = (21220, 20404)
 class Channel(models.Model):
     _inherit = 'connect.channel'
 
+    @api.private
     @api.model
     def on_call_status(self, params):
         """Twilio webhook adapter: map Twilio params and delegate to core."""

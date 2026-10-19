@@ -27,6 +27,7 @@ class ConnectMessage(models.Model):
             | set(self.env['connect.whatsapp_sender'].search([]).mapped('number'))
         )
 
+    @api.private
     @api.model
     def receive(self, params):
         if not self.env['oduist.license'].check_license('connect', silent=True):

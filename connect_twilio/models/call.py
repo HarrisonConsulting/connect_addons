@@ -23,6 +23,7 @@ IGNORE_ERROR_CODES = ['32009']
 class Call(models.Model):
     _inherit = 'connect.call'
 
+    @api.private
     @api.model
     def on_call_action(self, params):
         debug(self, 'On call action: %s' % params)
@@ -146,6 +147,7 @@ class Call(models.Model):
         help='Indicates if call price has been fetched from Twilio API'
     )
 
+    @api.private
     @api.model
     def on_call_status(self, params):
         """Twilio webhook adapter: map params, delegate to core, handle Twilio-specific logic."""
@@ -206,6 +208,7 @@ class Call(models.Model):
 
         return call_id
 
+    @api.private
     @api.model
     def on_vm_recording_status(self, params):
         debug(

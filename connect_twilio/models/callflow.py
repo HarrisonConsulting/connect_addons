@@ -100,6 +100,7 @@ class CallFlow(models.Model):
             rec.gather_action_url = urljoin(api_url,
                 'twilio/webhook/callflow/{}/gather#e={}'.format(rec.id, edge))
 
+    @api.private
     @api.model
     def gather_action(self, flow_id, request):
         callflow = self.browse(flow_id)
@@ -120,6 +121,7 @@ class CallFlow(models.Model):
             return hints
         return None
 
+    @api.private
     def render(self, request={}, params={}):
         self.ensure_one()
         api_url = self.env['connect.settings'].sudo().get_param('api_url')
@@ -203,6 +205,7 @@ class CallFlow(models.Model):
     def get_voicemail_prompt_message(self, response):
         response.say(self.voicemail_prompt, language=self.language, voice=self.voice)
 
+    @api.private
     @api.model
     def on_call_action(self, flow_id, request):
         rejoin = self.env['connect.call']._conference_rejoin_twiml(request)

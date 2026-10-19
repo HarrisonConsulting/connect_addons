@@ -511,6 +511,7 @@ class Domain(models.Model):
                 except Exception as e:
                     raise
 
+    @api.private
     @api.model
     def route_call(self, request, params={}):
         if not self.env["oduist.license"].check_license('connect'):

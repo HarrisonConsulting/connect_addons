@@ -185,6 +185,7 @@ class TwiML(models.Model):
         if self.code_type == 'python' and self.twipy:
             self.render()
 
+    @api.private
     def render(self, request=None, params=None):
         # Copy into fresh dicts: the previous {} defaults were shared
         # module-level objects that these methods mutated in place

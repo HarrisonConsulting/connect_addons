@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.5.1',
+    'version': '19.0.4.5.2',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -69,7 +69,9 @@
             '/connect/static/tests/tours/**/*.js',
         ],
         'web.assets_unit_tests': [
-            '/connect/static/tests/**/*.test.js',
+            '/connect/static/tests/*.test.js',
+            '/connect/static/tests/helpers/loopback_transport.js',
+            '/connect/static/tests/unit/**/*.js',
         ],
     },
     'post_init_hook': 'post_init_hook',

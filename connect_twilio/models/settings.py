@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
@@ -265,7 +265,7 @@ class Settings(models.Model):
         return twiml
 
     @api.model
-    def originate_call(self, number, res_model=None, res_id=None, user=None, whatsapp_call=False, **kwargs):
+    def originate_call(self, number, res_model=None, res_id=None, user=None, whatsapp_call=False, origin_nonce=None, **kwargs):
         # Dispatch by the user's click-to-call provider; fall through to
         # other installed telephony modules when it is not Twilio.
         if self._get_originate_provider(user) != 'twilio':
@@ -306,6 +306,10 @@ class Settings(models.Model):
                     caller_name or ''
                 )
             )
+            if origin_nonce:
+                # Only the tab that placed the call auto-answers it; every
+                # other device signed in as this user ignores the ring.
+                to += "&Origin={}".format(quote(str(origin_nonce)))
         if "client:" in to:
             # The widget labels the call from this parameter -- and reads the
             # whatsapp: prefix as "show the WhatsApp badge". The plus is

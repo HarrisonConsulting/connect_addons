@@ -35,6 +35,7 @@ export class LoopbackCall extends TelephonyCall {
             CallerName: "",
             Partner: undefined,
             autoAnswer: undefined,
+            Origin: undefined,
             CallSid: "CA" + "0".repeat(32),
             ...this._params,
         }
@@ -46,6 +47,10 @@ export class LoopbackCall extends TelephonyCall {
 
     reject() {
         this._emit("reject")
+    }
+
+    ignore() {
+        this._emit("ignore")
     }
 
     disconnect() {

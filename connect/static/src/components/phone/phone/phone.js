@@ -1065,6 +1065,15 @@ export class Phone extends Component {
             const callCallerName = call.params.CallerName
             const callPartnerId = call.params.Partner
             const autoAnswer = call.params.autoAnswer
+            const origin = call.params.Origin
+
+            // A click-to-call rings every device signed in as this user. Only
+            // the tab that placed it answers; the others ignore, never reject,
+            // because a reject would end the ring on the answering device too.
+            if (autoAnswer === 'yes' && origin && origin !== self.browserSessionNonce) {
+                call.ignore()
+                return
+            }
 
             if (self.session === null) {
                 self.session = call

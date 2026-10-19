@@ -11,6 +11,8 @@ from twilio.rest import Client
 from odoo.addons.connect.models.license import ODUIST_MODULES
 from odoo.addons.connect.models.settings import debug
 
+from . import s3_utils
+
 ODUIST_MODULES.append('connect_twilio')
 
 
@@ -142,6 +144,26 @@ class Settings(models.Model):
         if not (account_sid and auth_token):
             return super()._get_media_auth(media_url)
         return (account_sid, auth_token)
+
+    @api.model
+    def _is_trusted_media_url(self, media_url):
+        """Admit Twilio's media hosts, and the account's own S3 bucket.
+
+        Same host rule as _get_media_auth: twilio.com or a subdomain, over
+        HTTPS, with no userinfo. External Storage media is admitted only
+        when S3 recordings are enabled and the URL is in the configured
+        bucket.
+        """
+        parsed = urlparse(media_url or '')
+        host = (parsed.hostname or '').lower()
+        if parsed.scheme != 'https' or parsed.username or parsed.password:
+            return super()._is_trusted_media_url(media_url)
+        if host == 'twilio.com' or host.endswith('.twilio.com'):
+            return True
+        if self.get_param('s3_recordings_enabled') and s3_utils.is_s3_media_url(
+                media_url, self.get_param('aws_s3_bucket_name')):
+            return True
+        return super()._is_trusted_media_url(media_url)
 
     @api.model
     def _validate_twilio_request(self, httprequest, data):

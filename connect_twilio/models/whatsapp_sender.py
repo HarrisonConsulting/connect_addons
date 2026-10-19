@@ -355,6 +355,7 @@ class ConnectWhatsappSender(models.Model):
         except Exception as e:
             logger.warning('Failed to post WhatsApp chatter message on %s,%s: %s', res_model, res_id, e)
 
+    @api.private
     @api.model
     def update_message_status(self, data: dict):
         """Update connect.message status from Twilio status callback payload.

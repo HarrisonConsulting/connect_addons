@@ -46,6 +46,12 @@ class ConnectController(http.Controller):
         media_url = call._get_voicemail_download_url()
         if not media_url:
             return http.Response(status=404)
+        settings = http.request.env['connect.settings'].sudo()
+        if not settings._is_trusted_media_url(media_url):
+            logger.warning(
+                'Refusing voicemail media for call %s: %s is not a '
+                'provider media host.', call.id, urlparse(media_url).hostname)
+            return http.Response(status=404)
         return self._serve_media(media_url)
 
     def _serve_media(self, media_url):

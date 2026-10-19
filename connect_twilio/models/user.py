@@ -582,6 +582,7 @@ class User(models.Model):
             recordingStatusCallback=voicemail_record_status_url,
         )
 
+    @api.private
     def render(self, request={}, params={}):
         self.ensure_one()
         channel = self.env['connect.channel'].search(
@@ -911,6 +912,7 @@ class User(models.Model):
         if self.sip_enabled:
             self.password = ''
 
+    @api.private
     @api.model
     def on_call_action(self, record_id, request):
         # A child leg moved into a hold/transfer conference ends this <Dial>

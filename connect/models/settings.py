@@ -390,6 +390,17 @@ class Settings(models.Model):
         """
         return None
 
+    @api.model
+    def _is_trusted_media_url(self, media_url):
+        """True if the media proxy may fetch media_url server-side.
+
+        The URL arrives from a provider webhook, so it is untrusted input:
+        fetching an arbitrary host and returning its body is an SSRF.
+        Provider modules override this to admit their own media hosts;
+        with no provider claiming the URL the proxy refuses it.
+        """
+        return False
+
     def _config_parameter_names(self):
         return {
             name for name, field in self._fields.items()

@@ -118,6 +118,7 @@ class OutgoingCallerID(models.Model):
         self.sync_outgoing_callerid('outgoing_callerid')
         self.sync_outgoing_callerid('number')
 
+    @api.private
     @api.model
     def update_status(self, params):
         self = self.sudo()

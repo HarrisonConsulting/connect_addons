@@ -381,6 +381,7 @@ class Recording(models.Model):
             raise ValidationError('Recording is not available yet!')
         self.transcribe_recording(openai_key, summary_prompt)
 
+    @api.private
     def update_transcript(self, data):
         self.ensure_one()
         call = self.call

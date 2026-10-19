@@ -200,6 +200,7 @@ class Number(models.Model):
                 message=user_message,
             )
 
+    @api.private
     def render(self, request={}, params={}):
         self.ensure_one()
         if not self.env["oduist.license"].check_license('connect'):
@@ -213,6 +214,7 @@ class Number(models.Model):
         else:
             return '<Response><Say>Number not configured. Goodbye!</Say></Response>'
 
+    @api.private
     @api.model
     def route_call(self, request, params={}):
         debug(

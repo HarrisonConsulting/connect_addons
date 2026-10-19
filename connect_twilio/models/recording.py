@@ -52,6 +52,7 @@ class Recording(models.Model):
             data = self.prepare_data(recording)
             rec.write(data)
 
+    @api.private
     @api.model
     def on_recording_status(self, params):
         self = self.sudo()

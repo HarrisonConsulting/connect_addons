@@ -22,7 +22,7 @@ class ConnectS3Controller(ConnectController):
         if not (settings.get_param('s3_recordings_enabled')
                 and s3_utils.is_s3_media_url(media_url, bucket)):
             # Pre-switch recordings still live at the provider; core fetches
-            # them with the credentials connect.settings.get_media_auth()
+            # them with the credentials connect.settings._get_media_auth()
             # supplies (ADR-060).
             return super()._serve_media(media_url)
         key = s3_utils.parse_s3_key(media_url, bucket)

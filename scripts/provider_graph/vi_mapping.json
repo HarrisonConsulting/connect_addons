@@ -153,7 +153,7 @@
     "GetDIDFailover"
    ]
   },
-  "method:connect.settings.get_media_auth": {
+  "method:connect.settings._get_media_auth": {
    "vi": [
     "recordings.list/get/delete",
     "mediaFiles.list/get/upload/delete"

@@ -27,7 +27,7 @@ class TestNgRecordingMedia(TransactionCase):
         response = MagicMock()
         response.__enter__.return_value = response
         response.iter_content.return_value = [b'RIFF', b'audio']
-        with patch.object(type(self.env['connect.settings']), 'get_media_auth',
+        with patch.object(type(self.env['connect.settings']), '_get_media_auth',
                           return_value=('account', 'secret')) as auth, \
                 patch('odoo.addons.connect.models.recording.requests.get', return_value=response) as get:
             data = BytesIO()

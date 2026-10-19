@@ -5,6 +5,8 @@ An unauthenticated fetch answers 403, the proxy turns that into an error
 status, and the browser's audio element reports a 0-second recording — so
 the credentials have to reach Twilio, and only Twilio.
 """
+from odoo.exceptions import AccessError
+from odoo.service.model import get_public_method
 from odoo.tests import tagged
 
 from .common import TwilioTestCommon
@@ -28,7 +30,7 @@ class TestRecordingMedia(TwilioTestCommon):
         cls.settings = cls.env['connect.settings'].sudo()
 
     def test_twilio_media_is_fetched_with_the_account_credentials(self):
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://api.twilio.com/2010-04-01/Accounts/{}/Recordings/RE1'
             .format(ACCOUNT_SID))
 
@@ -36,13 +38,13 @@ class TestRecordingMedia(TwilioTestCommon):
 
     def test_external_storage_media_gets_no_twilio_credentials(self):
         """External Storage serves from a bucket: never send the auth token."""
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://recordings.s3.eu-central-1.amazonaws.com/RE1')
 
         self.assertIsNone(auth)
 
     def test_a_lookalike_host_gets_no_credentials(self):
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://api.twilio.com.evil.example/RE1')
 
         self.assertIsNone(auth)
@@ -51,7 +53,12 @@ class TestRecordingMedia(TwilioTestCommon):
         self.icp.set_param('connect_twilio.auth_token', False)
         self.settings.set_param('auth_token', False)
 
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://api.twilio.com/2010-04-01/Recordings/RE1')
 
         self.assertIsNone(auth)
+
+    def test_media_credentials_are_not_reachable_over_rpc(self):
+        """call_kw only exposes public methods: the Twilio token must not be one."""
+        with self.assertRaises(AccessError):
+            get_public_method(self.env['connect.settings'], '_get_media_auth')

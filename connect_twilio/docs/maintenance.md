@@ -40,7 +40,7 @@ status the store answered.
 
 Playback goes through the media proxy: the player asks Odoo for the file and
 Odoo fetches it, using the account credentials when Twilio requires them
-(`connect.settings.get_media_auth()`, ADR-060). Nothing extra is needed for a
+(`connect.settings._get_media_auth()`, ADR-060). Nothing extra is needed for a
 standard account.
 
 The usual cause is **External Storage** on the Twilio account (Voice >

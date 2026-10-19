@@ -28,7 +28,7 @@ class TestTwilioConfigParameter(TransactionCase):
             'tokenfromparam',
         )
         self.assertEqual(
-            settings.get_media_auth(
+            settings._get_media_auth(
                 'https://api.twilio.com/2010-04-01/Accounts/ACfromparam/Recordings/RE1'),
             ('ACfromparam', 'tokenfromparam'),
         )

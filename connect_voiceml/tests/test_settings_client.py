@@ -22,14 +22,14 @@ class TestSettingsClient(TransactionCase):
         self.assertIsInstance(client, voiceml.Client)
         self.assertEqual(client.base_url, 'https://voiceml.example.com')
 
-    def test_get_media_auth_own_host(self):
-        auth = self.Settings.get_media_auth(
+    def test_media_auth_own_host(self):
+        auth = self.Settings._get_media_auth(
             'https://voiceml.example.com/2010-04-01/Accounts/AC../Recordings/RE123.wav')
         self.assertEqual(
             auth,
             ('AC_TEST_ACCOUNT_SID', 'a' * 64),
         )
 
-    def test_get_media_auth_foreign_host(self):
-        auth = self.Settings.get_media_auth('https://bucket.s3.amazonaws.com/rec.wav')
+    def test_media_auth_foreign_host(self):
+        auth = self.Settings._get_media_auth('https://bucket.s3.amazonaws.com/rec.wav')
         self.assertIsNone(auth)

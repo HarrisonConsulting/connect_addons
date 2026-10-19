@@ -106,9 +106,9 @@ class Number(models.Model):
             return '<Response><Say>Number not configured. Goodbye!</Say></Response>'
 
     @api.model
-    def route_call(self, request, params={}):
+    def _route_call(self, request, params={}):
         debug(self, 'Route number call: %s' % request)
-        self.env['connect.call'].on_call_status_voiceml(request)
+        self.env['connect.call']._on_call_status_voiceml(request)
         number = self.sudo().search([('phone_number', '=', request.get('Called'))])
         if not number:
             return '<Response><Say>Number not found. Goodbye!</Say></Response>'

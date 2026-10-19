@@ -86,7 +86,7 @@ class CallFlow(models.Model):
                 api_url, 'voiceml/webhook/callflow/{}/gather'.format(rec.id))
 
     @api.model
-    def gather_action(self, flow_id, request):
+    def _gather_action(self, flow_id, request):
         callflow = self.browse(flow_id)
         choice = callflow.choices.filtered(
             lambda x: x.choice_digits == request.get('Digits')
@@ -159,7 +159,7 @@ class CallFlow(models.Model):
         return response.to_string()
 
     @api.model
-    def on_call_action(self, flow_id, request):
+    def _on_call_action(self, flow_id, request):
         response = TwiMLResponse()
         if request.get('DialCallStatus') != 'completed':
             callflow = self.browse(flow_id)

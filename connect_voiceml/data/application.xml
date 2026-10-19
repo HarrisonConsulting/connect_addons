@@ -5,7 +5,7 @@
             <field name="name">SIP Domain Calls</field>
             <field name="code_type">model_method</field>
             <field name="model">connect.voiceml.domain</field>
-            <field name="method">route_call</field>
+            <field name="method">_route_call</field>
             <field name="description">Special app responsible for incoming SIP calls</field>
         </record>
 

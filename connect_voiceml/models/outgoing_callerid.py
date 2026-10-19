@@ -134,7 +134,7 @@ class OutgoingCallerId(models.Model):
         self.status = 'not validated'
 
     @api.model
-    def update_status(self, params):
+    def _update_status(self, params):
         """Outgoing caller-id validation webhook: reflect the new status."""
         number = params.get('PhoneNumber')
         if not number:

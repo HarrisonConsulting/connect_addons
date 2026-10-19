@@ -14,6 +14,7 @@ from odoo.addons.connect.models.settings import debug
 logger = logging.getLogger(__name__)
 
 MAX_EXTEN_LEN = 4
+VOICEML_DEFAULT_BASE_URL = "https://voiceml.voicetel.com"
 
 VOICEML_PROTECTED_FIELDS = [
     "display_voiceml_api_key",
@@ -66,20 +67,27 @@ class Settings(models.Model):
     )
 
     @api.model
-    def get_media_auth(self, media_url):
+    def _voiceml_api_host(self):
+        """Host of the VoiceML REST API: the configured base URL, or the
+        SDK's default when none is set."""
+        base = self.sudo().get_param('voiceml_base_url') or VOICEML_DEFAULT_BASE_URL
+        return (urlparse(base).hostname or '').lower()
+
+    @api.model
+    def _get_media_auth(self, media_url):
         """Recording media on VoiceML is Basic-authed with the tenant key.
 
         Only attach credentials for our own API host: an externally-hosted
         media URL (presigned S3 bucket) must not receive the API key.
         """
         host = (urlparse(media_url or '').hostname or '').lower()
-        base_host = (urlparse(self.sudo().get_param('voiceml_base_url') or '').hostname or '').lower()
+        base_host = self._voiceml_api_host()
         if not base_host or host != base_host:
-            return super().get_media_auth(media_url)
+            return super()._get_media_auth(media_url)
         account_sid = self.sudo().get_param('voiceml_account_sid')
         api_key = self.sudo().get_param('voiceml_api_key')
         if not (account_sid and api_key):
-            return super().get_media_auth(media_url)
+            return super()._get_media_auth(media_url)
         return (account_sid, api_key)
 
     @api.model

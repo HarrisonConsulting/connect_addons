@@ -96,7 +96,7 @@ class Domain(models.Model):
             if domain.sid:
                 rec.sid = domain.sid
 
-    def route_call(self, request, params={}):
+    def _route_call(self, request, params={}):
         """Inbound call to this SIP domain: route by SIP username (extension)
         or, for E.164, to the matching number's render chain."""
         self.ensure_one()

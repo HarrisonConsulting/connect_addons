@@ -42,7 +42,7 @@ class Recording(models.Model):
                 logger.exception('Recording fetch error: %s', e)
 
     @api.model
-    def on_recording_status_voiceml(self, params):
+    def _on_recording_status_voiceml(self, params):
         self = self.sudo()
         debug(self, 'On recording status: %s' % json.dumps(params, indent=2))
         data = {

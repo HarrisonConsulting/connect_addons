@@ -19,10 +19,10 @@ class ConnectMessage(models.Model):
 
     # connect_twilio defines the unsuffixed receive() on this shared
     # model without super(), so Odoo would run only whichever module merged
-    # last for both providers' webhooks. VoiceML's is receive_voiceml().
+    # last for both providers' webhooks. VoiceML's is _receive_voiceml().
 
     @api.model
-    def receive_voiceml(self, params):
+    def _receive_voiceml(self, params):
         # SMS-only for the scaffold; WhatsApp is not yet modelled on VoiceML.
         try:
             if params.get('SmsStatus') == 'received':

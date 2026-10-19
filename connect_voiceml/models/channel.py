@@ -20,7 +20,7 @@ class Channel(models.Model):
     # last for both providers' webhooks. VoiceML's handlers carry _voiceml.
 
     @api.model
-    def on_call_status_voiceml(self, params):
+    def _on_call_status_voiceml(self, params):
         """VoiceML webhook adapter: map params and delegate to core."""
         debug(self, 'On channel status: %s' % json.dumps(params, indent=2))
         generic = self._map_voiceml_params(params)

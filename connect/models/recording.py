@@ -144,6 +144,10 @@ class Recording(models.Model):
             if rec.recording_attachment:
                 payload = base64.b64decode(rec.recording_attachment)
             elif rec.media_url:
+                if not self.env['connect.settings'].sudo()._is_trusted_media_url(rec.media_url):
+                    logger.warning(
+                        'Recording %s not fetched for redaction: media host is not trusted', rec.id)
+                    continue
                 try:
                     response = requests.get(rec.media_url, timeout=30)
                     response.raise_for_status()

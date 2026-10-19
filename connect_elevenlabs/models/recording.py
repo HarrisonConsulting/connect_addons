@@ -56,6 +56,11 @@ class Recording(models.Model):
         if transcript_provider == 'elevenlabs':
             client = self.env['connect.settings'].get_elevenlabs_client()
 
+            if not self.env['connect.settings'].sudo()._is_trusted_media_url(self.media_url):
+                logger.warning(
+                    'Recording %s not fetched for transcription: media host is not trusted', self.id)
+                self.write({'transcription_error': 'Recording media host is not trusted.'})
+                return
             response = requests.get(self.media_url, timeout=HTTP_DOWNLOAD_TIMEOUT)
             response.raise_for_status()
             audio_file = io.BytesIO(response.content)

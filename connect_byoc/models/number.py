@@ -7,7 +7,7 @@ from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
 from odoo.addons.connect.models.settings import format_connect_response, debug
-from odoo.addons.connect.models.twiml import pretty_xml
+from odoo.addons.connect_twilio.models.twiml import pretty_xml
 
 
 logger = logging.getLogger(__name__)

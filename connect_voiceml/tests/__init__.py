@@ -18,3 +18,4 @@ from . import test_dialling_identity
 from . import test_settings_hardening
 from . import test_webhook_http
 from . import test_revoke_credentials
+from . import test_call_control

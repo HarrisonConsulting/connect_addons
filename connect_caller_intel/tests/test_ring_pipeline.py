@@ -1,6 +1,6 @@
 from unittest.mock import ANY, patch
 
-from odoo.tests import TransactionCase, new_test_user, tagged
+from odoo.tests import TransactionCase, tagged
 
 TRUSTED_NUMBER = '+14155552671'
 SPOOF_NUMBER = '+14155552672'
@@ -63,7 +63,7 @@ class TestRingPipeline(TransactionCase):
 
     def test_failed_validation_is_likely_spoof_and_alerts(self):
         """A failed StirVerstat raises attest_failed, a spoof verdict and a bus alert to the ringing user."""
-        user = new_test_user(self.env, login='caller_intel_ring_user')
+        user = self.env.ref('base.user_admin')
         channel = self._channel(SPOOF_NUMBER, called_user=user.id)
         Bus = type(self.env['bus.bus'])
         with patch.object(Bus, '_sendone') as sendone:

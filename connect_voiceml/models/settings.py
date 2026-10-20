@@ -241,7 +241,7 @@ class Settings(models.Model):
             record=record,
             recording_channels="dual",
             recording_status_callback=record_status_url,
-            recording_status_callback_event="completed",
+            recording_status_callback_event=["completed"],
         ))
         self.env["connect.channel"].sudo().create(
             {

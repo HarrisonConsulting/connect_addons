@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import inspect
 import logging
 from urllib.parse import parse_qs, urljoin, urlsplit
 
@@ -81,29 +80,15 @@ class Number(models.Model):
         if self.is_ignored:
             return
         api_url = self.env['connect.settings'].get_param('api_url')
-        kwargs = dict(
-            friendly_name=self.friendly_name,
-            voice_url=self.voice_url,
-            voice_method='POST',
-            voice_fallback_url=self.voice_fallback_url,
-            status_callback=self.voice_status_url,
-            status_callback_method='POST',
-            sms_url=urljoin(api_url, 'voiceml/webhook/message'),
-            sms_method='POST',
-        )
-        update = client.incoming_phone_numbers.update
         try:
-            params = inspect.signature(update).parameters
-            if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
-                dropped = [k for k in kwargs if k not in params]
-                if dropped:
-                    logger.warning(
-                        'VoiceML SDK update() does not accept %s; not sent', dropped)
-                    kwargs = {k: v for k, v in kwargs.items() if k in params}
-        except (TypeError, ValueError):
-            pass
-        try:
-            update(self.sid, **kwargs)
+            client.incoming_phone_numbers.update(
+                self.sid,
+                voice_url=self.voice_url,
+                voice_method='POST',
+                voice_fallback_url=self.voice_fallback_url,
+                sms_url=urljoin(api_url, 'voiceml/webhook/message'),
+                sms_method='POST',
+            )
         except Exception as e:
             logger.exception('Number Update Exception:')
             raise ValidationError(format_connect_response(str(e)))

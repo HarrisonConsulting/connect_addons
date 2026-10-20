@@ -109,9 +109,9 @@ class TestNumberSyncGuard(TransactionCase):
             rec.update_number(client)
         kwargs = client.incoming_phone_numbers.update.call_args[1]
         self.assertEqual(kwargs['voice_method'], 'POST')
-        self.assertEqual(kwargs['status_callback_method'], 'POST')
         self.assertEqual(kwargs['sms_method'], 'POST')
-        self.assertEqual(
-            kwargs['status_callback'], 'https://odoo.example.com/voiceml/webhook/callstatus')
+        # voiceml 0.9.3 update() accepts neither friendly_name nor status_callback.
+        for dropped in ('friendly_name', 'status_callback', 'status_callback_method'):
+            self.assertNotIn(dropped, kwargs)
         self.assertEqual(
             kwargs['sms_url'], 'https://odoo.example.com/voiceml/webhook/message')

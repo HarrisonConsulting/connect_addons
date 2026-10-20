@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
 
-import httpx
-
 from odoo import fields, models, api
 from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.connect.models.settings import debug
 from .number import fetch_all_pages
-from .settings import VOICEML_DEFAULT_BASE_URL, format_connect_response
 
 logger = logging.getLogger(__name__)
 
@@ -28,101 +25,42 @@ class OutgoingCallerId(models.Model):
         [('outgoing_callerid', 'Outgoing Caller ID'), ('number', 'Number')],
         default='outgoing_callerid', required=True)
 
-    def _raw_client(self):
-        """httpx client for the OutgoingCallerIds REST surface.
-
-        The VoiceML SDK does not yet wrap OutgoingCallerIds /
-        ValidationRequests, so this module talks to the VoiceML API directly
-        until the SDK exposes them (tracked as a follow-up). Auth is the same
-        HTTP Basic (sid:api_key) the SDK uses everywhere else.
-        """
-        settings = self.env['connect.settings'].sudo()
-        base = (settings.get_param('voiceml_base_url') or VOICEML_DEFAULT_BASE_URL).rstrip('/')
-        account_sid = settings.get_param('voiceml_account_sid')
-        api_key = settings.get_param('voiceml_api_key')
-        if not (base and account_sid and api_key):
-            raise ValidationError('Set Account SID and API key!')
-        return httpx.Client(
-            auth=(account_sid, api_key),
-            base_url=base,
-            timeout=30,
-        ), account_sid
-
-    def _ocid_url(self, account_sid, sid=None):
-        url = '/2010-04-01/Accounts/{}/OutgoingCallerIds'.format(account_sid)
-        if sid:
-            url += '/{}'.format(sid)
-        return url + '.json'
-
-    def _list_ocid(self):
-        client, account_sid = self._raw_client()
-        try:
-            rows = []
-            url = self._ocid_url(account_sid)
-            seen = set()
-            while url:
-                if url in seen:
-                    raise ValidationError('VoiceML paging loop detected at %s' % url)
-                seen.add(url)
-                resp = client.get(url)
-                resp.raise_for_status()
-                data = resp.json()
-                rows.extend(data.get('outgoing_caller_ids', []))
-                url = data.get('next_page_uri')
-            return rows
-        finally:
-            client.close()
+    def _list_ocid(self, client):
+        return fetch_all_pages(client.outgoing_caller_ids.list, 'outgoing_caller_ids')
 
     def _create_validation_request(self, number, friendly_name):
-        client, account_sid = self._raw_client()
-        try:
-            resp = client.post(self._ocid_url(account_sid), data={
-                'PhoneNumber': number,
-                'FriendlyName': friendly_name,
-            })
-            resp.raise_for_status()
-            return resp.json()
-        finally:
-            client.close()
+        client = self.env['connect.settings']._voiceml_client()
+        return client.outgoing_caller_ids.create(
+            phone_number=number, friendly_name=friendly_name)
 
     def _update_ocid(self, sid, friendly_name):
-        client, account_sid = self._raw_client()
-        try:
-            resp = client.post(self._ocid_url(account_sid, sid), data={
-                'FriendlyName': friendly_name,
-            })
-            resp.raise_for_status()
-        finally:
-            client.close()
+        client = self.env['connect.settings']._voiceml_client()
+        client.outgoing_caller_ids.update(sid, friendly_name=friendly_name)
 
     def _delete_ocid(self, sid):
-        client, account_sid = self._raw_client()
-        try:
-            resp = client.delete(self._ocid_url(account_sid, sid))
-            resp.raise_for_status()
-        finally:
-            client.close()
+        client = self.env['connect.settings']._voiceml_client()
+        client.outgoing_caller_ids.delete(sid)
 
     @api.model
     def sync(self):
         settings = self.env['connect.settings']
         client = settings._voiceml_client()
         # Complete fetches first: a failing page raises before any change.
-        remote = self._list_ocid()
+        remote = self._list_ocid(client)
         numbers = fetch_all_pages(
             client.incoming_phone_numbers.list, 'incoming_phone_numbers')
         seen_sids = set()
         for row in remote:
-            sid = row.get('sid')
+            sid = row.sid
             if not sid:
                 continue
             seen_sids.add(sid)
             rec = self.search([('sid', '=', sid)])
             if not rec:
                 self.create({
-                    'number': row.get('phone_number'),
+                    'number': row.phone_number,
                     'sid': sid,
-                    'friendly_name': row.get('friendly_name'),
+                    'friendly_name': row.friendly_name,
                     'status': 'validated',
                     'callerid_type': 'outgoing_callerid',
                 })

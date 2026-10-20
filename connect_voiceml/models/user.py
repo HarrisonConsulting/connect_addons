@@ -78,12 +78,11 @@ class User(models.Model):
     voiceml_sid = fields.Char('VoiceML SIP Credential SID', readonly=True)
     voiceml_password = fields.Char(
         string='VoiceML Password',
-        groups="connect.group_admin,connect.group_user")
+        groups="connect.group_admin")
     voiceml_domain = fields.Many2one(
         'connect.voiceml.domain',
         string='VoiceML SIP Domain',
-        ondelete='cascade',
-        default=lambda self: self._default_voiceml_domain(),
+        ondelete='set null',
     )
     voiceml_sip_enabled = fields.Boolean('VoiceML SIP Phone Enabled')
     voiceml_client_enabled = fields.Boolean('VoiceML Web Phone Enabled')
@@ -97,11 +96,6 @@ class User(models.Model):
 
     @api.model
     def _default_voiceml_domain(self):
-        self.env.cr.execute(
-            "SELECT 1 FROM information_schema.tables"
-            " WHERE table_name = 'connect_voiceml_domain'")
-        if not self.env.cr.fetchone():
-            return False
         return self.env['connect.voiceml.domain'].search([], limit=1)
 
     @api.depends('voiceml_username', 'voiceml_domain')
@@ -129,12 +123,21 @@ class User(models.Model):
     def get_user_by_uri(self, userinfo):
         if not userinfo:
             return super().get_user_by_uri(userinfo)
-        re_call_uri = re.compile(r'^(?:sip|client):([^@]+)@')
-        found_username = re_call_uri.search(userinfo)
-        if found_username:
-            user = self.env['connect.user'].search([
-                ('voiceml_username', '=', found_username.group(1))])
-            if user:
+        re_call_uri = re.compile(r'^(?:sip|client):([^@]+)@([^:;>?\s]+)?')
+        found = re_call_uri.search(userinfo)
+        if found:
+            username, host = found.group(1), found.group(2)
+            domain = [('voiceml_username', '=', username)]
+            if host:
+                user = self.env['connect.user'].search(
+                    domain + [('voiceml_domain.domain_name', '=ilike', host)],
+                    limit=1)
+                if user:
+                    return user
+            # Host unknown to VoiceML: fall back to the username only when
+            # it is unambiguous across domains.
+            user = self.env['connect.user'].search(domain, limit=2)
+            if len(user) == 1:
                 return user
         return super().get_user_by_uri(userinfo)
 
@@ -176,6 +179,7 @@ class User(models.Model):
         except Exception as e:
             raise ValidationError(format_connect_response(str(e)))
 
+    @api.private
     def delete_voiceml_sip_account(self):
         self.ensure_one()
         if not self.voiceml_sid:
@@ -188,16 +192,28 @@ class User(models.Model):
         except Exception:
             logger.exception('Failed to delete VoiceML SIP account %s', self.voiceml_username)
 
+    @api.model
+    def _voiceml_vals_with_domain(self, vals):
+        """Enabling the SIP or web phone needs a domain; pick the first one
+        only then, never for plain users."""
+        if ((vals.get('voiceml_sip_enabled') or vals.get('voiceml_client_enabled'))
+                and not vals.get('voiceml_domain')):
+            domain = self._default_voiceml_domain()
+            if domain:
+                vals = dict(vals, voiceml_domain=domain.id)
+        return vals
+
     @api.model_create_multi
     def create(self, vals_list):
+        vals_list = [self._voiceml_vals_with_domain(vals) for vals in vals_list]
         recs = super().create(vals_list)
         if not self.env.context.get('no_voiceml_create'):
             for rec in recs:
                 try:
-                    if rec.voiceml_sip_enabled and rec.voiceml_password:
+                    if rec.voiceml_sip_enabled and rec.sudo().voiceml_password:
                         if not self.env.context.get('skip_create_credential'):
                             rec.voiceml_sid = rec._create_voiceml_sip_account(
-                                username=rec.voiceml_username, password=rec.voiceml_password)
+                                username=rec.voiceml_username, password=rec.sudo().voiceml_password)
                 except Exception as e:
                     raise ValidationError(format_connect_response(str(e)))
         return recs
@@ -209,13 +225,22 @@ class User(models.Model):
                 rec.voiceml_username and rec.voiceml_username != vals['voiceml_username']
                 for rec in self):
             raise ValidationError('VoiceML username cannot be changed!')
+        if (vals.get('voiceml_sip_enabled') or vals.get('voiceml_client_enabled')) \
+                and 'voiceml_domain' not in vals:
+            missing = self.filtered(lambda r: not r.voiceml_domain)
+            if missing:
+                domain_vals = self._voiceml_vals_with_domain(dict(vals))
+                if domain_vals.get('voiceml_domain'):
+                    super(User, missing).write(
+                        {'voiceml_domain': domain_vals['voiceml_domain']})
         for rec in self:
             if vals.get('voiceml_password') and self.env["connect.settings"].get_param("voiceml_auto_sync"):
                 if rec.voiceml_sid:
                     rec._update_voiceml_sip_password(vals['voiceml_password'])
                 else:
-                    vals['voiceml_sid'] = rec._create_voiceml_sip_account(
+                    sid = rec._create_voiceml_sip_account(
                         rec.voiceml_username, vals['voiceml_password'])
+                    super(User, rec).write({'voiceml_sid': sid})
         return super().write(vals)
 
     def unlink(self):
@@ -248,7 +273,9 @@ class User(models.Model):
         api_url = self.env['connect.settings'].sudo().get_param('api_url')
         status_url = urljoin(api_url, 'voiceml/webhook/callstatus')
         record_status_url = urljoin(api_url, 'voiceml/webhook/recordingstatus')
-        dial_kwargs = {'timeout': self.voiceml_client_ring_timeout}
+        dial_kwargs = {'timeout': (
+            self.voiceml_sip_ring_timeout if self.voiceml_sip_enabled
+            else self.voiceml_client_ring_timeout)}
         if self.env['connect.settings'].sudo().calls_are_recorded(user=self):
             dial_kwargs.update({
                 'recordingStatusCallback': record_status_url,
@@ -275,17 +302,21 @@ class User(models.Model):
             self.env.user.has_group('connect.group_admin')
         if not has_group:
             return {'ok': False}
-        user = self.search([('user', '=', self.env.user.id)])
+        # Self only: the password field is admin-group, the browser needs its own.
+        user = self.sudo().search([('user', '=', self.env.user.id)])
         if (not user or not user.voiceml_client_enabled
                 or not (user.voiceml_username and user.voiceml_domain)):
             return {'ok': False}
+        domain_name = user.voiceml_domain.domain_name
+        wss_url = (self.env['connect.settings'].sudo().get_param('voiceml_wss_url')
+                   or 'wss://%s:8443' % domain_name)
         return {
             'ok': True,
             'username': user.voiceml_username,
             'password': user.voiceml_password,
             'domain': user.voiceml_domain.domain_name,
             'realm': user.voiceml_domain.domain_name,
-            'wss_url': self.env['connect.settings'].sudo().get_param('voiceml_wss_url'),
+            'wss_url': wss_url,
             'uri': user.voiceml_uri,
             'record_calls': self.env['connect.settings'].sudo().calls_are_recorded(user=user),
             'exten': user.voiceml_exten_number or '',

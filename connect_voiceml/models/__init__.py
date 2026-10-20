@@ -6,6 +6,7 @@ from . import webhook
 from . import application
 from . import call
 from . import channel
+from . import channel_control
 from . import message
 from . import recording
 from . import user

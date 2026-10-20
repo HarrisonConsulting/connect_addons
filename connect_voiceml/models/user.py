@@ -3,6 +3,7 @@ import logging
 import random
 import re
 import string
+import uuid
 from urllib.parse import urljoin
 
 from odoo import fields, models, api, release
@@ -313,12 +314,17 @@ class User(models.Model):
     # --- Softphone config (JsSIP against the OpenSIPS WSS edge) ---
 
     @api.model
-    def get_voiceml_phone_config(self):
+    def get_voiceml_phone_config(self, nonce=False):
         """RPC payload the browser softphone uses to register via JsSIP.
 
         Unlike connect_twilio (JWT VoiceGrant to the Twilio gateway), the
         VoiceML web phone is a SIP-over-WebRTC client: it registers against
         the OpenSIPS WSS edge with the SIP credentials provisioned above.
+
+        ``nonce`` identifies the calling browser tab. The SIP credential is
+        one per user, so each tab is told its own RFC 5626 ``instance_id``
+        (a UUID derived from user and nonce, stable across a tab reload) and
+        registers as a separate binding instead of replacing another tab's.
         """
         has_group = self.env.user.has_group('connect.group_user') or \
             self.env.user.has_group('connect.group_admin')
@@ -330,8 +336,11 @@ class User(models.Model):
                 or not (user.voiceml_username and user.voiceml_domain)):
             return {'ok': False}
         domain_name = user.voiceml_domain.domain_name
-        wss_url = (self.env['connect.settings'].sudo().get_param('voiceml_wss_url')
-                   or 'wss://%s:8443' % domain_name)
+        wss_url = ((self.env['connect.settings'].sudo().get_param('voiceml_wss_url')
+                    or '').strip() or 'wss://%s:8443' % domain_name)
+        instance_id = str(uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            'voiceml:{}:{}'.format(user.id, nonce or 'default')))
         return {
             'ok': True,
             'username': user.voiceml_username,
@@ -339,6 +348,7 @@ class User(models.Model):
             'domain': user.voiceml_domain.domain_name,
             'realm': user.voiceml_domain.domain_name,
             'wss_url': wss_url,
+            'instance_id': instance_id,
             'uri': user.voiceml_uri,
             'record_calls': self.env['connect.settings'].sudo().calls_are_recorded(user=user),
             'exten': user.voiceml_exten_number or '',

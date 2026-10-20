@@ -9,16 +9,46 @@
                 <span class="o_cvm_who" t-out="state.uri or 'VoiceML'"/>
             </div>
             <div t-if="state.error" class="o_cvm_error" t-out="state.error"/>
-            <div t-elif="state.incoming" class="o_cvm_body o_cvm_ringing">
+            <div t-if="state.incoming" class="o_cvm_body o_cvm_ringing">
                 <div>Incoming call: <t t-out="state.incoming"/></div>
                 <button class="btn btn-success btn-sm me-1" t-on-click="() => this.accept()">Answer</button>
                 <button class="btn btn-danger btn-sm" t-on-click="() => this.decline()">Decline</button>
             </div>
             <div t-elif="state.inCall" class="o_cvm_body">
-                <div>On call</div>
-                <button class="btn btn-danger btn-sm" t-on-click="() => this.decline()">Hang up</button>
+                <div><t t-if="state.consulting">Consulting - caller on hold</t><t t-elif="state.onHold">On hold</t><t t-else="">On call</t></div>
+                <div class="o_cvm_controls d-flex flex-wrap gap-1 my-1">
+                    <button class="btn btn-outline-secondary btn-sm" aria-label="Mute" t-att-class="state.muted ? 'active' : ''" t-on-click="() => this.toggleMute()"><t t-out="state.muted ? 'Unmute' : 'Mute'"/></button>
+                    <button t-if="!state.consulting" class="btn btn-outline-secondary btn-sm" aria-label="Hold" t-att-disabled="state.busy" t-on-click="() => this.toggleHold()"><t t-out="state.onHold ? 'Resume' : 'Hold'"/></button>
+                    <button t-if="!state.consulting" class="btn btn-outline-secondary btn-sm" aria-label="Blind transfer" t-on-click="() => this.startTransfer('blind')">Transfer</button>
+                    <button t-if="!state.consulting" class="btn btn-outline-secondary btn-sm" aria-label="Attended transfer" t-on-click="() => this.startTransfer('attended')">Consult</button>
+                    <button t-if="state.consulting" class="btn btn-success btn-sm" t-att-disabled="state.busy" t-on-click="() => this.attendedComplete()">Complete transfer</button>
+                    <button t-if="state.consulting" class="btn btn-warning btn-sm" t-on-click="() => this.attendedCancel()">Cancel</button>
+                </div>
+                <div t-if="state.transferMode and !state.consulting" class="o_cvm_transfer mb-1">
+                    <input class="form-control form-control-sm mb-1" type="text" placeholder="Transfer to"
+                           t-model="state.dialNumber"/>
+                    <button t-if="state.transferMode === 'blind'" class="btn btn-primary btn-sm" t-att-disabled="state.busy" t-on-click="() => this.blindTransfer()">Transfer now</button>
+                    <button t-else="" class="btn btn-primary btn-sm" t-att-disabled="state.busy" t-on-click="() => this.attendedStart()">Hold caller and call</button>
+                </div>
+                <div class="o_cvm_dialpad" t-if="!state.transferMode">
+                    <button t-foreach="keys" t-as="key" t-key="key" class="btn btn-light btn-sm o_cvm_key"
+                            t-on-click="() => this.onKey(key)"><t t-out="key"/></button>
+                </div>
+                <button class="btn btn-danger btn-sm mt-1" t-on-click="() => this.decline()">Hang up</button>
             </div>
-            <div t-else="" class="o_cvm_body" t-out="state.registration"/>
+            <div t-else="" class="o_cvm_body">
+                <div t-out="state.registration"/>
+                <t t-if="state.registration === 'registered'">
+                    <input class="form-control form-control-sm my-1" type="text" placeholder="Number"
+                           t-model="state.dialNumber" t-on-keydown="(ev) => ev.key === 'Enter' and this.dial()"/>
+                    <div class="o_cvm_dialpad">
+                        <button t-foreach="keys" t-as="key" t-key="key" class="btn btn-light btn-sm o_cvm_key"
+                                t-on-click="() => this.onKey(key)"><t t-out="key"/></button>
+                    </div>
+                    <button class="btn btn-success btn-sm me-1 mt-1" t-att-disabled="state.busy or !state.dialNumber" t-on-click="() => this.dial()">Call</button>
+                    <button class="btn btn-light btn-sm mt-1" t-on-click="() => this.backspace()">Del</button>
+                </t>
+            </div>
         </div>
     </t>
 

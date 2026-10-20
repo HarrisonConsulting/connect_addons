@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import inspect
+import unittest
 from itertools import count
 from unittest.mock import MagicMock, patch
 
@@ -36,6 +37,16 @@ class TestProviderCoexistence(TransactionCase):
     runs only the version merged last, for both modules' callers. A field
     both declare is one column, and the last declaration sets its comodel.
     """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Without another provider installed every check below passes
+        # vacuously, so say so instead of reporting green.
+        installed = cls.env['ir.module.module'].sudo().search_count(
+            [('name', '=', 'connect_twilio'), ('state', '=', 'installed')])
+        if not installed:
+            raise unittest.SkipTest('connect_twilio is not installed: coexistence cannot be exercised')
 
     def _module_classes(self, model_name):
         for cls in type(self.env[model_name]).__mro__:

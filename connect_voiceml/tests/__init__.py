@@ -16,3 +16,4 @@ from . import test_neutralize
 from . import test_domain_adoption
 from . import test_dialling_identity
 from . import test_settings_hardening
+from . import test_webhook_http

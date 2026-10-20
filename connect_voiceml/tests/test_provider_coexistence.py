@@ -180,7 +180,6 @@ class TestVoicemlUserServerSide(TransactionCase):
             'voiceml_domain': self.domain_a.id,
             'voiceml_client_enabled': True,
         })
-        self.env['connect.settings'].set_param('voiceml_wss_url', '')
         config = self.User.get_voiceml_phone_config()
         self.assertTrue(config['ok'])
         self.assertEqual(config['wss_url'], 'wss://a.example.com:8443')

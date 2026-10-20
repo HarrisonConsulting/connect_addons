@@ -57,12 +57,6 @@ class Settings(models.Model):
         help="Base URL of the VoiceML REST API, e.g. "
         "https://voiceml.voicetel.com. The VoiceML SDK is pointed here.",
     )
-    voiceml_wss_url = fields.Char(
-        string="WebRTC WSS URL",
-        groups="base.group_system",
-        help="wss:// URL of the OpenSIPS registrar the browser softphone "
-        "registers against (e.g. wss://<node>:8443).",
-    )
     voiceml_auto_sync = fields.Boolean(default=True)
     voiceml_verify_requests = fields.Boolean(
         default=True, string="Verify VoiceML Requests",
@@ -70,14 +64,14 @@ class Settings(models.Model):
         "unsigned request through.",
     )
 
-    @api.constrains("voiceml_base_url", "voiceml_wss_url")
+    @api.constrains("voiceml_base_url")
     def _check_voiceml_endpoints(self):
         """The API key is sent to voiceml_base_url, so it must be https and a
         VoiceTel host unless an administrator opted in to a custom host."""
         allow_custom = self.env["ir.config_parameter"].sudo().get_param(
             "connect.voiceml_allow_custom_host")
         for rec in self.sudo():
-            for fname, scheme in (("voiceml_base_url", "https"), ("voiceml_wss_url", "wss")):
+            for fname, scheme in (("voiceml_base_url", "https"),):
                 value = (rec[fname] or "").strip()
                 if not value:
                     continue

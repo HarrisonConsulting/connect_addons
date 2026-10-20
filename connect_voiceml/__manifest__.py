@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Oduist Connect VoiceML',
-    'version': '19.0.1.2.0',
+    'version': '19.0.1.2.1',
     'author': 'Oduist',
     'category': 'Phone',
     'summary': 'VoiceML integration for Oduist Connect',

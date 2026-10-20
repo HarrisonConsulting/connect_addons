@@ -15,3 +15,4 @@ from . import test_message
 from . import test_neutralize
 from . import test_domain_adoption
 from . import test_dialling_identity
+from . import test_revoke_credentials

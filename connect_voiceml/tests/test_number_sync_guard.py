@@ -30,7 +30,8 @@ class TestNumberSyncGuard(TransactionCase):
         self.notify = patch.object(settings_cls, 'connect_notify').start()
         patch.object(
             settings_cls, '_voiceml_client', return_value=self.client).start()
-        patch.object(self.Number.__class__, 'update_number').start()
+        self.update_number = patch.object(
+            self.Number.__class__, 'update_number', autospec=True).start()
         self.addCleanup(patch.stopall)
 
     def _sids(self):
@@ -87,10 +88,8 @@ class TestNumberSyncGuard(TransactionCase):
             if rec.sid == 'PN1':
                 raise ValueError('307')
 
-        with patch.object(
-                self.Number.__class__, 'update_number', autospec=True,
-                side_effect=fake_update):
-            self.Number.sync()
+        self.update_number.side_effect = fake_update
+        self.Number.sync()
         self.assertEqual(sorted(calls), ['PN1', 'PN2', 'PN3'])
         self.assertIn('PN1', self.notify.call_args[0][0])
 

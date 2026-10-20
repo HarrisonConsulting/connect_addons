@@ -151,3 +151,28 @@ class TestDomainAdoption(TransactionCase):
                 'voiceml_password': 'Passw0rdPassw0rd'})
         self.assertEqual(user.voiceml_sid, 'CRdup')
         creds.update.assert_called_once_with('CRdup', password='Passw0rdPassw0rd')
+
+    def test_username_adoption_pages_through_credentials(self):
+        client = _client(
+            [self._remote(voice_url=self.voice_url)],
+            reg_mappings=[SimpleNamespace(sid='CLold')],
+            call_mappings=[SimpleNamespace(sid='CLold')])
+        creds = client.sip.credential_lists.credentials.return_value
+        creds.create.side_effect = FakeApiError(409)
+        creds.list.return_value = None
+        creds.list.side_effect = [
+            SimpleNamespace(credentials=[SimpleNamespace(sid='CRa', username='a')],
+                            next_page_uri='/page2'),
+            SimpleNamespace(credentials=[SimpleNamespace(sid='CRdeep', username='deep1')],
+                            next_page_uri=None),
+        ]
+        with self._patch(client):
+            self.Domain.sync()
+            domain = self.Domain.search([('domain_name', '=', 'yoder.example.com')])
+            res_user = self.env['res.users'].create({'name': 'Deep', 'login': 'desk_deep'})
+            user = self.env['connect.user'].create({
+                'user': res_user.id, 'name': 'Deep', 'voiceml_username': 'deep1',
+                'voiceml_domain': domain.id, 'voiceml_sip_enabled': True,
+                'voiceml_password': 'Passw0rdPassw0rd'})
+        self.assertEqual(user.voiceml_sid, 'CRdeep')
+        self.assertEqual(creds.list.call_count, 2)

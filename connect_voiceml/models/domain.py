@@ -47,16 +47,29 @@ class Domain(models.Model):
         return getattr(error, 'status_code', None) == 404
 
     @staticmethod
-    def _voiceml_items(result, attr):
-        items = getattr(result, attr, None)
-        if items is None and isinstance(result, (list, tuple)):
-            items = result
-        return list(items or [])
+    def _voiceml_items(list_fn, attr, max_pages=100):
+        """All items of a paged VoiceML list. list_fn is the resource's
+        list callable; pages are read until next_page_uri is empty."""
+        items = []
+        for page in range(max_pages):
+            try:
+                result = list_fn(page=page, page_size=1000)
+            except TypeError:
+                result = list_fn() if page == 0 else None
+            if result is None:
+                break
+            chunk = getattr(result, attr, None)
+            if chunk is None and isinstance(result, (list, tuple)):
+                chunk = result
+            items.extend(chunk or [])
+            if not getattr(result, 'next_page_uri', None):
+                break
+        return items
 
     def _find_remote_domain(self, client):
         self.ensure_one()
         wanted = (self.domain_name or '').lower()
-        for remote in self._voiceml_items(client.sip.domains.list(), 'domains'):
+        for remote in self._voiceml_items(client.sip.domains.list, 'domains'):
             if (remote.domain_name or '').lower() == wanted:
                 return remote
         return None
@@ -73,7 +86,7 @@ class Domain(models.Model):
             return self.cred_list_sid
         reg = client.sip.domains.auth.registrations.credential_list_mappings(self.sid)
         reg_sids = self._mapping_list_sids(
-            self._voiceml_items(reg.list(), 'credential_list_mappings'))
+            self._voiceml_items(reg.list, 'credential_list_mappings'))
         if reg_sids:
             if self.cred_list_sid not in reg_sids:
                 self.cred_list_sid = reg_sids[0]
@@ -85,7 +98,7 @@ class Domain(models.Model):
             reg.create(credential_list_sid=self.cred_list_sid)
         calls = client.sip.domains.auth.calls.credential_list_mappings(self.sid)
         call_sids = self._mapping_list_sids(
-            self._voiceml_items(calls.list(), 'credential_list_mappings'))
+            self._voiceml_items(calls.list, 'credential_list_mappings'))
         if self.cred_list_sid not in call_sids:
             calls.create(credential_list_sid=self.cred_list_sid)
         return self.cred_list_sid

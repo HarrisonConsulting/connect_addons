@@ -179,7 +179,7 @@ class User(models.Model):
                 if not domain._voiceml_is_conflict(e):
                     raise
                 # The username exists remotely: adopt its sid, reset the password.
-                for cred in domain._voiceml_items(credentials.list(), 'credentials'):
+                for cred in domain._voiceml_items(credentials.list, 'credentials'):
                     if cred.username == username:
                         credentials.update(cred.sid, password=password)
                         return cred.sid

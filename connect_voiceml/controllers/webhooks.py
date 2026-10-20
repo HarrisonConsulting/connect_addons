@@ -30,7 +30,7 @@ class ConnectVoiceMLController(Controller):
         url = normalize_url(request.httprequest.url)
         signature = request.httprequest.headers.get('X-Twilio-Signature', '')
         params = (
-            request.httprequest.form.to_dict()
+            dict(request.httprequest.form.lists())
             if request.httprequest.method == 'POST'
             else {}
         )

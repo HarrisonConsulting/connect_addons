@@ -80,4 +80,4 @@ def normalize_url(url):
     """VoiceML (like Twilio) signs an https URL; an http deployment is an
     operator misconfiguration, so mirror Twilio's effective scheme for
     validation while still failing closed otherwise."""
-    return url.replace('http:', 'https:')
+    return urlsplit(url)._replace(scheme='https').geturl()

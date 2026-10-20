@@ -336,8 +336,8 @@ class User(models.Model):
                 or not (user.voiceml_username and user.voiceml_domain)):
             return {'ok': False}
         domain_name = user.voiceml_domain.domain_name
-        wss_url = ((self.env['connect.settings'].sudo().get_param('voiceml_wss_url')
-                    or '').strip() or 'wss://%s:8443' % domain_name)
+        # The registrar is per SIP domain, never an account-wide setting.
+        wss_url = 'wss://%s:8443' % domain_name
         instance_id = str(uuid.uuid5(
             uuid.NAMESPACE_URL,
             'voiceml:{}:{}'.format(user.id, nonce or 'default')))

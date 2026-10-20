@@ -128,11 +128,9 @@ class TestCallControl(TransactionCase):
         self.assertEqual(tab_a['instance_id'], tab_a_again['instance_id'])
         self.assertNotEqual(tab_a['instance_id'], tab_b['instance_id'])
 
-    def test_phone_config_wss_url_is_never_empty(self):
+    def test_phone_config_wss_url_is_from_sip_domain(self):
         self._enable_web_phone()
         Cfg = self.env['connect.user'].with_user(self.Channel.env.user)
-        for blank in ('', '   '):
-            self.env['connect.settings'].set_param('voiceml_wss_url', blank)
-            self.assertEqual(
-                Cfg.get_voiceml_phone_config(nonce='t')['wss_url'],
-                'wss://cc.example.com:8443')
+        self.assertEqual(
+            Cfg.get_voiceml_phone_config(nonce='t')['wss_url'],
+            'wss://cc.example.com:8443')

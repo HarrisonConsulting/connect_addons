@@ -23,31 +23,29 @@ class TestSettingsHardening(TransactionCase):
     def test_field_groups(self):
         fields_ = self.Settings._fields
         self.assertEqual(fields_['voiceml_base_url'].groups, 'base.group_system')
-        self.assertEqual(fields_['voiceml_wss_url'].groups, 'base.group_system')
+        self.assertNotIn('voiceml_wss_url', fields_)
 
     def test_endpoint_constraint(self):
         check = self.Settings._check_voiceml_endpoints
         for field, value in (
                 ('voiceml_base_url', 'http://voiceml.voicetel.com'),
                 ('voiceml_base_url', 'https://evil.example.com'),
-                ('voiceml_wss_url', 'ws://x.vml.voice.tel'),
-                ('voiceml_wss_url', 'wss://x.example.com:8443')):
+                ('voiceml_base_url', 'https://acme.vml.voice.tel')):
             fake = MagicMock()
             fake.env = self.env
-            fake.sudo.return_value = [{'voiceml_base_url': '', 'voiceml_wss_url': '', field: value}]
+            fake.sudo.return_value = [{'voiceml_base_url': '', field: value}]
             with self.assertRaises(ValidationError, msg=value):
                 check.__func__(fake)
         ok = MagicMock()
         ok.env = self.env
         ok.sudo.return_value = [{
-            'voiceml_base_url': 'https://voiceml.voicetel.com',
-            'voiceml_wss_url': 'wss://d.vml.voicetel.com:8443'}]
+            'voiceml_base_url': 'https://voiceml.voicetel.com'}]
         check.__func__(ok)
         self.icp.set_param('connect.voiceml_allow_custom_host', '1')
         custom = MagicMock()
         custom.env = self.env
         custom.sudo.return_value = [{
-            'voiceml_base_url': 'https://voiceml.example.com', 'voiceml_wss_url': ''}]
+            'voiceml_base_url': 'https://voiceml.example.com'}]
         check.__func__(custom)
 
     def test_media_auth_requires_https(self):

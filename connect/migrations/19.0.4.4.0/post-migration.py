@@ -124,6 +124,39 @@ def _snapshot(cr):
     return {row[0]: row[1] for row in cr.fetchall()}
 
 
+def _column_exists(cr, table, column):
+    cr.execute(
+        """
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = %s AND column_name = %s
+        """,
+        (table, column),
+    )
+    return bool(cr.fetchone())
+
+
+def _default_providers_to_twilio(cr):
+    """Monolith users were all Twilio. Once a second provider is installed,
+    an empty originate/message provider leaves the phone offline and SMS
+    raising, so pin every user with Twilio credentials to Twilio."""
+    if not all(_column_exists(cr, 'connect_user', c) for c in ('username', 'domain')):
+        return
+    for column in ('originate_provider', 'message_provider'):
+        if not _column_exists(cr, 'connect_user', column):
+            continue
+        cr.execute(
+            """
+            UPDATE connect_user
+               SET %s = 'twilio'
+             WHERE %s IS NULL
+               AND username IS NOT NULL
+               AND domain IS NOT NULL
+            """ % (column, column)
+        )
+        _logger.info('set %s=twilio on %s connect users', column, cr.rowcount)
+
+
 def _coalesce_callflow_language(cr):
     table = 'connect_twilio_callflow'
     if not _table_exists(cr, table):
@@ -188,4 +221,5 @@ def migrate(cr, version):
         )
 
     _coalesce_callflow_language(cr)
+    _default_providers_to_twilio(cr)
     _logger.info('connect 19.0.4.4.0 post-migration complete')

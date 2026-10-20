@@ -10,3 +10,4 @@ from . import test_voicemail
 from . import test_recording_webhook
 from . import test_number_sync_guard
 from . import test_sync_isolation
+from . import test_application_sync_scope

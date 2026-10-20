@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from odoo import fields, models, api
 
@@ -8,7 +8,12 @@ from voiceml.models import CreateApplicationRequest, UpdateApplicationRequest
 
 from odoo.addons.connect.models.settings import debug
 
+from .twiml_builder import TwiMLResponse
+
 logger = logging.getLogger(__name__)
+
+# (model, method) pairs a private (underscore) method may be rendered from.
+ALLOWED_APP_METHODS = {('connect.voiceml.domain', '_route_call')}
 
 
 class Application(models.Model):
@@ -51,6 +56,7 @@ class Application(models.Model):
         application = client.applications.create(CreateApplicationRequest(
             friendly_name=self.name,
             voice_url=self.voice_url,
+            voice_method='POST',
             voice_fallback_url=self.voice_fallback_url,
             status_callback=self.voice_status_url,
         ))
@@ -65,6 +71,7 @@ class Application(models.Model):
         return client.applications.update(self.sid, UpdateApplicationRequest(
             friendly_name=self.name,
             voice_url=self.voice_url,
+            voice_method='POST',
             voice_fallback_url=self.voice_fallback_url,
             status_callback=self.voice_status_url,
         ))
@@ -101,20 +108,44 @@ class Application(models.Model):
 
     @api.model
     def sync(self):
+        """Refresh remote applications that already have a local record.
+
+        Never imports a remote application, and never repoints one whose
+        voice_url host is not this instance's api_url host.
+        """
         client = self.env['connect.settings']._voiceml_client()
+        api_host = urlparse(self.env['connect.settings'].get_param('api_url') or '').hostname
         existing = {rec.sid: rec for rec in self.search([('sid', '!=', False)])}
         for application in client.applications.list().applications:
             rec = existing.get(application.sid)
             if not rec:
-                rec = self.with_context(install_mode=True).create({
-                    'sid': application.sid,
-                    'name': application.friendly_name,
-                })
-            # Refresh the voice_url to point at this instance, then update.
+                continue
+            remote_host = urlparse(getattr(application, 'voice_url', None) or '').hostname
+            if remote_host and remote_host != api_host:
+                logger.warning(
+                    'Skipping VoiceML application %s: voice_url host %s is not %s',
+                    application.sid, remote_host, api_host)
+                continue
             rec.update_application(client)
 
+    def _reject_twiml(self):
+        response = TwiMLResponse()
+        response.reject()
+        return response.to_string()
+
+    @api.private
     def render(self, request={}, params={}):
         self.ensure_one()
         if self.code_type == 'model_method' and self.model and self.method:
+            key = (self.model, self.method)
+            if key not in ALLOWED_APP_METHODS and (
+                    self.method.startswith('_') or hasattr(models.BaseModel, self.method)):
+                # Underscore methods and ORM primitives (unlink, write, ...)
+                # are never webhook targets unless allowlisted.
+                logger.warning('Refusing to render application %s: %s.%s not allowed',
+                               self.id, self.model, self.method)
+                return self._reject_twiml()
+            if self.model not in self.env or not callable(getattr(self.env[self.model], self.method, None)):
+                return self._reject_twiml()
             return getattr(self.env[self.model], self.method)(request, params)
         return self.twiml

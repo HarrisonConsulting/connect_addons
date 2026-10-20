@@ -1,18 +1,17 @@
 """Pure evaluator tests; these do not establish deployed routing or live evidence."""
 
 from dataclasses import FrozenInstanceError, replace
-import unittest
+
+from odoo.tests.common import BaseCase, tagged
 
 from ..services import ring_policy as policy
 
 
-class TestRingPolicy(unittest.TestCase):
-    # Precedent: odoo/tests/loader.py discovers unittest.TestCase; the
-    # tag_selector accepts non-BaseCase tests with explicit metadata.
-    test_tags = {'standard', 'post_install'}
-    test_module = 'connect'
+@tagged('post_install', '-at_install')
+class TestRingPolicy(BaseCase):
 
     def setUp(self):
+        super().setUp()
         self.recipient = policy.RecipientScope(1, 2, 3, 1)
         self.twilio = policy.AccountBinding('twilio', 10, 1)
         self.voiceml = policy.AccountBinding('voiceml', 20, 2)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+import inspect
 import logging
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 from odoo import fields, models, api
 from odoo.exceptions import ValidationError
@@ -9,6 +10,38 @@ from odoo.addons.connect.models.settings import debug
 from .settings import format_connect_response
 
 logger = logging.getLogger(__name__)
+
+MAX_SYNC_PAGES = 1000
+
+
+def fetch_all_pages(fetch, attr):
+    """Walk every page of an SDK list call and return all items.
+
+    ``fetch(**kwargs)`` returns a page object carrying ``next_page_uri`` and a
+    list under ``attr``. Any failure propagates, so callers never act on a
+    partial list.
+    """
+    items = []
+    kwargs = {}
+    seen_uris = set()
+    for _i in range(MAX_SYNC_PAGES):
+        page = fetch(**kwargs)
+        items.extend(getattr(page, attr, None) or [])
+        next_uri = getattr(page, 'next_page_uri', None)
+        if not next_uri:
+            return items
+        if next_uri in seen_uris:
+            raise ValidationError('VoiceML paging loop detected at %s' % next_uri)
+        seen_uris.add(next_uri)
+        query = parse_qs(urlsplit(next_uri).query)
+        token = (query.get('PageToken') or query.get('page_token') or [None])[0]
+        if token:
+            kwargs = {'page_token': token}
+        elif (query.get('Page') or query.get('page')):
+            kwargs = {'page': int((query.get('Page') or query.get('page'))[0])}
+        else:
+            raise ValidationError('Cannot follow VoiceML next page %s' % next_uri)
+    raise ValidationError('VoiceML list exceeded %s pages' % MAX_SYNC_PAGES)
 
 
 class Number(models.Model):
@@ -47,13 +80,30 @@ class Number(models.Model):
         self.ensure_one()
         if self.is_ignored:
             return
+        api_url = self.env['connect.settings'].get_param('api_url')
+        kwargs = dict(
+            friendly_name=self.friendly_name,
+            voice_url=self.voice_url,
+            voice_method='POST',
+            voice_fallback_url=self.voice_fallback_url,
+            status_callback=self.voice_status_url,
+            status_callback_method='POST',
+            sms_url=urljoin(api_url, 'voiceml/webhook/message'),
+            sms_method='POST',
+        )
+        update = client.incoming_phone_numbers.update
         try:
-            client.incoming_phone_numbers.update(
-                self.sid,
-                friendly_name=self.friendly_name,
-                voice_url=self.voice_url,
-                voice_fallback_url=self.voice_fallback_url,
-            )
+            params = inspect.signature(update).parameters
+            if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
+                dropped = [k for k in kwargs if k not in params]
+                if dropped:
+                    logger.warning(
+                        'VoiceML SDK update() does not accept %s; not sent', dropped)
+                    kwargs = {k: v for k, v in kwargs.items() if k in params}
+        except (TypeError, ValueError):
+            pass
+        try:
+            update(self.sid, **kwargs)
         except Exception as e:
             logger.exception('Number Update Exception:')
             raise ValidationError(format_connect_response(str(e)))
@@ -74,25 +124,43 @@ class Number(models.Model):
 
     @api.model
     def sync(self):
-        client = self.env['connect.settings']._voiceml_client()
-        numbers = client.incoming_phone_numbers.list().incoming_phone_numbers
+        settings = self.env['connect.settings']
+        client = settings._voiceml_client()
+        # Complete fetch first: a failing page raises here, before any change.
+        numbers = fetch_all_pages(
+            client.incoming_phone_numbers.list, 'incoming_phone_numbers')
         seen = set()
+        failures = []
         for number in numbers:
             seen.add(number.sid)
-            rec = self.search([('sid', '=', number.sid)])
-            if not rec:
-                rec = self.create({
-                    'phone_number': number.phone_number,
-                    'sid': number.sid,
-                    'friendly_name': number.friendly_name,
-                })
-            rec.update_number(client)
-        numbers_to_remove = self.search([
-            ('sid', 'not in', list(seen)),
-            ('sid', '!=', False),
-        ])
-        if numbers_to_remove:
-            numbers_to_remove.unlink()
+            try:
+                with self.env.cr.savepoint():
+                    rec = self.search([('sid', '=', number.sid)])
+                    if not rec:
+                        rec = self.create({
+                            'phone_number': number.phone_number,
+                            'sid': number.sid,
+                            'friendly_name': number.friendly_name,
+                        })
+                    rec.update_number(client)
+            except Exception as e:
+                logger.exception('Number sync failed for %s', number.sid)
+                failures.append('%s: %s' % (number.sid, format_connect_response(str(e))))
+        held = self.search([('sid', '!=', False)])
+        to_remove = held.filtered(lambda r: r.sid not in seen)
+        if to_remove:
+            if not seen or len(to_remove) * 2 >= len(held):
+                settings.connect_notify(
+                    'Number sync skipped removal: VoiceML returned %s numbers, '
+                    '%s of %s held numbers would be removed.'
+                    % (len(seen), len(to_remove), len(held)),
+                    title='Number Sync', warning=True)
+            else:
+                to_remove.unlink()
+        if failures:
+            settings.connect_notify(
+                '%s number update(s) failed: %s' % (len(failures), '; '.join(failures)),
+                title='Number Sync', warning=True)
 
     def render(self, request={}, params={}):
         self.ensure_one()

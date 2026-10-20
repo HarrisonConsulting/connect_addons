@@ -8,3 +8,5 @@ from . import test_rpc_surface
 from . import test_media_trust
 from . import test_voicemail
 from . import test_recording_webhook
+from . import test_number_sync_guard
+from . import test_sync_isolation

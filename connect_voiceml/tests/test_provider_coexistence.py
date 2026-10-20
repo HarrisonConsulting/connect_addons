@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import inspect
+from unittest.mock import patch
 
 from odoo.tests import TransactionCase, tagged
 
@@ -85,3 +86,67 @@ class TestProviderCoexistence(TransactionCase):
             unprefixed,
             'VoiceML fields on shared models must carry voiceml in the name, '
             'or another provider can own the same column: %s' % ', '.join(unprefixed))
+
+
+@tagged('post_install', '-at_install')
+class TestVoicemlUserServerSide(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Domain = cls.env['connect.voiceml.domain']
+        cls.domain_a = Domain.create({'domain_name': 'a.example.com'})
+        cls.domain_b = Domain.create({'domain_name': 'b.example.com'})
+        cls.User = cls.env['connect.user']
+
+    def _new_user(self, login, **vals):
+        res_user = self.env['res.users'].create({'name': login, 'login': login})
+        vals.update({'user': res_user.id, 'name': login})
+        return self.User.create(vals)
+
+    def test_domain_delete_keeps_plain_user(self):
+        user = self._new_user('plain_keep')
+        user.voiceml_domain = self.domain_b
+        self.domain_b.unlink()
+        self.assertTrue(user.exists())
+        self.assertFalse(user.voiceml_domain)
+
+    def test_plain_user_gets_no_domain(self):
+        user = self._new_user('plain_nodom')
+        self.assertFalse(user.voiceml_domain)
+
+    def test_enabling_phone_picks_a_domain(self):
+        user = self._new_user('phone_dom', voiceml_username='phonedom')
+        user.voiceml_client_enabled = True
+        self.assertTrue(user.voiceml_domain)
+
+    def test_two_records_get_two_sids(self):
+        users = self._new_user('sid_one', voiceml_username='sidone', voiceml_domain=self.domain_a.id) \
+            + self._new_user('sid_two', voiceml_username='sidtwo', voiceml_domain=self.domain_a.id)
+        self.env['connect.settings'].set_param('voiceml_auto_sync', True)
+        sids = iter(['CRsid1', 'CRsid2'])
+        with patch.object(
+                type(self.User), '_create_voiceml_sip_account',
+                autospec=True, side_effect=lambda *a, **k: next(sids)):
+            users.write({'voiceml_password': 'Passw0rdPassw0rd'})
+        self.assertEqual(sorted(users.mapped('voiceml_sid')), ['CRsid1', 'CRsid2'])
+
+    def test_same_username_resolves_per_domain(self):
+        one = self._new_user('dup_one', voiceml_username='dupuser', voiceml_domain=self.domain_a.id)
+        two = self._new_user('dup_two', voiceml_username='dupuser', voiceml_domain=self.domain_b.id)
+        self.assertEqual(self.User.get_user_by_uri('sip:dupuser@a.example.com'), one)
+        self.assertEqual(self.User.get_user_by_uri('sip:dupuser@b.example.com'), two)
+
+    def test_empty_wss_setting_yields_domain_url(self):
+        user = self.User.search([('user', '=', self.env.user.id)], limit=1)
+        if not user:
+            user = self.User.create({'user': self.env.user.id, 'name': 'wss_user'})
+        user.write({
+            'voiceml_username': 'wssuser',
+            'voiceml_domain': self.domain_a.id,
+            'voiceml_client_enabled': True,
+        })
+        self.env['connect.settings'].set_param('voiceml_wss_url', '')
+        config = self.User.get_voiceml_phone_config()
+        self.assertTrue(config['ok'])
+        self.assertEqual(config['wss_url'], 'wss://a.example.com:8443')

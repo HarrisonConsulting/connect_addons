@@ -65,3 +65,21 @@ class TestWebhookSignature(TransactionCase):
             webhook.normalize_url('http://example.com/x'),
             'https://example.com/x',
         )
+
+    def test_normalize_url_keeps_query_http(self):
+        self.assertEqual(
+            webhook.normalize_url('http://example.com/x?x=http:foo'),
+            'https://example.com/x?x=http:foo',
+        )
+        url = webhook.normalize_url('http://example.com/x?x=http:foo')
+        sig = webhook.sign_request(url, {'a': '1'}, 'secret')
+        self.assertTrue(webhook.valid_request(url, {'a': '1'}, sig, 'secret'))
+
+    def test_repeated_key_validates(self):
+        # form.lists() yields {key: [values]}; a repeated key signs each value.
+        url = 'https://example.com/voiceml/webhook/callstatus'
+        params = {'CallSid': ['CAabc'], 'Tag': ['b', 'a']}
+        sig = webhook.sign_request(url, params, 'secret')
+        self.assertEqual(
+            sig, webhook.sign_request(url, {'CallSid': 'CAabc', 'Tag': ['a', 'b']}, 'secret'))
+        self.assertTrue(webhook.valid_request(url, params, sig, 'secret'))

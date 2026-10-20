@@ -197,6 +197,9 @@ RENAME_XMLIDS = (
     ('view_connect_sms_message_tree', 'view_connect_message_tree'),
     ('connect_recording_form', 'view_connect_recording_form'),
     ('connect_recording_list', 'view_connect_recording_tree'),
+    # Old action keeps path 'connect-debug'; a fresh NG row would collide
+    # on ir_act_window_path_unique.
+    ('connect_debug_action', 'action_connect_debug'),
 )
 
 # xmlids that moved to connect_twilio under the same name.

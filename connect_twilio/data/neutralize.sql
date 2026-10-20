@@ -22,3 +22,7 @@ UPDATE connect_settings
        region_auth_token = NULL,
        display_region_auth_token = NULL,
        twilio_auto_sync = FALSE;
+
+-- Twilio SIP credential passwords on users.
+UPDATE connect_user
+   SET password = NULL;

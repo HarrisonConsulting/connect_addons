@@ -21,6 +21,7 @@
         'views/number_views.xml',
         'views/outgoing_callerid_views.xml',
         'data/application.xml',
+        'data/revoke_credentials.xml',
     ],
     'assets': {
         'web.assets_backend': [

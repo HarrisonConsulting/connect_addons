@@ -226,3 +226,50 @@ class Domain(models.Model):
                 settings._voiceml_dial_number(number), caller_id,
                 settings._voiceml_webhook_url('voiceml/webhook/callstatus'))
         return '<Response><Say>Number not found. Goodbye!</Say></Response>'
+
+    @api.private
+    def _revoke_orphan_credentials(self, apply=False):
+        """List, and with apply=True delete, SIP credentials on each domain's
+        credential list whose username belongs to no active connect.user
+        (archived, deleted or SIP disabled) on that domain. Dry run by
+        default. Returns and logs a ledger: one dict per credential with
+        domain, username, sid, action (would_delete, deleted, already_gone,
+        failed, list_failed) and error. One failure never stops the rest."""
+        client = self.env['connect.settings']._voiceml_client()
+        domains = (self or self.sudo().search([])).sudo()
+        ledger = []
+        for domain in domains:
+            if not domain.cred_list_sid:
+                continue
+            users = self.env['connect.user'].sudo().with_context(active_test=False).search([
+                ('voiceml_domain', '=', domain.id)])
+            live = {
+                (u.voiceml_username or '').lower() for u in users
+                if u.active and u.voiceml_sip_enabled and u.voiceml_username}
+            credentials = client.sip.credential_lists.credentials(domain.cred_list_sid)
+            try:
+                remote = self._voiceml_items(credentials.list, 'credentials')
+            except Exception as e:
+                ledger.append({'domain': domain.domain_name, 'username': '', 'sid': '',
+                               'action': 'list_failed', 'error': str(e)})
+                continue
+            for cred in remote:
+                if (cred.username or '').lower() in live:
+                    continue
+                row = {'domain': domain.domain_name, 'username': cred.username,
+                       'sid': cred.sid, 'action': 'would_delete', 'error': ''}
+                if apply:
+                    try:
+                        credentials.delete(cred.sid)
+                        row['action'] = 'deleted'
+                    except Exception as e:
+                        if self._voiceml_is_not_found(e):
+                            row['action'] = 'already_gone'
+                        else:
+                            row['action'] = 'failed'
+                            row['error'] = str(e)
+                ledger.append(row)
+        for row in ledger:
+            logger.info('Orphan SIP credential ledger: %s %s %s %s %s', row['domain'],
+                        row['username'], row['sid'], row['action'], row['error'])
+        return ledger

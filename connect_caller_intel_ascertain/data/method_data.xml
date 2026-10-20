@@ -1,0 +1,42 @@
+<odoo>
+    <data noupdate="1">
+        <record id="method_caller_web_reports" model="modelnexus.ascertain.method">
+            <field name="name">Caller complaint-board reports</field>
+            <field name="code">caller_intel_web_reports</field>
+            <field name="description">Find what public complaint boards say about a phone number.</field>
+        </record>
+
+        <record id="method_caller_web_reports_v1" model="modelnexus.ascertain.method.version">
+            <field name="method_id" ref="method_caller_web_reports"/>
+            <field name="default_visibility">org</field>
+            <field name="instructions">Search the web for the number in its international and national formats alongside spam, scam and caller terms. Treat every search result as a candidate. Fetch only pages on known complaint boards, and cite a page only when it names the number. Reject results from any other site. Conclude when the candidate boards have been fetched; close as not found when no complaint-board page names the number.</field>
+            <field name="protocol" eval="{
+                'sources': [{'backend': 'searxng', 'version': 'search.gdo.sh'}],
+                'query_templates': ['&quot;{e164}&quot; OR &quot;{national}&quot; spam OR scam OR caller'],
+                'inclusion': [
+                    {'id': 'complaint-board',
+                     'text': 'The page is on a known caller complaint board.'},
+                    {'id': 'names-number',
+                     'text': 'The page text names the number.'},
+                ],
+                'exclusion': [
+                    {'id': 'other-site',
+                     'text': 'The page is on a site that is not a known complaint board.'},
+                ],
+                'stopping_rule': 'Stop once every complaint-board candidate in the search results has been fetched.',
+                'capture_policy': {
+                    'pdf': False,
+                    'html': True,
+                    'max_bytes': 2000000,
+                    'allow_truncated': True,
+                },
+                'freshness': {'complaint_board': 7},
+                'egress': {
+                    'backends': ['searxng:search.gdo.sh'],
+                    'embed': False,
+                },
+                'default_visibility': 'org',
+            }"/>
+        </record>
+    </data>
+</odoo>

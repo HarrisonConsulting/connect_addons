@@ -68,7 +68,7 @@ class WebReports(Adapter):
     code = SOURCE_CODE
 
     def lookup(self, env, e164):
-        env = env.sudo()
+        env = env(su=True)
         version = env.ref(METHOD_VERSION_XMLID)
         inquiry = env['modelnexus.ascertain.inquiry'].create({
             'name': 'Complaint-board reports for %s' % e164,

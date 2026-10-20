@@ -1,1 +1,85 @@
-<odoo/>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_connect_call_list_caller_intel" model="ir.ui.view">
+        <field name="name">connect.call.list.caller.intel</field>
+        <field name="model">connect.call</field>
+        <field name="inherit_id" ref="connect.view_connect_call_tree"/>
+        <field name="arch" type="xml">
+            <field name="status" position="after">
+                <field name="caller_verdict" widget="badge"
+                       decoration-success="caller_verdict in ('trusted', 'known')"
+                       decoration-warning="caller_verdict in ('suspicious', 'likely_spam')"
+                       decoration-danger="caller_verdict == 'likely_spoof'"
+                       optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_connect_call_form_caller_intel" model="ir.ui.view">
+        <field name="name">connect.call.form.caller.intel</field>
+        <field name="model">connect.call</field>
+        <field name="inherit_id" ref="connect.view_connect_call_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_caller_mark_spam" type="object" string="Mark spam"
+                        invisible="not caller_reputation_id"/>
+                <button name="action_caller_mark_trusted" type="object" string="Not spam"
+                        invisible="not caller_reputation_id"/>
+            </xpath>
+            <xpath expr="//group[@string='Voicemail']" position="before">
+                <group string="Caller Check" invisible="not caller_verdict">
+                    <group>
+                        <field name="caller_verdict" widget="badge"
+                               decoration-success="caller_verdict in ('trusted', 'known')"
+                               decoration-warning="caller_verdict in ('suspicious', 'likely_spam')"
+                               decoration-danger="caller_verdict == 'likely_spoof'"/>
+                        <field name="caller_risk_score" widget="percentage"/>
+                        <field name="caller_commercial_partner_id"/>
+                    </group>
+                    <group>
+                        <field name="caller_intel_summary"/>
+                        <field name="caller_reputation_id"/>
+                    </group>
+                </group>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page name="caller_intel" string="Caller Signals" invisible="not caller_signal_ids">
+                    <field name="caller_signal_ids" readonly="1">
+                        <list>
+                            <field name="code"/>
+                            <field name="severity" widget="badge"
+                                   decoration-danger="severity == 'high'"
+                                   decoration-warning="severity == 'warn'"/>
+                            <field name="reason"/>
+                            <field name="source_id"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="connect_call_search_caller_intel" model="ir.ui.view">
+        <field name="name">connect.call.search.caller.intel</field>
+        <field name="model">connect.call</field>
+        <field name="inherit_id" ref="connect.connect_call_search"/>
+        <field name="arch" type="xml">
+            <filter name="has_error" position="after">
+                <separator/>
+                <filter name="caller_flagged" string="Flagged Callers"
+                        domain="[('caller_verdict', 'in', ('suspicious', 'likely_spam', 'likely_spoof'))]"/>
+                <filter name="caller_spoof" string="Likely Spoof"
+                        domain="[('caller_verdict', '=', 'likely_spoof')]"/>
+                <filter name="caller_spam" string="Likely Spam"
+                        domain="[('caller_verdict', '=', 'likely_spam')]"/>
+                <filter name="caller_trusted" string="Trusted Callers"
+                        domain="[('caller_verdict', 'in', ('trusted', 'known'))]"/>
+            </filter>
+            <filter name="by_status" position="after">
+                <filter name="by_caller_verdict" string="Caller Verdict"
+                        context="{'group_by': 'caller_verdict'}"/>
+            </filter>
+        </field>
+    </record>
+</odoo>

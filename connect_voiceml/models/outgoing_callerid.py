@@ -104,6 +104,15 @@ class OutgoingCallerId(models.Model):
             client.close()
 
     @api.model
+    def _sync_create_savepoint(self, vals):
+        try:
+            with self.env.cr.savepoint():
+                return self.create(vals)
+        except Exception:
+            logger.exception('Caller ID sync failed for %s', vals.get('sid'))
+            return self.browse()
+
+    @api.model
     def sync(self):
         settings = self.env['connect.settings']
         client = settings._voiceml_client()
@@ -119,7 +128,7 @@ class OutgoingCallerId(models.Model):
             seen_sids.add(sid)
             rec = self.search([('sid', '=', sid)])
             if not rec:
-                self.create({
+                self._sync_create_savepoint({
                     'number': row.get('phone_number'),
                     'sid': sid,
                     'friendly_name': row.get('friendly_name'),
@@ -134,7 +143,7 @@ class OutgoingCallerId(models.Model):
                 ('number', '=', number.phone_number),
             ])
             if not rec:
-                self.create({
+                self._sync_create_savepoint({
                     'number': number.phone_number,
                     'sid': number.sid,
                     'friendly_name': number.friendly_name,

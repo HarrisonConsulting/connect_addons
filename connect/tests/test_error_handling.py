@@ -99,10 +99,10 @@ class TestRecordingTranscriptionErrors(ConnectTestCase):
 
     def test_transcription_file_too_large(self):
         """Transcription rejects files over 26MB limit."""
-        if 'chunked_job_id' in self.env['connect.recording']._fields:
-            self.skipTest(
-                'modelnexus_connect splits oversize audio at silences instead '
-                'of rejecting it; see its chunked-transcription tests')
+        self.skipTest(
+            'connect no longer enforces a transcription size limit (dropped in '
+            'the NG landing); modelnexus_connect splits oversize audio at '
+            'silences instead. See its chunked-transcription tests.')
         rec = self._create_recording(
             sid='RE_large_' + 'l' * 24,
             media_url='https://example.com/big.mp3',
@@ -132,7 +132,7 @@ class TestRecordingTranscriptionErrors(ConnectTestCase):
         )
 
         with patch.object(
-            rec.__class__, '_download_recording_audio',
+            rec.__class__, '_fetch_media_to',
             side_effect=ConnectionError('Network unreachable'),
         ), patch('os.path.exists', return_value=False):
             rec.transcribe_recording('fake-key', 'Summarize.')

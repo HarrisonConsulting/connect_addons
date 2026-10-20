@@ -103,7 +103,7 @@ class TestCallerIntelAdapters(TransactionCase):
         self.assertTrue(adapter.lookup(self.env, '+15550100199')['found'])
 
     def test_twilio_lookup_maps_line_type_when_enabled(self):
-        self.lookup.sudo().write({'enabled': True})
+        self.lookup.action_enable()
         settings = self.env['connect.settings']
         payload = {'line_type_intelligence': {'type': 'nonFixedVoip', 'carrier_name': 'Acme'}}
         with mock.patch.object(type(settings), 'get_param', return_value='x'), \

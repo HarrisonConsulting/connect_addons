@@ -1,1 +1,19 @@
-<odoo/>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cron_caller_intel_expire_purge" model="ir.cron">
+        <field name="name">Caller intel: expire stale marks, purge idle numbers</field>
+        <field name="model_id" ref="model_connect_caller_reputation"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_expire_and_purge()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="cron_caller_intel_ftc_bulk_load" model="ir.cron">
+        <field name="name">Caller intel: load FTC reported calls</field>
+        <field name="model_id" ref="model_connect_caller_reputation"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_ftc_bulk_load()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+</odoo>

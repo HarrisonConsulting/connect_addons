@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import inspect
-from unittest.mock import patch
+from itertools import count
+from unittest.mock import MagicMock, patch
 
 from odoo.tests import TransactionCase, tagged
 
@@ -94,6 +95,16 @@ class TestVoicemlUserServerSide(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # No test here may reach VoiceML: every remote call goes to a mock
+        # whose created objects carry unique string sids.
+        sids = count(1)
+        client = MagicMock()
+        client.sip.domains.create.side_effect = lambda **kw: MagicMock(sid='DN%04d' % next(sids))
+        client.sip.credential_lists.create.side_effect = lambda **kw: MagicMock(sid='CL%04d' % next(sids))
+        client.sip.credential_lists.credentials.return_value.create.side_effect = \
+            lambda **kw: MagicMock(sid='CR%04d' % next(sids))
+        cls.startClassPatcher(patch.object(
+            type(cls.env['connect.settings']), '_voiceml_client', return_value=client))
         Domain = cls.env['connect.voiceml.domain']
         cls.domain_a = Domain.create({'domain_name': 'a.example.com'})
         cls.domain_b = Domain.create({'domain_name': 'b.example.com'})

@@ -141,7 +141,13 @@ def main():
     # --- numbers (connect.voiceml.number.sync) ------------------------------
     call(lambda: client.incoming_phone_numbers.list())
     call(lambda: client.incoming_phone_numbers.update(
-        SIDS["number"], friendly_name="Main", voice_url="https://odoo.example.com/voiceml/webhook/number"))
+        SIDS["number"], friendly_name="Main",
+        voice_url="https://odoo.example.com/voiceml/webhook/number",
+        voice_method="POST",
+        status_callback="https://odoo.example.com/voiceml/webhook/callstatus",
+        status_callback_method="POST",
+        sms_url="https://odoo.example.com/voiceml/webhook/message",
+        sms_method="POST"))
 
     # --- recordings (connect.voiceml.recording.on_recording_status) ---------
     call(lambda: client.recordings.get(SIDS["recording"]))
@@ -274,6 +280,16 @@ def main():
     routes_body = parse_form(find("/v2/PhoneNumbers/%2B18005551234")["body"])
     if "VoiceRegion" not in routes_body:
         failures.append("routes-v2 phone body missing VoiceRegion")
+
+    num_body = parse_form(find(
+        root + "/IncomingPhoneNumbers/{}.json".format(SIDS["number"]))["body"])
+    for key, want in (("VoiceMethod", "POST"), ("StatusCallback", None),
+                      ("StatusCallbackMethod", "POST"), ("SmsUrl", None),
+                      ("SmsMethod", "POST")):
+        if key not in num_body:
+            failures.append("IncomingPhoneNumbers update body missing {}".format(key))
+        elif want and num_body[key] != [want]:
+            failures.append("IncomingPhoneNumbers {} = {}, want {}".format(key, num_body[key], want))
 
     ocid_body = parse_form(find(root + "/OutgoingCallerIds.json", "POST")["body"])
     for key in ("PhoneNumber", "FriendlyName"):

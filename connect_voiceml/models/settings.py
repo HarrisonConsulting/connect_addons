@@ -4,7 +4,7 @@ import re
 from urllib.parse import urljoin, urlparse
 
 from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 from voiceml import Client
 from voiceml.models import CreateCallRequest
@@ -112,6 +112,8 @@ class Settings(models.Model):
         return urljoin(api_url, path)
 
     def sync_voiceml(self):
+        if not (self.env.is_superuser() or self.env.user.has_group('connect.group_admin')):
+            raise AccessError("Only Connect administrators can sync VoiceML.")
         if not (
             self.sudo().get_param("voiceml_account_sid")
             and self.sudo().get_param("voiceml_api_key")
@@ -120,20 +122,37 @@ class Settings(models.Model):
         api_url_check = self.check_api_url()
         if api_url_check:
             raise ValidationError(api_url_check)
-        try:
-            self.env["connect.voiceml.application"].sync()
-            self.env["connect.voiceml.domain"].sync()
-            self.env["connect.voiceml.number"].sync()
-            self.env["connect.voiceml.outgoing_callerid"].sync()
+        errors = []
+        for model in (
+            "connect.voiceml.application",
+            "connect.voiceml.domain",
+            "connect.voiceml.number",
+            "connect.voiceml.outgoing_callerid",
+        ):
+            try:
+                with self.env.cr.savepoint():
+                    self.env[model].sync()
+            except Exception as e:
+                response = getattr(e, 'response', None)
+                if (
+                    '20003' in str(e)
+                    or getattr(e, 'status_code', None) == 401
+                    or getattr(response, 'status_code', None) == 401
+                ):
+                    raise ValidationError(
+                        'Error authenticating requests to the VoiceML API! Check your API key!'
+                    )
+                logger.exception("VoiceML sync failed for %s", model)
+                errors.append("%s: %s" % (model, format_connect_response(str(e))))
+        if errors:
+            self.connect_notify(
+                "VoiceML sync finished with errors: %s" % "; ".join(errors),
+                title="Sync Incomplete", warning=True,
+            )
+        else:
             self.connect_notify(
                 "VoiceML account synced successfully", title="Sync Complete"
             )
-        except Exception as e:
-            if '20003' in str(e):
-                raise ValidationError(
-                    'Error authenticating requests to the VoiceML API! Check your API key!'
-                )
-            raise
 
     def compute_voiceml_sip_uri(self, user):
         return "sip:{}".format(user.connect_user.voiceml_uri)

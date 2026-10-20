@@ -19,7 +19,7 @@ class TestVoicemlNeutralize(TransactionCase):
                         'voiceml_account_sid': 'ACkeep'})
         user = self.env['connect.user'].sudo().search([], limit=1)
         if user:
-            user.with_context(skip_icp_sync=True).write(
+            user.with_context(skip_voiceml_sync=True).write(
                 {'voiceml_password': 'secret'})
         self.env.flush_all()
 

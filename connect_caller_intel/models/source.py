@@ -45,10 +45,9 @@ class ConnectCallerSource(models.Model):
              'Such a source cannot be enabled.')
 
     def _compute_adapter_available(self):
-        from ..services import adapters
-        registry = getattr(adapters, 'ADAPTERS', {})
+        from ..services.adapters.registry import ADAPTERS
         for source in self:
-            source.adapter_available = source.tier == 'sync' or source.code in registry
+            source.adapter_available = source.tier == 'sync' or source.code in ADAPTERS
 
     @api.model_create_multi
     def create(self, vals_list):

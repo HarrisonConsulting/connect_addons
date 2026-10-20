@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="queue_channel_caller_intel" model="queue.job.channel">
+        <field name="name">connect_caller_intel</field>
+        <field name="parent_id" ref="queue_job.channel_root"/>
+    </record>
+    <record id="job_function_caller_reputation_refresh_source" model="queue.job.function">
+        <field name="model_id" ref="model_connect_caller_reputation"/>
+        <field name="method">_refresh_source</field>
+        <field name="channel_id" ref="queue_channel_caller_intel"/>
+        <field name="retry_pattern" eval="{1: 60, 2: 300, 3: 1800}"/>
+    </record>
+</odoo>

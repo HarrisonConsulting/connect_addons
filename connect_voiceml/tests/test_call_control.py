@@ -31,7 +31,8 @@ class TestCallControl(TransactionCase):
         self.ours = Channel.create({
             'sid': 'CAours', 'status': 'in-progress', 'call': self.call.id,
             'technical_direction': 'inbound',
-            'caller_pbx_user': self.agent.id})
+            'caller_pbx_user': self.agent.id,
+            'caller_user': res_user.id})
         self.theirs = Channel.create({
             'sid': 'CAtheirs', 'status': 'in-progress', 'call': self.call.id,
             'technical_direction': 'outbound-dial'})

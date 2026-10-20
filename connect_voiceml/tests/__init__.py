@@ -5,3 +5,6 @@ from . import test_number_routing
 from . import test_settings_client
 from . import test_provider_coexistence
 from . import test_rpc_surface
+from . import test_media_trust
+from . import test_voicemail
+from . import test_recording_webhook

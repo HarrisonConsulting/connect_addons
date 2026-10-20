@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import settings
+from . import media
 from . import twiml_builder
 from . import webhook
 from . import application

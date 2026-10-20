@@ -210,7 +210,9 @@ class User(models.Model):
                 for rec in self):
             raise ValidationError('VoiceML username cannot be changed!')
         for rec in self:
-            if vals.get('voiceml_password') and self.env["connect.settings"].get_param("voiceml_auto_sync"):
+            if (vals.get('voiceml_password') and rec.voiceml_username
+                    and vals.get('voiceml_sip_enabled', rec.voiceml_sip_enabled)
+                    and self.env["connect.settings"].get_param("voiceml_auto_sync")):
                 if rec.voiceml_sid:
                     rec._update_voiceml_sip_password(vals['voiceml_password'])
                 else:

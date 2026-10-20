@@ -7,7 +7,7 @@
     'summary': 'VoiceML integration for Oduist Connect',
     'depends': ['connect'],
     'external_dependencies': {
-        'python': ['voiceml'],
+        'python': ['voiceml>=0.9.3'],
     },
     'data': [
         'security/access_rules.xml',

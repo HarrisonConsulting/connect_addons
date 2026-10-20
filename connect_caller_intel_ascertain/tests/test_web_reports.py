@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from unittest import mock
 
 from odoo.tests import TransactionCase, tagged
@@ -5,11 +6,14 @@ from odoo.tests import TransactionCase, tagged
 from odoo.addons.connect_caller_intel.services.adapters.base import AdapterError
 from odoo.addons.connect_caller_intel.services.adapters.registry import ADAPTERS
 
+from odoo.addons.modelnexus_ascertain.services import fetch as fetcher
+
 from ..services import web_reports
 
 E164 = '+15550100199'
 BOARD_URL = 'https://800notes.com/Phone.aspx/1-555-010-0199'
 OTHER_URL = 'https://example.org/blog/spam-numbers'
+FETCH = 'odoo.addons.modelnexus_ascertain.services.fetch'
 PAGE = 'Comments for 555-010-0199: this number is a scam, do not answer.'
 
 
@@ -31,15 +35,15 @@ class TestWebReports(TransactionCase):
             return_value=('searxng', 'https://search.gdo.sh', results, None))
 
     def _fetch(self, text=PAGE, final_url=BOARD_URL):
-        def capture_source(inquiry, url, allow_truncated=False):
-            capture = self.env['modelnexus.ascertain.capture'].sudo().create({
-                'inquiry_id': inquiry.id, 'requested_url': url, 'final_url': final_url,
-                'observed_at': '2026-10-20 12:00:00', 'text': text,
-                'sha256': 'a' * 64, 'http_status': 200,
-            })
-            step = inquiry.log_step('fetch', 'Captured %s' % final_url)
-            return {'ok': True, 'capture': capture, 'step': step}
-        return mock.patch.object(type(self.Inquiry), 'capture_source', capture_source)
+        body = ('<html><body><p>%s</p></body></html>' % text).encode()
+        result = fetcher.FetchResult(
+            200, final_url, 'text/html; charset=utf-8', body,
+            {'Content-Type': 'text/html; charset=utf-8'}, False)
+        stack = ExitStack()
+        stack.enter_context(mock.patch(FETCH + '.refusal_reason', return_value=None))
+        stack.enter_context(mock.patch(FETCH + '.robots_allows', return_value=True))
+        stack.enter_context(mock.patch(FETCH + '.fetch', return_value=result))
+        return stack
 
     def test_registered_and_seeded(self):
         self.assertIn('web_reports', ADAPTERS)
@@ -72,7 +76,7 @@ class TestWebReports(TransactionCase):
         self.assertEqual(self.rep.web_capture_id, mark.capture_id)
 
     def test_non_board_results_are_not_fetched(self):
-        with self._search([OTHER_URL]), self._fetch() as fetch:
+        with self._search([OTHER_URL]), self._fetch():
             self.assertEqual(self.rep._refresh_source('web_reports'), 'not_found')
         self.assertFalse(self.rep.mark_ids)
         inquiry = self.Inquiry.search([], order='id desc', limit=1)

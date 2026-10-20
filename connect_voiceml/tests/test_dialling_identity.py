@@ -21,7 +21,7 @@ class TestDiallingIdentity(TransactionCase):
             'user': res_user.id, 'name': 'Dial', 'voiceml_username': 'dial1'})
 
     def _ocid(self, number, **vals):
-        return self.OCID.create(dict({'number': number, 'name': number}, **vals))
+        return self.OCID.create(dict({'number': number, 'friendly_name': number}, **vals))
 
     def test_pstn_caller_id_prefers_user_then_default_never_extension(self):
         self.assertEqual(self.user.voiceml_pstn_caller_id(), '')

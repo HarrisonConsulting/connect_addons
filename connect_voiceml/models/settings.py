@@ -53,11 +53,13 @@ class Settings(models.Model):
     display_voiceml_api_key = fields.Char()
     voiceml_base_url = fields.Char(
         string="VoiceML API URL",
+        groups="base.group_system",
         help="Base URL of the VoiceML REST API, e.g. "
         "https://voiceml.voicetel.com. The VoiceML SDK is pointed here.",
     )
     voiceml_wss_url = fields.Char(
         string="WebRTC WSS URL",
+        groups="base.group_system",
         help="wss:// URL of the OpenSIPS registrar the browser softphone "
         "registers against (e.g. wss://<node>:8443).",
     )
@@ -67,6 +69,32 @@ class Settings(models.Model):
         help="Off rejects every VoiceML webhook. It never lets an "
         "unsigned request through.",
     )
+
+    @api.constrains("voiceml_base_url", "voiceml_wss_url")
+    def _check_voiceml_endpoints(self):
+        """The API key is sent to voiceml_base_url, so it must be https and a
+        VoiceTel host unless an administrator opted in to a custom host."""
+        allow_custom = self.env["ir.config_parameter"].sudo().get_param(
+            "connect.voiceml_allow_custom_host")
+        for rec in self.sudo():
+            for fname, scheme in (("voiceml_base_url", "https"), ("voiceml_wss_url", "wss")):
+                value = (rec[fname] or "").strip()
+                if not value:
+                    continue
+                try:
+                    parsed = urlparse(value)
+                    host = (parsed.hostname or "").lower()
+                    userinfo = parsed.username or parsed.password
+                except ValueError:
+                    raise ValidationError("%s is not a valid URL." % fname)
+                if parsed.scheme != scheme or not host or userinfo:
+                    raise ValidationError(
+                        "%s must be a %s:// URL without credentials." % (fname, scheme))
+                if not allow_custom and not (
+                        host == "voicetel.com" or host.endswith(".voicetel.com")):
+                    raise ValidationError(
+                        "%s must be a *.voicetel.com host. Set the system parameter "
+                        "connect.voiceml_allow_custom_host to allow another host." % fname)
 
     @api.model
     def _voiceml_api_host(self):
@@ -82,8 +110,12 @@ class Settings(models.Model):
         Only attach credentials for our own API host: an externally-hosted
         media URL (presigned S3 bucket) must not receive the API key.
         """
-        host = (urlparse(media_url or '').hostname or '').lower()
+        parsed = urlparse(media_url or '')
+        host = (parsed.hostname or '').lower()
         base_host = self._voiceml_api_host()
+        if parsed.scheme != 'https':
+            # Never send the API key over cleartext.
+            return None
         if not base_host or host != base_host:
             return super()._get_media_auth(media_url)
         account_sid = self.sudo().get_param('voiceml_account_sid')

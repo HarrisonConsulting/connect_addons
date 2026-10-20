@@ -174,14 +174,20 @@ class Domain(models.Model):
     def sync(self):
         client = self.env['connect.settings']._voiceml_client()
         for domain in client.sip.domains.list().domains:
-            rec = self.search([('domain_name', '=', domain.domain_name)], limit=1)
-            if not rec:
-                rec = self.with_context(install_mode=True).create({
-                    'domain_name': domain.domain_name,
-                    'friendly_name': domain.friendly_name,
-                })
-            if domain.sid:
-                rec._adopt_remote(client, domain)
+            # One savepoint per remote domain: a later failure must not roll
+            # back rows whose remote objects already exist.
+            try:
+                with self.env.cr.savepoint():
+                    rec = self.search([('domain_name', '=', domain.domain_name)], limit=1)
+                    if not rec:
+                        rec = self.with_context(install_mode=True).create({
+                            'domain_name': domain.domain_name,
+                            'friendly_name': domain.friendly_name,
+                        })
+                    if domain.sid:
+                        rec._adopt_remote(client, domain)
+            except Exception:
+                logger.exception('Domain sync failed for %s', domain.domain_name)
 
     @api.model
     def _route_call(self, request, params={}):

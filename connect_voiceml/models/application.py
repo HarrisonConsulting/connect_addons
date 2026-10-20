@@ -102,8 +102,10 @@ class Application(models.Model):
             if rec.sid:
                 try:
                     client.applications.delete(rec.sid)
-                except Exception:
-                    logger.exception('Failed to delete VoiceML application %s', rec.sid)
+                except Exception as e:
+                    if getattr(e, 'status_code', None) != 404:
+                        raise
+                    logger.info('VoiceML application %s already gone', rec.sid)
         return super().unlink()
 
     @api.model
@@ -126,7 +128,11 @@ class Application(models.Model):
                     'Skipping VoiceML application %s: voice_url host %s is not %s',
                     application.sid, remote_host, api_host)
                 continue
-            rec.update_application(client)
+            try:
+                with self.env.cr.savepoint():
+                    rec.update_application(client)
+            except Exception:
+                logger.exception('Application sync failed for %s', application.sid)
 
     def _reject_twiml(self):
         response = TwiMLResponse()

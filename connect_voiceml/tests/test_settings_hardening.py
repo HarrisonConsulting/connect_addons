@@ -33,16 +33,19 @@ class TestSettingsHardening(TransactionCase):
                 ('voiceml_wss_url', 'ws://x.vml.voice.tel'),
                 ('voiceml_wss_url', 'wss://x.example.com:8443')):
             fake = MagicMock()
+            fake.env = self.env
             fake.sudo.return_value = [{'voiceml_base_url': '', 'voiceml_wss_url': '', field: value}]
             with self.assertRaises(ValidationError, msg=value):
                 check.__func__(fake)
         ok = MagicMock()
+        ok.env = self.env
         ok.sudo.return_value = [{
             'voiceml_base_url': 'https://voiceml.voicetel.com',
             'voiceml_wss_url': 'wss://d.vml.voicetel.com:8443'}]
         check.__func__(ok)
         self.icp.set_param('connect.voiceml_allow_custom_host', '1')
         custom = MagicMock()
+        custom.env = self.env
         custom.sudo.return_value = [{
             'voiceml_base_url': 'https://voiceml.example.com', 'voiceml_wss_url': ''}]
         check.__func__(custom)

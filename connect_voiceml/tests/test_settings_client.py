@@ -6,6 +6,10 @@ class TestSettingsClient(TransactionCase):
 
     def setUp(self):
         super().setUp()
+        # These tests exercise a custom VoiceML host, which the endpoint
+        # constraint only accepts when an administrator opted in.
+        self.env['ir.config_parameter'].sudo().set_param(
+            'connect.voiceml_allow_custom_host', '1')
         self.Settings = self.env['connect.settings']
         self.settings = self.Settings.search([], limit=1)
         if not self.settings:

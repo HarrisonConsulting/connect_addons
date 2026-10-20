@@ -63,15 +63,21 @@ class Call(models.Model):
         channel = self.sudo().env['connect.channel'].search(
             [('sid', '=', params['CallSid'])])
         recording_url = params.get('RecordingUrl') or ''
-        host = (urlparse(recording_url).hostname or '').lower()
-        if recording_url and host != self.env['connect.settings']._voiceml_api_host():
+        parsed = urlparse(recording_url)
+        host = (parsed.hostname or '').lower()
+        if recording_url and (
+                parsed.scheme != 'https'
+                or host != self.env['connect.settings']._voiceml_api_host()):
             # Core's /connect/voicemail proxy GETs this URL server-side, so a
             # foreign host here would be a read-anything SSRF.
-            logger.warning('Ignoring voicemail RecordingUrl on foreign host %s', host)
+            logger.warning('Ignoring voicemail RecordingUrl on foreign or non-https host %s', host)
             return False
         if channel and channel.call:
-            channel.call.write({
+            vals = {
                 'voicemail_url': recording_url,
-                'voicemail_duration': int(params.get('RecordingDuration', 0)),
-            })
+                'voicemail_duration': int(params.get('RecordingDuration') or 0),
+            }
+            if 'voicemail_sid' in channel.call._fields and params.get('RecordingSid'):
+                vals['voicemail_sid'] = params['RecordingSid']
+            channel.call.write(vals)
         return True

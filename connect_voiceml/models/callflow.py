@@ -103,6 +103,16 @@ class CallFlow(models.Model):
             return hints
         return None
 
+    def _add_voicemail_record(self, response):
+        api_url = self.env['connect.settings'].sudo().get_param('api_url')
+        response.verb(
+            'Record',
+            action=urljoin(api_url, 'voiceml/webhook/callaction'),
+            method='POST',
+            recordingStatusCallback=urljoin(api_url, 'voiceml/webhook/vm_recordingstatus'),
+            recordingStatusCallbackEvent='completed',
+            maxLength=120, finishOnKey='#', playBeep=True)
+
     def render(self, request={}, params={}):
         self.ensure_one()
         api_url = self.env['connect.settings'].sudo().get_param('api_url')
@@ -151,7 +161,7 @@ class CallFlow(models.Model):
             if self.voicemail_enabled and self.voicemail_prompt:
                 response.pause(length=1)
                 response.say(self.voicemail_prompt, language=self.language, voice=self.voice)
-                response.verb('Record', maxLength=120, finishOnKey='#', playBeep=True)
+                self._add_voicemail_record(response)
             else:
                 response.say('This callflow has no actions! Goodbye!')
                 response.pause(length=1)
@@ -166,7 +176,7 @@ class CallFlow(models.Model):
             if callflow.voicemail_enabled and callflow.voicemail_prompt:
                 response.pause(length=1)
                 response.say(callflow.voicemail_prompt, language=callflow.language, voice=callflow.voice)
-                response.verb('Record', maxLength=120, finishOnKey='#', playBeep=True)
+                callflow._add_voicemail_record(response)
             else:
                 response.say('Sorry, I could not connect your call. Goodbye!')
                 response.pause(length=1)

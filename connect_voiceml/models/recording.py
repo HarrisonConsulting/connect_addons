@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+from email.utils import parsedate_to_datetime
+from datetime import timezone
 
 from odoo import fields, models, api
 
@@ -25,10 +27,25 @@ class Recording(models.Model):
             'duration', 'source', 'start_time', 'status',
         ]:
             data[field] = getattr(rec, field, None)
-        channel = self.env['connect.channel'].search([('sid', '=', rec.call_sid)])
+        data['start_time'] = self._voiceml_parse_start_time(data['start_time'])
+        channel = self.env['connect.channel'].search(
+            [('sid', '=', rec.call_sid)], limit=1)
         data['call'] = channel.call.id if channel else False
         data['channel'] = channel.id if channel else False
         return data
+
+    @api.model
+    def _voiceml_parse_start_time(self, value):
+        """RFC 2822 string from the API to naive UTC datetime, or False."""
+        if not value:
+            return False
+        try:
+            dt = parsedate_to_datetime(str(value))
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+        except (TypeError, ValueError, IndexError):
+            return False
 
     def sync_voiceml(self):
         client = self.env['connect.settings']._voiceml_client()
@@ -60,11 +77,19 @@ class Recording(models.Model):
             data['partner'] = call.partner.id
             data['caller_number'] = call.caller
             data['called_number'] = call.called
-        client = self.env['connect.settings']._voiceml_client()
         try:
+            client = self.env['connect.settings']._voiceml_client()
             recording = client.recordings.get(data['sid'])
             data.update(self.prepare_voiceml_data(recording))
+            if not data.get('media_url'):
+                data['media_url'] = params.get('RecordingUrl')
         except Exception as e:
             logger.exception('Recording fetch error: %s', e)
-        self.create(data)
+            if params.get('RecordingUrl'):
+                data['media_url'] = params['RecordingUrl']
+        existing = self.search([('sid', '=', data['sid'])], limit=1)
+        if existing:
+            existing.write(data)
+        else:
+            self.create(data)
         return True

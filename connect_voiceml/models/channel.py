@@ -44,7 +44,7 @@ class Channel(models.Model):
             'to': params.get('To'),
             'technical_direction': params.get('Direction'),
             'status': params.get('CallStatus'),
-            'duration': int(params.get('CallDuration', 0)),
+            'duration': int(params.get('CallDuration') or 0),
             'call_type': 'phone',
             'parent_sid': params.get('ParentCallSid'),
         }

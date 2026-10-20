@@ -1,0 +1,9 @@
+<odoo>
+    <menuitem id="menu_caller_intel" name="Caller Intel"
+              parent="connect.menu_connect_settings" sequence="60"/>
+    <menuitem id="menu_caller_reputation" name="Number Reputation"
+              parent="menu_caller_intel" action="action_caller_reputation" sequence="10"/>
+    <menuitem id="menu_caller_source" name="Sources"
+              parent="menu_caller_intel" action="action_caller_source" sequence="20"
+              groups="connect.group_admin"/>
+</odoo>

@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_caller_source_user,connect.caller.source user,model_connect_caller_source,connect.group_user,1,0,0,0
+access_caller_source_admin,connect.caller.source admin,model_connect_caller_source,connect.group_admin,1,1,1,1
+access_caller_reputation_user,connect.caller.reputation user,model_connect_caller_reputation,connect.group_user,1,1,1,0
+access_caller_reputation_admin,connect.caller.reputation admin,model_connect_caller_reputation,connect.group_admin,1,1,1,1
+access_caller_mark_user,connect.caller.mark user,model_connect_caller_mark,connect.group_user,1,1,1,0
+access_caller_mark_admin,connect.caller.mark admin,model_connect_caller_mark,connect.group_admin,1,1,1,1
+access_caller_signal_user,connect.caller.signal user,model_connect_caller_signal,connect.group_user,1,1,1,0
+access_caller_signal_admin,connect.caller.signal admin,model_connect_caller_signal,connect.group_admin,1,1,1,1

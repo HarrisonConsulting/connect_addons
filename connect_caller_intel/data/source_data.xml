@@ -1,0 +1,75 @@
+<odoo noupdate="1">
+    <record id="source_local_partner" model="connect.caller.source">
+        <field name="code">local_partner</field>
+        <field name="name">Odoo contacts</field>
+        <field name="tier">sync</field>
+        <field name="cost_class">free</field>
+        <field name="enabled" eval="True"/>
+        <field name="clearing_note">Fix the contact's phone number in Odoo.</field>
+    </record>
+    <record id="source_stir_shaken" model="connect.caller.source">
+        <field name="code">stir_shaken</field>
+        <field name="name">Twilio STIR/SHAKEN verification</field>
+        <field name="tier">sync</field>
+        <field name="cost_class">free</field>
+        <field name="enabled" eval="True"/>
+        <field name="clearing_note">The originating carrier must sign the call at attestation A. The number owner asks their carrier.</field>
+    </record>
+    <record id="source_numbering_plan" model="connect.caller.source">
+        <field name="code">numbering_plan</field>
+        <field name="name">Numbering plan metadata</field>
+        <field name="tier">sync</field>
+        <field name="cost_class">free</field>
+        <field name="enabled" eval="True"/>
+    </record>
+    <record id="source_staff" model="connect.caller.source">
+        <field name="code">staff</field>
+        <field name="name">Staff report</field>
+        <field name="tier">sync</field>
+        <field name="cost_class">free</field>
+        <field name="enabled" eval="True"/>
+        <field name="clearing_note">A staff member marks the number "not spam".</field>
+    </record>
+    <record id="source_ftc_dnc" model="connect.caller.source">
+        <field name="code">ftc_dnc</field>
+        <field name="name">FTC Do Not Call complaints</field>
+        <field name="tier">async</field>
+        <field name="cost_class">free</field>
+        <field name="cost_note">Free. Requires an api.data.gov key; get one at api.data.gov/signup.</field>
+        <field name="enabled" eval="True"/>
+        <field name="credential_param">connect_caller_intel.ftc_api_key</field>
+        <field name="ttl_hours">24</field>
+        <field name="clearing_url">https://www.freecallerregistry.com</field>
+        <field name="clearing_note">FTC complaints are not removable. Reports are unverified consumer complaints. Analytics registration: https://www.freecallerregistry.com</field>
+    </record>
+    <record id="source_fcc_complaints" model="connect.caller.source">
+        <field name="code">fcc_complaints</field>
+        <field name="name">FCC consumer complaints</field>
+        <field name="tier">async</field>
+        <field name="cost_class">free</field>
+        <field name="enabled" eval="True"/>
+        <field name="ttl_hours">168</field>
+        <field name="clearing_note">FCC complaints are not removable. Reports are unverified consumer complaints.</field>
+    </record>
+    <record id="source_twilio_lookup_line_type" model="connect.caller.source">
+        <field name="code">twilio_lookup_line_type</field>
+        <field name="name">Twilio Lookup line type</field>
+        <field name="tier">async</field>
+        <field name="cost_class">paid</field>
+        <field name="cost_note">US $0.008 per Twilio Lookup request, billed by Twilio to the account whose credentials are configured. Vendor prices change; the Twilio invoice is the authority.</field>
+        <field name="enabled" eval="False"/>
+        <field name="credential_param">connect_twilio.account_sid</field>
+        <field name="ttl_hours">2160</field>
+    </record>
+    <record id="source_twilio_lookup_cnam" model="connect.caller.source">
+        <field name="code">twilio_lookup_cnam</field>
+        <field name="name">Twilio Lookup caller name</field>
+        <field name="tier">async</field>
+        <field name="cost_class">paid</field>
+        <field name="cost_note">US $0.01 per Twilio Lookup request, billed even when no name is returned, by Twilio to the account whose credentials are configured. Vendor prices change; the Twilio invoice is the authority.</field>
+        <field name="enabled" eval="False"/>
+        <field name="credential_param">connect_twilio.account_sid</field>
+        <field name="ttl_hours">720</field>
+        <field name="clearing_note">The number owner updates the caller name (CNAM) with their carrier.</field>
+    </record>
+</odoo>

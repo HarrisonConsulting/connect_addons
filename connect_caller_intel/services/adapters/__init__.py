@@ -1,0 +1,1 @@
+"""Async source adapters registry."""

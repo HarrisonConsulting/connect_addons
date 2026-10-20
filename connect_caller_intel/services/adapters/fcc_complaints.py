@@ -1,0 +1,1 @@
+"""FCC consumer complaints adapter."""

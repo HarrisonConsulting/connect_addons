@@ -84,6 +84,12 @@ def start_server():
     return server, "http://127.0.0.1:{}".format(server.server_address[1])
 
 
+def _is_response_validation(exc):
+    """True only for the Pydantic error raised on the mock's empty response."""
+    return type(exc).__module__.split(".")[0] == "pydantic" or \
+        type(exc).__name__ == "ValidationError"
+
+
 def call(fn):
     """Run an SDK call, tolerating response-validation errors.
 
@@ -93,8 +99,9 @@ def call(fn):
     """
     try:
         fn()
-    except Exception:
-        pass
+    except Exception as exc:
+        if not _is_response_validation(exc):
+            raise
 
 
 def latest():

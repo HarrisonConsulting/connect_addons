@@ -34,30 +34,112 @@ class Domain(models.Model):
         for rec in self:
             rec.voice_url = urljoin(api_url, 'voiceml/webhook/domain')
 
+    # --- Remote adoption (VoiceML domain names are globally unique) ---
+
+    @staticmethod
+    def _voiceml_is_conflict(error):
+        """409, or the Twilio-compatible 21631 duplicate-resource code."""
+        return (getattr(error, 'status_code', None) == 409
+                or str(getattr(error, 'code', '')) == '21631')
+
+    @staticmethod
+    def _voiceml_is_not_found(error):
+        return getattr(error, 'status_code', None) == 404
+
+    @staticmethod
+    def _voiceml_items(list_fn, attr, max_pages=100):
+        """All items of a paged VoiceML list. list_fn is the resource's
+        list callable; pages are read until next_page_uri is empty."""
+        items = []
+        for page in range(max_pages):
+            try:
+                result = list_fn(page=page, page_size=1000)
+            except TypeError:
+                result = list_fn() if page == 0 else None
+            if result is None:
+                break
+            chunk = getattr(result, attr, None)
+            if chunk is None and isinstance(result, (list, tuple)):
+                chunk = result
+            items.extend(chunk or [])
+            if not getattr(result, 'next_page_uri', None):
+                break
+        return items
+
+    def _find_remote_domain(self, client):
+        self.ensure_one()
+        wanted = (self.domain_name or '').lower()
+        for remote in self._voiceml_items(client.sip.domains.list, 'domains'):
+            if (remote.domain_name or '').lower() == wanted:
+                return remote
+        return None
+
+    def _mapping_list_sids(self, mappings):
+        return [m.credential_list_sid if getattr(m, 'credential_list_sid', None) else m.sid
+                for m in mappings]
+
+    def _ensure_cred_list(self, client):
+        """Make sure the domain has a credential list mapped for registration
+        and calls, reusing the one already mapped on the remote domain."""
+        self.ensure_one()
+        if not self.sid:
+            return self.cred_list_sid
+        reg = client.sip.domains.auth.registrations.credential_list_mappings(self.sid)
+        reg_sids = self._mapping_list_sids(
+            self._voiceml_items(reg.list, 'credential_list_mappings'))
+        if reg_sids:
+            if self.cred_list_sid not in reg_sids:
+                self.cred_list_sid = reg_sids[0]
+        else:
+            if not self.cred_list_sid:
+                cred_list = client.sip.credential_lists.create(
+                    friendly_name=self.domain_name)
+                self.cred_list_sid = cred_list.sid
+            reg.create(credential_list_sid=self.cred_list_sid)
+        calls = client.sip.domains.auth.calls.credential_list_mappings(self.sid)
+        call_sids = self._mapping_list_sids(
+            self._voiceml_items(calls.list, 'credential_list_mappings'))
+        if self.cred_list_sid not in call_sids:
+            calls.create(credential_list_sid=self.cred_list_sid)
+        return self.cred_list_sid
+
+    def _adopt_remote(self, client, remote):
+        """Take over an existing remote domain: sid, credential list and the
+        voice URL. No write is sent when the remote already matches."""
+        self.ensure_one()
+        self.sid = remote.sid
+        self._ensure_cred_list(client)
+        if (getattr(remote, 'voice_url', None) != self.voice_url
+                or (getattr(remote, 'voice_method', None) or 'POST').upper() != 'POST'):
+            client.sip.domains.update(
+                self.sid, voice_url=self.voice_url, voice_method='POST')
+        debug(self, 'Adopted VoiceML SIP domain {}.'.format(self.domain_name))
+        return self.sid
+
     def create_domain(self, client):
         self.ensure_one()
-        domain = client.sip.domains.create(
-            domain_name=self.domain_name,
-            friendly_name=self.friendly_name or self.domain_name,
-            voice_url=self.voice_url,
-            voice_method='POST',
-            sip_registration=True,
-        )
-        self.sid = domain.sid
-        cred_list = client.sip.credential_lists.create(
-            friendly_name=self.domain_name
-        )
-        self.cred_list_sid = cred_list.sid
-        # Bind the credential list for both registration auth and call auth,
-        # so SIP endpoints can register AND receive/place calls through it.
-        client.sip.domains.auth.registrations.credential_list_mappings(
-            self.sid
-        ).create(credential_list_sid=self.cred_list_sid)
-        client.sip.domains.auth.calls.credential_list_mappings(
-            self.sid
-        ).create(credential_list_sid=self.cred_list_sid)
-        debug(self, 'Created VoiceML SIP domain {}.'.format(self.domain_name))
-        return self.sid
+        remote = self._find_remote_domain(client)
+        if not remote:
+            try:
+                remote = client.sip.domains.create(
+                    domain_name=self.domain_name,
+                    friendly_name=self.friendly_name or self.domain_name,
+                    voice_url=self.voice_url,
+                    voice_method='POST',
+                    sip_registration=True,
+                )
+                # Record the sid at once so a later failure cannot orphan it.
+                self.sid = remote.sid
+                self._ensure_cred_list(client)
+                debug(self, 'Created VoiceML SIP domain {}.'.format(self.domain_name))
+                return self.sid
+            except Exception as e:
+                if not self._voiceml_is_conflict(e):
+                    raise
+                remote = self._find_remote_domain(client)
+                if not remote:
+                    raise
+        return self._adopt_remote(client, remote)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -75,13 +157,17 @@ class Domain(models.Model):
             if rec.sid:
                 try:
                     client.sip.domains.delete(rec.sid)
-                except Exception:
-                    logger.exception('Failed to delete SIP domain %s', rec.domain_name)
+                except Exception as e:
+                    if not self._voiceml_is_not_found(e):
+                        raise
+                    logger.info('SIP domain %s already gone', rec.domain_name)
             if rec.cred_list_sid:
                 try:
                     client.sip.credential_lists.delete(rec.cred_list_sid)
-                except Exception:
-                    logger.exception('Failed to delete SIP credential list %s', rec.cred_list_sid)
+                except Exception as e:
+                    if not self._voiceml_is_not_found(e):
+                        raise
+                    logger.info('SIP credential list %s already gone', rec.cred_list_sid)
         return super().unlink()
 
     @api.model
@@ -95,7 +181,7 @@ class Domain(models.Model):
                     'friendly_name': domain.friendly_name,
                 })
             if domain.sid:
-                rec.sid = domain.sid
+                rec._adopt_remote(client, domain)
 
     @api.model
     def _route_call(self, request, params={}):
@@ -126,11 +212,11 @@ class Domain(models.Model):
         if number.isdigit() and len(number) > MAX_EXTEN_LEN:
             settings = self.env['connect.settings'].sudo()
             caller = self.env['connect.user'].sudo().get_user_by_uri(request.get('From'))
-            caller_id = caller.voiceml_caller_id() if caller else ''
+            caller_id = caller.voiceml_pstn_caller_id() if caller else ''
             if not caller_id:
                 return ('<Response><Say>You must configure a caller ID number!'
                         '</Say></Response>')
             return settings.get_voiceml_external_call_route(
-                '+{}'.format(number), caller_id,
+                settings._voiceml_dial_number(number), caller_id,
                 settings._voiceml_webhook_url('voiceml/webhook/callstatus'))
         return '<Response><Say>Number not found. Goodbye!</Say></Response>'

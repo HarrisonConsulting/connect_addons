@@ -3,7 +3,9 @@ import inspect
 from itertools import count
 from unittest.mock import MagicMock, patch
 
+from odoo.tools import mute_logger
 from odoo.tests import TransactionCase, tagged
+from psycopg2 import IntegrityError
 
 SHARED_MODELS = (
     'connect.call',
@@ -155,7 +157,7 @@ class TestVoicemlUserServerSide(TransactionCase):
         one = self._new_user('dup_one', voiceml_username='dupuser', voiceml_domain=self.domain_a.id)
         self.assertEqual(self.User.get_user_by_uri('sip:dupuser@a.example.com'), one)
         self.assertEqual(self.User.get_user_by_uri('sip:dupuser@b.example.com'), one)
-        with self.assertRaises(Exception), self.cr.savepoint():
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'), self.cr.savepoint():
             self._new_user('dup_two', voiceml_username='dupuser', voiceml_domain=self.domain_b.id)
 
     def test_empty_wss_setting_yields_domain_url(self):

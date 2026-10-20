@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="connect_caller_intel.CallerIntelCard">
+        <div t-if="state.card" class="o_caller_intel_card" t-att-data-verdict="state.card.verdict">
+            <div class="o_caller_intel_head">
+                <span t-attf-class="badge rounded-pill {{ verdict.cls }}" t-esc="verdict.label"/>
+                <i t-if="state.card.attestation === 'A'" class="fa fa-check-circle text-success"
+                   title="Carrier attested A: the originating carrier verified this caller and their right to the number."/>
+                <span t-if="state.card.name" class="o_caller_intel_name" t-esc="state.card.name"/>
+                <span t-if="state.card.commercial_partner" class="o_caller_intel_company"
+                      t-esc="state.card.commercial_partner.name"/>
+            </div>
+            <ul t-if="state.card.signals.length" class="o_caller_intel_signals">
+                <li t-foreach="state.card.signals" t-as="signal" t-key="signal_index"
+                    t-attf-class="o_caller_intel_signal severity-{{ signal.severity }}">
+                    <span t-esc="signal.label"/>
+                    <span t-if="signal.reason" class="o_caller_intel_reason" t-esc="signal.reason"/>
+                </li>
+            </ul>
+            <div t-if="state.card.marks.length" class="o_caller_intel_flags">
+                <div class="o_caller_intel_flags_title">Flagged by</div>
+                <ul>
+                    <li t-foreach="state.card.marks" t-as="mark" t-key="mark_index">
+                        <span class="o_caller_intel_reporter" t-esc="mark.reporter"/>
+                        <span t-if="mark.category" class="o_caller_intel_category" t-esc="mark.category"/>
+                        <span t-if="mark.report_count > 1" class="o_caller_intel_count">
+                            (<t t-esc="mark.report_count"/>)
+                        </span>
+                        <a t-if="mark.clearing_url" t-att-href="mark.clearing_url" target="_blank"
+                           rel="noopener noreferrer" class="o_caller_intel_clear"
+                           title="Where the number's owner disputes this flag">Clear this flag</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </t>
+</templates>

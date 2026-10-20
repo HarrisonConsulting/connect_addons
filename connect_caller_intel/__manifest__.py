@@ -25,6 +25,18 @@ paid sources stay off until an administrator accepts the cost.
         'views/res_config_settings_views.xml',
         'views/menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'connect_caller_intel/static/src/caller_intel_card/caller_intel_card.js',
+            'connect_caller_intel/static/src/caller_intel_card/caller_intel_card.xml',
+            'connect_caller_intel/static/src/caller_intel_card/caller_intel_card.scss',
+            'connect_caller_intel/static/src/phone_patch/phone_patch.js',
+            'connect_caller_intel/static/src/phone_patch/phone_patch.xml',
+        ],
+        'web.assets_web_dark': [
+            'connect_caller_intel/static/src/caller_intel_card/caller_intel_card.dark.scss',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

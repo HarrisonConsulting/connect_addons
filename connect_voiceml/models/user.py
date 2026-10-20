@@ -119,6 +119,17 @@ class User(models.Model):
         )
         return callerid or ''
 
+    def voiceml_pstn_caller_id(self):
+        """Caller ID for calls out to the PSTN: the user's outgoing caller ID,
+        then the default one. Never the extension, which is not a number."""
+        self.ensure_one()
+        callerid = (
+            self.voiceml_outgoing_callerid.sudo().number
+            or self.env['connect.voiceml.outgoing_callerid']
+            .sudo().search([('is_default', '=', True)], limit=1).number
+        )
+        return callerid or ''
+
     @api.model
     def get_user_by_uri(self, userinfo):
         if not userinfo:
@@ -158,12 +169,21 @@ class User(models.Model):
         self.ensure_one()
         try:
             client = client or self.env['connect.settings']._voiceml_client()
-            credential = (
-                client.sip.credential_lists
-                .credentials(self.voiceml_domain.cred_list_sid)
-                .create(username=username, password=password)
-            )
-            return credential.sid
+            domain = self.voiceml_domain.sudo()
+            if not domain.cred_list_sid:
+                domain._ensure_cred_list(client)
+            credentials = client.sip.credential_lists.credentials(domain.cred_list_sid)
+            try:
+                return credentials.create(username=username, password=password).sid
+            except Exception as e:
+                if not domain._voiceml_is_conflict(e):
+                    raise
+                # The username exists remotely: adopt its sid, reset the password.
+                for cred in domain._voiceml_items(credentials.list(), 'credentials'):
+                    if cred.username == username:
+                        credentials.update(cred.sid, password=password)
+                        return cred.sid
+                raise
         except Exception as e:
             raise ValidationError(format_connect_response(str(e)))
 

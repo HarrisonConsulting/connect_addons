@@ -4,7 +4,7 @@ import re
 from urllib.parse import urljoin, urlparse
 
 from odoo import fields, models, api, release
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 from voiceml import Client
 from voiceml.models import CreateCallRequest
@@ -169,15 +169,32 @@ class Settings(models.Model):
         )
         return response.to_string()
 
+    def _voiceml_dial_number(self, number):
+        """E.164 for a PSTN target. Digits longer than an extension with no
+        leading + are parsed with the company country, so 4845551234 becomes
+        +14845551234 and not +4845551234."""
+        raw = re.sub(r"[\s\(\)\-\.]", "", number or "")
+        if raw.startswith("+"):
+            return "+" + strip_number(raw)
+        digits = strip_number(raw)
+        if len(digits) <= MAX_EXTEN_LEN:
+            return digits
+        from odoo.addons.connect.models.res_partner import format_number
+        country = self.env.company.country_id.code
+        formatted = format_number(self.env["res.partner"], raw, country)
+        if formatted and formatted.startswith("+"):
+            return formatted
+        return "+" + digits
+
     @api.model
     def originate_call(self, number, res_model=None, res_id=None, user=None, **kwargs):
         if self._get_originate_provider(user) != 'voiceml':
             return super().originate_call(
                 number, res_model=res_model, res_id=res_id, user=user, **kwargs)
+        raw_number = number
         number = strip_number(number)
         if len(number) > MAX_EXTEN_LEN:
-            number = "+{}".format(number)
-        client = self._voiceml_client()
+            number = self._voiceml_dial_number(raw_number)
         partner_id = False
         caller_name = ""
         obj = self.env[res_model].browse(res_id) if res_model and res_id else False
@@ -194,22 +211,23 @@ class Settings(models.Model):
             user = self.env.user
         if not user.connect_user:
             raise ValidationError("User does not have a SIP username defined!")
-        to = self.compute_voiceml_sip_uri(user)
         exten = self.env["connect.voiceml.exten"].search(
             [("number", "=", number)], limit=1
         )
-        status_url = self._voiceml_webhook_url("voiceml/webhook/callstatus")
         if exten:
             callerId = user.connect_user.voiceml_caller_id()
+        else:
+            callerId = user.connect_user.voiceml_pstn_caller_id()
+        if not callerId:
+            raise UserError(
+                "No caller ID: set an outgoing caller ID on the user or a "
+                "default VoiceML outgoing caller ID before placing calls.")
+        client = self._voiceml_client()
+        to = self.compute_voiceml_sip_uri(user)
+        status_url = self._voiceml_webhook_url("voiceml/webhook/callstatus")
+        if exten:
             twiml = exten.sudo().render()
         else:
-            default_number = self.env[
-                "connect.voiceml.outgoing_callerid"
-            ].search([("is_default", "=", True)], limit=1)
-            callerId = (
-                user.connect_user.voiceml_outgoing_callerid.number
-                or default_number.number
-            )
             twiml = self.get_voiceml_external_call_route(number, callerId, status_url)
         debug(self, 'Originate destination TwiML: {}'.format(twiml))
         record = self.calls_are_recorded(user=user.connect_user)

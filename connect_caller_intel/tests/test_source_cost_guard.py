@@ -1,5 +1,8 @@
+from psycopg2 import IntegrityError
+
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 
 @tagged('post_install', '-at_install')
@@ -49,5 +52,5 @@ class TestSourceCostGuard(TransactionCase):
 
     def test_code_unique(self):
         """Source codes are unique."""
-        with self.assertRaises(Exception), self.cr.savepoint():
+        with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError), self.cr.savepoint():
             self.env['connect.caller.source'].create({'code': 'staff', 'name': 'Dup'})

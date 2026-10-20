@@ -18,6 +18,8 @@ from urllib.parse import urljoin
 from odoo import models, api
 from odoo.exceptions import UserError
 
+from voiceml.models import UpdateCallRequest
+
 from odoo.addons.connect.models.channel import CALL_END_STATUSES
 from .settings import MAX_EXTEN_LEN, strip_number
 
@@ -91,7 +93,7 @@ class Channel(models.Model):
         twiml = self._voiceml_transfer_twiml(number)
         try:
             client = self.env['connect.settings']._voiceml_client()
-            client.calls(other_sid).update(twiml=twiml)
+            client.calls.update(other_sid, UpdateCallRequest(twiml=twiml))
         except Exception as e:
             logger.exception('Could not transfer leg %s to %s', other_sid, number)
             raise UserError('Could not transfer the call: {}'.format(e))

@@ -70,21 +70,24 @@ class TestCallControl(TransactionCase):
         cancel = self.Channel.attended_transfer_softphone_call(
             self._payload(step='cancel'))
         self.assertFalse(cancel['is_on_hold'])
-        self.client.calls.assert_not_called()
+        self.client.calls.update.assert_not_called()
 
     def test_attended_complete_moves_the_other_leg_to_the_target(self):
         result = self.Channel.attended_transfer_softphone_call(
             self._payload(step='complete', number='+15551234567'))
         self.assertTrue(result['success'])
-        self.client.calls.assert_called_once_with('CAtheirs')
-        twiml = self.client.calls.return_value.update.call_args.kwargs['twiml']
+        self.client.calls.update.assert_called_once()
+        sid, body = self.client.calls.update.call_args.args
+        self.assertEqual(sid, 'CAtheirs')
+        twiml = body.twiml
         self.assertIn('+15551234567', twiml)
         self.assertIn('+15550000009', twiml)
 
     def test_blind_forward_moves_the_other_leg(self):
         self.Channel.forward_softphone_call(
             self._payload(number='+15551234567'))
-        self.client.calls.assert_called_once_with('CAtheirs')
+        self.client.calls.update.assert_called_once()
+        self.assertEqual(self.client.calls.update.call_args.args[0], 'CAtheirs')
 
     def test_transfer_needs_a_number_and_a_single_other_party(self):
         with self.assertRaises(UserError):
@@ -95,7 +98,7 @@ class TestCallControl(TransactionCase):
                 self._payload(number='+15551234567'))
 
     def test_remote_failure_is_a_user_error(self):
-        self.client.calls.return_value.update.side_effect = RuntimeError('boom')
+        self.client.calls.update.side_effect = RuntimeError('boom')
         with self.assertRaises(UserError):
             self.Channel.forward_softphone_call(
                 self._payload(number='+15551234567'))

@@ -26,7 +26,7 @@
                 <button name="action_caller_mark_trusted" type="object" string="Not spam"
                         invisible="not caller_reputation_id"/>
             </xpath>
-            <xpath expr="//group[@string='Voicemail']" position="before">
+            <xpath expr="//field[@name='voicemail_widget']/.." position="before">
                 <group string="Caller Check" invisible="not caller_verdict">
                     <group>
                         <field name="caller_verdict" widget="badge"

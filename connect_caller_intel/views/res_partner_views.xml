@@ -1,1 +1,35 @@
-<odoo/>
+<odoo>
+    <record id="view_partner_form_caller_intel" model="ir.ui.view">
+        <field name="name">res.partner.form.caller.intel</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="connect.view_partner_form_connect"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button class="oe_stat_button" icon="fa-flag" type="object"
+                        name="action_open_caller_marks"
+                        invisible="caller_mark_count == 0"
+                        groups="connect.group_user">
+                    <field name="caller_mark_count" string="Number reports" widget="statinfo"/>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Number reputation" name="caller_intel"
+                      invisible="caller_mark_count == 0" groups="connect.group_user">
+                    <div class="alert alert-warning" role="alert">
+                        These systems flag this contact's number. Each clearing link goes to that
+                        system's own dispute page.
+                    </div>
+                    <field name="caller_mark_ids" readonly="1">
+                        <list>
+                            <field name="reporter"/>
+                            <field name="category"/>
+                            <field name="report_count"/>
+                            <field name="last_reported"/>
+                            <field name="clearing_url" widget="url"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

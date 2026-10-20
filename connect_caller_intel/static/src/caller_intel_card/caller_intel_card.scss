@@ -1,0 +1,26 @@
+.o_caller_intel_card {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--Phone-border, #dee2e6);
+  border-radius: 0.375rem;
+  background: var(--Phone-activity-bg, #f8f9fa);
+  color: var(--Phone-text, #212529);
+  font-size: 0.8125rem;
+
+  &[data-verdict="likely_spam"], &[data-verdict="likely_spoof"] {
+    border-color: var(--Phone-call-reject, #dc3545);
+  }
+  &[data-verdict="suspicious"] {
+    border-color: var(--Phone-call-hold, #ffc107);
+  }
+
+  ul { list-style: none; margin: 0; padding: 0; }
+
+  .o_caller_intel_head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+  .o_caller_intel_company, .o_caller_intel_category, .o_caller_intel_reason,
+  .o_caller_intel_flags_title { color: var(--Phone-muted, #6c757d); }
+  .o_caller_intel_signals, .o_caller_intel_flags { margin-top: 0.375rem; }
+  .o_caller_intel_flags_title { font-weight: 600; }
+  .o_caller_intel_clear { margin-left: 0.25rem; }
+}

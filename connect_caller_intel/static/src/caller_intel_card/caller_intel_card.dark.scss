@@ -1,0 +1,9 @@
+.o_caller_intel_card {
+  background: var(--Phone-activity-bg, #24303f);
+  border-color: var(--Phone-border, #374151);
+  color: var(--Phone-text, #f3f4f6);
+
+  .o_caller_intel_company, .o_caller_intel_category, .o_caller_intel_reason,
+  .o_caller_intel_flags_title { color: var(--Phone-muted, #9ca3af); }
+  .o_caller_intel_clear { color: var(--Phone-accent, #a78baf); }
+}

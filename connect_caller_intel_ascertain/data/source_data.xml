@@ -1,0 +1,12 @@
+<odoo noupdate="1">
+    <record id="source_web_reports" model="connect.caller.source">
+        <field name="code">web_reports</field>
+        <field name="name">Web complaint boards</field>
+        <field name="tier">async</field>
+        <field name="cost_class">free</field>
+        <field name="cost_note">Free. Searches through the gdo SearXNG service and reads public complaint-board pages.</field>
+        <field name="enabled" eval="True"/>
+        <field name="ttl_hours">168</field>
+        <field name="clearing_note">Complaint-board reports are unverified user comments. The number owner disputes them with the board named in the mark.</field>
+    </record>
+</odoo>

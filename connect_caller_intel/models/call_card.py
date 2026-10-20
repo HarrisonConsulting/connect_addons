@@ -2,12 +2,8 @@
 
 from odoo import api, fields, models
 
-from ..services import numbering
+from ..services import heuristics, numbering
 
-PARAM_SUSPICIOUS = 'connect_caller_intel.threshold_suspicious'
-PARAM_SPAM = 'connect_caller_intel.threshold_spam'
-DEFAULT_SUSPICIOUS = 0.3
-DEFAULT_SPAM = 0.6
 CARD_SIGNAL_LIMIT = 5
 
 
@@ -43,7 +39,7 @@ class ConnectCall(models.Model):
         rep = self.env['connect.caller.reputation'].search([('e164', '=', e164)], limit=1)
         if rep:
             card.update(self._caller_intel_reputation_card(rep))
-        card['verdict'] = self._caller_intel_verdict(card, partner)
+        card['verdict'] = heuristics.verdict(card['signals'], bool(partner))
         return card
 
     @api.model
@@ -75,18 +71,3 @@ class ConnectCall(models.Model):
                 'reason': signal.reason or '',
             } for signal in signals],
         }
-
-    @api.model
-    def _caller_intel_verdict(self, card, partner):
-        icp = self.env['ir.config_parameter'].sudo()
-        suspicious = float(icp.get_param(PARAM_SUSPICIOUS, DEFAULT_SUSPICIOUS))
-        spam = float(icp.get_param(PARAM_SPAM, DEFAULT_SPAM))
-        if any(s['severity'] == 'high' for s in card['signals']):
-            return 'likely_spoof'
-        if card['risk_score'] >= spam:
-            return 'likely_spam'
-        if card['risk_score'] >= suspicious:
-            return 'suspicious'
-        if partner:
-            return 'trusted' if card['attestation'] == 'A' else 'known'
-        return 'unknown'

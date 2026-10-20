@@ -14,11 +14,14 @@
                             <field name="caller_intel_paid_source_ids" widget="many2many_tags" readonly="1"/>
                         </div>
                     </div>
-                    <setting string="Suspicious from" help="Reputation score from which a caller is shown as suspicious.">
-                        <field name="caller_intel_threshold_suspicious"/>
+                    <setting string="Spam score from" help="Reputation score from which a caller is reported as spam.">
+                        <field name="caller_intel_threshold_spam_score"/>
                     </setting>
-                    <setting string="Likely spam from" help="Reputation score from which a caller is shown as likely spam.">
-                        <field name="caller_intel_threshold_spam"/>
+                    <setting string="Reports from" help="Reports on one mark from which a caller is reported as spam.">
+                        <field name="caller_intel_threshold_mark_reports"/>
+                    </setting>
+                    <setting string="Repeat calls from" help="Calls from one number within 10 minutes that raise a burst signal.">
+                        <field name="caller_intel_threshold_burst_calls"/>
                     </setting>
                 </block>
             </xpath>

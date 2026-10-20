@@ -132,8 +132,14 @@ class TestVoicemlUserServerSide(TransactionCase):
         self.assertTrue(user.voiceml_domain)
 
     def test_two_records_get_two_sids(self):
-        users = self._new_user('sid_one', voiceml_username='sidone', voiceml_domain=self.domain_a.id) \
-            + self._new_user('sid_two', voiceml_username='sidtwo', voiceml_domain=self.domain_a.id)
+        # Remote credentials exist only for SIP-enabled users. create() has no
+        # password yet so it makes no remote call; the write below provisions.
+        users = self._new_user(
+            'sid_one', voiceml_username='sidone', voiceml_domain=self.domain_a.id,
+            voiceml_sip_enabled=True) \
+            + self._new_user(
+            'sid_two', voiceml_username='sidtwo', voiceml_domain=self.domain_a.id,
+            voiceml_sip_enabled=True)
         self.env['connect.settings'].set_param('voiceml_auto_sync', True)
         sids = iter(['CRsid1', 'CRsid2'])
         with patch.object(
@@ -143,10 +149,14 @@ class TestVoicemlUserServerSide(TransactionCase):
         self.assertEqual(sorted(users.mapped('voiceml_sid')), ['CRsid1', 'CRsid2'])
 
     def test_same_username_resolves_per_domain(self):
+        # voiceml_username is globally unique, so one name lives in one domain.
+        # The URI host picks the user when it matches; an unknown host falls
+        # back to the username alone only because it is unambiguous.
         one = self._new_user('dup_one', voiceml_username='dupuser', voiceml_domain=self.domain_a.id)
-        two = self._new_user('dup_two', voiceml_username='dupuser', voiceml_domain=self.domain_b.id)
         self.assertEqual(self.User.get_user_by_uri('sip:dupuser@a.example.com'), one)
-        self.assertEqual(self.User.get_user_by_uri('sip:dupuser@b.example.com'), two)
+        self.assertEqual(self.User.get_user_by_uri('sip:dupuser@b.example.com'), one)
+        with self.assertRaises(Exception), self.cr.savepoint():
+            self._new_user('dup_two', voiceml_username='dupuser', voiceml_domain=self.domain_b.id)
 
     def test_empty_wss_setting_yields_domain_url(self):
         user = self.User.search([('user', '=', self.env.user.id)], limit=1)

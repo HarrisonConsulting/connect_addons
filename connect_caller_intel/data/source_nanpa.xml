@@ -1,1 +1,20 @@
-<odoo/>
+<odoo noupdate="1">
+    <record id="source_nanpa_co_codes" model="connect.caller.source">
+        <field name="code">nanpa_co_codes</field>
+        <field name="name">NANPA central office codes</field>
+        <field name="tier">sync</field>
+        <field name="cost_class">free</field>
+        <field name="enabled" eval="True"/>
+        <field name="attribution">Source: NANPA (nanpa.com)</field>
+    </record>
+    <record id="source_local_calling_guide" model="connect.caller.source">
+        <field name="code">local_calling_guide</field>
+        <field name="name">Local Calling Guide</field>
+        <field name="tier">async</field>
+        <field name="cost_class">free</field>
+        <field name="cost_note">Free. A volunteer project: lookups are limited to one request a second and cached for 30 days.</field>
+        <field name="enabled" eval="True"/>
+        <field name="ttl_hours">720</field>
+        <field name="attribution">Local Calling Guide (localcallingguide.com)</field>
+    </record>
+</odoo>

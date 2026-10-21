@@ -1,11 +1,10 @@
+import random
 from unittest.mock import patch
 
 from odoo.tests import TransactionCase, tagged
 
-DID = '+13125550101'
-DUAL = '+13125550102'
-CALLERID = '+13125550103'
-OTHER = '+12025550177'
+_SUFFIXES = random.sample(range(100, 200), 4)
+DID, DUAL, CALLERID, OTHER = ('+1312555%04d' % suffix for suffix in _SUFFIXES)
 
 
 @tagged('post_install', '-at_install')
@@ -19,7 +18,6 @@ class TestOwnNumbers(TransactionCase):
         cls.Mark = cls.env['connect.caller.mark']
         cls.ftc = cls.env.ref('connect_caller_intel.source_ftc_dnc')
         cls.staff = cls.env.ref('connect_caller_intel.source_staff')
-        cls.env['connect.twilio.number'].search([]).unlink()
         cls.env['connect.twilio.number'].create(
             [{'phone_number': DID, 'friendly_name': 'Main'},
              {'phone_number': DUAL, 'friendly_name': 'Dual'}])

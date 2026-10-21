@@ -15,3 +15,4 @@ from . import res_config_settings
 from . import portal_reputation
 from . import call_widget
 from . import paid_identity_settings
+from . import public_lookup

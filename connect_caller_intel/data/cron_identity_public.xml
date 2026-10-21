@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cron_caller_intel_wikidata_import" model="ir.cron">
+        <field name="name">Caller intel: import Wikidata phone numbers</field>
+        <field name="model_id" ref="model_connect_caller_wikidata"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_import()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">weeks</field>
+    </record>
+    <record id="cron_caller_intel_osm_import" model="ir.cron">
+        <field name="name">Caller intel: import OpenStreetMap phone numbers</field>
+        <field name="model_id" ref="model_connect_caller_osm"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_import()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">months</field>
+        <field name="active" eval="False"/>
+    </record>
+</odoo>

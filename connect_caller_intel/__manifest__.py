@@ -23,6 +23,7 @@ paid sources stay off until an administrator accepts the cost.
         'data/remediation_data.xml',
         'data/cron_own_numbers.xml',
         'data/source_identity_public.xml',
+        'data/cron_identity_public.xml',
         'data/source_identity_paid.xml',
         'views/source_views.xml',
         'views/reputation_views.xml',

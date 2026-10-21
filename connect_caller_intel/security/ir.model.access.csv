@@ -15,3 +15,5 @@ access_caller_own_number_user,connect.caller.own.number user,model_connect_calle
 access_caller_own_number_admin,connect.caller.own.number admin,model_connect_caller_own_number,connect.group_admin,1,1,1,1
 access_caller_remediation_user,connect.caller.remediation user,model_connect_caller_remediation,connect.group_user,1,0,0,0
 access_caller_remediation_admin,connect.caller.remediation admin,model_connect_caller_remediation,connect.group_admin,1,1,1,1
+access_caller_wikidata_admin,connect.caller.wikidata admin,model_connect_caller_wikidata,connect.group_admin,1,1,1,1
+access_caller_osm_admin,connect.caller.osm admin,model_connect_caller_osm,connect.group_admin,1,1,1,1

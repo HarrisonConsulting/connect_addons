@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..services import heuristics
+
 ATTESTATIONS = [('A', 'A'), ('B', 'B'), ('C', 'C'), ('none', 'None'), ('failed', 'Failed')]
 
 
@@ -87,14 +89,15 @@ class ConnectCallerReputation(models.Model):
             rep.calling_from = ' · '.join(
                 part for part in (locality, rep.ocn_company or rep.carrier_name) if part)
 
-    @api.depends('mark_ids.state', 'mark_ids.report_count')
+    @api.depends('mark_ids.state', 'mark_ids.report_count', 'mark_ids.source_id')
     def _compute_marks(self):
         for rep in self:
             active = rep.mark_ids.filtered(lambda m: m.state == 'active')
             rep.active_mark_count = len(active)
             miss = 1.0
             for mark in active:
-                miss *= 1.0 - min(1.0, max(mark.report_count, 1) / 10.0)
+                weight = heuristics.source_weight(mark.source_id.code)
+                miss *= 1.0 - weight * min(1.0, max(mark.report_count, 1) / 10.0)
             rep.spam_score = 1.0 - miss
 
     @api.model

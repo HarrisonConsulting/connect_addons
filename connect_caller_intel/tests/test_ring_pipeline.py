@@ -89,12 +89,12 @@ class TestRingPipeline(TransactionCase):
         self.assertTrue(any('ingest failed' in line for line in logs.output))
 
     def test_ingest_query_budget(self):
-        """Ingest for a returning caller stays within ten queries once caches are warm."""
+        """Ingest for a returning caller stays within eleven queries once caches are warm, one of them the exchange lookup."""
         self.env['connect.caller.reputation']._get_or_create(WARM_NUMBER)
         self._channel(WARM_NUMBER)._caller_intel_ingest({'attestation': 'A'})
         channel = self._channel(WARM_NUMBER)
         self.env.flush_all()
-        with self.assertQueryCount(10):
+        with self.assertQueryCount(11):
             channel._caller_intel_ingest({'attestation': 'A'})
 
     def test_missed_call_notice_names_reporters_and_escapes(self):

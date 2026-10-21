@@ -4,3 +4,5 @@ from . import test_heuristics
 from . import test_ring_pipeline
 from . import test_adapters
 from . import test_call_card
+from . import test_heuristics_nxx
+from . import test_refresh_contract

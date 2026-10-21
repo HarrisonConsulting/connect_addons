@@ -1,1 +1,69 @@
-<odoo/>
+<odoo>
+    <record id="view_caller_remediation_list" model="ir.ui.view">
+        <field name="name">connect.caller.remediation.list</field>
+        <field name="model">connect.caller.remediation</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="engine_kind"/>
+                <field name="carriers"/>
+                <field name="dispute_url" widget="url"/>
+                <field name="removable"/>
+                <field name="applies_to_own_numbers"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_caller_remediation_form" model="ir.ui.view">
+        <field name="name">connect.caller.remediation.form</field>
+        <field name="model">connect.caller.remediation</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="engine_kind"/>
+                            <field name="carriers"/>
+                            <field name="dispute_url" widget="url"/>
+                            <field name="propagation_note"/>
+                        </group>
+                        <group>
+                            <field name="removable"/>
+                            <field name="applies_to_own_numbers"/>
+                            <field name="source_codes"/>
+                            <field name="match_reporters"/>
+                            <field name="country_codes"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <separator string="Steps to read to the customer"/>
+                    <field name="steps"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_caller_remediation_search" model="ir.ui.view">
+        <field name="name">connect.caller.remediation.search</field>
+        <field name="model">connect.caller.remediation</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="carriers"/>
+                <filter string="Standing registrations" name="standing" domain="[('applies_to_own_numbers', '=', True)]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_caller_remediation" model="ir.actions.act_window">
+        <field name="name">Clearing Guidance</field>
+        <field name="res_model">connect.caller.remediation</field>
+        <field name="path">caller-clearing-guidance</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

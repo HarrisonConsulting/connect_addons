@@ -4,9 +4,6 @@ from .base import KeyedAdapter
 
 ENDPOINT = 'https://api.trestleiq.com/3.1/caller_id'
 CONFIDENCE = 0.5
-# The terms forbid storing a result to avoid a repeat query. The source's own ttl is 0, so every
-# call queries again; the hint only lives long enough for the call card that asked for it.
-CALL_SCOPED_HOURS = 1
 
 
 def _address(item):
@@ -42,5 +39,4 @@ class Trestle(KeyedAdapter):
             'address': _address(current) if current else False,
             'external_ref': 'trestle:' + e164,
             'confidence': CONFIDENCE,
-            'ttl_hours': CALL_SCOPED_HOURS,
         }]}

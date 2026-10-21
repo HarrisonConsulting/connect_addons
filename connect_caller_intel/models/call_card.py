@@ -53,7 +53,7 @@ class ConnectCall(models.Model):
         code_labels = dict(self.env['connect.caller.signal']._fields['code']._description_selection(self.env))
         now = fields.Datetime.now()
         identities = rep.identity_ids.filtered(
-            lambda i: not i.expires_at or i.expires_at > now
+            lambda i: not i.source_id.no_store and (not i.expires_at or i.expires_at > now)
         ).sorted(key=lambda i: (-i.confidence, -i.id))[:CARD_IDENTITY_LIMIT]
         return {
             'calling_from': rep.calling_from or '',

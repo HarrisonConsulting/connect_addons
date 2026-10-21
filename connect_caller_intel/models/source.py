@@ -47,6 +47,9 @@ class ConnectCallerSource(models.Model):
     clearing_note = fields.Text(
         help='Plain steps support can read to a customer to clear the mark.')
     attribution = fields.Char(help='Credit shown with every hint or mark from this source.')
+    no_store = fields.Boolean(
+        help='The source\'s terms ban caching its content. Its identity hints are never written '
+             'to the database and never feed the candidate business name.')
     requires_purpose_ack = fields.Boolean(
         help='Enabling also requires accepting the permitted-purpose statement.')
     purpose_note = fields.Text(

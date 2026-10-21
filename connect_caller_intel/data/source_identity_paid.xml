@@ -41,6 +41,7 @@
         <field name="enabled" eval="False"/>
         <field name="credential_param">connect_caller_intel.trestle_api_key</field>
         <field name="ttl_hours">0</field>
+        <field name="no_store" eval="True"/>
         <field name="attribution">Trestle</field>
         <field name="requires_purpose_ack" eval="True"/>
         <field name="purpose_note">Trestle is not a consumer reporting agency. Use its data only to identify an inbound caller (identity verification). Never use it for credit, insurance, employment, education, housing, benefits or any other eligibility decision, or for any purpose governed by the Fair Credit Reporting Act. Trestle data may not be resold.</field>

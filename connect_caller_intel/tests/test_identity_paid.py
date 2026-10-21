@@ -173,7 +173,7 @@ class TestPaidIdentity(TransactionCase):
             self.rep._refresh_source('ipqs')
         self.assertEqual(self.rep.mark_ids.category, 'spam')
 
-    def test_trestle_identity_is_call_scoped(self):
+    def test_trestle_hint_is_never_stored(self):
         source = self._enable('trestle')
         self.assertEqual(source.ttl_hours, 0)
         payload = {'belongs_to': [{'name': 'Jane Roe', 'type': 'Person'}],
@@ -184,11 +184,9 @@ class TestPaidIdentity(TransactionCase):
             self.assertFalse(self.rep._source_is_fresh(source, fields.Datetime.now()))
         self.assertEqual(get.call_args.kwargs['headers']['x-api-key'], KEY)
         self.assertEqual(get.call_args.kwargs['params']['phone'], '6015550100')
-        identity = self.rep.identity_ids
-        self.assertEqual((identity.name, identity.kind, identity.attribution),
-                         ('Jane Roe', 'person', 'Trestle'))
-        self.assertEqual(identity.address, '2 Elm St, Jackson, MS 39201')
-        self.assertLessEqual(identity.expires_at - identity.fetched_at, timedelta(hours=1, seconds=5))
+        self.assertTrue(source.no_store)
+        self.assertFalse(self.rep.identity_ids)
+        self.assertFalse(self.rep.candidate_business_name)
         self.assertFalse(self.env['res.partner'].search([('name', '=', 'Jane Roe')]))
         with mock.patch('requests.get', return_value=_response(200, payload)) as again:
             self.rep._enqueue_stale_sources()

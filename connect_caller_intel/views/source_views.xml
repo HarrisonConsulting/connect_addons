@@ -45,6 +45,7 @@
                             <field name="cost_acknowledged_by"/>
                             <field name="cost_acknowledged_at"/>
                             <field name="attribution"/>
+                            <field name="no_store"/>
                             <field name="requires_purpose_ack"/>
                             <field name="purpose_acknowledged_by"/>
                             <field name="purpose_acknowledged_at"/>

@@ -19,6 +19,7 @@ def _digits(value):
 class GooglePlaces(KeyedAdapter):
     """Google Places (New) text search. Billed per request at the Enterprise tier ($35 per 1,000).
 
+    The terms allow storing only the place id, so only the reference persists (``keep_ref``).
     The phone field is what proves the place owns the number, and it is an Enterprise field.
     """
 
@@ -47,5 +48,6 @@ class GooglePlaces(KeyedAdapter):
                 'external_ref': place['id'],
                 'confidence': CONFIDENCE,
                 'ttl_hours': TTL_HOURS,
+                'keep_ref': True,
             }]}
         return {'found': False, 'marks': []}

@@ -8,6 +8,7 @@
         <field name="enabled" eval="False"/>
         <field name="credential_param">connect_caller_intel.google_places_api_key</field>
         <field name="ttl_hours">720</field>
+        <field name="no_store" eval="True"/>
         <field name="attribution">Google Maps</field>
     </record>
     <record id="source_telnyx_lookup" model="connect.caller.source">

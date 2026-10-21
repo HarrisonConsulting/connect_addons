@@ -106,7 +106,9 @@ class ConnectCallerReputation(models.Model):
         """Upsert the identity hints a source returned and follow the strongest one."""
         Identity = self.env['connect.caller.identity'].sudo()
         now = fields.Datetime.now()
-        stored = [] if source.no_store else result.get('identities') or []
+        stored = [dict(item, name=item['external_ref'], kind='unknown', address=None)
+                  for item in result.get('identities') or [] if item.get('keep_ref')
+                  ] if source.no_store else result.get('identities') or []
         for item in stored:
             domain = [('reputation_id', '=', self.id), ('source_id', '=', source.id),
                       ('external_ref', '=', item['external_ref'])]
@@ -126,7 +128,9 @@ class ConnectCallerReputation(models.Model):
             else:
                 Identity.create(vals)
         if source.no_store or not result.get('found'):
-            Identity.search([('reputation_id', '=', self.id), ('source_id', '=', source.id)]).unlink()
+            Identity.search([
+                ('reputation_id', '=', self.id), ('source_id', '=', source.id),
+                ('external_ref', 'not in', [item['external_ref'] for item in stored])]).unlink()
         top = Identity.search([
             ('reputation_id', '=', self.id), ('expires_at', '>', now), ('source_id.no_store', '=', False)],
             order='confidence desc, id desc', limit=1)

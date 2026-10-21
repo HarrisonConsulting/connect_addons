@@ -1,4 +1,3 @@
-from datetime import timedelta
 from unittest import mock
 
 import requests
@@ -93,7 +92,7 @@ class TestPaidIdentity(TransactionCase):
         self.assertEqual(source.purpose_acknowledged_by, self.env.user)
         self.assertTrue(source.purpose_acknowledged_at)
 
-    def test_google_places_identity_with_attribution_and_expiry(self):
+    def test_google_places_stores_only_the_place_id(self):
         self._enable('google_places')
         payload = {'places': [{
             'id': 'ChIJabc', 'displayName': {'text': 'Acme Plumbing'},
@@ -106,15 +105,13 @@ class TestPaidIdentity(TransactionCase):
         self.assertIn('places.internationalPhoneNumber', kwargs['headers']['X-Goog-FieldMask'])
         self.assertEqual(kwargs['json'], {'textQuery': '+16015550100', 'regionCode': 'US'})
         identity = self.rep.identity_ids
-        self.assertEqual((identity.name, identity.kind, identity.external_ref),
-                         ('Acme Plumbing', 'business', 'ChIJabc'))
+        self.assertEqual(identity.external_ref, 'ChIJabc')
+        self.assertEqual(identity.name, 'ChIJabc')
+        self.assertFalse(identity.address)
         self.assertEqual(identity.attribution, 'Google Maps')
         self.assertEqual(identity.url, 'https://www.google.com/maps/place/?q=place_id:ChIJabc')
-        self.assertEqual(identity.confidence, 0.7)
-        self.assertAlmostEqual(
-            (identity.expires_at - identity.fetched_at).total_seconds(),
-            timedelta(hours=720).total_seconds(), delta=5)
-        self.assertEqual(self.rep.candidate_business_name, 'Acme Plumbing')
+        self.assertNotIn('Acme Plumbing', identity.mapped('name'))
+        self.assertFalse(self.rep.candidate_business_name)
 
     def test_google_places_rejects_a_place_with_another_phone(self):
         self._enable('google_places')

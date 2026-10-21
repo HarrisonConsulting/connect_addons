@@ -3,7 +3,7 @@ import {Component, onMounted, onWillStart, onWillUnmount, onWillUpdateProps, use
 import {useService} from "@web/core/utils/hooks"
 import {_t} from "@web/core/l10n/translation"
 
-const VERDICTS = {
+export const VERDICTS = {
     trusted: {label: _t("Verified caller"), cls: "text-bg-success"},
     known: {label: _t("Known contact"), cls: "text-bg-light"},
     unknown: {label: _t("No record"), cls: "text-bg-light"},
@@ -19,6 +19,7 @@ export class CallerIntelCard extends Component {
     setup() {
         this.orm = useService("orm")
         this.busService = useService("bus_service")
+        this.notification = useService("notification")
         this.state = useState({card: false})
         this._onReputationUpdate = (payload) => {
             if (payload && payload.e164 === this.state.card.e164) {
@@ -47,6 +48,29 @@ export class CallerIntelCard extends Component {
             console.warn("caller intel card unavailable", error)
             this.state.card = false
         }
+    }
+
+    async _mark(method, message) {
+        try {
+            await this.orm.call("connect.call", method, [[this.state.card.call_id]])
+            await this._load(this.props.phoneNumber)
+            this.notification.add(message, {type: "success"})
+        } catch (error) {
+            console.warn("caller intel mark failed", error)
+            this.notification.add(_t("Could not save the mark"), {type: "danger"})
+        }
+    }
+
+    onMarkSpam() {
+        return this._mark("action_caller_mark_spam", _t("Marked as spam"))
+    }
+
+    onMarkTrusted() {
+        return this._mark("action_caller_mark_trusted", _t("Marked as not spam"))
+    }
+
+    get canMark() {
+        return Boolean(this.state.card.call_id && this.state.card.can_mark)
     }
 
     get verdict() {

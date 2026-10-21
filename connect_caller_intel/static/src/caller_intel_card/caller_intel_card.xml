@@ -41,6 +41,12 @@
                     </li>
                 </ul>
             </div>
+            <div t-if="canMark" class="o_caller_intel_actions">
+                <button type="button" class="btn btn-sm btn-outline-danger o_caller_intel_mark_spam"
+                        t-on-click="onMarkSpam">Spam</button>
+                <button type="button" class="btn btn-sm btn-outline-success o_caller_intel_mark_trusted"
+                        t-on-click="onMarkTrusted">Not spam</button>
+            </div>
         </div>
     </t>
 </templates>

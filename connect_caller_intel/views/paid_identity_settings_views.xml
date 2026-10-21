@@ -1,1 +1,38 @@
-<odoo/>
+<odoo>
+    <record id="res_config_settings_view_form_caller_intel_paid" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.caller.intel.paid</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="connect_caller_intel.res_config_settings_view_form_caller_intel"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='connect_caller_intel_settings']" position="inside">
+                <div class="col-12 o_setting_box" colspan="2" groups="connect.group_admin">
+                    <h5 class="w-100">Paid identity sources</h5>
+                    <p class="text-muted w-100">
+                        Each key is yours and is billed to your own account. A source stays off until an
+                        administrator enables it on the Sources screen and accepts its cost.
+                    </p>
+                </div>
+                <setting string="Google Places key" groups="connect.group_admin"
+                         help="Confirming a phone number needs Google's $35 per 1,000 requests tier.">
+                    <field name="caller_intel_google_places_api_key" password="True"/>
+                </setting>
+                <setting string="Telnyx key" groups="connect.group_admin"
+                         help="Caller name and carrier lookup, $0.003 per lookup.">
+                    <field name="caller_intel_telnyx_api_key" password="True"/>
+                </setting>
+                <setting string="IPQualityScore key" groups="connect.group_admin"
+                         help="Your own key only. IPQualityScore data may not be resold or shared with other companies.">
+                    <field name="caller_intel_ipqs_api_key" password="True"/>
+                </setting>
+                <setting string="IPQS spam report from" groups="connect.group_admin"
+                         help="IPQS fraud score from which a spam report is recorded.">
+                    <field name="caller_intel_ipqs_mark_from"/>
+                </setting>
+                <setting string="Trestle key" groups="connect.group_admin"
+                         help="Caller identification, $0.07 per query. Results are used for that call only and may not be used for credit, employment, insurance, housing or any other eligibility decision.">
+                    <field name="caller_intel_trestle_api_key" password="True"/>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

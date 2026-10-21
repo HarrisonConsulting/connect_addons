@@ -82,6 +82,12 @@ class ConnectCallerNxx(models.Model):
             "SELECT DISTINCT npa FROM connect_caller_nxx WHERE origin = 'nanpa' AND npa IS NOT NULL")
         return frozenset(npa for (npa,) in self.env.cr.fetchall())
 
+    @tools.ormcache()
+    def _loaded_at(self):
+        """When the last NANPA load finished, or ``None``; cached until the next load clears the registry cache."""
+        loaded = self.env['ir.config_parameter'].sudo().get_param(LOADED_PARAM)
+        return fields.Datetime.to_datetime(loaded) if loaded else None
+
     def _lookup_facts(self, npa_nxx):
         """Exchange facts for the heuristics, from one indexed read; ``{}`` when the area code is not loaded."""
         if npa_nxx[:3] not in self._loaded_npas():
@@ -90,8 +96,7 @@ class ConnectCallerNxx(models.Model):
             [('npa_nxx', '=', npa_nxx)],
             ['status', 'in_service', 'state_code', 'ocn', 'company', 'rate_center', 'locality'],
             limit=1)
-        loaded = self.env['ir.config_parameter'].sudo().get_param(LOADED_PARAM)
-        loaded_at = fields.Datetime.to_datetime(loaded) if loaded else None
+        loaded_at = self._loaded_at()
         stale_after = timedelta(days=heuristics.DEFAULTS['nxx_stale_days'])
         stale = not loaded_at or loaded_at < fields.Datetime.now() - stale_after
         return {

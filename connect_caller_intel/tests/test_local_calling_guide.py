@@ -36,6 +36,8 @@ class TestLocalCallingGuide(TransactionCase):
         cls.Nxx = cls.env['connect.caller.nxx']
         cls.source = cls.env.ref('connect_caller_intel.source_local_calling_guide')
         cls.adapter = ADAPTERS['local_calling_guide']
+        cls.env['connect.caller.source'].search(
+            [('tier', '=', 'async'), ('id', '!=', cls.source.id)]).write({'enabled': False})
         cls.Nxx.search([('npa_nxx', 'in', ['601605', '601999'])]).unlink()
 
     def _unthrottle(self):

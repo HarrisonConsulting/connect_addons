@@ -36,6 +36,9 @@ class TestOwnNumbers(TransactionCase):
     def _toasts(self):
         return patch.object(type(self.env['bus.bus']), '_sendone')
 
+    def _notified(self, sendone):
+        return [c for c in sendone.call_args_list if c.args[1] == 'connect_notify']
+
     def test_sync_one_row_per_e164_did_wins(self):
         """A number that is both a DID and a caller ID is a single DID row."""
         rows = self.Own.search([('e164', 'in', [DID, DUAL, CALLERID])])
@@ -57,12 +60,12 @@ class TestOwnNumbers(TransactionCase):
         self.assertTrue(admins)
         with self._toasts() as sendone:
             mark = self._mark(DID)
-            self.assertEqual(sendone.call_count, len(admins))
-            message = sendone.call_args.args[2]
+            self.assertEqual(len(self._notified(sendone)), len(admins))
+            message = self._notified(sendone)[-1].args[2]
             self.assertTrue(message['sticky'])
             self.assertIn(DID, message['message'])
             mark.write({'state': 'active', 'report_count': 9})
-            self.assertEqual(sendone.call_count, len(admins))
+            self.assertEqual(len(self._notified(sendone)), len(admins))
         self.assertEqual(self.own.state, 'flagged')
         self.assertEqual(self.own.flagged_mark_ids, mark)
 

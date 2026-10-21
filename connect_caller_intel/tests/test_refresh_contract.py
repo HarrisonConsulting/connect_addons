@@ -4,6 +4,7 @@ from unittest import mock
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.queue_job.exception import RetryableJobError
 
@@ -68,6 +69,10 @@ class TestRefreshContract(TransactionCase):
     def test_cost_classes_narrow_the_sources(self):
         """Asking for free sources only leaves a freemium source out."""
         self.source.cost_class = 'freemium'
+        with mute_logger('odoo.addons.connect_caller_intel.services.adapters.base'):
+            self._assert_cost_narrowing()
+
+    def _assert_cost_narrowing(self):
         self.assertNotIn(self.source, self.Rep._usable_async_sources(('free',)))
         self.assertIn(self.source, self.Rep._usable_async_sources(('freemium',)))
         self.assertIn(self.source, self.Rep._usable_async_sources())

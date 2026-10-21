@@ -3,6 +3,7 @@ from unittest import mock
 import requests
 
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.queue_job.exception import RetryableJobError
 
@@ -36,7 +37,8 @@ class TestCallerIntelAdapters(TransactionCase):
     def test_fcc_found_creates_mark_and_caches(self):
         rows = [{'date_created': '2016-06-02T14:25:15.000', 'issue': 'Robocalls'},
                 {'date_created': '2016-07-02T14:25:15.000', 'issue': 'Robocalls'}]
-        with mock.patch('requests.get', return_value=_response(200, rows)) as get:
+        with mock.patch('requests.get', return_value=_response(200, rows)) as get, \
+                mute_logger(base.__name__):
             self.assertEqual(self.rep._refresh_source('fcc_complaints'), 'found')
         self.assertEqual(get.call_args.kwargs['params']['$where'].split(' AND ')[0],
                          "caller_id_number='402-382-7125'")

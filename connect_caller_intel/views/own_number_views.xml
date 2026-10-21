@@ -50,7 +50,7 @@
                     </group>
                     <notebook>
                         <page string="Reports" name="reports">
-                            <field name="flagged_mark_ids" readonly="1">
+                            <field name="mark_ids" readonly="1">
                                 <list>
                                     <field name="reporter"/>
                                     <field name="category"/>

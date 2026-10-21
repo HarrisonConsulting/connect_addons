@@ -39,6 +39,9 @@ class ConnectCallerOwnNumber(models.Model):
     spam_score = fields.Float(
         related='reputation_id.spam_score',
         help='Weighted 0 to 1 spam score other systems give our number.')
+    mark_ids = fields.One2many(
+        related='reputation_id.mark_ids',
+        help='Every report other systems hold about our number.')
     flagged_mark_ids = fields.Many2many(
         'connect.caller.mark', 'connect_caller_own_number_flagged_rel',
         'own_number_id', 'mark_id',

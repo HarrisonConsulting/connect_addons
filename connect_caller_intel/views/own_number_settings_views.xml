@@ -1,1 +1,14 @@
-<odoo/>
+<odoo>
+    <record id="res_config_settings_view_form_caller_intel_own_number" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.caller.intel.own.number</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="connect_caller_intel.res_config_settings_view_form_caller_intel"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='connect_caller_intel_settings']" position="inside">
+                <setting string="Paid sources for our numbers" help="Also query paid sources when refreshing our own numbers.">
+                    <field name="caller_intel_own_number_refresh_paid"/>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

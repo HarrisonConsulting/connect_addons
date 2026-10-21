@@ -2,11 +2,11 @@ from . import source
 from . import reputation
 from . import mark
 from . import signal
-from . import nxx
 from . import identity
 from . import own_number
 from . import remediation
 from . import channel
+from . import nxx
 from . import call
 from . import reputation_refresh
 from . import call_card

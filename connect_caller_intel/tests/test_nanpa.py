@@ -135,7 +135,7 @@ class TestNanpaLoad(TransactionCase):
         """Callers outside the loaded area codes, and outside +1, cost no queries and raise no exchange signal."""
         self.Nxx._load_nanpa(self._files(), stamp=fields.Datetime.now())
         self.Nxx._loaded_npas()
-        self.env['ir.config_parameter'].sudo().get_param(nxx_module.LOADED_PARAM)
+        self.Nxx._loaded_at()
         channel = self._channel(OWN_DID)
         rep = self.env['connect.caller.reputation'].browse()
         for number in ('+14165550123', '+442079460958'):

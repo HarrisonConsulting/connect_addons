@@ -1,6 +1,6 @@
 {
     'name': 'Connect Caller Intel',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'license': 'OPL-1',
@@ -11,7 +11,7 @@ Identifies inbound callers and raises spam and spoof signals. Every mark names
 the system that reported it and how to clear it. Free sources are on by default;
 paid sources stay off until an administrator accepts the cost.
     """,
-    'depends': ['connect', 'connect_twilio', 'queue_job'],
+    'depends': ['connect', 'connect_twilio', 'queue_job', 'portal'],
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',

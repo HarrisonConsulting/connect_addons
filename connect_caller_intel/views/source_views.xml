@@ -21,8 +21,11 @@
             <form>
                 <header>
                     <button name="action_enable" type="object" string="Enable" class="btn-primary"
-                            invisible="enabled" groups="connect.group_admin"
+                            invisible="enabled or requires_purpose_ack" groups="connect.group_admin"
                             confirm="This source may charge per use. Enabling records your name and the time as acceptance of the cost shown in the cost note. Turning it off stops new charges; charges already incurred are not refunded."/>
+                    <button name="action_enable_with_purpose" type="object" string="Enable" class="btn-primary"
+                            invisible="enabled or not requires_purpose_ack" groups="connect.group_admin"
+                            confirm="This source returns personal data. It may be used only to identify a caller. Never use it to decide credit, employment, insurance, housing or any other eligibility. Enabling records your name and the time as acceptance of this purpose and of the cost note."/>
                     <button name="action_disable" type="object" string="Disable"
                             invisible="not enabled" groups="connect.group_admin"/>
                 </header>
@@ -41,7 +44,14 @@
                             <field name="ttl_hours"/>
                             <field name="cost_acknowledged_by"/>
                             <field name="cost_acknowledged_at"/>
+                            <field name="attribution"/>
+                            <field name="requires_purpose_ack"/>
+                            <field name="purpose_acknowledged_by"/>
+                            <field name="purpose_acknowledged_at"/>
                         </group>
+                    </group>
+                    <group string="Permitted purpose" invisible="not requires_purpose_ack">
+                        <field name="purpose_note" nolabel="1" colspan="2"/>
                     </group>
                     <group string="Cost">
                         <field name="cost_note" nolabel="1" colspan="2"/>

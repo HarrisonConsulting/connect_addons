@@ -56,6 +56,37 @@ class ConnectCallerReputation(models.Model):
     candidate_business_name = fields.Char(
         help='Business name suggested by async research. Never auto-linked to a partner.')
 
+    rate_center = fields.Char(
+        help='Locality the exchange is assigned to, from NANPA or Local Calling Guide.')
+    numbering_state = fields.Char(help='State or province the exchange serves.')
+    ocn = fields.Char(
+        help='Operating Company Number holding the exchange. Approximate after pooling or porting.')
+    ocn_company = fields.Char(
+        help='Carrier that holds the exchange per the numbering administrator. '
+             'The number may have been ported since.')
+    nxx_status = fields.Selection(
+        [('assigned', 'Assigned'), ('unavailable', 'Unavailable'), ('available', 'Available'),
+         ('unknown', 'Unknown')],
+        default='unknown',
+        help='Exchange status from the numbering administrator; unknown outside the US '
+             'or before the first load.')
+    identity_ids = fields.One2many(
+        'connect.caller.identity', 'reputation_id',
+        help='Unverified names public and paid sources associate with this number.')
+    calling_from = fields.Char(
+        compute='_compute_calling_from',
+        help='Short "City, ST · carrier" line shown to staff.')
+
+    @api.depends('rate_center', 'numbering_state', 'region', 'ocn_company', 'carrier_name')
+    def _compute_calling_from(self):
+        for rep in self:
+            if rep.rate_center and rep.numbering_state:
+                locality = '%s, %s' % (rep.rate_center.title(), rep.numbering_state)
+            else:
+                locality = rep.region
+            rep.calling_from = ' · '.join(
+                part for part in (locality, rep.ocn_company or rep.carrier_name) if part)
+
     @api.depends('mark_ids.state', 'mark_ids.report_count')
     def _compute_marks(self):
         for rep in self:

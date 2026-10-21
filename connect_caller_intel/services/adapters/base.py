@@ -13,6 +13,14 @@ class AdapterError(Exception):
     """Transient failure; the job is retried."""
 
 
+class AdapterThrottled(AdapterError):
+    """The source is paced; retry after ``seconds`` without counting a failure."""
+
+    def __init__(self, msg, seconds=1):
+        super().__init__(msg)
+        self.seconds = seconds
+
+
 class Adapter:
     """One external reputation source.
 
@@ -23,6 +31,12 @@ class Adapter:
 
     code = None
     batch = False
+    ready = True
+    nanp_only = False
+
+    def applies_to(self, env, rep):
+        """True when this source can answer for ``rep``; NANP-only sources skip other countries."""
+        return not self.nanp_only or rep.e164.startswith('+1')
 
     def credential(self, env):
         """Return the credential for this adapter, or None when it is not configured."""
@@ -44,9 +58,9 @@ class Adapter:
     def lookup(self, env, e164):
         raise NotImplementedError
 
-    def _get(self, url, **kwargs):
+    def _request(self, method, url, **kwargs):
         try:
-            response = requests.get(url, timeout=HTTP_TIMEOUT, **kwargs)
+            response = method(url, timeout=HTTP_TIMEOUT, **kwargs)
         except requests.RequestException as exc:
             raise AdapterError(str(exc)) from exc
         if response.status_code in (401, 403):
@@ -54,7 +68,23 @@ class Adapter:
         if response.status_code == 429 or response.status_code >= 500:
             raise AdapterError("%s returned %s" % (self.code, response.status_code))
         response.raise_for_status()
-        return response.json()
+        return response
+
+    def _get(self, url, **kwargs):
+        return self._request(requests.get, url, **kwargs).json()
+
+    def _post(self, url, **kwargs):
+        return self._request(requests.post, url, **kwargs).json()
+
+    def _get_text(self, url, **kwargs):
+        return self._request(requests.get, url, **kwargs).text
+
+
+def polite_user_agent(env):
+    """User agent that names this system and a contact, as the polite public sources ask."""
+    get_param = env['ir.config_parameter'].sudo().get_param
+    contact = get_param('connect_caller_intel.http_contact') or get_param('web.base.url')
+    return 'HarrisonConnectCallerIntel/19.0 (+%s)' % contact
 
 
 def parse_dt(value):

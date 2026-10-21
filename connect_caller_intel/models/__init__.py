@@ -12,3 +12,6 @@ from . import reputation_refresh
 from . import call_card
 from . import res_partner
 from . import res_config_settings
+from . import portal_reputation
+from . import call_widget
+from . import paid_identity_settings

@@ -1,0 +1,2 @@
+State	NPA-NXX	OCN	Company	RateCenter	EffectiveDate	Use	AssignDate	Initial/Growth	Pooled Code	In Service
+

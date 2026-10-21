@@ -6,3 +6,12 @@ from . import test_adapters
 from . import test_call_card
 from . import test_heuristics_nxx
 from . import test_refresh_contract
+from . import test_nanpa
+from . import test_local_calling_guide
+from . import test_own_numbers
+from . import test_remediation
+from . import test_portal
+from . import test_call_widget
+from . import test_ring_tour
+from . import test_identity_public
+from . import test_identity_paid

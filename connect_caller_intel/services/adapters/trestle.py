@@ -1,6 +1,6 @@
 import requests
 
-from .google_places import KeyedAdapter
+from .base import KeyedAdapter
 
 ENDPOINT = 'https://api.trestleiq.com/3.1/caller_id'
 CONFIDENCE = 0.5

@@ -198,7 +198,7 @@ class TestPaidIdentity(TransactionCase):
     def test_rejected_key_raises_and_warns_with_the_parameter_only(self):
         self._enable('telnyx_lookup')
         with mock.patch('requests.get', return_value=_response(401, None)):
-            with self.assertLogs('odoo.addons.connect_caller_intel.services.adapters.google_places',
+            with self.assertLogs('odoo.addons.connect_caller_intel.services.adapters.base',
                                  level='WARNING') as logs:
                 with self.assertRaises(Exception):
                     ADAPTERS['telnyx_lookup'].lookup(self.env, '+16015550100')

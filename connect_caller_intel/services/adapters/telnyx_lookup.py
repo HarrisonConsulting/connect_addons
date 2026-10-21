@@ -1,6 +1,6 @@
 import requests
 
-from .google_places import KeyedAdapter
+from .base import KeyedAdapter
 
 ENDPOINT = 'https://api.telnyx.com/v2/number_lookup/%s'
 

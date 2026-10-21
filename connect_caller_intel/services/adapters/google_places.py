@@ -1,11 +1,8 @@
-import logging
 import re
 
 import phonenumbers
 
-from .base import Adapter, AdapterError
-
-_logger = logging.getLogger(__name__)
+from .base import KeyedAdapter
 
 ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
 FIELD_MASK = ','.join((
@@ -13,34 +10,6 @@ FIELD_MASK = ','.join((
 MAP_URL = 'https://www.google.com/maps/place/?q=place_id:%s'
 CONFIDENCE = 0.7
 TTL_HOURS = 720
-
-
-class KeyedAdapter(Adapter):
-    """Adapter whose customer-supplied key lives in an ``ir.config_parameter``.
-
-    The key is read at call time and never logged; a rejected key logs one warning that names
-    the parameter to fix.
-    """
-
-    param = None
-
-    def _key(self, env):
-        return env['ir.config_parameter'].sudo().get_param(self.param) or None
-
-    def credential(self, env):
-        return self._key(env)
-
-    def key_hint(self):
-        return self.param
-
-    def _request(self, method, url, **kwargs):
-        try:
-            return super()._request(method, url, **kwargs)
-        except AdapterError as exc:
-            if 'rejected the credential' in str(exc):
-                _logger.warning("Caller intel source %s: the key in %s was rejected",
-                                self.code, self.param)
-            raise
 
 
 def _digits(value):

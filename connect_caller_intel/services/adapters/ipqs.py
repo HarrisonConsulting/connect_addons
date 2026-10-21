@@ -1,7 +1,6 @@
 import requests
 
-from .base import AdapterError
-from .google_places import KeyedAdapter
+from .base import AdapterError, KeyedAdapter
 
 ENDPOINT = 'https://www.ipqualityscore.com/api/json/phone/%s/%s'
 MARK_FROM_PARAM = 'connect_caller_intel.ipqs_mark_from'

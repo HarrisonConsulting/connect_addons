@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="monitor_own_numbers" model="ai.monitor">
+        <field name="name">Caller intel: our numbers</field>
+        <field name="description">Collects the signals raised when an external source reports one of our numbers.</field>
+        <field name="source_type">api</field>
+        <field name="objective">Raise a signal when a third party labels one of our numbers as spam, scam or fraud.</field>
+        <field name="sensitivity">high</field>
+        <field name="state">paused</field>
+        <field name="user_id" ref="base.user_root"/>
+    </record>
+</odoo>

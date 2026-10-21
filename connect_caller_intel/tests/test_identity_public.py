@@ -141,9 +141,12 @@ class TestPublicIdentity(TransactionCase):
     def test_empty_osm_table_leaves_source_unavailable(self):
         self.Osm.search([]).unlink()
         base.reset_warnings()
-        with mock.patch('requests.get') as get:
+        with mock.patch('requests.get') as get, \
+                self.assertLogs('odoo.addons.connect_caller_intel.services.adapters.base',
+                                level='WARNING') as logs:
             self.assertEqual(self.rep._refresh_source('osm'), 'skipped')
             get.assert_not_called()
+        self.assertIn('source osm is unavailable', logs.output[0])
         self.assertFalse(self.rep._source_is_fresh(self.osm, self.env.cr.now()))
 
     def test_wikidata_bulk_import_replaces_table_and_keeps_labels(self):

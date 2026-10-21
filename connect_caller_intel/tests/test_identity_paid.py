@@ -5,6 +5,7 @@ import requests
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from ..services.adapters import base
 from ..services.adapters.registry import ADAPTERS
@@ -64,7 +65,8 @@ class TestPaidIdentity(TransactionCase):
         self.assertIn('0.003', self.sources['telnyx_lookup'].cost_note)
 
     def test_disabled_sources_make_no_http_call(self):
-        with mock.patch('requests.get') as get, mock.patch('requests.post') as post:
+        with mock.patch('requests.get') as get, mock.patch('requests.post') as post, \
+                mute_logger('odoo.addons.connect_caller_intel.services.adapters.base'):
             self.rep._enqueue_stale_sources()
             for code in PARAMS:
                 self.assertEqual(self.rep._refresh_source(code), 'skipped')
@@ -204,11 +206,16 @@ class TestPaidIdentity(TransactionCase):
 
     def test_ipqs_errors_never_carry_the_key(self):
         self._enable('ipqs')
-        for response in (_response(401, None), _response(404, None)):
-            with mock.patch('requests.get', return_value=response):
-                with self.assertRaises(base.AdapterError) as caught:
-                    ADAPTERS['ipqs'].lookup(self.env, '+16015550100')
-            self.assertNotIn(KEY, str(caught.exception))
+        with self.assertLogs('odoo.addons.connect_caller_intel.services.adapters.base',
+                             level='WARNING') as logs:
+            for response in (_response(401, None), _response(404, None)):
+                with mock.patch('requests.get', return_value=response):
+                    with self.assertRaises(base.AdapterError) as caught:
+                        ADAPTERS['ipqs'].lookup(self.env, '+16015550100')
+                self.assertNotIn(KEY, str(caught.exception))
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn(PARAMS['ipqs'], logs.output[0])
+        self.assertNotIn(KEY, logs.output[0])
 
     def test_trestle_skips_non_nanp_and_ipqs_runs(self):
         self._enable('trestle')

@@ -50,15 +50,20 @@ class TestRefreshContract(TransactionCase):
     def _identity(self, ref, name, confidence):
         return {'name': name, 'kind': 'business', 'external_ref': ref, 'confidence': confidence}
 
+    def _enqueued_codes(self, rep):
+        with mock.patch.object(type(self.Rep), 'with_delay') as delay:
+            rep._enqueue_stale_sources()
+        return {call.kwargs['identity_key'].rsplit(':', 1)[1]
+                for call in delay.call_args_list if call.kwargs}
+
     def test_nanp_only_adapter_skips_foreign_numbers(self):
-        """A nanp_only adapter is neither enqueued nor run for a +44 number."""
-        with mock.patch.object(type(self.Rep), 'with_delay') as delay:
-            self.uk._enqueue_stale_sources()
-        delay.assert_not_called()
-        self.assertEqual(self.uk._refresh_source('fake_nanp'), 'skipped')
-        with mock.patch.object(type(self.Rep), 'with_delay') as delay:
-            self.rep._enqueue_stale_sources()
-        self.assertTrue(delay.called)
+        """Every nanp_only adapter is neither enqueued nor run for a +44 number."""
+        nanp_only = {code for code, adapter in registry.ADAPTERS.items() if adapter.nanp_only}
+        self.assertLessEqual({'fake_nanp', 'fcc_complaints'}, nanp_only)
+        self.assertFalse(self._enqueued_codes(self.uk) & nanp_only)
+        for code in nanp_only:
+            self.assertEqual(self.uk._refresh_source(code), 'skipped', code)
+        self.assertIn('fake_nanp', self._enqueued_codes(self.rep))
 
     def test_cost_classes_narrow_the_sources(self):
         """Asking for free sources only leaves a freemium source out."""

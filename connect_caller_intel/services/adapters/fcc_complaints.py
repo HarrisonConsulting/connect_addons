@@ -21,6 +21,7 @@ def national_dashed(e164):
 class FccComplaints(Adapter):
     code = 'fcc_complaints'
     batch = False
+    nanp_only = True
 
     def lookup(self, env, e164):
         number = national_dashed(e164)

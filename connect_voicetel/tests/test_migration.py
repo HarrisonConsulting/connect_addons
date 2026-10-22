@@ -138,6 +138,38 @@ class TestMigration(TransactionCase):
         self.pre.migrate(self.env.cr, False)
         self.assertTrue(self._regclass('connect_voicetel_browser_credential'))
 
+    def test_pre_init_hook_renames_leftover_tables(self):
+        cr = self.env.cr
+        # A table whose model ir.model still records under this module
+        # is not a leftover.
+        cr.execute("""
+            CREATE TABLE connect_voicetel_kept (id SERIAL PRIMARY KEY);
+            INSERT INTO ir_model (model, name, state, "order", transient)
+            VALUES ('connect.voicetel.kept', '{"en_US": "Kept"}', 'base', 'id', false)
+            RETURNING id""")
+        model_id = cr.fetchone()[0]
+        cr.execute("""
+            INSERT INTO ir_model_data (module, name, model, res_id, noupdate)
+            VALUES ('connect_voicetel', 'model_connect_voicetel_kept', 'ir.model', %s, false)
+        """, (model_id,))
+        for _run in range(2):
+            hooks.pre_init_hook(self.env)
+        self.assertIsNone(self._regclass('connect_voicetel_browser_credential'))
+        self.assertTrue(self._regclass('connect_voicetel_legacy_browser_credential'))
+        cr.execute('SELECT count(*) FROM connect_voicetel_legacy_browser_credential')
+        self.assertEqual(cr.fetchone()[0], 2)
+        # its unique index name is free for the table this module creates
+        self.assertIsNone(self._regclass('connect_voicetel_browser_credential_secret_uniq'))
+        cr.execute("SELECT 1 FROM pg_constraint WHERE conname = 'vt_test_core_ref_cred_fkey'")
+        self.assertFalse(cr.fetchone())
+        self.assertTrue(self._regclass('connect_voicetel_kept'))
+        # this version's tables, archives and the voiceml row are not touched
+        self.assertTrue(self._regclass('connect_voicetel_number'))
+        self.assertTrue(self._regclass('connect_voicetel_user_archive'))
+        self.assertIsNone(self._regclass('connect_voicetel_legacy_number'))
+        cr.execute("SELECT 1 FROM ir_module_module WHERE name = 'connect_voiceml'")
+        self.assertTrue(cr.fetchone())
+
     def test_post_init_hook_removes_voiceml_row(self):
         hooks.post_init_hook(self.env)
         self.env.cr.execute("SELECT 1 FROM ir_module_module WHERE name = 'connect_voiceml'")

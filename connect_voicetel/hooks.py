@@ -15,8 +15,9 @@ in the repository. Every step here:
   tables are renamed, legacy columns are dropped only after they are
   copied into the archive tables.
 
-The 19.0.4.0.0 pre-migration runs the whole sequence; post_init_hook
-runs the connect_voiceml cleanup on fresh installs.
+The 19.0.4.0.0 pre-migration runs the whole sequence; on fresh installs
+pre_init_hook renames leftover tables and post_init_hook runs the
+connect_voiceml cleanup.
 """
 
 import hashlib
@@ -305,7 +306,16 @@ def migrate_legacy_module(cr):
 
 # ------------------------------------------------------ P2: legacy tables
 
-def _legacy_candidates(cr):
+def _module_model_tables(cr):
+    """Tables of the models ir.model records under connect_voicetel."""
+    cr.execute(
+        "SELECT m.model FROM ir_model m JOIN ir_model_data d"
+        " ON d.model = 'ir.model' AND d.res_id = m.id"
+        " WHERE d.module = 'connect_voicetel'")
+    return {model.replace('.', '_') for (model,) in cr.fetchall()}
+
+
+def _legacy_candidates(cr, keep=()):
     cr.execute(
         "SELECT c.relname FROM pg_class c"
         " JOIN pg_namespace n ON n.oid = c.relnamespace"
@@ -318,6 +328,7 @@ def _legacy_candidates(cr):
         if not name.endswith(ARCHIVE_SUFFIX)
         and LEGACY_PREFIX not in name
         and name not in current
+        and name not in keep
     ]
 
 
@@ -327,7 +338,7 @@ def _legacy_name(table):
     return LEGACY_PREFIX + table
 
 
-def rename_legacy_tables(cr):
+def rename_legacy_tables(cr, keep=()):
     """Rename every connect_voicetel table no current model owns.
 
     Odoo leaves the table of a model that left the registry (ir.model's
@@ -339,7 +350,7 @@ def rename_legacy_tables(cr):
     against legacy data.
     """
     renamed = []
-    for table in _legacy_candidates(cr):
+    for table in _legacy_candidates(cr, keep):
         target = _free_name(cr, _legacy_name(table))
         cr.execute('SELECT count(*) FROM {}'.format(_quoted(table)))
         rows = cr.fetchone()[0]
@@ -500,6 +511,23 @@ def post_migrate(cr, version):
         _icp_get(cr, 'connect.voicetel_api_host') or '(default)',
         _icp_get(cr, 'connect.voicetel_auto_sync'),
         _icp_get(cr, 'connect.voicetel_verify_requests'))
+
+
+def pre_init_hook(env):
+    """Fresh install: move tables a removed VoiceTel module left behind.
+
+    Uninstalling a module does not always drop its tables, and a database
+    restored or merged from elsewhere can carry them too. Odoo would
+    adopt such a table for the model of the same name, with its stale
+    rows, columns and constraints. Rename them to connect_voicetel_legacy_*
+    before this module's tables are created. A table whose model is
+    still recorded in ir.model under this module is left alone.
+    """
+    renamed = rename_legacy_tables(env.cr, keep=_module_model_tables(env.cr))
+    if renamed:
+        _logger.warning(
+            'connect_voicetel: fresh install found leftover tables, renamed to %s',
+            ', '.join(renamed))
 
 
 def post_init_hook(env):

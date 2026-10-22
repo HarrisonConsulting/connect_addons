@@ -3,7 +3,7 @@
 import logging
 import re
 
-from voiceml.exceptions import ApiError
+from voiceml.exceptions import ApiError, NotFoundError
 
 from odoo import fields, models, api, release
 if release.version_info[0] >= 19:
@@ -317,11 +317,10 @@ class Domain(models.Model):
                     client.sip.credential_lists.delete(rec.cred_list_sid)
                 client.sip.domains.delete(rec.sid)
                 debug(self, "Domain removed.")
+            except NotFoundError:
+                logger.info('VoiceTel domain %s was already gone', rec.domain_name)
             except Exception as e:
-                if "not found" in str(e):
-                    pass
-                else:
-                    raise ValidationError(format_connect_response(e))
+                raise ValidationError(format_connect_response(e))
         return super().unlink()
 
     @api.private
@@ -336,13 +335,13 @@ class Domain(models.Model):
                 voice_status_callback_url=self.application.voice_status_url,
             )
             debug(self, "Domain {} updated".format(self.friendly_name))
+        except NotFoundError:
+            logger.warning(
+                "VoiceML domain %s not found, creating.", self.friendly_name
+            )
+            self.create_domain(client)
         except Exception as e:
-            if "not found" in str(e):
-                logger.warning(
-                    "VoiceML domain %s not found, creating.", self.friendly_name
-                )
-                self.create_domain(client)
-            elif _domain_taken(e):
+            if _domain_taken(e):
                 raise ValidationError("This domain name is already used in VoiceML!")
             else:
                 raise

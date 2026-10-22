@@ -32,11 +32,11 @@ class TestRecordingMedia(VoiceTelTestCommon):
         self.assertEqual(auth, (ACCOUNT_SID, API_KEY))
 
     def test_the_configured_host_is_the_one_trusted(self):
-        self.settings.set_param('voicetel_api_host', 'voiceml.example.net')
+        self.settings.set_param('voicetel_api_host', 'voiceml-staging.voicetel.com')
 
         self.assertEqual(
             self.settings._get_media_auth(
-                'https://voiceml.example.net/2010-04-01/Recordings/RE1'),
+                'https://voiceml-staging.voicetel.com/2010-04-01/Recordings/RE1'),
             (ACCOUNT_SID, API_KEY))
         self.assertIsNone(self.settings._get_media_auth(
             'https://voiceml.voicetel.com/2010-04-01/Recordings/RE1'))

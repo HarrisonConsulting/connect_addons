@@ -12,6 +12,10 @@ from voiceml.models import CreateCallRequest
 from odoo.addons.connect.models.license import ODUIST_MODULES
 from odoo.addons.connect.models.settings import debug
 
+from ..tools import (
+    API_HOST_ZONE, DEFAULT_VOICETEL_API_HOST, DEFAULT_VOICETEL_SIP_SUFFIX,
+    SIP_SUFFIX_ZONE, in_zone, normalize_host)
+
 ODUIST_MODULES.append('connect_voicetel')
 
 
@@ -23,12 +27,9 @@ VOICETEL_PROTECTED_FIELDS = [
     "display_voicetel_api_key",
 ]
 
-# VoiceML's public hostnames. The helper library builds every URL on the
-# Twilio hosts; the HTTP client below rewrites them to the configured host.
-DEFAULT_VOICETEL_API_HOST = 'voiceml.voicetel.com'
-# Tenant SIP domains live under this suffix: the registrar only
-# authenticates *.vml.voice.tel names (ADR-066 decision 9).
-DEFAULT_VOICETEL_SIP_SUFFIX = 'vml.voice.tel'
+# VoiceML's public API host, and the suffix tenant SIP domains live
+# under: the registrar only authenticates *.vml.voice.tel names (ADR-066
+# decision 9). Shared with the migration through ..tools.
 DEFAULT_VOICETEL_STUN_SERVER = 'stun:stun.l.google.com:19302'
 # The SIP over WebSocket listener is tied to the SIP domain:
 # wss://<domain_name>:8443 (VoiceML Phone uses the same address).
@@ -55,28 +56,34 @@ def strip_number(number):
 class Settings(models.Model):
     _inherit = "connect.settings"
 
-    voicetel_account_sid = fields.Char(string="Account SID")
+    voicetel_account_sid = fields.Char(string="VoiceTel Account SID")
     # Never grant this to connect.group_webhook: the webhook user is the
     # identity of all public webhook controllers, and get_param() returns
     # groups-restricted fields to group members. Signature validation in
     # the controllers reads the key via sudo() and is not affected.
     voicetel_api_key = fields.Char(groups="base.group_erp_manager")
     display_voicetel_api_key = fields.Char()
+    # The API key is sent to the API host and the browser registers under
+    # the suffix: system administrators only, held to VoiceTel's zones.
     voicetel_api_host = fields.Char(
-        string='API Host', default=DEFAULT_VOICETEL_API_HOST, required=True,
-        help='Hostname of the VoiceML REST API, without scheme or path.')
+        string='VoiceTel API Host', default=DEFAULT_VOICETEL_API_HOST, required=True,
+        groups='base.group_system',
+        help='Hostname of the VoiceML REST API, without scheme or path. '
+             'Must be under voicetel.com unless the system parameter '
+             'connect.voicetel_allow_custom_host is set.')
     voicetel_sip_suffix = fields.Char(
-        string='SIP Domain Suffix', default=DEFAULT_VOICETEL_SIP_SUFFIX,
-        required=True,
+        string='VoiceTel SIP Domain Suffix', default=DEFAULT_VOICETEL_SIP_SUFFIX,
+        required=True, groups='base.group_system',
         help='Tenant SIP domains are created as <label>.<suffix>. The VoiceML '
              'registrar authenticates registrations and calls under this '
              'suffix only.')
     voicetel_stun_server = fields.Char(
         string='STUN Server', default=DEFAULT_VOICETEL_STUN_SERVER,
+        groups='base.group_system',
         help='STUN server for the browser phone. The WSS edge forces ICE, so '
              'a symmetric NAT without STUN leaves callers with one-way audio.')
     voicetel_phone_enabled = fields.Boolean(
-        string='Browser Phone', default=True,
+        string='VoiceTel Browser Phone', default=True,
         help='Load the VoiceTel web phone for users whose browser phone is '
              'enabled.')
     voicetel_balance = fields.Char(readonly=True)
@@ -86,7 +93,7 @@ class Settings(models.Model):
     )
     voicetel_fetch_call_prices = fields.Boolean(
         default=False,
-        string="Fetch Call Prices",
+        string="Fetch VoiceTel Call Prices",
         help="Fetch call prices from the VoiceML API after call completion."
     )
 
@@ -110,9 +117,42 @@ class Settings(models.Model):
         return params.get_param('web.base.url') or ''
 
     @api.model
+    def _voicetel_custom_host_allowed(self):
+        return bool(self.env['ir.config_parameter'].sudo().get_param(
+            'connect.voicetel_allow_custom_host'))
+
+    @api.constrains('voicetel_api_host', 'voicetel_sip_suffix')
+    def _check_voicetel_hosts(self):
+        if self._voicetel_custom_host_allowed():
+            return
+        for rec in self.sudo():
+            for fname, zone in (('voicetel_api_host', API_HOST_ZONE),
+                                ('voicetel_sip_suffix', SIP_SUFFIX_ZONE)):
+                raw = rec[fname]
+                if not raw:
+                    continue
+                if not in_zone(normalize_host(raw), zone):
+                    raise ValidationError(
+                        '{} must be a hostname under {}. Set the system '
+                        'parameter connect.voicetel_allow_custom_host to '
+                        'allow another host.'.format(rec._fields[fname].string, zone))
+
+    @api.model
     def _voicetel_api_host(self):
-        host = (self.sudo().get_param('voicetel_api_host') or '').strip()
-        return (host or DEFAULT_VOICETEL_API_HOST).lower().rstrip('/')
+        """Bare API hostname; the default when the stored one is unusable.
+
+        Re-checked here and not only on save: the value can arrive through
+        ir.config_parameter, and the API key is sent to it.
+        """
+        host = normalize_host(self.sudo().get_param('voicetel_api_host'))
+        if not host:
+            return DEFAULT_VOICETEL_API_HOST
+        if not (in_zone(host, API_HOST_ZONE) or self._voicetel_custom_host_allowed()):
+            logger.warning(
+                'VoiceTel API host %s is not under %s; using %s',
+                host, API_HOST_ZONE, DEFAULT_VOICETEL_API_HOST)
+            return DEFAULT_VOICETEL_API_HOST
+        return host
 
     @api.model
     @api.private
@@ -124,21 +164,15 @@ class Settings(models.Model):
         and typed errors (``voiceml.exceptions.ApiError`` subclasses carrying
         ``code``), so no string matching on exception text.
         """
-        try:
-            # connect.settings is admin-only; credentials are read with sudo()
-            # below, so no caller-level model access check is needed here.
-            account_sid = self.sudo().get_param("voicetel_account_sid")
-            api_key = self.sudo().get_param("voicetel_api_key")
-            return Client(
-                account_sid=account_sid,
-                api_key=api_key,
-                base_url='https://{}'.format(self._voicetel_api_host()),
-            )
-        except Exception as e:
-            if "required" in str(e):
-                raise ValidationError("Set the VoiceTel Account SID and API key first!")
-            else:
-                raise
+        account_sid = self.sudo().get_param("voicetel_account_sid")
+        api_key = self.sudo().get_param("voicetel_api_key")
+        if not (account_sid and api_key):
+            raise ValidationError("Set the VoiceTel Account SID and API key first!")
+        return Client(
+            account_sid=account_sid,
+            api_key=api_key,
+            base_url='https://{}'.format(self._voicetel_api_host()),
+        )
 
     @api.model
     def _voicetel_check_admin(self):

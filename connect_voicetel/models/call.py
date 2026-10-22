@@ -32,14 +32,14 @@ class Call(models.Model):
         help='VoiceML CallSid for fetching price information'
     )
     voicetel_price = fields.Float(
-        string='Call Price', readonly=True, digits=(10, 3)
+        string='VoiceTel Call Price', readonly=True, digits=(10, 3)
     )
     voicetel_price_unit = fields.Char(
-        string='Price Unit', readonly=True,
+        string='VoiceTel Price Unit', readonly=True,
         help='The currency unit for call price (e.g., USD)'
     )
     voicetel_is_price_fetched = fields.Boolean(
-        string='Price Fetched', default=False, readonly=True,
+        string='VoiceTel Price Fetched', default=False, readonly=True,
         help='Indicates if the call price has been fetched from the VoiceML API'
     )
 

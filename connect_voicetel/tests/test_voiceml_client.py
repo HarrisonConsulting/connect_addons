@@ -30,11 +30,11 @@ class TestVoiceMLClient(VoiceTelTestCommon):
         self.assertEqual(client.base_url, 'https://voiceml.voicetel.com')
 
     def test_the_host_setting_is_normalized(self):
-        self.settings.set_param('voicetel_api_host', ' VoiceML.Example.NET/ ')
+        self.settings.set_param('voicetel_api_host', ' VoiceML-Staging.VoiceTel.COM/ ')
 
-        self.assertEqual(self.settings._voicetel_api_host(), 'voiceml.example.net')
+        self.assertEqual(self.settings._voicetel_api_host(), 'voiceml-staging.voicetel.com')
         client = self.settings.get_voicetel_client()
-        self.assertEqual(client.base_url, 'https://voiceml.example.net')
+        self.assertEqual(client.base_url, 'https://voiceml-staging.voicetel.com')
 
     def test_callback_urls_carry_no_fragment(self):
         url = self.settings.voicetel_webhook_url('voicetel/webhook/callstatus')

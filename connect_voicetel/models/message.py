@@ -5,7 +5,7 @@ import logging
 from markupsafe import Markup
 from .voiceml_response import MessagingResponse
 
-from odoo import models, fields, api, SUPERUSER_ID, release
+from odoo import models, fields, api, SUPERUSER_ID
 from odoo.exceptions import AccessError, ValidationError
 
 logger = logging.getLogger(__name__)

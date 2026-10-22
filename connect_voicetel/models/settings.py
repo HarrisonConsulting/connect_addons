@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from odoo import fields, models, api, release
 from odoo.exceptions import AccessError, ValidationError

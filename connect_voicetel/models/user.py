@@ -13,7 +13,7 @@ if release.version_info[0] >= 19:
 from .voiceml_response import Dial, VoiceResponse
 
 from odoo.addons.connect.models.settings import debug
-from .settings import MAX_EXTEN_LEN, format_connect_response
+from .settings import format_connect_response
 from .voiceml import pretty_xml, render_template
 
 logger = logging.getLogger(__name__)

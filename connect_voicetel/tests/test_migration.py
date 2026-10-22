@@ -203,3 +203,72 @@ class TestMigration(TransactionCase):
         self.pre.migrate(cr, '19.0.2.1.3')
         cr.execute('SELECT count(*) FROM connect_voicetel_user_archive')
         self.assertTrue(cr.fetchone()[0])
+
+    def test_yoder_125_legacy_path(self):
+        """A database on the 1.2.5 module (8d092d8): VoiceTel was the
+        connect REST provider, credentials lived on connect.settings and
+        the browser phone kept per-tab credentials in
+        connect.user_browser_credential."""
+        settings = self.env['connect.settings'].sudo()
+        settings.get_param('rest_provider')
+        self.env.flush_all()
+        cr = self.env.cr
+        cr.execute("""
+            DROP TABLE connect_voicetel_user_archive;
+            ALTER TABLE connect_settings
+                ADD COLUMN IF NOT EXISTS voicetel_account_sid varchar,
+                ADD COLUMN IF NOT EXISTS voicetel_api_key varchar,
+                ADD COLUMN IF NOT EXISTS display_voicetel_api_key varchar,
+                ADD COLUMN IF NOT EXISTS voicetel_api_secret varchar,
+                ADD COLUMN IF NOT EXISTS display_voicetel_api_secret varchar,
+                ADD COLUMN IF NOT EXISTS voicetel_rest_host varchar;
+            UPDATE connect_settings SET voicetel_account_sid = 'ACyoder',
+                voicetel_api_key = 'key', display_voicetel_api_key = '*****',
+                voicetel_api_secret = 'secret', display_voicetel_api_secret = '******',
+                voicetel_rest_host = 'voiceml.voicetel.com', rest_provider = 'voicetel';
+            DELETE FROM ir_config_parameter WHERE key = 'connect.rest_provider';
+            INSERT INTO ir_config_parameter (key, value)
+                VALUES ('connect.rest_provider', 'voicetel');
+            CREATE TABLE connect_user_browser_credential (
+                id SERIAL PRIMARY KEY,
+                "user" int NOT NULL REFERENCES connect_user(id) ON DELETE CASCADE,
+                nonce varchar NOT NULL, sid varchar NOT NULL,
+                CONSTRAINT connect_user_browser_credential_user_nonce_uniq
+                    UNIQUE ("user", nonce));
+            CREATE INDEX connect_user_browser_credential__user_index
+                ON connect_user_browser_credential ("user");
+        """)
+        user = self.env['connect.user'].with_context(no_voicetel_create=True).create({
+            'user': self.env['res.users'].create({'name': 'Yoder', 'login': 'vt_yoder'}).id})
+        self.env.flush_all()
+        cr.execute("""
+            INSERT INTO connect_user_browser_credential ("user", nonce, sid)
+            VALUES (%s, 'aaaa', 'CRtab1'), (%s, 'bbbb', 'CRtab2')""", (user.id, user.id))
+
+        for _run in range(2):
+            self.pre.migrate(cr, '19.0.1.2.5')
+            self.post.migrate(cr, '19.0.1.2.5')
+
+        # secrets archived with the other credentials, then dropped
+        cr.execute(
+            'SELECT voicetel_account_sid, voicetel_api_secret, display_voicetel_api_secret'
+            ' FROM connect_voicetel_settings_archive')
+        self.assertIn(('ACyoder', 'secret', '******'), cr.fetchall())
+        cr.execute(
+            "SELECT column_name FROM information_schema.columns"
+            " WHERE table_name = 'connect_settings' AND column_name IN"
+            " ('voicetel_api_secret', 'display_voicetel_api_secret', 'voicetel_rest_host')")
+        self.assertFalse(cr.fetchall())
+        # browser credentials renamed for the revoke ledger, not adopted
+        self.assertIsNone(self._regclass('connect_user_browser_credential'))
+        self.assertIsNone(self._regclass('connect_user_browser_credential_user_nonce_uniq'))
+        cr.execute('SELECT nonce, sid FROM {} ORDER BY id'.format(hooks.LEGACY_BROWSER_CREDENTIAL))
+        self.assertEqual(cr.fetchall(), [('aaaa', 'CRtab1'), ('bbbb', 'CRtab2')])
+        # VoiceTel stays the REST provider: this version supports the key
+        self.assertIn('voicetel', self.env['connect.settings']._fields[
+            'rest_provider'].get_values(self.env))
+        cr.execute('SELECT DISTINCT rest_provider FROM connect_settings')
+        self.assertEqual(cr.fetchall(), [('voicetel',)])
+        self.assertEqual(self._icp('connect.rest_provider'), 'voicetel')
+        self.env.invalidate_all()
+        self.assertEqual(settings.get_param('rest_provider'), 'voicetel')

@@ -89,6 +89,58 @@ class TestRevokeOrphanCredentials(TransactionCase):
         client.sip.credential_lists.delete.assert_called_once_with('CLold')
         self.assertEqual({r['action'] for r in ledger}, {'deleted'})
 
+    def test_legacy_browser_credentials_are_listed(self):
+        """1.2.x per-tab credentials (connect.user_browser_credential,
+        renamed by the migration) sit in the user's old core SIP domain."""
+        cr = self.env.cr
+        cr.execute("""
+            DROP TABLE IF EXISTS connect_voicetel_legacy_domain;
+            DROP TABLE IF EXISTS connect_voicetel_user_archive;
+            CREATE TABLE IF NOT EXISTS connect_domain (
+                id SERIAL PRIMARY KEY, subdomain varchar, cred_list_sid varchar);
+            ALTER TABLE connect_user ADD COLUMN IF NOT EXISTS "domain" int;
+            ALTER TABLE connect_user ADD COLUMN IF NOT EXISTS username varchar;
+        """)
+        # connect_twilio's FK on connect_user.domain points at its own table
+        cr.execute("""
+            SELECT conname FROM pg_constraint
+            WHERE conrelid = 'connect_user'::regclass AND contype = 'f'
+            AND conkey = ARRAY[(SELECT attnum FROM pg_attribute
+                WHERE attrelid = 'connect_user'::regclass AND attname = 'domain')]""")
+        for (name,) in cr.fetchall():
+            cr.execute('ALTER TABLE connect_user DROP CONSTRAINT "%s"' % name)
+        cr.execute("""
+            INSERT INTO connect_domain (subdomain, cred_list_sid) VALUES
+                ('yoder', 'CLyoder'), ('current', 'CLrevoke') RETURNING id""")
+        old_domain, current_domain = [row[0] for row in cr.fetchall()]
+        cr.execute("""
+            UPDATE connect_user SET "domain" = %s, username = 'matt' WHERE id = %s;
+            CREATE TABLE connect_voicetel_legacy_user_browser_credential (
+                id SERIAL PRIMARY KEY, "user" int, nonce varchar, sid varchar);
+            INSERT INTO connect_voicetel_legacy_user_browser_credential ("user", nonce, sid)
+                VALUES (%s, 'aaaa', 'CRtab1'), (%s, 'bbbb', 'CRtab2');
+        """, (old_domain, self.live_user.id, self.live_user.id, self.live_user.id))
+        other = self.env['connect.user'].with_context(no_voicetel_create=True).create({
+            'user': self.env['res.users'].create({'name': 'Cur', 'login': 'revoke_cur'}).id})
+        self.env.flush_all()
+        cr.execute("""
+            UPDATE connect_user SET "domain" = %s, username = 'cur' WHERE id = %s;
+            INSERT INTO connect_voicetel_legacy_user_browser_credential ("user", nonce, sid)
+                VALUES (%s, 'cccc', 'CRcurrentlist');
+        """, (current_domain, other.id, other.id))
+        client, handle = self._client(['liveagent'])
+        ledger = self._run(client, apply=False)
+        self.assertEqual(
+            [(r['kind'], r['domain'], r['username'], r['sid'], r['action']) for r in ledger],
+            [('legacy_credential', 'yoder', 'matt-web-aaaa', 'CRtab1', 'would_delete'),
+             ('legacy_credential', 'yoder', 'matt-web-bbbb', 'CRtab2', 'would_delete')])
+        handle.delete.assert_not_called()
+        ledger = self._run(client, apply=True)
+        client.sip.credential_lists.credentials.assert_any_call('CLyoder')
+        self.assertEqual(sorted(c.args[0] for c in handle.delete.call_args_list),
+                         ['CRtab1', 'CRtab2'])
+        self.assertEqual({r['action'] for r in ledger}, {'deleted'})
+
     def test_non_admin_is_refused(self):
         user = new_test_user(self.env, login='vt_revoke_plain')
         client, handle = self._client(['ghost'])

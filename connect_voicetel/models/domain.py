@@ -14,6 +14,7 @@ from odoo.addons.connect.models.settings import debug
 from .settings import (
     format_connect_response, DEFAULT_VOICETEL_SIP_SUFFIX, RE_DIAL_NUMBER,
     VOICETEL_WSS_PORT)
+from ..hooks import LEGACY_BROWSER_CREDENTIAL
 from .voiceml import REJECT
 from .voiceml import pretty_xml
 
@@ -519,14 +520,16 @@ class Domain(models.Model):
         connect_voicetel_user_archive keeps each old user's credential SID
         and old domain id; connect_voicetel_legacy_domain (renamed by the
         19.0.4.0.0 migration) keeps that domain's SID and credential list.
+        The 1.2.x per-tab browser credentials are listed as well.
         Anything the current domains own is left out.
         """
         cr = self.env.cr
+        browser = self._voicetel_legacy_browser_credentials(current_list_sids)
         cr.execute("SELECT to_regclass('connect_voicetel_legacy_domain'),"
                    " to_regclass('connect_voicetel_user_archive')")
         legacy_domain, user_archive = cr.fetchone()
         if not legacy_domain:
-            return [], []
+            return browser, []
         cr.execute("SELECT id, sid, cred_list_sid, domain_name"
                    " FROM connect_voicetel_legacy_domain WHERE sid IS NOT NULL")
         domains = [
@@ -547,7 +550,55 @@ class Domain(models.Model):
                     credentials.append({
                         'domain': legacy['domain'], 'cred_list_sid': legacy['cred_list_sid'],
                         'username': username, 'sid': sid})
+        seen = {c['sid'] for c in credentials}
+        credentials += [c for c in browser if c['sid'] not in seen]
         return credentials, domains
+
+    @api.model
+    def _voicetel_legacy_browser_credentials(self, current_list_sids):
+        """Per-tab SIP credentials the 1.2.x module minted (F7).
+
+        connect.user_browser_credential (renamed by the 19.0.4.0.0
+        migration to connect_voicetel_legacy_user_browser_credential)
+        keeps each credential's SID and connect.user. The credential list
+        is that user's SIP domain of the time: connect_domain, which core
+        moved to connect_twilio_domain. Lists a current domain owns are
+        left to the per-domain pass.
+        """
+        cr = self.env.cr
+        cr.execute("SELECT to_regclass(%s)", (LEGACY_BROWSER_CREDENTIAL,))
+        if not cr.fetchone()[0]:
+            return []
+        cr.execute(
+            "SELECT column_name FROM information_schema.columns"
+            " WHERE table_schema = current_schema() AND table_name = 'connect_user'"
+            " AND column_name IN ('domain', 'username')")
+        user_columns = {row[0] for row in cr.fetchall()}
+        if 'domain' not in user_columns:
+            return []
+        username = "u.username || '-web-' || b.nonce" if 'username' in user_columns else 'b.nonce'
+        credentials = []
+        for table in ('connect_twilio_domain', 'connect_domain'):
+            cr.execute(
+                "SELECT count(*) FROM information_schema.columns"
+                " WHERE table_schema = current_schema() AND table_name = %s"
+                " AND column_name IN ('cred_list_sid', 'subdomain')", (table,))
+            if cr.fetchone()[0] != 2:
+                continue
+            cr.execute(
+                'SELECT d.subdomain, d.cred_list_sid, {username}, b.sid'
+                ' FROM {legacy} b'
+                ' JOIN connect_user u ON u.id = b."user"'
+                ' JOIN {table} d ON d.id = u."domain"'
+                ' WHERE b.sid IS NOT NULL AND d.cred_list_sid IS NOT NULL'
+                ' ORDER BY b.id'.format(
+                    username=username, legacy=LEGACY_BROWSER_CREDENTIAL, table=table))
+            credentials += [
+                {'domain': domain, 'cred_list_sid': cl, 'username': user, 'sid': sid}
+                for domain, cl, user, sid in cr.fetchall()
+                if cl not in current_list_sids
+            ]
+        return credentials
 
     def _revoke_orphan_credentials(self, apply=False):
         """List, and with apply=True delete, VoiceTel SIP credentials and

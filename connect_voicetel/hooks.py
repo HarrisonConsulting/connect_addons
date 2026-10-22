@@ -38,6 +38,8 @@ ARCHIVES = {
             'voicetel_account_sid',
             'voicetel_api_key',
             'display_voicetel_api_key',
+            'voicetel_api_secret',
+            'display_voicetel_api_secret',
             'voicetel_rest_host',
             'voicetel_wss_url',
             'voicetel_softphone',
@@ -68,26 +70,38 @@ ARCHIVES = {
 }
 
 # Records the pre-retirement module owned that name removed fields or
-# models. Menus first: they point at the actions. A view takes its
-# inherit tree with it.
+# models. Menus first: they point at the actions. Crons before server
+# actions: a cron's server action is ON DELETE RESTRICT, and goes with
+# it. A view takes its inherit tree with it.
 OWNED_RECORDS = (
     ('ir.ui.menu', 'ir_ui_menu'),
     ('ir.ui.view', 'ir_ui_view'),
     ('ir.actions.act_window', 'ir_act_window'),
-    ('ir.actions.server', 'ir_act_server'),
     ('ir.cron', 'ir_cron'),
+    ('ir.actions.server', 'ir_act_server'),
     ('ir.rule', 'ir_rule'),
     ('ir.model.access', 'ir_model_access'),
     ('ir.filters', 'ir_filters'),
 )
 
 # Provider selections that named the old module's 'voicetel' key.
+# connect.settings.rest_provider is not here: this version adds the same
+# 'voicetel' key to it (models/credentials.py), so a database that ran
+# VoiceTel as its REST provider keeps that choice, column and
+# connect.rest_provider config parameter alike.
 PROVIDER_COLUMNS = (
-    ('connect_settings', ('originate_provider', 'message_provider', 'rest_provider')),
+    ('connect_settings', ('originate_provider', 'message_provider')),
     ('connect_user', ('originate_provider', 'message_provider')),
 )
 
 LEGACY_PREFIX = 'connect_voicetel_legacy_'
+# Tables of the 1.2.x module that do not carry the connect_voicetel_
+# prefix, with their legacy names. connect.user_browser_credential holds
+# the per-tab SIP credential SIDs the revoke ledger needs.
+LEGACY_BROWSER_CREDENTIAL = LEGACY_PREFIX + 'user_browser_credential'
+LEGACY_UNPREFIXED = {
+    'connect_user_browser_credential': LEGACY_BROWSER_CREDENTIAL,
+}
 ARCHIVE_SUFFIX = '_archive'
 # Below this installed version the database still runs the pre-retirement
 # module: its columns are live and nothing was archived yet.
@@ -242,10 +256,18 @@ def drop_owned_records(cr):
                     " JOIN tree t ON v.inherit_id = t.id)"
                     " SELECT id FROM tree", (tuple(ids),))
                 ids = [row[0] for row in cr.fetchall()]
+            actions = []
+            if model == 'ir.cron':
+                cr.execute(
+                    "SELECT ir_actions_server_id FROM ir_cron WHERE id IN %s"
+                    " AND ir_actions_server_id IS NOT NULL", (tuple(ids),))
+                actions = [row[0] for row in cr.fetchall()]
             cr.execute('DELETE FROM {} WHERE id IN %s'.format(_quoted(table)), (tuple(ids),))
             _logger.info(
                 'connect_voicetel: deleted %s %s records of the retired module',
                 cr.rowcount, model)
+            if actions:
+                cr.execute("DELETE FROM ir_act_server WHERE id IN %s", (tuple(actions),))
         cr.execute(
             "DELETE FROM ir_model_data"
             " WHERE module = 'connect_voicetel' AND model = %s", (model,))
@@ -267,10 +289,10 @@ def clear_provider_selections(cr):
             ('voicetel',))
         _logger.info('connect_voicetel: retired %s connect_tool rows', cr.rowcount)
     cr.execute(
-        "DELETE FROM ir_config_parameter WHERE key IN %s AND value = %s",
-        (('rest_provider', 'connect.rest_provider'), 'voicetel'))
-    _logger.info(
-        'connect_voicetel: removed %s rest_provider config parameters', cr.rowcount)
+        "SELECT value FROM ir_config_parameter WHERE key = 'connect.rest_provider'")
+    row = cr.fetchone()
+    if row and row[0] == 'voicetel':
+        _logger.info('connect_voicetel: rest_provider stays voicetel, mapped to this version')
 
 
 def drop_archived_columns(cr):
@@ -322,9 +344,11 @@ def _legacy_candidates(cr, keep=()):
         " WHERE n.nspname = current_schema() AND c.relkind = 'r'"
         " AND c.relname LIKE '%%connect\\_voicetel\\_%%'"
         " ORDER BY c.relname")
+    names = [name for (name,) in cr.fetchall()]
+    names += [name for name in LEGACY_UNPREFIXED if _table_exists(cr, name)]
     current = _current_tables(cr)
     return [
-        name for (name,) in cr.fetchall()
+        name for name in names
         if not name.endswith(ARCHIVE_SUFFIX)
         and LEGACY_PREFIX not in name
         and name not in current
@@ -333,6 +357,8 @@ def _legacy_candidates(cr, keep=()):
 
 
 def _legacy_name(table):
+    if table in LEGACY_UNPREFIXED:
+        return LEGACY_UNPREFIXED[table]
     if table.startswith('connect_voicetel_'):
         return LEGACY_PREFIX + table[len('connect_voicetel_'):]
     return LEGACY_PREFIX + table

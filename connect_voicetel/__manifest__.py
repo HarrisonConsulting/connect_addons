@@ -37,6 +37,7 @@
             'connect_voicetel/static/src/widgets/phone_field/*',
         ],
     },
+    'post_init_hook': 'post_init_hook',
     'images': ['static/description/icon.png'],
     'installable': True,
     'application': False,

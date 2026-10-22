@@ -11,3 +11,4 @@ from . import test_user_sip_account
 from . import test_voiceml_client
 from . import test_webhook_signature
 from . import test_inbound_message_routing
+from . import test_migration

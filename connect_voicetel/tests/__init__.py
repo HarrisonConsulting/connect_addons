@@ -16,3 +16,4 @@ from . import test_rpc_surface
 from . import test_webhook_http
 from . import test_sync_guard
 from . import test_media_trust
+from . import test_message

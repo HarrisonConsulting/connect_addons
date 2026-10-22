@@ -6,7 +6,7 @@ from markupsafe import Markup
 from .voiceml_response import MessagingResponse
 
 from odoo import models, fields, api, SUPERUSER_ID, release
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -16,21 +16,12 @@ class ConnectMessage(models.Model):
 
     voicetel_account_sid = fields.Char('VoiceML Account SID')
 
-    @api.depends('status', 'sender_user')
-    def _compute_direction(self):
-        """Override: a message from one of our VoiceTel numbers is outgoing."""
-        for rec in self:
-            if rec.sender_user:
-                rec.direction = 'outgoing'
-            elif rec.status == 'received':
-                rec.direction = 'incoming'
-            else:
-                our_numbers = self.env['connect.voicetel.number'].sudo().search(
-                    []).mapped('phone_number')
-                if rec.from_number in set(our_numbers):
-                    rec.direction = 'outgoing'
-                else:
-                    super(ConnectMessage, rec)._compute_direction()
+    @api.model
+    def _own_numbers(self):
+        """VoiceTel numbers this database sends from. Core's
+        _compute_direction asks every provider through this chain."""
+        return super()._own_numbers() | set(
+            self.env['connect.voicetel.number'].sudo().search([]).mapped('phone_number'))
 
     @api.model
     @api.private
@@ -46,26 +37,25 @@ class ConnectMessage(models.Model):
                 )
                 return str(MessagingResponse())
             if params.get('SmsStatus') == 'received':
-                logger.info(
-                    "Received VoiceTel SMS webhook data:\n%s", params
-                )
+                sid = params.get('MessageSid')
+                if sid and self.env['connect.message'].sudo().search_count(
+                        [('message_sid', '=', sid)]):
+                    # VoiceML retries webhooks; a replayed sid is stored.
+                    logger.info('VoiceTel SMS %s already received', sid)
+                    return str(MessagingResponse())
+                logger.info("Received VoiceTel SMS %s", sid)
                 from_number = params.get('From')
                 to_number = params.get('To')
                 values = self.get_receive_message_values(params)
                 values.update({'message_type': 'sms'})
-                # Media handling
-                try:
-                    if int(params.get('NumMedia', '0') or 0) > 0:
-                        values.update(
-                            {
-                                'media_url': params.get('MediaUrl0'),
-                                'media_content_type': params.get(
-                                    'MediaContentType0'
-                                ),
-                            }
-                        )
-                except Exception:
-                    pass
+                # MediaUrl0 is webhook input: keep it only on a VoiceTel
+                # media host, or the media proxy would fetch anything.
+                media_url = values.get('media_url')
+                if media_url and not self.env['connect.settings'].sudo(
+                        )._is_trusted_media_url(media_url):
+                    logger.warning(
+                        'VoiceTel SMS %s: media URL on an untrusted host dropped', sid)
+                    values.update({'media_url': False, 'media_content_type': False})
                 partner = self.env[
                     'res.partner'
                 ].get_partner_by_number(from_number)
@@ -206,26 +196,26 @@ class ConnectMessage(models.Model):
                         .browse(target_msg.res_id)
                     )
                     if obj.exists() and hasattr(obj, 'message_post'):
+                        # The SMS body is sender-controlled: Markup.format
+                        # escapes it. media_widget is core's escaped HTML.
                         body = Markup(
                             "<div class='d-flex flex-row px-1'>"
-                            "<span class='px-1'>{}</span></div>".format(
-                                values.get('body')
-                            )
-                        )
+                            "<span class='px-1'>{}</span></div>"
+                        ).format(values.get('body') or '')
                         if message.media_url:
                             body = Markup(
                                 "<div class='d-flex flex-row'>"
                                 "<span class='px-1'>{}</span>"
-                                "<br/>{}</div>".format(
-                                    values.get('body'),
-                                    message.media_widget,
-                                )
+                                "<br/>{}</div>"
+                            ).format(
+                                values.get('body') or '',
+                                Markup(message.media_widget or ''),
                             )
                         link = Markup(
-                            '<small><a href="/web#id={}&model=connect.message&view_type=form">'
-                            'Message</a></small>'.format(message.id)
-                        )
-                        body = Markup(str(body) + str(link))
+                            '<small><a href="/web#id={}&amp;model=connect.message&amp;view_type=form">'
+                            'Message</a></small>'
+                        ).format(message.id)
+                        body = body + link
                         mt_comment = self.env.ref(
                             'mail.mt_comment'
                         ).id
@@ -272,8 +262,10 @@ class ConnectMessage(models.Model):
                     if params.get('ErrorMessage'):
                         values['error_message'] = params.get('ErrorMessage')
                     message.update(values)
-        except Exception as e:
-            logger.error("Error handling incoming SMS: %s", e)
+        except Exception:
+            # Re-raise so the controller answers 500 and VoiceML retries.
+            logger.exception('Error handling incoming VoiceTel SMS')
+            raise
         return str(MessagingResponse())
 
     def send(
@@ -291,6 +283,11 @@ class ConnectMessage(models.Model):
                 outgoing_callerid=outgoing_callerid, **kwargs)
         self.env['oduist.license'].check_license('connect', silent=False)
         sender_user = self.env.user
+        if res_model and res_id:
+            if res_model not in self.env:
+                raise ValidationError('Unknown model {}.'.format(res_model))
+            # As the calling user, before any sudo below.
+            self.env[res_model].browse(res_id).check_access('read')
         message_data = {
             'message_type': 'sms',
             'to_number': recipient,
@@ -301,6 +298,9 @@ class ConnectMessage(models.Model):
             'status': 'sent',
         }
         if outgoing_callerid:
+            if outgoing_callerid not in self._voicetel_allowed_senders(sender_user):
+                raise AccessError(
+                    'You may not send from {}.'.format(outgoing_callerid))
             sender = outgoing_callerid
         else:
             number = sender_user.connect_user.voicetel_outgoing_callerid
@@ -337,10 +337,10 @@ class ConnectMessage(models.Model):
             )
             if hasattr(obj, 'message_post'):
                 link = Markup(
-                    '<small><a href="/web#id={}&model=connect.message&view_type=form">'
-                    'Message</a></small>'.format(message.id)
-                )
-                chat_body = Markup(str(body) + '<br/>' + str(link))
+                    '<small><a href="/web#id={}&amp;model=connect.message&amp;view_type=form">'
+                    'Message</a></small>'
+                ).format(message.id)
+                chat_body = Markup('{}<br/>{}').format(body, link)
                 kwargs = {
                     'body': chat_body,
                     'subtype_id': mt_note,
@@ -369,6 +369,17 @@ class ConnectMessage(models.Model):
                 self.env['connect.settings'].connect_reload_view(
                     res_model
                 )
+
+    @api.model
+    def _voicetel_allowed_senders(self, user):
+        """Numbers ``user`` may send from: their own caller ID and the
+        default one; a Connect administrator may use any validated one."""
+        CallerId = self.env['connect.voicetel.outgoing_callerid'].sudo()
+        allowed = set(user.connect_user.voicetel_outgoing_callerid.mapped('number'))
+        allowed |= set(CallerId.search([('is_default', '=', True)]).mapped('number'))
+        if user.has_group('connect.group_admin'):
+            allowed |= set(CallerId.search([]).mapped('number'))
+        return allowed
 
     @api.private
     def voicetel_client_send(self, recipient, sender, body):

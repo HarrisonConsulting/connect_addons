@@ -96,7 +96,7 @@ export class PhoneSysTray extends Component {
         if (this.state.exception === 'AccessTokenInvalid') {
             this.notification.add('Please reload the page to refresh the Phone!', {title: 'Connect', type: 'warning'})
         } else if (this.state.exception) {
-            this.notification.add(markup(this.state.exception), {title: 'Connect', type: 'warning'})
+            this.notification.add(this.state.exception, {title: 'Connect', type: 'warning'})
         } else {
             this.bus.trigger('busPhoneToggleDisplay')
         }

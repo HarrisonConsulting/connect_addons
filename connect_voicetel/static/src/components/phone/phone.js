@@ -8,6 +8,7 @@ import {Contacts} from "@connect_voicetel/components/contacts/contacts"
 import {browser, dialTone, setFocus, maskNumber} from "@connect_voicetel/js/utils"
 import {Component, useState, useRef, onWillStart, onMounted, markup} from "@odoo/owl"
 import {useDebounced} from "@web/core/utils/timing"
+import {escape} from "@web/core/utils/strings"
 import {user} from "@web/core/user"
 
 const uid = user.userId
@@ -195,9 +196,6 @@ export class Phone extends Component {
             this.dialPlayer.volume = this.phone_ring_volume / 100
             this.dialPlayer.setAttribute("src", "/connect_voicetel/static/src/sounds/outgoing-call.mp3")
 
-            this.autoAnswerPlayer = document.createElement("audio")
-            this.autoAnswerPlayer.volume = this.phone_ring_volume / 100
-            this.autoAnswerPlayer.setAttribute("src", "/connect_voicetel/static/src/sounds/beep.mp3")
 
             this.incomingPlayer = document.createElement("audio")
             this.incomingPlayer.setAttribute("src", "/connect_voicetel/static/src/sounds/incoming-call-2.mp3")
@@ -500,6 +498,9 @@ export class Phone extends Component {
             uri: `sip:${sip_user}@${phone_sip_proxy}`,
             password: sip_password,
             contact_uri: `sip:${sip_user}@${phone_sip_proxy}`,
+            // RFC 5626 +sip.instance per tab: two tabs keep two
+            // registrations instead of replacing each other's binding.
+            instance_id: window.crypto.randomUUID(),
             register: true,
             stun_server: phone_stun_server,
             ...(this.phone_sip_auth_user_enabled && sip_auth_user ? { authorization_user: sip_auth_user } : {})
@@ -616,30 +617,14 @@ export class Phone extends Component {
 
                 self.state.isDisplayLastState = self.state.isDisplay
 
-                let answerMode = session._request.headers['Answer-Mode']
-                answerMode = answerMode ? answerMode[0].raw : false
-                if (answerMode === 'Auto') {
-                    // console.log('Auto Answer', answerMode)
-                    self._onClickAcceptIncoming()
-                    self.autoAnswerPlayer.play().then()
-                    return
-                } else {
-                    if (self.id === self.windows.at(-1)) {
-                        self.incomingPlayer.play().catch((error) => {
-                            console.error('Failed to play local media')
-                            console.error(error.message)
-                        })
-                    }
-                }
-                try {
-                    const callInfo = session._request.headers['Call-Info']
-                    const autoAnswer = callInfo ? callInfo[0].raw : ''
-                    if (autoAnswer.includes("Answer-After")) {
-                        const delay = parseInt(autoAnswer.split('=')[1])
-                        setTimeout(() => self._onClickAcceptIncoming(), delay * 1000)
-                    }
-                } catch (e) {
-                    console.log(e)
+                // Inbound calls always ring. Answer-Mode / Call-Info
+                // Answer-After headers arrive on the INVITE and are not
+                // trusted to answer the microphone on the user's behalf.
+                if (self.id === self.windows.at(-1)) {
+                    self.incomingPlayer.play().catch((error) => {
+                        console.error('Failed to play local media')
+                        console.error(error.message)
+                    })
                 }
 
                 if (!self.state.isDisplay) {
@@ -672,7 +657,7 @@ export class Phone extends Component {
         if (sound && microphone) {
             this.notify(cause, {title: 'Failed', sticky: false, type: 'danger'})
         } else {
-            let message = `${cause}<br/>Check permission for:`
+            let message = `${escape(cause || '')}<br/>Check permission for:`
             message += sound ? '' : '<br/>&emsp; - Sound'
             message += microphone ? '' : '<br/>&emsp; - Microphone'
             this.notification.add(markup(message), {title: 'Phone', sticky: true, type: 'danger'})

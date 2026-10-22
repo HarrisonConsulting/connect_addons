@@ -31,7 +31,6 @@
     'assets': {
         'web.assets_backend': [
             'connect_voicetel/static/src/icomoon/style.css',
-            'connect_voicetel/static/src/lib/jssip.min.js',
             'connect_voicetel/static/src/js/utils.js',
             'connect_voicetel/static/src/components/*/*',
             'connect_voicetel/static/src/js/core.js',

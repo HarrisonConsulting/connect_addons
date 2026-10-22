@@ -17,7 +17,7 @@ export const phoneService = {
         if (pathname.includes("/odoo")) {
             const settings = await orm.call("connect.settings", "voicetel_get_phone_settings")
             if (!settings.phone_enabled) return
-            const config = await orm.call('res.users', 'get_voicetel_sip_user_config', [uid])
+            const config = await orm.call('res.users', 'get_voicetel_sip_user_config', [])
 
             if (config && config.user_config) {
                 let bus = new EventBus()

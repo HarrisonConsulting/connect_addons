@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import logging
-import random
 import re
+import secrets
 import string
 
-from voiceml.exceptions import ApiError
+from voiceml.exceptions import ApiError, NotFoundError
 
 from odoo import fields, models, api, release
 from odoo.exceptions import ValidationError
@@ -19,6 +19,12 @@ from .voiceml import pretty_xml, render_template
 logger = logging.getLogger(__name__)
 
 RE_SIP_URI = re.compile(r'^(?:sips?:)?([^@]+)@([^;>?]+)')
+
+
+def _credential_taken(error):
+    """VoiceML answers a username already in the list with 409 / 21632."""
+    return isinstance(error, ApiError) and (
+        error.status_code == 409 or error.code == 21632)
 
 
 class User(models.Model):
@@ -45,7 +51,7 @@ class User(models.Model):
             if rec.voicetel_username and not rec.voicetel_username.isalnum():
                 raise ValidationError('VoiceTel username must be alphanumeric!')
 
-    @api.constrains('voicetel_sip_enabled', 'voicetel_username', 'voicetel_domain', 'voicetel_domain.domain_name')
+    @api.constrains('voicetel_sip_enabled', 'voicetel_username', 'voicetel_domain')
     def _check_voicetel_account(self):
         for rec in self:
             if rec.voicetel_sip_enabled and not (
@@ -135,33 +141,36 @@ class User(models.Model):
         return super().get_user_by_uri(userinfo)
 
     voicetel_sid = fields.Char('VoiceTel Credential SID', readonly=True)
-    # Kept readable by its owner: the browser phone registers with the SIP
-    # digest password, so unlike the Twilio module it is never masked
-    # (ADR-066 decision 5). The core record rules keep a connect.user private
-    # to its owner; res.users.get_voicetel_sip_user_config() is the only RPC
-    # that hands it to the browser, and only for the calling user.
+    # Readable by Connect administrators only. The browser phone registers
+    # with the SIP digest password, so it is not masked (ADR-066 decision
+    # 5): res.users.get_voicetel_sip_user_config() is the one RPC that
+    # hands it to the browser, and only the calling user's own.
     voicetel_password = fields.Char(
         string='VoiceTel SIP Password',
-        groups="connect.group_admin,connect.group_user",
+        groups="connect.group_admin",
     )
+    # set null, not cascade: deleting a domain must not delete the
+    # connect.user rows (and with them every other provider's account).
     voicetel_domain = fields.Many2one(
         'connect.voicetel.domain',
         string='VoiceTel SIP Domain',
-        ondelete='cascade',
-        default=lambda self: self._default_voicetel_domain(),
+        ondelete='set null',
     )
 
     @api.model
-    def _default_voicetel_domain(self):
-        # During module installation on a database with existing
-        # connect.user rows the new column is initialized before the
-        # domain table exists -- return no default in that case.
-        self.env.cr.execute(
-            "SELECT 1 FROM information_schema.tables"
-            " WHERE table_name = 'connect_voicetel_domain'")
-        if not self.env.cr.fetchone():
-            return False
-        return self.env['connect.voicetel.domain'].search([], limit=1)
+    def _voicetel_fill_default_domain(self, vals):
+        """The first domain, for a user whose VoiceTel phone is turned on.
+
+        No blanket default: a user of another provider gets no VoiceTel
+        domain (and no credential) just by being created.
+        """
+        if vals.get('voicetel_domain') or not (
+                vals.get('voicetel_sip_enabled') or vals.get('voicetel_phone_enabled')):
+            return vals
+        domain = self.env['connect.voicetel.domain'].sudo().search([], limit=1)
+        if domain:
+            vals = dict(vals, voicetel_domain=domain.id)
+        return vals
 
     voicetel_sip_enabled = fields.Boolean('VoiceTel SIP Phone Enabled')
     voicetel_ring_timeout = fields.Integer(
@@ -192,64 +201,37 @@ class User(models.Model):
 
     def _voicetel_create_sip_account(self, username, password, client=None):
         self.ensure_one()
+        client = client or self.env['connect.settings'].get_voicetel_client()
+        credentials = client.sip.credential_lists.credentials(
+            self.voicetel_domain.cred_list_sid)
         try:
-            client = client or self.env['connect.settings'].get_voicetel_client()
-            credential = client.sip.credential_lists.credentials(
-                self.voicetel_domain.cred_list_sid
-            ).create(username=username, password=password)
-            if not credential:
-                raise ValidationError('Cannot create a SIP user!')
-            return credential.sid
-        except Exception as e:
-            if ('already exists' in str(e) or '409' in str(e)
-                    or 'already in use' in str(e) or '21632' in str(e)):
-                debug(
-                    self,
-                    'SIP credential {} already exists in VoiceML - importing '
-                    'existing SID'.format(username),
-                )
-                return self._voicetel_import_existing_sip_credential(
-                    username, client
-                )
-            else:
+            credential = credentials.create(username=username, password=password)
+        except ApiError as e:
+            if not _credential_taken(e):
                 raise ValidationError(format_connect_response(e))
+            # The username already has a credential in this list: adopt
+            # it, and make its password the one Odoo holds (the remote one
+            # cannot be read, and the browser registers with Odoo's).
+            sid = self._voicetel_import_existing_sip_credential(username, client)
+            credentials.update(sid, password=password)
+            debug(self, 'Adopted SIP credential {} ({}) and reset its password'.format(
+                username, sid))
+            return sid
+        if not credential:
+            raise ValidationError('Cannot create a SIP user!')
+        return credential.sid
 
     def _voicetel_import_existing_sip_credential(self, username, client=None):
-        """Import an existing SIP credential from VoiceML by username."""
+        """SID of the credential named ``username`` in the domain's list."""
         self.ensure_one()
         client = client or self.env['connect.settings'].get_voicetel_client()
-        try:
-            credentials = client.sip.credential_lists.credentials(
-                self.voicetel_domain.cred_list_sid
-            ).iter()
-            for credential in credentials:
-                if credential.username == username:
-                    debug(
-                        self,
-                        'Found existing SIP credential for {} with SID {}'.format(
-                            username, credential.sid
-                        ),
-                    )
-                    return credential.sid
-            raise ValidationError(
-                'SIP credential "{}" already exists but could not be found '
-                'in the credential list'.format(username)
-            )
-        except ValidationError:
-            raise
-        except Exception as e:
-            debug(
-                self,
-                'Error importing existing SIP credential for {}: {}'.format(
-                    username, str(e)
-                ),
-                level='error',
-            )
-            raise ValidationError(
-                'Failed to import existing SIP credential for "{}": {}'.format(
-                    username, format_connect_response(e)
-                )
-            )
+        for credential in client.sip.credential_lists.credentials(
+                self.voicetel_domain.cred_list_sid).iter():
+            if credential.username == username:
+                return credential.sid
+        raise ValidationError(
+            'SIP credential "{}" already exists but could not be found '
+            'in the credential list'.format(username))
 
     def _voicetel_update_sip_password(self, password):
         self.ensure_one()
@@ -263,18 +245,17 @@ class User(models.Model):
             client.sip.credential_lists.credentials(
                 self.voicetel_domain.cred_list_sid
             ).update(self.voicetel_sid, password=password)
-        except Exception as e:
-            if 'not found' in str(e):
-                debug(
-                    self,
-                    'SIP cred {} SID {} not found in VoiceML'.format(
-                        self.voicetel_username, self.voicetel_sid
-                    ),
-                )
-                self.voicetel_sid = self._voicetel_create_sip_account(
-                    self.voicetel_username, password)
-            else:
-                raise ValidationError(format_connect_response(e))
+        except NotFoundError:
+            debug(
+                self,
+                'SIP cred {} SID {} not found in VoiceML'.format(
+                    self.voicetel_username, self.voicetel_sid
+                ),
+            )
+            self.with_context(skip_voicetel_sync=True).voicetel_sid = (
+                self._voicetel_create_sip_account(self.voicetel_username, password))
+        except ApiError as e:
+            raise ValidationError(format_connect_response(e))
 
     @api.private
     def voicetel_delete_sip_account(self):
@@ -296,29 +277,25 @@ class User(models.Model):
                 'Deleted SIP account {}.'.format(self.voicetel_username),
             )
             return True
-        except Exception as e:
-            if 'not found' in str(e):
-                logger.warning(
-                    'SIP account %s was not present in VoiceML.',
-                    self.voicetel_username,
-                )
-            else:
-                raise ValidationError(format_connect_response(e))
+        except NotFoundError:
+            logger.warning(
+                'SIP account %s was not present in VoiceML.',
+                self.voicetel_username,
+            )
+        except ApiError as e:
+            raise ValidationError(format_connect_response(e))
 
     @staticmethod
     def generate_voicetel_password():
-        """Generate a strong password for a SIP credential."""
-        password_chars = [
-            random.choice(string.ascii_lowercase),
-            random.choice(string.ascii_uppercase),
-            random.choice(string.digits),
-        ]
-        all_chars = string.ascii_letters + string.digits
-        password_chars += random.choices(
-            all_chars, k=16 - len(password_chars)
-        )
-        random.shuffle(password_chars)
-        return ''.join(password_chars)
+        """A strong SIP password from the secrets CSPRNG: 20 characters
+        with at least one lowercase, one uppercase letter and one digit."""
+        alphabet = string.ascii_letters + string.digits
+        while True:
+            password = ''.join(secrets.choice(alphabet) for _i in range(20))
+            if (any(c.islower() for c in password)
+                    and any(c.isupper() for c in password)
+                    and any(c.isdigit() for c in password)):
+                return password
 
     @api.model
     def _voicetel_sync_enabled(self):
@@ -327,6 +304,7 @@ class User(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        vals_list = [self._voicetel_fill_default_domain(vals) for vals in vals_list]
         for vals in vals_list:
             if vals.get('voicetel_sip_enabled') and not vals.get('voicetel_password'):
                 vals['voicetel_password'] = self.generate_voicetel_password()
@@ -354,6 +332,13 @@ class User(models.Model):
             raise ValidationError(
                 'The VoiceTel username cannot be changed while its SIP '
                 'credential exists. Disable the SIP phone first!')
+        if (vals.get('voicetel_sip_enabled') or vals.get('voicetel_phone_enabled')) \
+                and 'voicetel_domain' not in vals:
+            for rec in self.filtered(lambda r: not r.voicetel_domain):
+                filled = self._voicetel_fill_default_domain(
+                    dict(vals, voicetel_domain=False))
+                if filled.get('voicetel_domain'):
+                    super(User, rec).write({'voicetel_domain': filled['voicetel_domain']})
         res = super().write(vals)
         if not self._voicetel_sync_enabled():
             return res
@@ -380,9 +365,17 @@ class User(models.Model):
         return res
 
     def unlink(self):
-        for rec in self:
-            if rec.voicetel_sid and self._voicetel_sync_enabled():
-                rec.voicetel_delete_sip_account()
+        # A failing VoiceTel API must not make a connect.user undeletable:
+        # log it; the revoke ledger finds the orphan credential later.
+        if self._voicetel_sync_enabled():
+            for rec in self.filtered('voicetel_sid'):
+                try:
+                    rec.voicetel_delete_sip_account()
+                except Exception:
+                    logger.exception(
+                        'Could not delete VoiceTel credential %s (%s); '
+                        'deleting the user anyway', rec.voicetel_sid,
+                        rec.voicetel_username)
         return super(User, self).unlink()
 
     @api.private

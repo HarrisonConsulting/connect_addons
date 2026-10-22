@@ -166,7 +166,7 @@ export class Phone extends Component {
             this.bus.addEventListener('busBugReport', ({detail}) => this._busBugReport(detail))
 
             // Get USER configs
-            const {user_config, phone_config} = await this.orm.call('res.users', 'get_voicetel_sip_user_config', [uid])
+            const {user_config, phone_config} = await this.orm.call('res.users', 'get_voicetel_sip_user_config', [])
             this.call_popup_is_enabled = phone_config.call_popup_is_enabled
             this.call_popup_is_sticky = phone_config.call_popup_is_sticky
             this.phone_ring_volume = phone_config.phone_ring_volume

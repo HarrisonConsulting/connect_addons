@@ -12,7 +12,7 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     @api.model
-    def get_voicetel_sip_user_config(self, user_id):
+    def get_voicetel_sip_user_config(self):
         """SIP credential and phone preferences for the VoiceTel web phone.
 
         Only the calling user's own configuration is ever returned: the SIP
@@ -20,10 +20,13 @@ class ResUsers(models.Model):
         (ADR-066 decision 5). The browser registers over WSS to the user's
         tenant SIP domain with the same credential a desk phone would use.
         """
-        if user_id != self.env.user.id:
+        user = self.env.user
+        if not (user.has_group('connect.group_user') or user.has_group('connect.group_admin')):
+            return False
+        if not self.env['connect.settings'].sudo().get_param('voicetel_phone_enabled'):
             return False
         connect_user = self.env['connect.user'].sudo().search(
-            [('user', '=', user_id), ('active', '=', True)], limit=1)
+            [('user', '=', user.id), ('active', '=', True)], limit=1)
         if not connect_user:
             return False
         if not (connect_user.voicetel_phone_enabled

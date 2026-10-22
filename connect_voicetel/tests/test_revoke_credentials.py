@@ -7,6 +7,8 @@ from voiceml.exceptions import NotFoundError
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, new_test_user, tagged
 
+from .test_migration import _drop_legacy_tables
+
 
 @tagged('post_install', '-at_install')
 class TestRevokeOrphanCredentials(TransactionCase):
@@ -24,6 +26,11 @@ class TestRevokeOrphanCredentials(TransactionCase):
             no_voicetel_create=True).create({
                 'user': res_user.id, 'voicetel_username': 'liveagent',
                 'voicetel_domain': cls.domain.id, 'voicetel_sip_enabled': True})
+
+    def setUp(self):
+        super().setUp()
+        # Legacy tables this database kept are not part of these cases.
+        _drop_legacy_tables(self.env.cr)
 
     def _client(self, usernames, delete_side_effect=None):
         creds = [SimpleNamespace(sid='CR_' + n, username=n) for n in usernames]

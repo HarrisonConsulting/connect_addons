@@ -18,6 +18,17 @@ def _load_script(name):
     return module
 
 
+def _drop_legacy_tables(cr):
+    """Drop (in the test transaction) legacy tables the database kept."""
+    cr.execute(
+        "SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
+        " WHERE n.nspname = current_schema() AND c.relkind = 'r'"
+        " AND (relname LIKE 'connect\\_voicetel\\_legacy\\_%%'"
+        " OR relname = 'connect_user_browser_credential')")
+    for (name,) in cr.fetchall():
+        cr.execute('DROP TABLE "%s" CASCADE' % name)
+
+
 @tagged('post_install', '-at_install')
 class TestMigration(TransactionCase):
 
@@ -31,6 +42,8 @@ class TestMigration(TransactionCase):
         super().setUp()
         self.env.flush_all()
         cr = self.env.cr
+        # Start from no legacy tables, whatever this database already kept.
+        _drop_legacy_tables(cr)
         # A model table and an m2m table the retired module left behind,
         # plus a core-side table still pointing at it.
         cr.execute("""
@@ -49,7 +62,7 @@ class TestMigration(TransactionCase):
             INSERT INTO connect_voicetel_user_archive VALUES (1, 'old');
             DELETE FROM ir_config_parameter WHERE key IN (
                 'connect.voicetel_api_host', 'connect.voicetel_rest_host',
-                'connect.voicetel_wss_url');
+                'connect.voicetel_wss_url', 'connect.voicetel_auto_sync');
             INSERT INTO ir_config_parameter (key, value)
                 VALUES ('connect.voicetel_rest_host', 'https://VoiceML.voicetel.com:443/2010'),
                        ('connect.voicetel_wss_url', 'wss://old'),

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import logging
+from urllib.parse import urlsplit
 
 from odoo.http import request, Controller, route
-from voiceml.webhooks import RequestValidator
+from voiceml.webhooks import SIGNATURE_HEADER, validate_request
 
 logger = logging.getLogger(__name__)
 
@@ -14,37 +15,59 @@ def _webhook_env(model):
         request.env.ref("connect.user_connect_webhook"))
 
 
+def signed_url(url):
+    """The URL as VoiceML signed it: always https.
+
+    Only the scheme is rewritten, so an ``http:`` inside the query string
+    (a callback URL passed as a parameter) is left alone.
+    """
+    return urlsplit(url)._replace(scheme='https').geturl()
+
+
 class ConnectVoiceTelController(Controller):
     """VoiceML webhooks.
 
     VoiceML signs every callback and every VoiceML fetch with
     X-Twilio-Signature keyed with the account api_key, over the URL as
-    transmitted plus the POST form (ADR-066 decision 8).
+    transmitted plus the POST form (ADR-066 decision 8). These routes are
+    auth='public', so the signature is the only gate: every missing
+    precondition rejects the request.
     """
 
     @staticmethod
     def check_signature():
         settings = request.env['connect.settings'].sudo()
         if not settings.get_param('voicetel_verify_requests'):
-            return True
-        validator = RequestValidator(settings.get_param('voicetel_api_key') or '')
-        url = request.httprequest.url.replace('http:', 'https:')
-        signature = request.httprequest.headers.get('X-Twilio-Signature', '')
+            logger.critical(
+                'SECURITY: VoiceTel webhook signature verification is '
+                'disabled; rejecting the request.')
+            return False
+        api_key = settings.get_param('voicetel_api_key')
+        if not api_key:
+            logger.critical(
+                'SECURITY: VoiceTel webhook signature verification has no '
+                'API key; rejecting the request.')
+            return False
+        signature = request.httprequest.headers.get(SIGNATURE_HEADER, '')
+        if not signature:
+            logger.error('VoiceTel request carries no signature.')
+            return False
         # The signature covers the request URL -- query string included --
-        # plus the POST body parameters. Odoo merges the query string into the
-        # route kwargs, so validating with those would count every query
-        # parameter twice.
+        # plus the POST body parameters, every value of a repeated key.
+        # Odoo merges the query string into the route kwargs, so validating
+        # with those would count every query parameter twice.
         params = (
-            request.httprequest.form.to_dict()
+            request.httprequest.form
             if request.httprequest.method == 'POST'
-            else {}
+            else None
         )
-        request_valid = validator.validate(url, params, signature)
+        request_valid = validate_request(
+            api_key, signed_url(request.httprequest.url), params, signature)
         if not request_valid:
             if request.httprequest.url.startswith('http:'):
-                logger.error('VoiceML requires HTTPS to be setup!')
+                logger.error('VoiceTel request is not valid; is HTTPS set up?')
             else:
-                logger.error('VoiceML request is not valid!')
+                logger.error('VoiceTel request is not valid!')
         return request_valid
 
     @route('/voicetel/webhook/domain', methods=['POST'], type='http', auth='public', csrf=False)
@@ -57,7 +80,7 @@ class ConnectVoiceTelController(Controller):
     @route('/voicetel/webhook/callstatus', methods=['POST'], type='http', auth='public', csrf=False)
     def callstatus_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         res = _webhook_env('connect.call').on_voicetel_call_status(kw)
         return f'{res}'
 
@@ -71,7 +94,7 @@ class ConnectVoiceTelController(Controller):
     @route('/voicetel/webhook/outgoing_callerid', methods=['POST'], type='http', auth='public', csrf=False)
     def outgoing_callerid_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         res = _webhook_env('connect.voicetel.outgoing_callerid').update_status(kw)
         return f'{res}'
 
@@ -101,7 +124,7 @@ class ConnectVoiceTelController(Controller):
     @route('/voicetel/webhook/recordingstatus', methods=['POST'], type='http', auth='public', csrf=False)
     def recording_status_webhook(self, **kw):
         if not self.check_signature():
-            return False
+            return ''
         res = _webhook_env('connect.recording').on_voicetel_recording_status(kw)
         return f'{res}'
 

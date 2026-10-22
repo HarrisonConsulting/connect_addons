@@ -13,3 +13,4 @@ from . import test_webhook_signature
 from . import test_inbound_message_routing
 from . import test_migration
 from . import test_rpc_surface
+from . import test_webhook_http

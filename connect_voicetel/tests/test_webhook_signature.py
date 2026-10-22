@@ -73,3 +73,24 @@ class TestWebhookSignature(HttpCase):
         )
 
         self.assertIn('Invalid VoiceTel request', response.text)
+
+
+@tagged('post_install', '-at_install')
+class TestSignedUrl(HttpCase):
+    """Scheme-only normalisation and multi-value form parameters."""
+
+    def test_only_the_scheme_is_rewritten(self):
+        from odoo.addons.connect_voicetel.controllers.voicetel_webhooks import signed_url
+        self.assertEqual(
+            signed_url('http://odoo.example.com/voicetel/webhook/x?cb=http://a.example/p'),
+            'https://odoo.example.com/voicetel/webhook/x?cb=http://a.example/p')
+
+    def test_repeated_key_validates_with_every_value(self):
+        from voiceml.webhooks import compute_signature, validate_request
+        from werkzeug.datastructures import ImmutableMultiDict
+        form = ImmutableMultiDict([('MediaUrl', 'a'), ('MediaUrl', 'b'), ('To', '+1')])
+        url = 'https://odoo.example.com/voicetel/webhook/message'
+        signature = compute_signature(API_KEY, url, form)
+        self.assertTrue(validate_request(API_KEY, url, form, signature))
+        # form.to_dict() keeps one value per key and no longer validates
+        self.assertFalse(validate_request(API_KEY, url, form.to_dict(), signature))

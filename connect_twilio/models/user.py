@@ -58,13 +58,12 @@ class User(models.Model):
     def _twilio_is_only_provider(self):
         """True when no other telephony provider module is installed.
 
-        Other providers: connect_freeswitch, connect_asterisk,
-        connect_voiceml and connect_voicetel.
+        Other providers: connect_freeswitch, connect_asterisk and
+        connect_voicetel.
         """
         other = self.env['ir.module.module'].sudo().search_count([
             ('name', 'in', [
-                'connect_freeswitch', 'connect_asterisk',
-                'connect_voiceml', 'connect_voicetel',
+                'connect_freeswitch', 'connect_asterisk', 'connect_voicetel',
             ]),
             ('state', '=', 'installed'),
         ])

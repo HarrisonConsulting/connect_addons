@@ -62,7 +62,7 @@ class TestRecordingMarks(TransactionCase):
             'False',
         )
         self.assertIn(
-            'module_connect_voiceml',
+            'module_connect_voicetel',
             self.env['res.config.settings']._fields,
         )
         self.assertIn(

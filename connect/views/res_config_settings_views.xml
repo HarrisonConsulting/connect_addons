@@ -15,8 +15,8 @@
                         <setting string="Twilio" help="Calls, numbers, and the browser phone.">
                             <field name="module_connect_twilio"/>
                         </setting>
-                        <setting string="VoiceML" help="Calls, numbers, and the browser phone, on a VoiceML account.">
-                            <field name="module_connect_voiceml"/>
+                        <setting string="VoiceTel" help="Calls, numbers, SMS and the browser phone, on a VoiceTel VoiceML account.">
+                            <field name="module_connect_voicetel"/>
                         </setting>
                         <setting string="Bring your own carrier" help="Your carrier, on top of Twilio.">
                             <field name="module_connect_byoc"/>

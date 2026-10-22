@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <menuitem id="menu_connect_voiceml"
-              name="VoiceML"
-              parent="connect.menu_connect_settings"
-              sequence="220"/>
-</odoo>

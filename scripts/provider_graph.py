@@ -8,7 +8,7 @@ target, a method or field added to it, a ``selection_add`` value, an http route,
 a provider-named model, an asset bundle, a JS registry key or a patch.
 
 Provider names are normalised to ``{provider}`` so that parallel implementations
-line up: ``/twilio/webhook/number`` and ``/voiceml/webhook/number`` are one
+line up: ``/twilio/webhook/number`` and ``/voicetel/webhook/number`` are one
 point, ``/{provider}/webhook/number``. An interface slot is an extension point
 that two or more provider modules implement.
 
@@ -40,7 +40,7 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "provider_graph"
 
 CORE = "connect"
-PROVIDERS = ["connect_twilio", "connect_voiceml", "connect_pbx", "connect_byoc"]
+PROVIDERS = ["connect_twilio", "connect_voicetel", "connect_pbx", "connect_byoc"]
 TARGET = "connect_voip_innovations"
 TARGET_TOKENS = ["voip_innovations", "vi"]
 SKIP_DIRS = {"tests", "migrations", "upgrades", "doc", "docs"}

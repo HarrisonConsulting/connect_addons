@@ -26,6 +26,7 @@
         'wizard/sms_composer_views.xml',
         'data/voiceml.xml',
         'data/ir_cron.xml',
+        'data/revoke_credentials.xml',
     ],
     'assets': {
         'web.assets_backend': [

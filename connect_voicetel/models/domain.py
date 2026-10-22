@@ -484,3 +484,125 @@ class Domain(models.Model):
         response.append(dial)
         debug(self, "Originate external: %s" % pretty_xml(str(response)))
         return response
+
+    # ------------------------------------------------------ revoke ledger
+
+    @api.model
+    def _voicetel_legacy_credentials(self, current_domain_sids, current_list_sids):
+        """Credentials and domains of the retired module (archive tables).
+
+        connect_voicetel_user_archive keeps each old user's credential SID
+        and old domain id; connect_voicetel_legacy_domain (renamed by the
+        19.0.4.0.0 migration) keeps that domain's SID and credential list.
+        Anything the current domains own is left out.
+        """
+        cr = self.env.cr
+        cr.execute("SELECT to_regclass('connect_voicetel_legacy_domain'),"
+                   " to_regclass('connect_voicetel_user_archive')")
+        legacy_domain, user_archive = cr.fetchone()
+        if not legacy_domain:
+            return [], []
+        cr.execute("SELECT id, sid, cred_list_sid, domain_name"
+                   " FROM connect_voicetel_legacy_domain WHERE sid IS NOT NULL")
+        domains = [
+            {'id': d_id, 'sid': sid, 'cred_list_sid': cl, 'domain': name}
+            for d_id, sid, cl, name in cr.fetchall()
+            if sid not in current_domain_sids and cl not in current_list_sids
+        ]
+        credentials = []
+        if user_archive and domains:
+            by_id = {d['id']: d for d in domains}
+            cr.execute("SELECT voicetel_domain, voicetel_username, voicetel_sid"
+                       " FROM connect_voicetel_user_archive"
+                       " WHERE voicetel_sid IS NOT NULL AND voicetel_domain IN %s",
+                       (tuple(by_id),))
+            for domain_id, username, sid in cr.fetchall():
+                legacy = by_id[domain_id]
+                if legacy['cred_list_sid']:
+                    credentials.append({
+                        'domain': legacy['domain'], 'cred_list_sid': legacy['cred_list_sid'],
+                        'username': username, 'sid': sid})
+        return credentials, domains
+
+    def _revoke_orphan_credentials(self, apply=False):
+        """List, and with apply=True delete, VoiceTel SIP credentials and
+        domains no current record owns. Dry run by default.
+
+        - On each current domain: credentials whose username belongs to no
+          active, SIP-enabled connect.user of that domain.
+        - From the retired module's archive: the old users' credentials
+          and the old domains (and their credential lists).
+
+        Returns and logs a ledger, one dict per remote object: kind,
+        domain, username, sid, action (would_delete, deleted, already_gone,
+        failed, list_failed) and error. One failure never stops the rest.
+        """
+        settings = self.env['connect.settings']
+        settings._voicetel_check_admin()
+        client = settings.get_voicetel_client()
+        domains = (self or self.search([])).sudo()
+        ledger = []
+
+        def run(row, delete):
+            if apply:
+                try:
+                    delete()
+                    row['action'] = 'deleted'
+                except NotFoundError:
+                    row['action'] = 'already_gone'
+                except Exception as e:
+                    row['action'] = 'failed'
+                    row['error'] = str(e)
+            ledger.append(row)
+
+        for domain in domains:
+            if not domain.cred_list_sid:
+                continue
+            users = self.env['connect.user'].sudo().with_context(active_test=False).search([
+                ('voicetel_domain', '=', domain.id)])
+            live = {
+                (u.voicetel_username or '').lower() for u in users
+                if u.active and u.voicetel_sip_enabled and u.voicetel_username}
+            handle = client.sip.credential_lists.credentials(domain.cred_list_sid)
+            try:
+                remote = list(handle.iter())
+            except Exception as e:
+                ledger.append({'kind': 'credential', 'domain': domain.domain_name,
+                               'username': '', 'sid': '', 'action': 'list_failed',
+                               'error': str(e)})
+                continue
+            for cred in remote:
+                if (cred.username or '').lower() in live:
+                    continue
+                run({'kind': 'credential', 'domain': domain.domain_name,
+                     'username': cred.username, 'sid': cred.sid,
+                     'action': 'would_delete', 'error': ''},
+                    lambda h=handle, sid=cred.sid: h.delete(sid))
+
+        all_domains = self.sudo().search([])
+        legacy_credentials, legacy_domains = self._voicetel_legacy_credentials(
+            set(all_domains.mapped('sid')) - {False},
+            set(all_domains.mapped('cred_list_sid')) - {False})
+        for cred in legacy_credentials:
+            handle = client.sip.credential_lists.credentials(cred['cred_list_sid'])
+            run({'kind': 'legacy_credential', 'domain': cred['domain'],
+                 'username': cred['username'], 'sid': cred['sid'],
+                 'action': 'would_delete', 'error': ''},
+                lambda h=handle, sid=cred['sid']: h.delete(sid))
+        for legacy in legacy_domains:
+            def delete_domain(legacy=legacy):
+                client.sip.domains.delete(legacy['sid'])
+                if legacy['cred_list_sid']:
+                    try:
+                        client.sip.credential_lists.delete(legacy['cred_list_sid'])
+                    except NotFoundError:
+                        pass
+            run({'kind': 'legacy_domain', 'domain': legacy['domain'], 'username': '',
+                 'sid': legacy['sid'], 'action': 'would_delete', 'error': ''},
+                delete_domain)
+
+        for row in ledger:
+            logger.info('VoiceTel revoke ledger: %s %s %s %s %s %s', row['kind'],
+                        row['domain'], row['username'], row['sid'], row['action'],
+                        row['error'])
+        return ledger

@@ -19,3 +19,5 @@ from . import test_media_trust
 from . import test_message
 from . import test_application_sync_scope
 from . import test_settings_hardening
+from . import test_neutralize
+from . import test_revoke_credentials

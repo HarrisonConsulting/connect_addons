@@ -134,6 +134,7 @@ class VoiceML(models.Model):
 
     @api.model
     def sync(self):
+        self.env['connect.settings']._voicetel_check_admin()
         client = self.env['connect.settings'].get_voicetel_client()
         for rec in self.search([]):
             rec.update_voicetel_app(client)

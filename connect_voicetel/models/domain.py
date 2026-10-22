@@ -224,61 +224,58 @@ class Domain(models.Model):
             )
 
     def _import_sip_credentials_from_voicetel(self, client, cred_list_sid):
-        """Reconcile the credential list with the domain's Odoo users.
+        """Reconcile an adopted domain's credential list with its Odoo users.
 
-        Credentials that exist only in VoiceML get a connect.user row (no
-        password is readable, the admin sets one); SIP-enabled users missing
-        from the list get a credential created.
+        A credential whose username matches a user of this domain is
+        adopted, and its remote password is reset to the one Odoo holds
+        (the remote one cannot be read). SIP-enabled users missing from
+        the list get a credential. Credentials that exist only on VoiceTel
+        are left alone: they never create connect.user rows.
         """
         self.ensure_one()
         try:
-            credentials = client.sip.credential_lists.credentials(
-                cred_list_sid).iter()
+            # Materialise: iter() is a generator and is read twice below.
+            credentials = list(client.sip.credential_lists.credentials(
+                cred_list_sid).iter())
             domain_users = self.env['connect.user'].sudo().search(
                 [('voicetel_domain', '=', self.id)])
             sip_enabled_users = domain_users.filtered(lambda u: u.voicetel_sip_enabled)
             voicetel_usernames = {cred.username for cred in credentials}
-            odoo_usernames = {user.voicetel_username for user in sip_enabled_users}
             for credential in credentials:
                 matching_user = domain_users.filtered(
-                    lambda u: u.voicetel_username == credential.username)
-                if matching_user:
-                    matching_user.with_context(skip_voicetel_sync=True).write({
-                        'voicetel_sid': credential.sid,
-                        'voicetel_sip_enabled': True,
-                    })
-                else:
-                    self.env['connect.user'].sudo().with_context(
-                        no_voicetel_create=True,
-                        skip_voicetel_sync=True
-                    ).create({
-                        'voicetel_sid': credential.sid,
-                        'voicetel_username': credential.username,
-                        'voicetel_sip_enabled': True,
-                        'voicetel_domain': self.id,
-                    })
-            for username in odoo_usernames - voicetel_usernames:
-                odoo_user = sip_enabled_users.filtered(
-                    lambda u: u.voicetel_username == username)[:1]
-                if not odoo_user:
+                    lambda u: u.voicetel_username == credential.username)[:1]
+                if not matching_user:
+                    logger.info(
+                        'VoiceTel credential %s on domain %s has no Odoo user; left alone',
+                        credential.username, self.domain_name)
                     continue
+                password = matching_user.voicetel_password or self.env[
+                    'connect.user'].generate_voicetel_password()
+                client.sip.credential_lists.credentials(cred_list_sid).update(
+                    credential.sid, password=password)
+                matching_user.with_context(skip_voicetel_sync=True).write({
+                    'voicetel_sid': credential.sid,
+                    'voicetel_password': password,
+                })
+            for odoo_user in sip_enabled_users.filtered(
+                    lambda u: u.voicetel_username not in voicetel_usernames):
                 try:
                     password = odoo_user.voicetel_password or self.env[
                         'connect.user'].generate_voicetel_password()
                     credential = client.sip.credential_lists.credentials(
                         cred_list_sid).create(
-                            username=username, password=password)
+                            username=odoo_user.voicetel_username, password=password)
                     odoo_user.with_context(skip_voicetel_sync=True).write({
                         'voicetel_sid': credential.sid,
                         'voicetel_password': password,
                     })
                 except Exception as e:
-                    debug(self, "Error creating VoiceML credential for user {}: {}".format(
-                        username, str(e)), level="error")
+                    logger.warning(
+                        'Could not create the VoiceTel credential for %s: %s',
+                        odoo_user.voicetel_username, e)
         except Exception as e:
-            debug(self, "Error importing SIP credentials: {}".format(str(e)), level="error")
             logger.warning("Failed to import SIP credentials for domain %s: %s",
-                           self.friendly_name, str(e))
+                           self.friendly_name, e)
 
     @api.private
     def create_domain(self, client):
@@ -377,19 +374,33 @@ class Domain(models.Model):
         1. Do NOT import records that exist only in VoiceML
         2. Create in VoiceML what exists only in Odoo (handles account migration)
         3. Update what exists in both
+        Each domain runs in its own savepoint; failures are reported
+        together at the end.
         """
-        client = self.env["connect.settings"].get_voicetel_client()
-        voicetel_sids = set([k.sid for k in client.sip.domains.iter()])
+        settings = self.env["connect.settings"]
+        settings._voicetel_check_admin()
+        client = settings.get_voicetel_client()
+        voicetel_sids = {k.sid for k in client.sip.domains.iter()}
         odoo_records = self.search([])
-        odoo_sids = {sid for sid in odoo_records.mapped("sid") if sid}
-        only_in_odoo = odoo_sids - voicetel_sids
-        common_recs = odoo_sids & voicetel_sids
-        debug(self, "Only in Odoo domain SIDs: {}".format(only_in_odoo))
-        for domain in odoo_records.filtered(lambda d: not d.sid or d.sid in only_in_odoo):
-            debug(self, "Creating domain {} in VoiceML...".format(domain.friendly_name))
-            domain.create_domain(client)
-        for domain in odoo_records.filtered(lambda d: d.sid in common_recs):
-            domain.update_voicetel_domain(client)
+        failures = []
+        for domain in odoo_records:
+            try:
+                with self.env.cr.savepoint():
+                    if domain.sid and domain.sid in voicetel_sids:
+                        domain.update_voicetel_domain(client)
+                    else:
+                        debug(self, "Creating domain {} in VoiceML...".format(
+                            domain.friendly_name))
+                        domain.create_domain(client)
+            except Exception as e:
+                logger.exception('VoiceTel domain sync failed for %s', domain.domain_name)
+                failures.append('{}: {}'.format(
+                    domain.domain_name, format_connect_response(e)))
+        if failures:
+            settings.connect_notify(
+                title='VoiceTel Sync', warning=True, sticky=True,
+                message='{} domain(s) failed to sync: {}'.format(
+                    len(failures), '; '.join(failures)))
 
     @api.model
     def _sip_user_part(self, value):

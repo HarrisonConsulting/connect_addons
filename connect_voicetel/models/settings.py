@@ -4,7 +4,7 @@ import re
 from urllib.parse import urljoin, urlparse
 
 from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from voiceml import Client
 from voiceml.exceptions import ApiError, AuthenticationError
 from voiceml.models import CreateCallRequest
@@ -159,7 +159,15 @@ class Settings(models.Model):
             else:
                 raise
 
+    @api.model
+    def _voicetel_check_admin(self):
+        """Remote-changing VoiceTel actions are for Connect administrators."""
+        if not (self.env.su or self.env.user.has_group('connect.group_admin')):
+            raise AccessError(
+                'Only Connect administrators can change the VoiceTel account.')
+
     def voicetel_sync(self):
+        self._voicetel_check_admin()
         if not (
             self.sudo().get_param("voicetel_account_sid")
             and self.sudo().get_param("voicetel_api_key")
@@ -168,16 +176,33 @@ class Settings(models.Model):
         api_url_check = self.check_api_url()
         if api_url_check:
             raise ValidationError(api_url_check)
-        try:
-            self.env["connect.voicetel.voiceml"].sync()
-            self.env["connect.voicetel.domain"].sync()
-            self.env["connect.voicetel.number"].sync()
-            self.env["connect.voicetel.outgoing_callerid"].sync()
-            self.connect_notify("VoiceTel account synced successfully", title="Sync Complete")
-        except AuthenticationError:
-            raise ValidationError(
-                'Error authenticating requests to the VoiceML API! Check your API key!'
+        # Each resource in its own savepoint: one failing resource is
+        # reported and does not roll back or skip the others.
+        errors = []
+        for model in (
+            "connect.voicetel.voiceml",
+            "connect.voicetel.domain",
+            "connect.voicetel.number",
+            "connect.voicetel.outgoing_callerid",
+        ):
+            try:
+                with self.env.cr.savepoint():
+                    self.env[model].sync()
+            except AuthenticationError:
+                raise ValidationError(
+                    'Error authenticating requests to the VoiceML API! Check your API key!'
+                )
+            except Exception as e:
+                logger.exception("VoiceTel sync failed for %s", model)
+                errors.append("%s: %s" % (model, format_connect_response(e)))
+        if errors:
+            self.connect_notify(
+                "VoiceTel sync finished with errors: %s" % "; ".join(errors),
+                title="Sync Incomplete", warning=True,
             )
+        else:
+            self.connect_notify(
+                "VoiceTel account synced successfully", title="Sync Complete")
 
     @api.model
     def voicetel_get_phone_settings(self):

@@ -71,55 +71,86 @@ class OutgoingCallerID(models.Model):
                     raise ValidationError('Validate the number first!')
 
     @api.private
-    def sync_outgoing_callerid(self, callerid_type):
-        client = self.env['connect.settings'].get_voicetel_client()
+    def sync_outgoing_callerid(self, callerid_type, client=None):
+        """Mirror verified caller IDs ('outgoing_callerid') or owned numbers.
+
+        Same guards as the number sync: complete fetch first (the SDK
+        iter() is a generator), a savepoint per record, no removal when
+        the account returned nothing or half or more of the held rows
+        would go, and a sync-driven removal never deletes on VoiceTel.
+        """
+        settings = self.env['connect.settings']
+        client = client or settings.get_voicetel_client()
         if callerid_type == 'outgoing_callerid':
-            numbers = client.outgoing_caller_ids.iter()
+            numbers = list(client.outgoing_caller_ids.iter())
         elif callerid_type == 'number':
-            numbers = client.incoming_phone_numbers.iter()
+            numbers = list(client.incoming_phone_numbers.iter())
         else:
             numbers = []
+        seen = set()
+        failures = []
         for number in numbers:
-            existing_number = self.env[self._name].search([
-                ('sid', '=', number.sid)])
-            if not existing_number:
-                existing_number = self.env[self._name].search([
-                    ('number', '=', number.phone_number)])
-            data = {
-                'sid': number.sid,
-                'callerid_type': callerid_type,
-                'number': number.phone_number,
-                'friendly_name': number.friendly_name,
-            }
-            callerid_count = self.search_count([])
-            if callerid_count == 0:
-                data['is_default'] = True
-            if callerid_type == 'outgoing_callerid':
-                data['status'] = 'validated'
-            if not existing_number:
-                self.with_context(skip_validation=True).create(data)
-                debug(self, 'CallerID {} ({}) created in Odoo from {}'.format(
-                    number.phone_number, number.friendly_name, callerid_type))
+            seen.add(number.sid)
+            try:
+                with self.env.cr.savepoint():
+                    self._sync_one_callerid(client, callerid_type, number)
+            except Exception as e:
+                logger.exception('VoiceTel caller ID sync failed for %s', number.sid)
+                failures.append('{}: {}'.format(
+                    number.phone_number, format_connect_response(e)))
+        held = self.search([('callerid_type', '=', callerid_type), ('sid', '!=', False)])
+        to_remove = held.filtered(lambda r: r.sid not in seen)
+        if to_remove:
+            if not seen or len(to_remove) * 2 >= len(held):
+                settings.connect_notify(
+                    title='VoiceTel Sync', warning=True, sticky=True,
+                    message='Caller ID removal skipped ({}): VoiceTel returned '
+                            '{} and {} of the {} held in Odoo would be '
+                            'removed.'.format(callerid_type, len(seen),
+                                              len(to_remove), len(held)),
+                )
             else:
-                existing_number.with_context(skip_number_check=True).write(data)
-                if number.friendly_name != existing_number.friendly_name:
-                    debug(self, 'Update CallerID {} friendly name.'.format(existing_number.number))
-                    if callerid_type == 'outgoing_callerid':
-                        client.outgoing_caller_ids.update(
-                            existing_number.sid,
-                            friendly_name=existing_number.friendly_name)
-                    # An owned number's friendly_name is derived server-side
-                    # from the number itself and cannot be set (SDK 0.9.3+).
+                debug(self, 'Removing {} CallerIds: {}'.format(
+                    callerid_type, to_remove.mapped('number')))
+                to_remove.with_context(voicetel_sync_unlink=True).unlink()
+        if failures:
+            settings.connect_notify(
+                title='VoiceTel Sync', warning=True, sticky=True,
+                message='{} caller ID update(s) failed: {}'.format(
+                    len(failures), '; '.join(failures)),
+            )
 
-        recs_to_remove = self.env[self._name].search(
-            [('sid', 'not in', [k.sid for k in numbers]), ('callerid_type', '=', callerid_type)])
-        debug(self, 'Removing {} CallerIds: {}'.format(callerid_type, [k.number for k in recs_to_remove]))
-        recs_to_remove.unlink()
+    def _sync_one_callerid(self, client, callerid_type, number):
+        existing_number = self.search([('sid', '=', number.sid)])
+        if not existing_number:
+            existing_number = self.search([('number', '=', number.phone_number)])
+        data = {
+            'sid': number.sid,
+            'callerid_type': callerid_type,
+            'number': number.phone_number,
+            'friendly_name': number.friendly_name,
+        }
+        if self.search_count([]) == 0:
+            data['is_default'] = True
+        if callerid_type == 'outgoing_callerid':
+            data['status'] = 'validated'
+        if not existing_number:
+            self.with_context(skip_validation=True, voicetel_sync=True).create(data)
+            debug(self, 'CallerID {} ({}) created in Odoo from {}'.format(
+                number.phone_number, number.friendly_name, callerid_type))
+            return
+        existing_number.with_context(skip_number_check=True, voicetel_sync=True).write(data)
+        # An owned number's friendly_name is derived server-side from the
+        # number itself and cannot be set (SDK 0.9.3+); a verified caller
+        # ID takes VoiceTel's name.
 
     @api.model
     def sync(self):
-        self.sync_outgoing_callerid('outgoing_callerid')
-        self.sync_outgoing_callerid('number')
+        settings = self.env['connect.settings']
+        settings._voicetel_check_admin()
+        client = settings.get_voicetel_client()
+        self.sync_outgoing_callerid('outgoing_callerid', client)
+        self.sync_outgoing_callerid('number', client)
 
     @api.model
     @api.private
@@ -140,6 +171,7 @@ class OutgoingCallerID(models.Model):
 
     def validate(self):
         self.ensure_one()
+        self.env['connect.settings']._voicetel_check_admin()
         if self.sid:
             raise ValidationError('Outgoing callerid is already validated!')
         status_url = self.env['connect.settings'].sudo().voicetel_webhook_url(
@@ -177,16 +209,23 @@ class OutgoingCallerID(models.Model):
 
     @api.constrains('friendly_name')
     def _change_number_friendly_name(self):
+        if self.env.context.get('voicetel_sync'):
+            # The value came from VoiceTel; nothing to push back.
+            return
         for rec in self:
             if rec.sid and rec.callerid_type == 'outgoing_callerid':
                 if self.env["connect.settings"].get_param("voicetel_auto_sync"):
                     client = self.env['connect.settings'].get_voicetel_client()
-                    client.outgoing_caller_ids.update(rec.sid, friendly_name=self.friendly_name)
+                    client.outgoing_caller_ids.update(rec.sid, friendly_name=rec.friendly_name)
             elif rec.sid and rec.callerid_type == 'number':
                 number = self.env['connect.voicetel.number'].search([('phone_number', '=', rec.number)])
                 number.friendly_name = rec.friendly_name
 
     def unlink(self):
+        # A sync-driven removal mirrors what VoiceTel no longer has: never
+        # delete on VoiceTel from it.
+        if self.env.context.get('voicetel_sync_unlink'):
+            return super().unlink()
         if not self.env["connect.settings"].get_param("voicetel_auto_sync"):
             return super().unlink()
         sids = {}

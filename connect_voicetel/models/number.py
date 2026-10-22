@@ -71,13 +71,20 @@ class Number(models.Model):
             )
             return
         try:
+            # Methods are explicit: the webhooks only accept POST and the
+            # signature covers the POST form.
             client.incoming_phone_numbers.update(
                 self.sid,
                 voice_url=self.voice_url,
+                voice_method='POST',
                 voice_fallback_url=self.voice_fallback_url,
+                voice_fallback_method='POST',
                 sms_url=self.message_url,
+                sms_method='POST',
                 sms_fallback_url=self.message_fallback_url,
+                sms_fallback_method='POST',
                 status_callback=self.voice_status_url,
+                status_callback_method='POST',
             )
             debug(
                 self,
@@ -105,46 +112,68 @@ class Number(models.Model):
 
     @api.model
     def sync(self):
-        client = self.env['connect.settings'].get_voicetel_client()
-        numbers = client.incoming_phone_numbers.iter()
+        """Mirror the account's numbers.
+
+        The remote list is fetched completely before anything changes: the
+        SDK's iter() is a generator, and a keep-list built from an
+        exhausted one is empty, which removed every number. Each number is
+        created/updated in its own savepoint, and removal is refused when
+        the account returned nothing or would lose half or more of the
+        numbers Odoo holds (wrong account, partial outage).
+        """
+        settings = self.env['connect.settings']
+        settings._voicetel_check_admin()
+        client = settings.get_voicetel_client()
+        numbers = list(client.incoming_phone_numbers.iter())
+        seen = set()
+        added = []
+        failures = []
         for number in numbers:
-            rec = self.search([('sid', '=', number.sid)])
-            if not rec:
-                rec = self.create(
-                    {
-                        'phone_number': number.phone_number,
-                        'sid': number.sid,
-                        'friendly_name': number.friendly_name,
-                    }
-                )
-                rec.update_voicetel_number(client)
-                self.env['connect.settings'].connect_notify(
-                    title="VoiceTel Sync",
-                    message='Number {} added'.format(
-                        number.phone_number
-                    ),
+            seen.add(number.sid)
+            try:
+                with self.env.cr.savepoint():
+                    rec = self.search([('sid', '=', number.sid)])
+                    if not rec:
+                        rec = self.create({
+                            'phone_number': number.phone_number,
+                            'sid': number.sid,
+                            'friendly_name': number.friendly_name,
+                        })
+                        added.append(number.phone_number)
+                    rec.update_voicetel_number(client)
+            except Exception as e:
+                logger.exception('VoiceTel number sync failed for %s', number.sid)
+                failures.append('{}: {}'.format(
+                    number.phone_number, format_connect_response(e)))
+        if added:
+            settings.connect_notify(
+                title="VoiceTel Sync",
+                message='Number(s) {} added'.format(', '.join(added)),
+            )
+        held = self.search([('sid', '!=', False)])
+        to_remove = held.filtered(lambda r: r.sid not in seen)
+        if to_remove:
+            if not seen or len(to_remove) * 2 >= len(held):
+                settings.connect_notify(
+                    title="VoiceTel Sync", warning=True, sticky=True,
+                    message='Number removal skipped: VoiceTel returned {} '
+                            'numbers and {} of the {} numbers held in Odoo '
+                            'would be removed.'.format(
+                                len(seen), len(to_remove), len(held)),
                 )
             else:
-                rec.update_voicetel_number(client)
-        # Remove numbers that exist only in Odoo
-        numbers_to_remove = self.search(
-            [
-                ('sid', 'not in', [k.sid for k in numbers]),
-                ('sid', '!=', False),
-            ]
-        )
-        if numbers_to_remove:
-            user_message = 'Number(s) {} removed in VoiceTel!'.format(
-                ','.join(
-                    [k.phone_number for k in numbers_to_remove]
+                user_message = 'Number(s) {} removed in VoiceTel!'.format(
+                    ','.join(to_remove.mapped('phone_number')))
+                to_remove.with_context(voicetel_sync_unlink=True).unlink()
+                settings.connect_notify(
+                    title="VoiceTel Sync", warning=True, sticky=True,
+                    message=user_message,
                 )
-            )
-            numbers_to_remove.unlink()
-            self.env['connect.settings'].connect_notify(
-                title="VoiceTel Sync",
-                warning=True,
-                sticky=True,
-                message=user_message,
+        if failures:
+            settings.connect_notify(
+                title="VoiceTel Sync", warning=True, sticky=True,
+                message='{} number update(s) failed: {}'.format(
+                    len(failures), '; '.join(failures)),
             )
 
     @api.private

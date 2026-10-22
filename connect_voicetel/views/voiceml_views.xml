@@ -51,9 +51,6 @@
                         </group>
                     </group>
                     <group>
-                        <field name="python_code" widget="ace" options="{'mode': 'python'}"
-                               invisible="code_type != 'python'"
-                               required="code_type == 'python'"/>
                         <field name="model"
                                invisible="code_type != 'model_method'"
                                required="code_type == 'model_method'"/>
@@ -77,7 +74,6 @@
                 <field name="name"/>
                 <field name="exten_number"/>
                 <field name="voiceml"/>
-                <field name="python_code"/>
                 <field name="code_type"/>
                 <filter name="by_type" context="{'group_by': 'code_type'}"/>
             </search>

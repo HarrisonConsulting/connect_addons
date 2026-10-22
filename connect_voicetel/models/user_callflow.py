@@ -18,4 +18,9 @@ class UserCallflow(models.Model):
     user = fields.Many2one('connect.user', required=True, ondelete='cascade')
     prio = fields.Integer(required=True, default=1)
     callflow_type = fields.Char(string='Type', required=True)
-    method = fields.Char(required=True)
+    # connect.user.voicetel_render() calls getattr(user, method): only the
+    # module's own channel renderers may be named here.
+    method = fields.Selection([
+        ('voicetel_render_sip', 'SIP phone'),
+        ('voicetel_render_voicemail', 'Voicemail'),
+    ], required=True)

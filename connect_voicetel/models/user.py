@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import jinja2
 import logging
 import random
 import re
@@ -15,7 +14,7 @@ from .voiceml_response import Dial, VoiceResponse
 
 from odoo.addons.connect.models.settings import debug
 from .settings import MAX_EXTEN_LEN, format_connect_response
-from .voiceml import pretty_xml
+from .voiceml import pretty_xml, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -417,9 +416,13 @@ class User(models.Model):
 
     def voicetel_render_voicemail_prompt(self):
         self.ensure_one()
-        environment = jinja2.Environment()
-        template = environment.from_string(self.voicemail_prompt)
-        return template.render({'user': self})
+        # Plain values only: a record in the template context would let
+        # the prompt walk the ORM (user.env[...]) even in the sandbox.
+        user = {
+            'name': self.name or '',
+            'exten': self.voicetel_exten_number or '',
+        }
+        return render_template(self.voicemail_prompt, {'user': user}, autoescape=False)
 
     def voicetel_get_greeting_message(self, response):
         self.ensure_one()

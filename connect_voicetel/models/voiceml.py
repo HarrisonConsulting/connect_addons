@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-import datetime
-import jinja2
 import logging
-import random
-import time
+from urllib.parse import urlparse
 from xml.dom.minidom import parseString
+
+from jinja2.sandbox import SandboxedEnvironment
 from voiceml.exceptions import NotFoundError
 from voiceml.models import CreateApplicationRequest, UpdateApplicationRequest
 
@@ -12,7 +11,29 @@ from odoo import fields, models, api
 from odoo.exceptions import ValidationError
 from odoo.addons.connect.models.settings import debug
 
+from .voiceml_response import VoiceResponse
+
 logger = logging.getLogger(__name__)
+
+# The only model methods a 'model.method' application may dispatch to.
+# An application row is admin data, but its render runs for every call on
+# a public webhook: an open getattr() would let it reach unlink(), write()
+# or any other method of any model.
+ALLOWED_APP_METHODS = {('connect.voicetel.domain', 'route_call')}
+
+REJECT = '<?xml version="1.0" encoding="UTF-8"?><Response><Reject/></Response>'
+
+
+def render_template(source, ctx, autoescape=True):
+    """Render an admin- or user-written VoiceML/text template.
+
+    Sandboxed: no attribute walk to the ORM internals, no Python. XML
+    templates are autoescaped, because the context carries webhook
+    parameters that must not inject verbs; a plain-text prompt that the
+    VoiceML builder escapes itself is rendered with autoescape=False.
+    """
+    environment = SandboxedEnvironment(autoescape=autoescape)
+    return environment.from_string(source or '').render(dict(ctx))
 
 
 def pretty_xml(content):
@@ -40,13 +61,12 @@ class VoiceML(models.Model):
     description = fields.Text()
     code_type = fields.Selection([
         ('voiceml', 'VoiceML'),
-        ('python', 'Python'),
         ('model_method', 'model.method')
-    ], help='Type of the application. To call mymodel.render() set mymodel.render as model.method',
+    ], help='VoiceML: a sandboxed template. model.method: one of the '
+            'module\'s routing entry points (SIP domain calls).',
         required=True, default='voiceml')
     voiceml = fields.Text(required=True, string='VoiceML',
         default=pretty_xml('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>'))
-    python_code = fields.Text('Python')
     model = fields.Char()
     method = fields.Char()
     voice_url = fields.Char(compute='_get_voicetel_urls', compute_sudo=True)
@@ -60,9 +80,12 @@ class VoiceML(models.Model):
         self.ensure_one()
         application = client.applications.create(CreateApplicationRequest(
             VoiceUrl=self.voice_url,
+            VoiceMethod='POST',
             VoiceFallbackUrl=self.voice_fallback_url,
+            VoiceFallbackMethod='POST',
             FriendlyName=self.name,
             StatusCallback=self.voice_status_url,
+            StatusCallbackMethod='POST',
         ))
         self.write({'sid': application.sid})
         debug(self, 'Created VoiceML app {}.'.format(self.name))
@@ -106,19 +129,33 @@ class VoiceML(models.Model):
         if not self.sid:
             return self.create_voicetel_app(client)
         try:
-            application = client.applications.update(
-                self.sid, UpdateApplicationRequest(
-                    VoiceUrl=self.voice_url,
-                    VoiceFallbackUrl=self.voice_fallback_url,
-                    FriendlyName=self.name,
-                    StatusCallback=self.voice_status_url,
-                ))
-            debug(self, 'VoiceML app {} updated.'.format(self.name))
-            return application
+            remote = client.applications.get(self.sid)
         except NotFoundError:
             debug(self, 'VoiceML app {} (SID {}) not found, creating.'.format(
                 self.name, self.sid))
             return self.create_voicetel_app(client)
+        # A database restored from another one (staging from production)
+        # holds the same SIDs: never repoint an application that serves
+        # another Odoo.
+        remote_host = (urlparse(getattr(remote, 'voice_url', None) or '').hostname or '').lower()
+        our_host = (urlparse(self.voice_url or '').hostname or '').lower()
+        if remote_host and remote_host != our_host:
+            logger.warning(
+                'VoiceML application %s points at %s, not %s; left alone',
+                self.sid, remote_host, our_host)
+            return remote
+        application = client.applications.update(
+            self.sid, UpdateApplicationRequest(
+                VoiceUrl=self.voice_url,
+                VoiceMethod='POST',
+                VoiceFallbackUrl=self.voice_fallback_url,
+                VoiceFallbackMethod='POST',
+                FriendlyName=self.name,
+                StatusCallback=self.voice_status_url,
+                StatusCallbackMethod='POST',
+            ))
+        debug(self, 'VoiceML app {} updated.'.format(self.name))
+        return application
 
     def unlink(self):
         if not self.env["connect.settings"].get_param("voicetel_auto_sync"):
@@ -152,21 +189,18 @@ class VoiceML(models.Model):
             else:
                 rec.voice_fallback_url = ''
 
-    @api.constrains('python_code')
-    def _check_syntax(self):
-        for rec in self:
-            if rec.code_type == 'python' and rec.python_code:
-                rec.render()
-
     @api.private
     def render(self, request=None, params=None):
         # Copy into fresh dicts so that nothing mutates the caller's state.
         request = dict(request or {})
         params = dict(params or {})
+        caller_env = self.env
         self = self.sudo()
         api_url_check = self.env['connect.settings'].check_api_url()
         if api_url_check:
-            return '<Response><Say>{}</Say></Response>'.format(api_url_check)
+            response = VoiceResponse()
+            response.say(api_url_check)
+            return response.to_xml()
         self.ensure_one()
         settings = self.env['connect.settings'].sudo()
         params.update({
@@ -177,67 +211,35 @@ class VoiceML(models.Model):
         })
         if self.code_type == 'voiceml':
             res = self.render_voiceml(request=request, params=params)
-        elif self.code_type == 'python':
-            res = self.render_python(request=request, params=params)
         elif self.code_type == 'model_method':
-            res = str(getattr(self.env[self.model], self.method)(request=request, params=params))
+            if (self.model, self.method) not in ALLOWED_APP_METHODS:
+                logger.error(
+                    'VoiceML app %s refused: %s.%s is not an allowed entry point',
+                    self.id, self.model, self.method)
+                return REJECT
+            # Dispatch as the webhook caller, not as superuser.
+            res = str(getattr(caller_env[self.model], self.method)(
+                request=request, params=params))
+        else:
+            return REJECT
         debug(self, 'VoiceML render result: %s' % pretty_xml(res))
         return res
 
     @api.private
     def render_voiceml(self, request=None, params=None):
-        environment = jinja2.Environment()
-        template = environment.from_string(self.voiceml)
         ctx = dict(request or {})
         ctx.update(params or {})
-        return template.render(**ctx)
+        return render_template(self.voiceml, ctx)
 
-    @api.private
-    def render_python(self, request=None, params=None):
-        from . import voiceml_response
-        request = dict(request or {})
-        params = dict(params or {})
-        try:
-            exec(self.python_code, {}, {
-                'logger': logger,
-                'request': request,
-                'params': params,
-                'voiceml': voiceml_response,
-                'user': self.env.user,
-                'context': self.env.context,
-                'env': self.env,
-                'rec': self,
-                'self': self,
-                'pretty_xml': pretty_xml,
-                'random': random,
-                'datetime': datetime,
-                'time': time,
-            })
-            return self.voiceml
-        except Exception as e:
-            logger.exception('VoiceML render error:')
-            raise ValidationError(str(e))
+    @api.constrains('code_type', 'model', 'method')
+    def _check_model_method(self):
+        for rec in self:
+            if rec.code_type == 'model_method' and (
+                    rec.model, rec.method) not in ALLOWED_APP_METHODS:
+                raise ValidationError(
+                    'model.method applications may only call: {}'.format(
+                        ', '.join('{}.{}'.format(*k) for k in sorted(ALLOWED_APP_METHODS))))
 
     def create_extension(self):
         self.ensure_one()
         return self.env['connect.voicetel.exten'].create_extension(self, self._name)
-
-    @api.onchange('code_type')
-    def _set_default_python_code(self):
-        if self.code_type == 'python' and not self.python_code:
-            self.python_code = """from odoo.addons.connect_voicetel.models.voiceml_response import VoiceResponse, Dial, Gather
-
-# datetime: Python datetime library.
-# logger: logger - logger.info('test')
-# random: Python random library.
-# request: request - dict, call data from the VoiceML request.
-# params: params - dict, additional params set by the request handler.
-# time: Python time library.
-# voiceml: the module's VoiceML builder (VoiceResponse, Dial, Gather, ...).
-# self: current VoiceML app recordset.
-
-response = VoiceResponse()
-user_name = self.env.user.name
-response.say('Welcome {} to the world of Connect!'.format(user_name))
-self.voiceml = response
-"""

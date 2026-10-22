@@ -1,5 +1,7 @@
 phonenumbers
 twilio
+# connect_voicetel: 0.9.5 is the floor (IncomingPhoneNumbers.update takes
+# status_callback from 0.9.5 on); keep in step with its manifest.
 voiceml>=0.9.5,<0.10
 elevenlabs>=2.0.0
 openai

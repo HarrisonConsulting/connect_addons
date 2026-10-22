@@ -23,3 +23,4 @@ from . import test_neutralize
 from . import test_revoke_credentials
 from . import test_provider_coexistence
 from . import test_call_control
+from . import test_sdk_pin

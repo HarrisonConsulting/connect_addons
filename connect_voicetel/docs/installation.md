@@ -6,7 +6,7 @@ The module uses VoiceTel's own VoiceML SDK as its REST client and webhook
 validator, and builds VoiceML markup with its own builder:
 
 ```bash
-pip install voiceml
+pip install 'voiceml>=0.9.5,<0.10'
 ```
 
 The SDK is pointed at the VoiceML host by the module; nothing contacts

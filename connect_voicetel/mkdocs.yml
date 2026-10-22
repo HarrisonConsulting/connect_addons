@@ -15,3 +15,6 @@ nav:
     - Maintenance: maintenance.md
   - User Guide:
     - Browser Phone: user/browser-phone.md
+  - Design:
+    - Specification: spec.md
+    - ADR-066 VoiceTel provider: adr-066-connect-voicetel-provider.md

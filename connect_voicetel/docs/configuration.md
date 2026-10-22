@@ -69,6 +69,15 @@ the `price` VoiceML computes from the tenant's rates once a call finalizes.
 ## Development
 
 **Verify VoiceTel Requests** (default on) validates the `X-Twilio-Signature`
-header on every webhook with the API key. Turn it off only while debugging
-on a non-public URL. The **Auto Sync** toggle (debug mode) stops Odoo from
-pushing changes to VoiceML on save.
+header on every webhook with the API key. Turning it off does **not** let
+unsigned requests through: every webhook is then rejected (fail closed), as
+it is while no API key is set. The **Auto Sync** toggle (debug mode) stops
+Odoo from pushing changes to VoiceML on save; the 19.0.4.0.0 upgrade turns
+it off, so the first sync is a deliberate **VoiceTel Sync**.
+
+**API Host**, **SIP Domain Suffix** and **STUN Server** are visible to
+system administrators only. The API host must be under `voicetel.com` and
+the suffix under `voice.tel`, because the API key is sent to the host; set
+the system parameter `connect.voicetel_allow_custom_host` to use another
+(a lab install). **Media Hosts** lists extra hosts recordings may be
+fetched from; they never receive the API key.

@@ -21,7 +21,7 @@ Connect providers.
 | **Voice** | Inbound routing (user / call flow / VoiceML app), click-to-call, blind transfer, call recording, voicemail |
 | **Browser phone** | In-browser SIP phone (JsSIP over WSS) registered to the tenant's VoiceML SIP domain: incoming/outgoing calls, hold, mute, DTMF, transfer |
 | **SIP** | SIP domains under `*.vml.voice.tel` and per-user SIP credentials, shared by desk phones, the VoiceML Phone apps and the browser phone |
-| **IVR** | Call flows with `<Gather>` DTMF/speech menus and VoiceML applications (raw markup, Python, or model method) |
+| **IVR** | Call flows with `<Gather>` DTMF/speech menus and VoiceML applications (sandboxed markup, or the SIP domain router) |
 | **Messaging** | SMS/MMS send and receive, delivery status, routing of inbound messages to partners |
 | **Caller IDs** | Owned numbers and verified external caller IDs (VoiceML places the verification call) |
 | **Billing** | Optional per-call price fetching, account balance display |
@@ -30,7 +30,7 @@ Connect providers.
 
 - A running Odoo instance with the core `connect` module installed.
 - The `voiceml` Python SDK available in the Odoo environment
-  (`external_dependencies.python = ['voiceml']`). It is the documented client
+  (`external_dependencies.python = ['voiceml>=0.9.5,<0.10']`). It is the documented client
   for VoiceML's API; no request ever leaves for Twilio.
 - A VoiceML account: sign up at <https://voicetel.com/signup/>, complete
   KYC, then request the VoiceML account from

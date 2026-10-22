@@ -28,9 +28,11 @@ points at `/voicetel/webhook/voiceml/<id>`.
 
 | Type | Content |
 |------|---------|
-| **VoiceML** | Raw markup, rendered as a Jinja2 template with the request parameters (`From`, `To`, `CallSid`, …). |
-| **Python** | A script that builds the markup with the Twilio helper classes (`VoiceResponse`, `Dial`, `Gather`, …) and assigns it to `self.voiceml`. |
-| **model.method** | Calls `model.method(request, params)` on an Odoo model. The **SIP Domain Calls** app is one: it routes every call placed from a registered device. |
+| **VoiceML** | Raw markup, rendered as a sandboxed Jinja2 template with the request parameters (`From`, `To`, `CallSid`, …). Parameters are XML-escaped, so a caller-supplied value cannot add verbs. |
+| **model.method** | Calls one of the module's routing entry points. Only `connect.voicetel.domain.route_call` is allowed: the **SIP Domain Calls** app, which routes every call placed from a registered device. Any other target is refused on save and answered with `<Reject/>`. |
+
+There is no Python application type: an application runs on every call
+that reaches a public webhook, so it cannot execute code.
 
 VoiceML accepts the full Twilio voice verb set except `<Pay>`; `<Dial>`
 supports `<Number>`, `<Sip>`, `<Client>`, `<Conference>`, `<Queue>` and

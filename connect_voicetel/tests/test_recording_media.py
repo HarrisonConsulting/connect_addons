@@ -25,7 +25,7 @@ class TestRecordingMedia(VoiceTelTestCommon):
         cls.settings.set_param('voicetel_api_host', 'voiceml.voicetel.com')
 
     def test_voiceml_media_is_fetched_with_the_account_credentials(self):
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://voiceml.voicetel.com/2010-04-01/Accounts/{}/Recordings/RE1'
             .format(ACCOUNT_SID))
 
@@ -35,20 +35,20 @@ class TestRecordingMedia(VoiceTelTestCommon):
         self.settings.set_param('voicetel_api_host', 'voiceml.example.net')
 
         self.assertEqual(
-            self.settings.get_media_auth(
+            self.settings._get_media_auth(
                 'https://voiceml.example.net/2010-04-01/Recordings/RE1'),
             (ACCOUNT_SID, API_KEY))
-        self.assertIsNone(self.settings.get_media_auth(
+        self.assertIsNone(self.settings._get_media_auth(
             'https://voiceml.voicetel.com/2010-04-01/Recordings/RE1'))
 
     def test_bucket_media_gets_no_voiceml_credentials(self):
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://recordings.s3.us-east-1.amazonaws.com/RE1')
 
         self.assertIsNone(auth)
 
     def test_a_lookalike_host_gets_no_credentials(self):
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://voiceml.voicetel.com.evil.example/RE1')
 
         self.assertIsNone(auth)
@@ -56,7 +56,7 @@ class TestRecordingMedia(VoiceTelTestCommon):
     def test_no_credentials_configured_means_anonymous(self):
         self.settings.set_param('voicetel_api_key', False)
 
-        auth = self.settings.get_media_auth(
+        auth = self.settings._get_media_auth(
             'https://voiceml.voicetel.com/2010-04-01/Recordings/RE1')
 
         self.assertIsNone(auth)

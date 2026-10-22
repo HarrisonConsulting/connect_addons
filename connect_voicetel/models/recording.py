@@ -71,7 +71,7 @@ class Recording(models.Model):
             try:
                 response = requests.get(
                     rec.media_url,
-                    auth=settings.get_media_auth(rec.media_url),
+                    auth=settings._get_media_auth(rec.media_url),
                     timeout=RECORDING_DOWNLOAD_TIMEOUT,
                     stream=True,
                 )

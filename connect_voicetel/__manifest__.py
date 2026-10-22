@@ -1,14 +1,13 @@
 {
     'name': 'Oduist Connect VoiceTel',
-    'version': '19.0.1.0.0',
+    'version': '19.0.4.0.0',
     'author': 'Oduist',
     'category': 'Phone',
     'summary': 'VoiceTel VoiceML (Twilio-compatible) integration for Oduist Connect',
     'depends': ['connect'],
     'external_dependencies': {
-        # The Twilio helper library is the documented client for VoiceML's
-        # Twilio-compatible API; it is pointed at the VoiceML host (ADR-066).
-        'python': ['voiceml'],
+        # VoiceTel's own voiceml SDK, pointed at the VoiceML host (ADR-066).
+        'python': ['voiceml>=0.9.5,<0.10'],
     },
     'data': [
         'security/access_rules.xml',
@@ -38,7 +37,6 @@
             'connect_voicetel/static/src/widgets/phone_field/*',
         ],
     },
-    'post_init_hook': 'post_init_hook',
     'images': ['static/description/icon.png'],
     'installable': True,
     'application': False,

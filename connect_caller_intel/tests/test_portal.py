@@ -16,7 +16,8 @@ class TestCallerIntelPortal(HttpCase):
         cls.ext = Source.create({
             'code': 'portal_ext', 'name': 'Portal Registry', 'tier': 'async',
             'clearing_url': 'https://registry.example/clear', 'clearing_note': 'Register the number.'})
-        cls.staff = Source.create({'code': 'staff', 'name': 'Staff', 'tier': 'async'})
+        # The staff source is seeded by data/source_data.xml; codes are unique.
+        cls.staff = env.ref('connect_caller_intel.source_staff')
         cls.remediation = env['connect.caller.remediation'].create({
             'code': 'portal_ext', 'name': 'Portal Registry', 'steps': 'Open the registry and dispute.',
             'source_codes': 'portal_ext', 'removable': False})

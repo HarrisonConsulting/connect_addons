@@ -7,3 +7,13 @@ access_caller_mark_user,connect.caller.mark user,model_connect_caller_mark,conne
 access_caller_mark_admin,connect.caller.mark admin,model_connect_caller_mark,connect.group_admin,1,1,1,1
 access_caller_signal_user,connect.caller.signal user,model_connect_caller_signal,connect.group_user,1,1,1,0
 access_caller_signal_admin,connect.caller.signal admin,model_connect_caller_signal,connect.group_admin,1,1,1,1
+access_caller_nxx_user,connect.caller.nxx user,model_connect_caller_nxx,connect.group_user,1,0,0,0
+access_caller_nxx_admin,connect.caller.nxx admin,model_connect_caller_nxx,connect.group_admin,1,1,1,1
+access_caller_identity_user,connect.caller.identity user,model_connect_caller_identity,connect.group_user,1,0,0,0
+access_caller_identity_admin,connect.caller.identity admin,model_connect_caller_identity,connect.group_admin,1,1,1,1
+access_caller_own_number_user,connect.caller.own.number user,model_connect_caller_own_number,connect.group_user,1,0,0,0
+access_caller_own_number_admin,connect.caller.own.number admin,model_connect_caller_own_number,connect.group_admin,1,1,1,1
+access_caller_remediation_user,connect.caller.remediation user,model_connect_caller_remediation,connect.group_user,1,0,0,0
+access_caller_remediation_admin,connect.caller.remediation admin,model_connect_caller_remediation,connect.group_admin,1,1,1,1
+access_caller_wikidata_admin,connect.caller.wikidata admin,model_connect_caller_wikidata,connect.group_admin,1,1,1,1
+access_caller_osm_admin,connect.caller.osm admin,model_connect_caller_osm,connect.group_admin,1,1,1,1

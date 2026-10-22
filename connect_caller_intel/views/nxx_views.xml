@@ -1,0 +1,106 @@
+<odoo>
+    <record id="view_caller_nxx_list" model="ir.ui.view">
+        <field name="name">connect.caller.nxx.list</field>
+        <field name="model">connect.caller.nxx</field>
+        <field name="arch" type="xml">
+            <list>
+                <header>
+                    <button name="action_load_nanpa" type="object" string="Load NANPA now"
+                            display="always" groups="connect.group_admin"/>
+                </header>
+                <field name="npa_nxx"/>
+                <field name="state_code"/>
+                <field name="status"/>
+                <field name="in_service"/>
+                <field name="rate_center"/>
+                <field name="locality"/>
+                <field name="company"/>
+                <field name="origin"/>
+                <field name="loaded_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_caller_nxx_form" model="ir.ui.view">
+        <field name="name">connect.caller.nxx.form</field>
+        <field name="model">connect.caller.nxx</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="npa_nxx"/>
+                            <field name="npa"/>
+                            <field name="nxx"/>
+                            <field name="state_code"/>
+                            <field name="status"/>
+                            <field name="in_service"/>
+                            <field name="pooled"/>
+                        </group>
+                        <group>
+                            <field name="ocn"/>
+                            <field name="company"/>
+                            <field name="rate_center"/>
+                            <field name="locality"/>
+                            <field name="lata"/>
+                            <field name="effective_date"/>
+                            <field name="assign_date"/>
+                            <field name="origin"/>
+                            <field name="loaded_at"/>
+                            <field name="lcg_checked_at"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_caller_nxx_search" model="ir.ui.view">
+        <field name="name">connect.caller.nxx.search</field>
+        <field name="model">connect.caller.nxx</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="npa_nxx"/>
+                <field name="company"/>
+                <field name="rate_center"/>
+                <field name="state_code"/>
+                <filter name="filter_assigned" string="Assigned" domain="[('status', '=', 'assigned')]"/>
+                <filter name="filter_unavailable" string="Unavailable" domain="[('status', '=', 'unavailable')]"/>
+                <filter name="filter_available" string="Available" domain="[('status', '=', 'available')]"/>
+                <separator/>
+                <filter name="filter_nanpa" string="NANPA" domain="[('origin', '=', 'nanpa')]"/>
+                <filter name="filter_lcg" string="Local Calling Guide" domain="[('origin', '=', 'lcg')]"/>
+                <group>
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="group_state" string="State" context="{'group_by': 'state_code'}"/>
+                    <filter name="group_origin" string="Origin" context="{'group_by': 'origin'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_caller_nxx" model="ir.actions.act_window">
+        <field name="name">Exchanges</field>
+        <field name="res_model">connect.caller.nxx</field>
+        <field name="path">caller-exchanges</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_caller_reputation_form_numbering" model="ir.ui.view">
+        <field name="name">connect.caller.reputation.form.numbering</field>
+        <field name="model">connect.caller.reputation</field>
+        <field name="inherit_id" ref="view_caller_reputation_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="after">
+                <group string="Numbering">
+                    <field name="rate_center"/>
+                    <field name="numbering_state"/>
+                    <field name="ocn"/>
+                    <field name="ocn_company"/>
+                    <field name="nxx_status"/>
+                    <field name="calling_from"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

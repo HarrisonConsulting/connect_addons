@@ -1,0 +1,24 @@
+<odoo noupdate="1">
+    <record id="source_wikidata" model="connect.caller.source">
+        <field name="code">wikidata</field>
+        <field name="name">Wikidata</field>
+        <field name="tier">async</field>
+        <field name="cost_class">free</field>
+        <field name="cost_note">Free. Matched locally against a weekly import of Wikidata phone numbers (property P1329).</field>
+        <field name="enabled" eval="True"/>
+        <field name="ttl_hours">720</field>
+        <field name="attribution">Wikidata (CC0)</field>
+        <field name="clearing_note">Public map and registry entries are edited on the source site.</field>
+    </record>
+    <record id="source_osm" model="connect.caller.source">
+        <field name="code">osm</field>
+        <field name="name">OpenStreetMap</field>
+        <field name="tier">async</field>
+        <field name="cost_class">free</field>
+        <field name="cost_note">Free. Matched locally against a periodic OpenStreetMap phone extract. Enable it after setting connect_caller_intel.osm_extract and loading the extract.</field>
+        <field name="enabled" eval="False"/>
+        <field name="ttl_hours">720</field>
+        <field name="attribution">© OpenStreetMap contributors</field>
+        <field name="clearing_note">Public map and registry entries are edited on the source site.</field>
+    </record>
+</odoo>

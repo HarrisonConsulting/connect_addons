@@ -1,0 +1,107 @@
+<odoo>
+    <record id="view_caller_own_number_list" model="ir.ui.view">
+        <field name="name">connect.caller.own.number.list</field>
+        <field name="model">connect.caller.own.number</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state == 'flagged'" decoration-muted="not active">
+                <field name="e164"/>
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="state" widget="badge" decoration-danger="state == 'flagged'"
+                       decoration-success="state == 'clean'" decoration-warning="state == 'acknowledged'"/>
+                <field name="active_mark_count"/>
+                <field name="spam_score" widget="percentage"/>
+                <field name="last_refresh_at"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_caller_own_number_form" model="ir.ui.view">
+        <field name="name">connect.caller.own.number.form</field>
+        <field name="model">connect.caller.own.number</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_acknowledge" type="object" string="Acknowledge"
+                            class="btn-primary" invisible="state != 'flagged'"
+                            groups="connect.group_admin"/>
+                    <button name="action_refresh_now" type="object" string="Refresh now"
+                            groups="connect.group_admin"/>
+                    <field name="state" widget="statusbar" statusbar_visible="clean,flagged,acknowledged"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="e164"/>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="reputation_id"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="active_mark_count"/>
+                            <field name="spam_score" widget="percentage"/>
+                            <field name="last_refresh_at"/>
+                            <field name="acknowledged_by"/>
+                            <field name="acknowledged_at"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Reports" name="reports">
+                            <field name="mark_ids" readonly="1">
+                                <list>
+                                    <field name="reporter"/>
+                                    <field name="category"/>
+                                    <field name="report_count"/>
+                                    <field name="last_reported"/>
+                                    <field name="state"/>
+                                    <field name="remediation_id"/>
+                                    <field name="clearing_url" widget="url"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="How to clear" name="how_to_clear">
+                            <field name="remediation_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="carriers"/>
+                                    <field name="dispute_url" widget="url"/>
+                                    <field name="steps"/>
+                                    <field name="removable"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_caller_own_number_search" model="ir.ui.view">
+        <field name="name">connect.caller.own.number.search</field>
+        <field name="model">connect.caller.own.number</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="e164"/>
+                <field name="name"/>
+                <filter string="Flagged" name="flagged" domain="[('state', '=', 'flagged')]"/>
+                <filter string="Inbound numbers" name="did" domain="[('kind', '=', 'did')]"/>
+                <filter string="Verified caller IDs" name="callerid" domain="[('kind', '=', 'callerid')]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter string="Kind" name="group_kind" context="{'group_by': 'kind'}"/>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_caller_own_number" model="ir.actions.act_window">
+        <field name="name">Our Numbers</field>
+        <field name="res_model">connect.caller.own.number</field>
+        <field name="path">caller-our-numbers</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

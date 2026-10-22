@@ -3,6 +3,7 @@ from unittest import mock
 import requests
 
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.queue_job.exception import RetryableJobError
 
@@ -36,7 +37,8 @@ class TestCallerIntelAdapters(TransactionCase):
     def test_fcc_found_creates_mark_and_caches(self):
         rows = [{'date_created': '2016-06-02T14:25:15.000', 'issue': 'Robocalls'},
                 {'date_created': '2016-07-02T14:25:15.000', 'issue': 'Robocalls'}]
-        with mock.patch('requests.get', return_value=_response(200, rows)) as get:
+        with mock.patch('requests.get', return_value=_response(200, rows)) as get, \
+                mute_logger(base.__name__):
             self.assertEqual(self.rep._refresh_source('fcc_complaints'), 'found')
         self.assertEqual(get.call_args.kwargs['params']['$where'].split(' AND ')[0],
                          "caller_id_number='402-382-7125'")
@@ -59,8 +61,9 @@ class TestCallerIntelAdapters(TransactionCase):
         key = 'caller_intel:+14023827125:fcc_complaints'
         jobs = self.env['queue.job']
         before = jobs.search_count([('identity_key', '=', key)])
-        self.rep._enqueue_stale_sources()
-        self.rep._enqueue_stale_sources()
+        with mock.patch.object(type(self.Rep), '_usable_async_sources', return_value=self.fcc):
+            self.rep._enqueue_stale_sources()
+            self.rep._enqueue_stale_sources()
         self.assertEqual(jobs.search_count([('identity_key', '=', key)]) - before, 1)
 
     def test_paid_adapter_never_called_while_disabled(self):

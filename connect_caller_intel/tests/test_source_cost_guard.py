@@ -11,12 +11,18 @@ class TestSourceCostGuard(TransactionCase):
     def _src(self, code):
         return self.env.ref(f'connect_caller_intel.source_{code}')
 
+    #: Free sources that ship off until their data host or credential exists.
+    FREE_SHIPPED_OFF = {
+        'osm': 'no phone extract host is configured yet',
+    }
+
     def test_seed_defaults(self):
-        """Free sources are on and paid sources are off after install."""
+        """Paid sources are off; free sources are on unless listed as shipped off for a stated reason."""
         sources = self.env['connect.caller.source'].search([])
         self.assertTrue(sources)
         for source in sources:
-            self.assertEqual(source.enabled, source.cost_class == 'free', source.code)
+            expected = source.cost_class == 'free' and source.code not in self.FREE_SHIPPED_OFF
+            self.assertEqual(source.enabled, expected, source.code)
 
     def test_direct_write_on_paid_raises(self):
         """A direct write of enabled=True on a paid source without ack raises."""

@@ -1,0 +1,89 @@
+<odoo>
+    <template id="portal_my_home_caller_intel" name="Number reputation entry" inherit_id="portal.portal_my_home" priority="45">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
+            <t t-set="portal_service_category_enable" t-value="True"/>
+        </xpath>
+        <div id="portal_service_category" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/web/static/img/folder.svg'"/>
+                <t t-set="title">Number reputation</t>
+                <t t-set="url" t-value="'/my/caller-reputation'"/>
+                <t t-set="text">See which of your numbers are flagged and how to clear them</t>
+                <t t-set="placeholder_count" t-value="'caller_number_count'"/>
+            </t>
+        </div>
+    </template>
+
+    <template id="portal_breadcrumbs_caller_intel" name="Number reputation breadcrumbs" inherit_id="portal.portal_breadcrumbs" priority="45">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'caller_reputation'" t-attf-class="breadcrumb-item #{'active' if not number else ''}">
+                <a t-if="number" href="/my/caller-reputation">Number reputation</a>
+                <t t-else="">Number reputation</t>
+            </li>
+            <li t-if="page_name == 'caller_reputation' and number" class="breadcrumb-item active">
+                <t t-out="number['e164']"/>
+            </li>
+        </xpath>
+    </template>
+
+    <template id="portal_caller_marks_table" name="Number reputation marks">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Reported by</th>
+                    <th>Category</th>
+                    <th class="text-end">Reports</th>
+                    <th>Age</th>
+                    <th>How to clear</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr t-foreach="marks" t-as="mark">
+                    <td><t t-out="mark['reporter']"/></td>
+                    <td><t t-out="mark['category']"/></td>
+                    <td class="text-end"><t t-out="mark['report_count']"/></td>
+                    <td>reported <t t-out="mark['age_days']"/> days ago</td>
+                    <td>
+                        <a t-if="mark['clearing_url']" t-att-href="mark['clearing_url']" target="_blank" rel="noopener noreferrer">How to clear</a>
+                        <div t-if="mark['steps']" style="white-space: pre-line;"><t t-out="mark['steps']"/></div>
+                        <div t-if="not mark['removable']" class="text-muted">This record cannot be removed.</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </template>
+
+    <template id="portal_my_caller_reputation" name="My number reputation">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="False"/>
+            <h3>Number reputation</h3>
+            <p t-if="not numbers" class="alert alert-info">None of your numbers carries an active report.</p>
+            <table t-else="" class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Number</th>
+                        <th>Contacts</th>
+                        <th class="text-end">Active reports</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="numbers" t-as="number">
+                        <td><a t-attf-href="/my/caller-reputation/#{number['e164']}"><t t-out="number['e164']"/></a></td>
+                        <td><t t-out="', '.join(number['contacts'])"/></td>
+                        <td class="text-end"><t t-out="len(number['marks'])"/></td>
+                    </tr>
+                </tbody>
+            </table>
+        </t>
+    </template>
+
+    <template id="portal_my_caller_number" name="My number reputation: one number">
+        <t t-call="portal.portal_layout">
+            <h3><t t-out="number['e164']"/></h3>
+            <p><t t-out="', '.join(number['contacts'])"/></p>
+            <t t-call="connect_caller_intel.portal_caller_marks_table">
+                <t t-set="marks" t-value="number['marks']"/>
+            </t>
+        </t>
+    </template>
+</odoo>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="connect_caller_intel.CallerIntelChip">
+        <span t-if="visible" t-attf-class="o_caller_intel_chip badge rounded-pill {{ verdictInfo.cls }}"
+              t-att-data-verdict="state.verdict" t-esc="verdictInfo.label"/>
+    </t>
+</templates>

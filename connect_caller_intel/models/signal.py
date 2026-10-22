@@ -16,6 +16,8 @@ SIGNAL_CODES = [
     ('reported_spam', 'Reported as spam'),
     ('staff_marked', 'Marked by staff'),
     ('trusted_known', 'Trusted known caller'),
+    ('nxx_available', 'Unassigned exchange'),
+    ('nxx_not_in_service', 'Exchange not in service'),
 ]
 
 

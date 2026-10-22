@@ -5,7 +5,7 @@ from odoo import api, fields, models
 
 from odoo.addons.queue_job.exception import RetryableJobError
 
-from ..services.adapters.base import AdapterError
+from ..services.adapters.base import AdapterError, AdapterThrottled
 from ..services.adapters.registry import ADAPTERS
 
 _logger = logging.getLogger(__name__)
@@ -15,15 +15,21 @@ PURGE_DAYS = 180
 FTC_LOADED_PARAM = 'connect_caller_intel.ftc_loaded_through'
 FTC_BACKFILL_DAYS = 2
 FTC_MAX_DAYS_PER_RUN = 7
+NUMBERING_KEYS = ('rate_center', 'numbering_state', 'ocn', 'ocn_company', 'nxx_status')
 
 
 class ConnectCallerReputation(models.Model):
     _inherit = 'connect.caller.reputation'
 
-    def _usable_async_sources(self):
-        """Enabled, non-batch async sources whose adapter has its credential."""
-        sources = self.env['connect.caller.source'].sudo().search([
-            ('enabled', '=', True), ('tier', '=', 'async')])
+    def _usable_async_sources(self, cost_classes=None):
+        """Enabled, non-batch async sources whose adapter has its credential.
+
+        ``cost_classes`` narrows the sources to those cost classes when given.
+        """
+        domain = [('enabled', '=', True), ('tier', '=', 'async')]
+        if cost_classes is not None:
+            domain.append(('cost_class', 'in', list(cost_classes)))
+        sources = self.env['connect.caller.source'].sudo().search(domain)
         return sources.filtered(
             lambda s: s.code in ADAPTERS and not ADAPTERS[s.code].batch
             and ADAPTERS[s.code].available(self.env))
@@ -35,13 +41,13 @@ class ConnectCallerReputation(models.Model):
         at = fields.Datetime.to_datetime(checked.get('at'))
         return bool(at) and at + timedelta(hours=source.ttl_hours or 0) > now
 
-    def _enqueue_stale_sources(self):
+    def _enqueue_stale_sources(self, cost_classes=None):
         """One job per stale (number, source). The identity key dedups in-flight lookups."""
         now = fields.Datetime.now()
-        sources = self._usable_async_sources()
+        sources = self._usable_async_sources(cost_classes)
         for rec in self:
             for source in sources:
-                if rec._source_is_fresh(source, now):
+                if rec._source_is_fresh(source, now) or not ADAPTERS[source.code].applies_to(self.env, rec):
                     continue
                 rec.with_delay(
                     channel=JOB_CHANNEL,
@@ -56,8 +62,12 @@ class ConnectCallerReputation(models.Model):
         adapter = ADAPTERS.get(code)
         if not source or not source.enabled or not adapter or not adapter.available(self.env):
             return 'skipped'
+        if not adapter.applies_to(self.env, self):
+            return 'skipped'
         try:
             result = adapter.lookup(self.env, self.e164)
+        except AdapterThrottled as exc:
+            raise RetryableJobError(str(exc), seconds=exc.seconds, ignore_retry=True) from exc
         except AdapterError as exc:
             self._record_outcome(code, 'error')
             raise RetryableJobError(str(exc)) from exc
@@ -86,8 +96,46 @@ class ConnectCallerReputation(models.Model):
             line['carrier_name'] = result['carrier']
         if result.get('cnam'):
             line['cnam_last'] = result['cnam']
+        line.update({key: result['numbering'][key]
+                     for key in NUMBERING_KEYS if key in (result.get('numbering') or {})})
         if line:
             self.sudo().write(line)
+        self._apply_identities(source, result)
+
+    def _apply_identities(self, source, result):
+        """Upsert the identity hints a source returned and follow the strongest one."""
+        Identity = self.env['connect.caller.identity'].sudo()
+        now = fields.Datetime.now()
+        stored = [dict(item, name=item['external_ref'], kind='unknown', address=None)
+                  for item in result.get('identities') or [] if item.get('keep_ref')
+                  ] if source.no_store else result.get('identities') or []
+        for item in stored:
+            domain = [('reputation_id', '=', self.id), ('source_id', '=', source.id),
+                      ('external_ref', '=', item['external_ref'])]
+            vals = {
+                'reputation_id': self.id, 'source_id': source.id,
+                'name': item['name'], 'kind': item.get('kind') or 'unknown',
+                'address': item.get('address'), 'url': item.get('url'),
+                'external_ref': item['external_ref'],
+                'confidence': item.get('confidence', 0.0),
+                'attribution': source.attribution or source.name,
+                'fetched_at': now,
+                'expires_at': now + timedelta(hours=item.get('ttl_hours') or source.ttl_hours or 0),
+            }
+            existing = Identity.search(domain, limit=1)
+            if existing:
+                existing.write(vals)
+            else:
+                Identity.create(vals)
+        if source.no_store or not result.get('found'):
+            Identity.search([
+                ('reputation_id', '=', self.id), ('source_id', '=', source.id),
+                ('external_ref', 'not in', [item['external_ref'] for item in stored])]).unlink()
+        top = Identity.search([
+            ('reputation_id', '=', self.id), ('expires_at', '>', now), ('source_id.no_store', '=', False)],
+            order='confidence desc, id desc', limit=1)
+        if top:
+            self.sudo().candidate_business_name = top.name
 
     def _record_outcome(self, code, outcome):
         now = fields.Datetime.now()
@@ -124,9 +172,12 @@ class ConnectCallerReputation(models.Model):
                 at = fields.Datetime.to_datetime(checked['at']) if checked else mark.create_date
                 if at < horizon:
                     mark.state = 'expired'
+        self.env['connect.caller.identity'].sudo().search([('expires_at', '<=', now)]).unlink()
+        watched = self.env['connect.caller.own.number'].sudo().with_context(active_test=False).search([])
         self.sudo().search([
             ('active_mark_count', '=', 0),
             ('last_seen', '<', now - timedelta(days=PURGE_DAYS)),
+            ('id', 'not in', watched.reputation_id.ids),
         ]).unlink()
 
     @api.model

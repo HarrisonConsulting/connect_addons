@@ -5,6 +5,7 @@ from odoo import api, fields, models
 from ..services import heuristics, numbering
 
 CARD_SIGNAL_LIMIT = 5
+CARD_IDENTITY_LIMIT = 3
 
 
 def _safe_url(url):
@@ -29,7 +30,7 @@ class ConnectCall(models.Model):
             'e164': e164, 'verdict': 'unknown', 'risk_score': 0.0, 'name': '',
             'partner': False, 'commercial_partner': False, 'attestation': False,
             'line_type': facts['line_type'], 'region': facts['region'],
-            'marks': [], 'signals': [],
+            'marks': [], 'signals': [], 'calling_from': '', 'identities': [],
         }
         partner = self.env['res.partner'].get_partner_by_number(number) if number else False
         if partner:
@@ -50,7 +51,18 @@ class ConnectCall(models.Model):
             order='id desc', limit=CARD_SIGNAL_LIMIT)
         category_labels = dict(self.env['connect.caller.mark']._fields['category']._description_selection(self.env))
         code_labels = dict(self.env['connect.caller.signal']._fields['code']._description_selection(self.env))
+        now = fields.Datetime.now()
+        identities = rep.identity_ids.filtered(
+            lambda i: not i.source_id.no_store and (not i.expires_at or i.expires_at > now)
+        ).sorted(key=lambda i: (-i.confidence, -i.id))[:CARD_IDENTITY_LIMIT]
         return {
+            'calling_from': rep.calling_from or '',
+            'identities': [{
+                'name': identity.name,
+                'kind': identity.kind,
+                'attribution': identity.attribution,
+                'url': _safe_url(identity.url),
+            } for identity in identities],
             'risk_score': rep.spam_score,
             'name': rep.cnam_last or rep.candidate_business_name or '',
             'attestation': rep.last_attestation or False,
@@ -63,6 +75,7 @@ class ConnectCall(models.Model):
                 'last_reported': fields.Datetime.to_string(mark.last_reported) if mark.last_reported else '',
                 'clearing_url': _safe_url(mark.clearing_url),
                 'evidence_url': _safe_url(mark.evidence_url),
+                'clearing_steps': mark.remediation_id.steps or mark.source_id.clearing_note or '',
             } for mark in marks],
             'signals': [{
                 'code': signal.code,

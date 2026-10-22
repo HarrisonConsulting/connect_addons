@@ -10,6 +10,15 @@
                 <span t-if="state.card.commercial_partner" class="o_caller_intel_company"
                       t-esc="state.card.commercial_partner.name"/>
             </div>
+            <div t-if="state.card.calling_from" class="o_caller_intel_from">
+                Calling from <t t-esc="state.card.calling_from"/>
+            </div>
+            <ul t-if="state.card.identities.length" class="o_caller_intel_identities">
+                <li t-foreach="state.card.identities" t-as="identity" t-key="identity_index">
+                    Possible caller: <t t-esc="identity.name"/>
+                    (<t t-esc="identity.attribution"/>, unverified)
+                </li>
+            </ul>
             <ul t-if="state.card.signals.length" class="o_caller_intel_signals">
                 <li t-foreach="state.card.signals" t-as="signal" t-key="signal_index"
                     t-attf-class="o_caller_intel_signal severity-{{ signal.severity }}">
@@ -31,6 +40,12 @@
                            title="Where the number's owner disputes this flag">Clear this flag</a>
                     </li>
                 </ul>
+            </div>
+            <div t-if="canMark" class="o_caller_intel_actions">
+                <button type="button" class="btn btn-sm btn-outline-danger o_caller_intel_mark_spam"
+                        t-on-click="onMarkSpam">Spam</button>
+                <button type="button" class="btn btn-sm btn-outline-success o_caller_intel_mark_trusted"
+                        t-on-click="onMarkTrusted">Not spam</button>
             </div>
         </div>
     </t>

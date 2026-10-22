@@ -2,9 +2,17 @@ from . import source
 from . import reputation
 from . import mark
 from . import signal
+from . import identity
+from . import own_number
+from . import remediation
 from . import channel
+from . import nxx
 from . import call
 from . import reputation_refresh
 from . import call_card
 from . import res_partner
 from . import res_config_settings
+from . import portal_reputation
+from . import call_widget
+from . import paid_identity_settings
+from . import public_lookup

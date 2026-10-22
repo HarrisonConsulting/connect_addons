@@ -1,0 +1,5 @@
+<odoo>
+    <menuitem id="menu_caller_nxx" name="Exchanges"
+              parent="menu_caller_intel" action="action_caller_nxx" sequence="30"
+              groups="connect.group_admin"/>
+</odoo>

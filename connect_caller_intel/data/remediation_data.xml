@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="remediation_free_caller_registry" model="connect.caller.remediation">
+        <field name="code">free_caller_registry</field>
+        <field name="name">Free Caller Registry (First Orion, Hiya, TNS)</field>
+        <field name="engine_kind">analytics_engine</field>
+        <field name="carriers">AT&amp;T, T-Mobile, Verizon</field>
+        <field name="dispute_url">https://www.freecallerregistry.com/</field>
+        <field name="steps">The Free Caller Registry is for businesses registering the numbers they call from themselves. It is free.
+1. Open freecallerregistry.com and verify a business email address.
+2. Enter the business name, address, website, contact person, what the calls are about and how many calls are made each month.
+3. Add up to 20 ten-digit US numbers, or upload a text or spreadsheet file under 100 KB.
+4. Accept the terms and submit.
+Registering the same number twice changes nothing. Registration does not guarantee that a label is removed. Each of the three analytics companies reviews the number on its own.</field>
+        <field name="removable" eval="True"/>
+        <field name="propagation_note">No time is stated. Each analytics company replies on its own schedule.</field>
+        <field name="country_codes">US</field>
+        <field name="applies_to_own_numbers" eval="True"/>
+        <field name="sequence">5</field>
+    </record>
+    <record id="remediation_hiya" model="connect.caller.remediation">
+        <field name="code">hiya</field>
+        <field name="name">Hiya</field>
+        <field name="engine_kind">analytics_engine</field>
+        <field name="carriers">AT&amp;T (AT&amp;T has no dispute form of its own and sends callers to Hiya), Samsung</field>
+        <field name="dispute_url">https://hiyahelp.zendesk.com/hc/en-us/requests/new?ticket_form_id=32894877171859</field>
+        <field name="steps">AT&amp;T has no form of its own. A number labelled on an AT&amp;T phone is disputed with Hiya.
+For a business:
+1. Create a free Hiya Connect account at hiya.com. Business checks take up to one day.
+2. Upload the numbers and read the spam status Hiya shows.
+3. If a number is still labelled, file the one-time review form from the link.
+For a personal number, file the review form directly.
+A review does not guarantee that the label changes, and it can return if the calling behaviour does not change.</field>
+        <field name="removable" eval="True"/>
+        <field name="propagation_note">No time is stated.</field>
+        <field name="match_reporters">Hiya</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="remediation_tns_call_guardian" model="connect.caller.remediation">
+        <field name="code">tns_call_guardian</field>
+        <field name="name">TNS Call Guardian</field>
+        <field name="engine_kind">analytics_engine</field>
+        <field name="carriers">Verizon and other carriers</field>
+        <field name="dispute_url">https://reportarobocall.com/</field>
+        <field name="steps">Use the report form on reportarobocall.com for outgoing calls that were blocked or labelled wrongly.
+1. Choose personal or business.
+2. Choose wireless or wireline, then the outgoing calls option.
+3. Enter the numbers (up to 10 personal, up to 20 business), the name to display, a contact and the carrier. A business also gives its company, address and calls per month.
+4. Enter the code sent by email, pass the captcha and submit.
+No outcome is promised. Verizon customers can also use voicespamfeedback.com and choose that their numbers were miscategorized.</field>
+        <field name="removable" eval="True"/>
+        <field name="match_reporters">TNS</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="remediation_first_orion" model="connect.caller.remediation">
+        <field name="code">first_orion</field>
+        <field name="name">First Orion</field>
+        <field name="engine_kind">analytics_engine</field>
+        <field name="carriers">T-Mobile Scam Shield</field>
+        <field name="dispute_url">https://firstorion.com/register-your-number</field>
+        <field name="steps">First Orion has no dispute form. Businesses register their numbers and watch the result.
+1. Open the link and create a portal account.
+2. Enter the business details and agree to share them with carriers.
+3. Add the numbers.
+4. Check the Watchlist in the portal. It shows when and why a number is tagged as potential spam.
+Registration is free and takes a few days. T-Mobile also takes reports of wrongly labelled calls at callreporting.t-mobile.com.</field>
+        <field name="removable" eval="True"/>
+        <field name="propagation_note">Registration completes within days, per First Orion.</field>
+        <field name="match_reporters">First Orion</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="remediation_ftc_dnc" model="connect.caller.remediation">
+        <field name="code">ftc_dnc</field>
+        <field name="name">FTC Do Not Call complaints</field>
+        <field name="engine_kind">complaint_dataset</field>
+        <field name="steps">No verified first-party dispute page. These are complaints that consumers filed with the FTC, and the FTC keeps them as a public record. They cannot be removed. They age out of our view on their own. Registering the number with the Free Caller Registry helps the carrier labels, not this record.</field>
+        <field name="removable" eval="False"/>
+        <field name="source_codes">ftc_dnc</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="remediation_fcc_complaints" model="connect.caller.remediation">
+        <field name="code">fcc_complaints</field>
+        <field name="name">FCC consumer complaints</field>
+        <field name="engine_kind">complaint_dataset</field>
+        <field name="steps">No verified first-party dispute page. These are complaints that consumers filed with the FCC, and the FCC keeps them as a public record. They cannot be removed.</field>
+        <field name="removable" eval="False"/>
+        <field name="source_codes">fcc_complaints</field>
+        <field name="sequence">50</field>
+    </record>
+    <record id="remediation_complaint_board" model="connect.caller.remediation">
+        <field name="code">complaint_board</field>
+        <field name="name">Caller complaint websites</field>
+        <field name="engine_kind">complaint_board</field>
+        <field name="steps">No verified first-party dispute page. These websites publish what callers and call recipients write. For a listing on nomorobo.com, email remediation@nomorobo.com with the number, the business name, the website and what the calls are for. For the other sites, ask the site's own contact page, and explain that the number belongs to us.</field>
+        <field name="match_reporters">800notes.com,whocallsme.com,shouldianswer.com,callercenter.com,whocalledme.com,nomorobo.com</field>
+        <field name="sequence">60</field>
+    </record>
+    <record id="remediation_ipqs" model="connect.caller.remediation">
+        <field name="code">ipqs</field>
+        <field name="name">IPQualityScore</field>
+        <field name="engine_kind">data_provider</field>
+        <field name="steps">No verified first-party dispute page. IPQualityScore publishes no way to dispute a score. Fixing the calling behaviour and registering the number with the Free Caller Registry is the available step.</field>
+        <field name="match_reporters">IPQualityScore reputation</field>
+        <field name="sequence">70</field>
+    </record>
+    <record id="remediation_twilio_cnam" model="connect.caller.remediation">
+        <field name="code">twilio_cnam</field>
+        <field name="name">Caller name (CNAM)</field>
+        <field name="engine_kind">data_provider</field>
+        <field name="steps">No verified first-party dispute page. The caller name is held by the number's carrier. The number's owner asks that carrier to update the caller name.</field>
+        <field name="source_codes">twilio_lookup_cnam</field>
+        <field name="sequence">80</field>
+    </record>
+</odoo>

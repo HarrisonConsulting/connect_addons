@@ -1,0 +1,50 @@
+<odoo noupdate="1">
+    <record id="source_google_places" model="connect.caller.source">
+        <field name="code">google_places</field>
+        <field name="name">Google Places</field>
+        <field name="tier">async</field>
+        <field name="cost_class">paid</field>
+        <field name="cost_note">Confirming that a place owns the caller's phone number needs Google's Enterprise tier: US $35 per 1,000 requests (the first 1,000 each month are free), billed by Google to the account that owns the API key, for every number looked up. Vendor prices change; the Google invoice is the authority.</field>
+        <field name="enabled" eval="False"/>
+        <field name="credential_param">connect_caller_intel.google_places_api_key</field>
+        <field name="ttl_hours">720</field>
+        <field name="no_store" eval="True"/>
+        <field name="attribution">Google Maps</field>
+    </record>
+    <record id="source_telnyx_lookup" model="connect.caller.source">
+        <field name="code">telnyx_lookup</field>
+        <field name="name">Telnyx Number Lookup</field>
+        <field name="tier">async</field>
+        <field name="cost_class">paid</field>
+        <field name="cost_note">US $0.003 per caller-name lookup, plus the carrier lookup rate, billed by Telnyx to the account that owns the API key, even when no name is returned. Vendor prices change; the Telnyx invoice is the authority.</field>
+        <field name="enabled" eval="False"/>
+        <field name="credential_param">connect_caller_intel.telnyx_api_key</field>
+        <field name="ttl_hours">720</field>
+        <field name="attribution">Telnyx</field>
+    </record>
+    <record id="source_ipqs" model="connect.caller.source">
+        <field name="code">ipqs</field>
+        <field name="name">IPQualityScore</field>
+        <field name="tier">async</field>
+        <field name="cost_class">freemium</field>
+        <field name="cost_note">IPQualityScore includes a limited free allotment of lookups; after it runs out each lookup is billed by IPQualityScore to the account that owns the API key. Use your own key: IPQualityScore forbids reselling or sharing its data with other companies. Vendor prices change; the IPQualityScore invoice is the authority.</field>
+        <field name="enabled" eval="False"/>
+        <field name="credential_param">connect_caller_intel.ipqs_api_key</field>
+        <field name="ttl_hours">168</field>
+        <field name="attribution">IPQualityScore</field>
+    </record>
+    <record id="source_trestle" model="connect.caller.source">
+        <field name="code">trestle</field>
+        <field name="name">Trestle Caller Identification</field>
+        <field name="tier">async</field>
+        <field name="cost_class">paid</field>
+        <field name="cost_note">US $0.07 per query, billed by Trestle to the account that owns the API key. Trestle forbids storing a result to avoid a repeat query, so every call to a number is queried and billed again. Vendor prices change; the Trestle invoice is the authority.</field>
+        <field name="enabled" eval="False"/>
+        <field name="credential_param">connect_caller_intel.trestle_api_key</field>
+        <field name="ttl_hours">0</field>
+        <field name="no_store" eval="True"/>
+        <field name="attribution">Trestle</field>
+        <field name="requires_purpose_ack" eval="True"/>
+        <field name="purpose_note">Trestle is not a consumer reporting agency. Use its data only to identify an inbound caller (identity verification). Never use it for credit, insurance, employment, education, housing, benefits or any other eligibility decision, or for any purpose governed by the Fair Credit Reporting Act. Trestle data may not be resold.</field>
+    </record>
+</odoo>

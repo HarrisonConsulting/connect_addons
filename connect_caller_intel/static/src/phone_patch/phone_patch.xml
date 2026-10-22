@@ -4,5 +4,8 @@
         <xpath expr="//div[contains(@t-attf-class, 'o_phone_call_details')]/t[@t-else]" position="after">
             <CallerIntelCard t-if="state.inIncoming or state.inCall" phoneNumber="state.callPhoneNumber"/>
         </xpath>
+        <xpath expr="//span[hasclass('call-waiting-caller')]" position="after">
+            <CallerIntelChip phoneNumber="state.waitingCallerId.phoneNumber"/>
+        </xpath>
     </t>
 </templates>

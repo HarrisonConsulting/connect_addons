@@ -107,6 +107,7 @@ class ConnectChannel(models.Model):
         rep = Reputation.browse()
         history = {}
         marks = []
+        extra_facts = {}
         if e164:
             rep = Reputation.search_fetch(
                 [('e164', '=', e164)],
@@ -130,6 +131,8 @@ class ConnectChannel(models.Model):
                     'carrier_name': facts_num['carrier'],
                     'is_valid_number': facts_num['valid'],
                 })
+            extra_facts, extra_vals = channel._caller_intel_extra_facts(facts_num, rep, not rep.first_seen)
+            vals.update(extra_vals)
             rep.write(vals)
             if rep.active_mark_count:
                 marks = [{'source': m.source_id.code, 'report_count': m.report_count, 'active': True}
@@ -153,8 +156,7 @@ class ConnectChannel(models.Model):
         names = []
         if partner:
             names = [n for n in {partner.name, partner.commercial_partner_id.name} if n]
-        own_dids = channel.env['connect.twilio.number'].search_fetch(
-            [], ['phone_number']).mapped('phone_number')
+        own_dids = channel._caller_intel_own_numbers()
         facts = {
             'e164': e164,
             'attestation': attestation,
@@ -171,6 +173,7 @@ class ConnectChannel(models.Model):
             'snowshoe_count': snowshoe,
             'spam_score': rep.spam_score if rep else 0.0,
         }
+        facts.update(extra_facts)
         signals = heuristics.evaluate(facts, self._caller_intel_thresholds())
         verdict = heuristics.verdict(signals, bool(partner))
         if signals:
@@ -190,6 +193,18 @@ class ConnectChannel(models.Model):
             'caller_reputation_id': rep.id,
         })
         return {'verdict': verdict, 'signals': signals}
+
+    def _caller_intel_extra_facts(self, facts_num, rep, first_sight):
+        """Hook for extra heuristic facts and reputation values; costs at most one query.
+
+        Returns ``(facts, reputation_vals)``, merged before the reputation is written.
+        """
+        return {}, {}
+
+    def _caller_intel_own_numbers(self):
+        """E.164 numbers of ours, used to spot a caller that presents one of them."""
+        return self.env['connect.twilio.number'].search_fetch(
+            [], ['phone_number']).mapped('phone_number')
 
     def _caller_intel_notify(self, result):
         """Tell the ringing users on their own bus channel when the call looks bad."""

@@ -20,6 +20,7 @@ class Call(models.Model):
     _inherit = 'connect.call'
 
     @api.model
+    @api.private
     def on_voicetel_call_action(self, params):
         debug(self, 'On call action: %s' % params)
         response = VoiceResponse()
@@ -43,6 +44,7 @@ class Call(models.Model):
     )
 
     @api.model
+    @api.private
     def on_voicetel_call_status(self, params):
         """VoiceML webhook adapter: map params, delegate to core."""
         self = self.sudo()
@@ -92,6 +94,7 @@ class Call(models.Model):
         return call_id
 
     @api.model
+    @api.private
     def on_voicetel_vm_recording_status(self, params):
         debug(
             self.sudo(),
@@ -112,6 +115,7 @@ class Call(models.Model):
             )
         return True
 
+    @api.private
     def voicetel_save_call_price(self, call, params):
         """Mark the call for price fetching (processed by the cron job)."""
         try:
@@ -187,6 +191,7 @@ class Call(models.Model):
                     'Error fetching price for call %s: %s', call.id, e
                 )
 
+    @api.private
     def voicetel_transfer(self, user=None):
         """Attended transfer through a conference room on VoiceML."""
         self.ensure_one()

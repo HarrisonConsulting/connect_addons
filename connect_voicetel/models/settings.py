@@ -134,6 +134,7 @@ class Settings(models.Model):
         return (account_sid, api_key)
 
     @api.model
+    @api.private
     def get_voicetel_client(self):
         """VoiceML SDK client for the configured account (ADR-066 as amended).
 
@@ -195,6 +196,7 @@ class Settings(models.Model):
             },
         }
 
+    @api.private
     def voicetel_webhook_url(self, path):
         """Absolute Odoo URL for a VoiceML callback.
 
@@ -204,9 +206,11 @@ class Settings(models.Model):
         api_url = self.sudo()._voicetel_api_url()
         return urljoin(api_url, path)
 
+    @api.private
     def compute_voicetel_sip_uri(self, user):
         return "sip:{}".format(user.connect_user.voicetel_uri)
 
+    @api.private
     def voicetel_external_call_route(self, number, callerId, status_url):
         call_duration_limit = int(self.sudo().get_param('call_duration_limit'))
         voiceml = """

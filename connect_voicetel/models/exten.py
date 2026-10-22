@@ -263,6 +263,7 @@ class Exten(models.Model):
                 logger.warning('Cannot render exten: %s', e)
                 rec.dialplan = 'Render error (normal case with dynamic values)'
 
+    @api.private
     def render(self, request=None, params=None):
         self.ensure_one()
         if not self.dst:

@@ -80,6 +80,7 @@ class Domain(models.Model):
                 rec.domain_name = ''
                 rec.wss_url = ''
 
+    @api.private
     def get_domain_app(self):
         app = self.env["connect.voicetel.voiceml"].search(
             [
@@ -101,6 +102,7 @@ class Domain(models.Model):
             )
         return app
 
+    @api.private
     def create_voicetel_sip_domain(self, client):
         self.ensure_one()
         domain = client.sip.domains.create(
@@ -278,6 +280,7 @@ class Domain(models.Model):
             logger.warning("Failed to import SIP credentials for domain %s: %s",
                            self.friendly_name, str(e))
 
+    @api.private
     def create_domain(self, client):
         self.ensure_one()
         try:
@@ -324,6 +327,7 @@ class Domain(models.Model):
                     raise ValidationError(format_connect_response(e))
         return super().unlink()
 
+    @api.private
     def update_voicetel_domain(self, client):
         self.ensure_one()
         try:
@@ -396,6 +400,7 @@ class Domain(models.Model):
         return found.group(1) if found else value
 
     @api.model
+    @api.private
     def route_call(self, request, params=None):
         """Route a call placed from a device registered on a SIP domain."""
         params = dict(params or {})
@@ -433,6 +438,7 @@ class Domain(models.Model):
         else:
             return "<Response><Say>Extension not found. Goodbye! </Say></Response>"
 
+    @api.private
     def originate_external_call(self, number, request, params=None):
         debug(self, "Outgoing call to %s" % number)
         default_number = self.env["connect.voicetel.outgoing_callerid"].sudo().search(

@@ -55,6 +55,7 @@ class VoiceML(models.Model):
     exten = fields.Many2one('connect.voicetel.exten', ondelete='set null', readonly=True)
     exten_number = fields.Char(related='exten.number')
 
+    @api.private
     def create_voicetel_app(self, client):
         self.ensure_one()
         application = client.applications.create(CreateApplicationRequest(
@@ -93,6 +94,7 @@ class VoiceML(models.Model):
             rec.update_voicetel_app(client)
         return res
 
+    @api.private
     def update_voicetel_app(self, client):
         """Push this record to its Application; create it when it is gone.
 
@@ -155,6 +157,7 @@ class VoiceML(models.Model):
             if rec.code_type == 'python' and rec.python_code:
                 rec.render()
 
+    @api.private
     def render(self, request=None, params=None):
         # Copy into fresh dicts so that nothing mutates the caller's state.
         request = dict(request or {})
@@ -180,6 +183,7 @@ class VoiceML(models.Model):
         debug(self, 'VoiceML render result: %s' % pretty_xml(res))
         return res
 
+    @api.private
     def render_voiceml(self, request=None, params=None):
         environment = jinja2.Environment()
         template = environment.from_string(self.voiceml)
@@ -187,6 +191,7 @@ class VoiceML(models.Model):
         ctx.update(params or {})
         return template.render(**ctx)
 
+    @api.private
     def render_python(self, request=None, params=None):
         from . import voiceml_response
         request = dict(request or {})

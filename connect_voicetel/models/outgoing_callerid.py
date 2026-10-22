@@ -70,6 +70,7 @@ class OutgoingCallerID(models.Model):
                 if rec.callerid_type == 'outgoing_callerid' and rec.status != 'validated':
                     raise ValidationError('Validate the number first!')
 
+    @api.private
     def sync_outgoing_callerid(self, callerid_type):
         client = self.env['connect.settings'].get_voicetel_client()
         if callerid_type == 'outgoing_callerid':
@@ -121,6 +122,7 @@ class OutgoingCallerID(models.Model):
         self.sync_outgoing_callerid('number')
 
     @api.model
+    @api.private
     def update_status(self, params):
         self = self.sudo()
         called = params.get('Called') or params.get('To')

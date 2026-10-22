@@ -30,6 +30,7 @@ class Channel(models.Model):
     _inherit = 'connect.channel'
 
     @api.model
+    @api.private
     def on_voicetel_call_status(self, params):
         """VoiceML webhook adapter: map the Twilio-shaped params and delegate to core."""
         debug(self, 'On channel status: %s' % json.dumps(params, indent=2))
@@ -335,6 +336,7 @@ class Channel(models.Model):
         return urlunsplit(
             (parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
+    @api.private
     def voicetel_notify(
         self, title='Connect', sticky=False, warning=False
     ):

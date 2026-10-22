@@ -33,6 +33,7 @@ class ConnectMessage(models.Model):
                     super(ConnectMessage, rec)._compute_direction()
 
     @api.model
+    @api.private
     def voicetel_receive(self, params):
         if not self.env['oduist.license'].check_license('connect', silent=True):
             return str(MessagingResponse())
@@ -369,6 +370,7 @@ class ConnectMessage(models.Model):
                     res_model
                 )
 
+    @api.private
     def voicetel_client_send(self, recipient, sender, body):
         try:
             settings = self.env['connect.settings'].sudo()

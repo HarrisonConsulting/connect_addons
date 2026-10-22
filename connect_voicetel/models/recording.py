@@ -20,6 +20,7 @@ class Recording(models.Model):
     _inherit = 'connect.recording'
 
     @api.model
+    @api.private
     def prepare_voicetel_data(self, rec):
         data = {}
         for field in [
@@ -57,6 +58,7 @@ class Recording(models.Model):
                 self.env['connect.settings']._voicetel_api_host(), url.lstrip('/'))
         return url
 
+    @api.private
     def voicetel_download(self):
         """Pull the audio into the record while VoiceML still serves it.
 
@@ -94,6 +96,7 @@ class Recording(models.Model):
         return True
 
     @api.model
+    @api.private
     def on_voicetel_recording_status(self, params):
         self = self.sudo()
         debug(

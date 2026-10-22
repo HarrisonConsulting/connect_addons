@@ -61,6 +61,7 @@ class Number(models.Model):
             else:
                 rec.voice_fallback_url = ''
 
+    @api.private
     def update_voicetel_number(self, client):
         self.ensure_one()
         if self.is_ignored:
@@ -146,6 +147,7 @@ class Number(models.Model):
                 message=user_message,
             )
 
+    @api.private
     def render(self, request=None, params=None):
         request = dict(request or {})
         params = dict(params or {})
@@ -162,6 +164,7 @@ class Number(models.Model):
             return '<Response><Say>Number not configured. Goodbye!</Say></Response>'
 
     @api.model
+    @api.private
     def route_call(self, request, params=None):
         params = dict(params or {})
         debug(

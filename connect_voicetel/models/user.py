@@ -105,6 +105,7 @@ class User(models.Model):
         return callerid or ''
 
     @api.model
+    @api.private
     def get_user_by_uri(self, userinfo):
         """Lookup connect.user by its SIP address on a VoiceTel domain.
 
@@ -276,6 +277,7 @@ class User(models.Model):
             else:
                 raise ValidationError(format_connect_response(e))
 
+    @api.private
     def voicetel_delete_sip_account(self):
         self.ensure_one()
         if not self.voicetel_sid:
@@ -384,6 +386,7 @@ class User(models.Model):
                 rec.voicetel_delete_sip_account()
         return super(User, self).unlink()
 
+    @api.private
     def voicetel_render_sip(self, response, request, params):
         callerId = self._voicetel_get_caller_id(request, params)
         settings = self.env['connect.settings'].sudo()
@@ -435,6 +438,7 @@ class User(models.Model):
             voice=self.voice or 'Woman',
         )
 
+    @api.private
     def voicetel_render_voicemail(self, response, request, params):
         voicemail_record_status_url = self.env[
             'connect.settings'].sudo().voicetel_webhook_url(
@@ -447,6 +451,7 @@ class User(models.Model):
             recordingStatusCallback=voicemail_record_status_url,
         )
 
+    @api.private
     def voicetel_render(self, request=None, params=None):
         self.ensure_one()
         request = dict(request or {})
@@ -605,6 +610,7 @@ class User(models.Model):
             )
 
     @api.model
+    @api.private
     def voicetel_on_call_action(self, record_id, request):
         user = self.browse(record_id)
         user._voicetel_record_done_callflows(request)

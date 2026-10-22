@@ -99,6 +99,7 @@ class CallFlow(models.Model):
                 'voicetel/webhook/callflow/{}/gather'.format(rec.id))
 
     @api.model
+    @api.private
     def gather_action(self, flow_id, request):
         callflow = self.browse(flow_id)
         choice = callflow.choices.filtered(
@@ -118,6 +119,7 @@ class CallFlow(models.Model):
             return hints
         return None
 
+    @api.private
     def render(self, request=None, params=None):
         self.ensure_one()
         request = dict(request or {})
@@ -196,6 +198,7 @@ class CallFlow(models.Model):
         response.say(self.voicemail_prompt, language=self.language, voice=self.voice)
 
     @api.model
+    @api.private
     def voicetel_on_call_action(self, flow_id, request):
         response = VoiceResponse()
         if request.get('DialCallStatus') != 'completed':

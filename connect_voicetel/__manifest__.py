@@ -1,30 +1,46 @@
-# -*- coding: utf-8 -*-
-
 {
-    'name': 'Connect VoiceTel (retired)',
-    'version': '19.0.3.0.1',
+    'name': 'Oduist Connect VoiceTel',
+    'version': '19.0.4.0.0',
     'author': 'Oduist',
-    'maintainer': 'Harrison Consulting, LLC',
-    'website': 'https://www.harrison.consulting',
-    'price': 0,
-    'currency': 'EUR',
-    'support': 'support@oduist.com',
-    'license': 'OPL-1',
     'category': 'Phone',
-    'summary': 'Retired: replaced by connect_voiceml',
-    'description': """
-Connect VoiceTel (retired)
-==========================
-
-connect_voiceml replaces this module. This release ships no models,
-views, routes or assets. Upgrading to it removes VoiceTel's menus, views
-and fields from the database without calling the VoiceTel API, and keeps
-a copy of the VoiceTel settings and user columns. Uninstall it after the
-upgrade.
-    """,
+    'summary': 'VoiceTel VoiceML (Twilio-compatible) integration for Oduist Connect',
     'depends': ['connect'],
-    'data': [],
+    'external_dependencies': {
+        # VoiceTel's own voiceml SDK, pointed at the VoiceML host (ADR-066).
+        'python': ['voiceml>=0.9.5,<0.10'],
+    },
+    'data': [
+        'security/access_rules.xml',
+        'views/menu.xml',
+        'views/settings_views.xml',
+        'views/voiceml_views.xml',
+        'views/domain_views.xml',
+        'views/user_views.xml',
+        'views/exten_views.xml',
+        'views/callflow_views.xml',
+        'views/number_views.xml',
+        'views/call_views.xml',
+        'views/message_views.xml',
+        'views/message_configuration_views.xml',
+        'views/outgoing_callerid_views.xml',
+        'wizard/sms_composer_views.xml',
+        'data/voiceml.xml',
+        'data/ir_cron.xml',
+        'data/revoke_credentials.xml',
+    ],
+    'assets': {
+        'web.assets_backend': [
+            'connect_voicetel/static/src/icomoon/style.css',
+            'connect_voicetel/static/src/js/utils.js',
+            'connect_voicetel/static/src/components/*/*',
+            'connect_voicetel/static/src/js/core.js',
+            'connect_voicetel/static/src/widgets/phone_field/*',
+        ],
+    },
+    'pre_init_hook': 'pre_init_hook',
+    'post_init_hook': 'post_init_hook',
+    'images': ['static/description/icon.png'],
     'installable': True,
     'application': False,
-    'auto_install': False,
+    'license': 'Other proprietary',
 }

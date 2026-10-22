@@ -100,14 +100,22 @@ class Call(models.Model):
             self.sudo(),
             'On voicemail recording status: %s' % json.dumps(params, indent=2),
         )
+        url = self.env['connect.recording']._voicetel_media_url(
+            params.get('RecordingUrl'))
+        if not self.env['connect.settings'].sudo()._is_trusted_media_url(url):
+            # Webhook input: an untrusted host would make the media proxy
+            # fetch (and the voicemail player play) anything.
+            logger.warning(
+                'VoiceTel voicemail for %s refused: untrusted recording URL',
+                params.get('CallSid'))
+            return False
         channel = self.sudo().env['connect.channel'].search(
-            [('sid', '=', params['CallSid'])]
+            [('sid', '=', params.get('CallSid'))]
         )
         if channel and channel.call:
             channel.call.write(
                 {
-                    'voicemail_url': self.env['connect.recording']._voicetel_media_url(
-                        params.get('RecordingUrl')),
+                    'voicemail_url': url,
                     'voicemail_duration': int(
                         params.get('RecordingDuration') or 0
                     ),

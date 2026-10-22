@@ -18,10 +18,19 @@ RECORDING_URL = 'https://voiceml.voicetel.com/2010-04-01/Accounts/AC1/Recordings
 
 class _Response:
     def __init__(self, content=b'RIFF....WAVEfmt ', status=200,
-                 content_type='audio/x-wav'):
+                 content_type='audio/x-wav', location=None):
         self.content = content
         self.status_code = status
         self.headers = {'Content-Type': content_type}
+        if location:
+            self.headers['Location'] = location
+        self.is_redirect = bool(location)
+
+    def iter_content(self, size):
+        yield self.content
+
+    def close(self):
+        pass
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -101,3 +110,25 @@ class TestRecordingDownload(VoiceTelTestCommon):
         get.assert_not_called()
         self.assertFalse(self.env['connect.recording'].sudo().search(
             [('sid', '=', 'REdownload4')]))
+
+    def test_redirect_to_the_bucket_carries_no_credentials(self):
+        bucket = 'https://tenant-bucket.s3.amazonaws.com/REdownload5.wav?X-Amz-Signature=x'
+        with patch.object(requests, 'get', side_effect=[
+                _Response(status=302, location=bucket), _Response()]) as get:
+            self.env['connect.recording'].on_voicetel_recording_status(
+                self._params(sid='REdownload5'))
+        first, second = get.call_args_list
+        self.assertEqual(first.kwargs.get('auth'), ('AC1', 'key'))
+        self.assertFalse(first.kwargs.get('allow_redirects'))
+        self.assertEqual(second.args[0], bucket)
+        self.assertIsNone(second.kwargs.get('auth'))
+        recording = self.env['connect.recording'].sudo().search(
+            [('sid', '=', 'REdownload5')], limit=1)
+        self.assertTrue(recording.recording_attachment)
+
+    def test_untrusted_recording_url_is_never_fetched(self):
+        params = self._params(sid='REdownload6')
+        params['RecordingUrl'] = 'https://evil.example.com/x.wav'
+        with patch.object(requests, 'get') as get:
+            self.env['connect.recording'].on_voicetel_recording_status(params)
+        get.assert_not_called()

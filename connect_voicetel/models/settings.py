@@ -115,25 +115,6 @@ class Settings(models.Model):
         return (host or DEFAULT_VOICETEL_API_HOST).lower().rstrip('/')
 
     @api.model
-    def _get_media_auth(self, media_url):
-        """VoiceML API credentials, and only for the VoiceML host.
-
-        Recording media is served by the API with HTTP Basic auth. The host
-        check is not cosmetic: once a tenant's own bucket took the recording
-        the API answers with a redirect to a presigned S3 URL, and the API
-        key must not be sent there.
-        """
-        host = (urlparse(media_url or '').hostname or '').lower()
-        if host != self._voicetel_api_host():
-            return super()._get_media_auth(media_url)
-        settings = self.sudo()
-        account_sid = settings.get_param('voicetel_account_sid')
-        api_key = settings.get_param('voicetel_api_key')
-        if not (account_sid and api_key):
-            return super()._get_media_auth(media_url)
-        return (account_sid, api_key)
-
-    @api.model
     @api.private
     def get_voicetel_client(self):
         """VoiceML SDK client for the configured account (ADR-066 as amended).

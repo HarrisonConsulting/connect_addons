@@ -179,6 +179,10 @@ class CallFlow(models.Model):
                     maxLength=120,
                     finishOnKey='#',
                     playBeep=True,
+                    action=self.env['connect.settings'].sudo().voicetel_webhook_url(
+                        'voicetel/webhook/callaction'),
+                    method='POST',
+                    recordingStatusCallbackMethod='POST',
                     recordingStatusCallback=voicemail_record_status_url)
             else:
                 response.say('This callflow has no actions! Goodbye!')
@@ -212,6 +216,10 @@ class CallFlow(models.Model):
                     maxLength=120,
                     finishOnKey='#',
                     playBeep=True,
+                    action=self.env['connect.settings'].sudo().voicetel_webhook_url(
+                        'voicetel/webhook/callaction'),
+                    method='POST',
+                    recordingStatusCallbackMethod='POST',
                     recordingStatusCallback=record_status_url)
             else:
                 response.say('Sorry, I could not connect your call. Goodbye!')

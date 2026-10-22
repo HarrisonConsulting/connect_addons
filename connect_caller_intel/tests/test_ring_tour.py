@@ -21,9 +21,10 @@ class TestRingTour(HttpCase):
         if connect_user:
             connect_user.client_enabled = True
         else:
-            domain = cls.env['connect.domain'].search([], limit=1) or cls.env['connect.domain'].with_context(
-                no_twilio_create=True).create({'friendly_name': 'Ring Tour Domain', 'subdomain': 'ringtour'})
-            ConnectUser.create({
+            Domain = cls.env['connect.twilio.domain']
+            domain = Domain.search([], limit=1) or Domain.with_context(no_twilio_create=True).create({
+                'sid': 'SD' + '0' * 32, 'friendly_name': 'Ring Tour Domain', 'subdomain': 'ringtour'})
+            ConnectUser.with_context(no_clear_cache=True, no_twilio_create=True).create({
                 'username': 'ringtouradmin', 'domain': domain.id, 'sip_enabled': False,
                 'client_enabled': True, 'user': cls.admin.id})
 

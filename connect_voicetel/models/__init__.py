@@ -15,3 +15,5 @@ from . import callflow
 from . import exten
 from . import domain
 from . import message_configuration
+from . import tool
+from . import credentials

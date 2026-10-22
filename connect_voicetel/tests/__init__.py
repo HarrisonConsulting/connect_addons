@@ -21,3 +21,4 @@ from . import test_application_sync_scope
 from . import test_settings_hardening
 from . import test_neutralize
 from . import test_revoke_credentials
+from . import test_provider_coexistence

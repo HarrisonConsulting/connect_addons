@@ -149,30 +149,22 @@ class Channel(models.Model):
     def _softphone_recording_start_voicetel(self, payload):
         channel = self._softphone_recording_channel(payload)
         channel._check_softphone_recording_active()
+        if channel._recording_was_stopped():
+            raise UserError('Recording stays off for the rest of this call.')
         channel.sudo().write({
             'recording_state': 'starting',
             'recording_control_error': False,
         })
+        settings = self.env['connect.settings'].sudo()
         try:
-            settings = self.env['connect.settings'].sudo()
-            api_url = settings.get_param('api_url')
-            callback_url = settings.voicetel_webhook_url(
-                'voicetel/webhook/recordingstatus')
-            kwargs = {
-                'RecordingChannels': 'dual',
-            }
-            if api_url:
-                kwargs.update({
-                    'RecordingStatusCallback': callback_url,
-                    'RecordingStatusCallbackEvent': ['completed'],
-                })
-            recording = settings.get_voicetel_client().calls(
-                channel.sid).recordings.create(**kwargs)
-            channel.sudo().write({
-                'recording_state': 'on',
-                'recording_control_ref': getattr(recording, 'sid', '') or '',
-                'recording_control_error': False,
-            })
+            recording = settings.get_voicetel_client().calls.start_recording(
+                channel.sid, StartRecordingRequest(
+                    RecordingChannels='dual',
+                    RecordingStatusCallback=settings.voicetel_webhook_url(
+                        'voicetel/webhook/recordingstatus'),
+                    RecordingStatusCallbackMethod='POST',
+                    RecordingStatusCallbackEvent=['completed'],
+                ))
         except Exception as e:
             logger.exception('VoiceTel recording start failed for %s', channel.sid)
             channel.sudo().write({
@@ -180,38 +172,85 @@ class Channel(models.Model):
                 'recording_control_error': str(e),
             })
             raise UserError('Could not start recording: {}'.format(e))
-        return channel._softphone_recording_payload()
+        channel.sudo().recording_control_ref = getattr(recording, 'sid', '') or ''
+        return channel._append_recording_mark('start', True)
 
     @api.model
     def _softphone_recording_stop_voicetel(self, payload):
         channel = self._softphone_recording_channel(payload)
         channel._check_softphone_recording_active()
-        channel.sudo().write({
-            'recording_state': 'stopping',
-            'recording_control_error': False,
-        })
         call_sid, recording_ref = channel._voicetel_active_recording()
         if not call_sid:
             call_sid = channel.sid
             # 'Twilio.CURRENT' is the literal alias VoiceML's Recordings update
             # accepts for the active recording (its Twilio-compat wire value).
-            recording_ref = channel.recording_control_ref or 'Twilio.CURRENT'
+            ref = channel.recording_control_ref
+            recording_ref = ref if ref and ref not in ('stopped', 'manual-off') \
+                else 'Twilio.CURRENT'
+        applied, note = True, ''
         try:
             self.env['connect.settings'].sudo().get_voicetel_client().calls.update_recording(
                 call_sid, recording_ref, UpdateRecordingRequest(Status='stopped'))
-            channel.sudo().write({
-                'recording_state': 'off',
-                'recording_control_ref': 'manual-off',
-                'recording_control_error': False,
-            })
         except Exception as e:
             logger.exception('VoiceTel recording stop failed for %s', channel.sid)
-            channel.sudo().write({
-                'recording_state': 'error',
-                'recording_control_error': str(e),
-            })
-            raise UserError('Could not stop recording: {}'.format(e))
-        return channel._softphone_recording_payload()
+            applied, note = False, str(e)
+        # The stop is recorded either way: core keeps the rest of the call
+        # unrecorded once a user asked for it.
+        return channel._append_recording_mark('stop', applied, note)
+
+    # ------------------------------------------------------------------
+    # Hold and attended transfer (core's _softphone_<action>_<provider>)
+    # ------------------------------------------------------------------
+    # The browser phone is a SIP client, so media hold is its own re-INVITE
+    # (JsSIP session.hold()/unhold()). These are the server half: they
+    # check the caller may touch the call, and completing a transfer moves
+    # the *other* leg exactly like a blind forward. Add participant is not
+    # implemented: it needs VoiceML conferences, which are unverified.
+
+    @api.model
+    def _voicetel_control_channel(self, payload):
+        """The live leg the browser phone is on, after core's access checks.
+
+        The phone sends channel_sid when the SIP INVITE carried it; when it
+        did not, fall back to the user's newest live leg.
+        """
+        payload = dict(payload or {})
+        if not (payload.get('channel_sid') or payload.get('call_sid')):
+            pbx_user = self.env.user.connect_user
+            leg = self.sudo().search([
+                '|', ('caller_pbx_user', '=', pbx_user.id),
+                ('called_pbx_user', '=', pbx_user.id),
+                ('status', 'not in', list(CALL_END_STATUSES)),
+            ], order='id desc', limit=1) if pbx_user else self.browse()
+            if not leg:
+                raise UserError('Missing active call identifier.')
+            payload['channel_sid'] = leg.sid
+        channel = self._softphone_recording_channel(payload)
+        channel._check_softphone_recording_active()
+        return channel
+
+    @api.model
+    def _softphone_hold_voicetel(self, payload):
+        channel = self._voicetel_control_channel(payload)
+        return {'success': True, 'is_on_hold': True, 'channel_sid': channel.sid}
+
+    @api.model
+    def _softphone_resume_voicetel(self, payload):
+        channel = self._voicetel_control_channel(payload)
+        return {'success': True, 'is_on_hold': False, 'channel_sid': channel.sid}
+
+    @api.model
+    def _softphone_attended_start_voicetel(self, payload):
+        return self._softphone_hold_voicetel(payload)
+
+    @api.model
+    def _softphone_attended_cancel_voicetel(self, payload):
+        return self._softphone_resume_voicetel(payload)
+
+    @api.model
+    def _softphone_attended_complete_voicetel(self, payload):
+        result = self._softphone_forward_voicetel(payload)
+        return dict(result, success=True, transferred_to=result['forwarded_to'])
 
     def _softphone_forward_voicetel(self, payload):
         """Blind-transfer the call this softphone leg belongs to.
@@ -229,11 +268,9 @@ class Channel(models.Model):
         who should end up talking to the forward target, and our own leg drops
         as soon as the bridge goes away.
         """
-        channel = self._softphone_recording_channel(payload)
         # Same resolution and ownership checks the recording controls use:
-        # the helper answers "which live leg is this softphone on, and may
-        # this user touch it?", which is not specific to recording.
-        channel._check_softphone_recording_active()
+        # which live leg is this softphone on, and may this user touch it?
+        channel = self._voicetel_control_channel(payload)
         number = (payload.get('number') or '').strip()
         if not number:
             raise UserError('No number to forward the call to.')
@@ -264,7 +301,7 @@ class Channel(models.Model):
         )
 
         try:
-            client.calls.update(other_sid, UpdateCallRequest(Twiml=str(response)))
+            client.calls.update(other_sid, UpdateCallRequest(Twiml=response.to_xml()))
         except Exception as e:
             logger.exception('Could not forward call %s to %s', other_sid, number)
             raise UserError('Could not forward the call: {}'.format(e))

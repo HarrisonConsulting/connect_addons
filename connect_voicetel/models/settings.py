@@ -9,6 +9,8 @@ from voiceml import Client
 from voiceml.exceptions import ApiError, AuthenticationError
 from voiceml.models import CreateCallRequest
 
+from .voiceml_response import Dial, VoiceResponse
+
 from odoo.addons.connect.models.license import ODUIST_MODULES
 from odoo.addons.connect.models.settings import debug
 
@@ -43,6 +45,10 @@ def format_connect_response(text):
     color_pattern = re.compile(r"\x1b\[[\d;]+m")
     text = color_pattern.sub("", text)
     return text
+
+
+# A PSTN number or extension: an optional + and digits, nothing else.
+RE_DIAL_NUMBER = re.compile(r'^\+?[0-9]+$')
 
 
 def strip_number(number):
@@ -252,15 +258,48 @@ class Settings(models.Model):
 
     @api.private
     def voicetel_external_call_route(self, number, callerId, status_url):
-        call_duration_limit = int(self.sudo().get_param('call_duration_limit'))
-        voiceml = """
-        <Response>
-            <Dial callerId="{}" timeLimit="{}"><Number statusCallback='{}' statusCallbackEvent='initiated answered completed'>{}</Number></Dial>
-        </Response>
-        """.format(
-            callerId, call_duration_limit, status_url, number
+        """<Dial><Number> for a PSTN leg, built with the XML builder.
+
+        The number and caller ID reach here from the browser and the
+        directory; string formatting let them inject verbs.
+        """
+        if not RE_DIAL_NUMBER.match(number or ''):
+            raise ValidationError('Not a dialable number: {}'.format(number))
+        call_duration_limit = int(self.sudo().get_param('call_duration_limit') or 0)
+        dial_kwargs = {'callerId': callerId}
+        if call_duration_limit:
+            dial_kwargs['timeLimit'] = call_duration_limit
+        response = VoiceResponse()
+        dial = Dial(**dial_kwargs)
+        dial.number(
+            number,
+            statusCallback=status_url,
+            statusCallbackMethod='POST',
+            statusCallbackEvent='initiated answered completed',
         )
-        return voiceml
+        response.append(dial)
+        return response.to_xml()
+
+    @api.model
+    def _voicetel_dial_number(self, number):
+        """E.164 for a PSTN target, an extension left as digits.
+
+        Digits longer than an extension with no leading + are parsed with
+        the company's country, so 4845551234 becomes +14845551234 and not
+        +4845551234 (#230 prefixed '+' to anything over four digits).
+        """
+        raw = re.sub(r"[\s\(\)\-\.]", "", number or "")
+        if raw.startswith("+"):
+            return "+" + strip_number(raw)
+        digits = strip_number(raw)
+        if len(digits) <= MAX_EXTEN_LEN:
+            return digits
+        from odoo.addons.connect.models.res_partner import format_number
+        country = self.env.company.country_id.code
+        formatted = format_number(self.env["res.partner"], raw, country)
+        if formatted and formatted.startswith("+"):
+            return formatted
+        return "+" + digits
 
     @api.model
     def originate_call(self, number, res_model=None, res_id=None, user=None, **kwargs):
@@ -270,9 +309,7 @@ class Settings(models.Model):
             return super().originate_call(
                 number, res_model=res_model, res_id=res_id, user=user, **kwargs)
         self.env["oduist.license"].check_license("connect", silent=False)
-        number = strip_number(number)
-        if len(number) > MAX_EXTEN_LEN:
-            number = "+{}".format(number)
+        number = self._voicetel_dial_number(number)
         client = self.get_voicetel_client()
         partner_id = False
         obj = self.env[res_model].browse(res_id) if res_model and res_id else False
@@ -308,22 +345,16 @@ class Settings(models.Model):
             # callee's connect.user, which the record rules keep private to
             # its owner. Without sudo, calling a colleague's extension fails
             # with an AccessError on connect.user.
-            voiceml = exten.sudo().render()
+            voiceml = str(exten.sudo().render())
         else:
-            default_number = self.env[
-                "connect.voicetel.outgoing_callerid"
-            ].search([("is_default", "=", True)], limit=1)
-            if pbx_user.voicetel_outgoing_callerid:
-                callerId = pbx_user.voicetel_outgoing_callerid.number
-            else:
-                callerId = default_number.number
+            callerId = pbx_user.voicetel_pstn_caller_id()
             if not callerId:
                 raise ValidationError(
                     "Select a default outgoing caller ID first!")
             voiceml = self.voicetel_external_call_route(
                 number, callerId, status_url
             )
-        record = pbx_user.record_calls
+        record = self.calls_are_recorded(user=pbx_user)
         record_status_url = self.voicetel_webhook_url(
             "voicetel/webhook/recordingstatus")
         debug(self, 'Originate destination VoiceML: {}'.format(voiceml))
@@ -332,9 +363,11 @@ class Settings(models.Model):
             From=callerId,
             Twiml=voiceml,
             StatusCallback=status_url,
+            StatusCallbackMethod='POST',
             Record=record,
             RecordingChannels="dual",
             RecordingStatusCallback=record_status_url,
+            RecordingStatusCallbackMethod='POST',
             RecordingStatusCallbackEvent=["completed"],
             StatusCallbackEvent=["initiated", "answered", "completed"],
         ))

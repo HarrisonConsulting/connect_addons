@@ -109,6 +109,14 @@ class User(models.Model):
         )
         return callerid or ''
 
+    def voicetel_pstn_caller_id(self):
+        """Caller ID for a PSTN leg: the user's own outgoing caller ID,
+        else the default one. Never an extension or SIP username."""
+        self.ensure_one()
+        return self.voicetel_outgoing_callerid.number or self.env[
+            'connect.voicetel.outgoing_callerid'
+        ].sudo().search([('is_default', '=', True)], limit=1).number or ''
+
     @api.model
     @api.private
     def get_user_by_uri(self, userinfo):
@@ -392,10 +400,11 @@ class User(models.Model):
                 params.get('dial_action_url') or self._voicetel_get_dial_action_url()
             ),
         }
-        if self.record_calls:
+        if settings.calls_are_recorded(user=self):
             dial_sip_kwargs.update(
                 {
                     'recordingStatusCallback': record_status_url,
+                    'recordingStatusCallbackMethod': 'POST',
                     'record': 'record-from-answer-dual',
                 }
             )

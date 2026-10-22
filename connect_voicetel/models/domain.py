@@ -12,7 +12,9 @@ from odoo.exceptions import ValidationError
 from .voiceml_response import Dial, VoiceResponse
 from odoo.addons.connect.models.settings import debug
 from .settings import (
-    format_connect_response, DEFAULT_VOICETEL_SIP_SUFFIX, VOICETEL_WSS_PORT)
+    format_connect_response, DEFAULT_VOICETEL_SIP_SUFFIX, RE_DIAL_NUMBER,
+    VOICETEL_WSS_PORT)
+from .voiceml import REJECT
 from .voiceml import pretty_xml
 
 
@@ -402,6 +404,14 @@ class Domain(models.Model):
                     len(failures), '; '.join(failures)))
 
     @api.model
+    def _sip_host(self, value):
+        """Lowercase host of a SIP URI, else ''."""
+        if not isinstance(value, str):
+            return ''
+        found = re.search(r"^(?:sips?:)?[^@]+@([^;>?:]+)", value)
+        return found.group(1).lower() if found else ''
+
+    @api.model
     def _sip_user_part(self, value):
         """User part of a SIP address, else the value itself."""
         if not isinstance(value, str):
@@ -417,6 +427,13 @@ class Domain(models.Model):
         if not self.env["oduist.license"].check_license('connect'):
             return '<Response><Say>Service unavailable.</Say></Response>'
         debug(self, "Domain call to %s" % request.get("To"))
+        # A SIP-originated call must target one of our own domains: the
+        # application is shared, and a call addressed to another tenant's
+        # domain is not ours to route.
+        to_host = self._sip_host(request.get("To"))
+        if to_host and not self.sudo().search_count([('domain_name', '=', to_host)]):
+            logger.warning('VoiceTel call to foreign SIP domain %s refused', to_host)
+            return REJECT
         # Create call + channel
         self.env["connect.call"].on_voicetel_call_status(request)
         # A blind transfer points the other party's leg back at this same
@@ -443,42 +460,50 @@ class Domain(models.Model):
                 exten = matching_extensions[0]
         if exten:
             return exten.render(request=request, params=params)
-        elif isinstance(found_num, str) and found_num.startswith("+"):
-            return self.originate_external_call(found_num, request, params=params)
+        dial = self.env['connect.settings']._voicetel_dial_number(found_num) \
+            if isinstance(found_num, str) else ''
+        if dial.startswith("+") and RE_DIAL_NUMBER.match(dial):
+            return self.originate_external_call(dial, request, params=params)
         else:
             return "<Response><Say>Extension not found. Goodbye! </Say></Response>"
 
     @api.private
     def originate_external_call(self, number, request, params=None):
         debug(self, "Outgoing call to %s" % number)
-        default_number = self.env["connect.voicetel.outgoing_callerid"].sudo().search(
-            [("is_default", "=", True)], limit=1
-        )
         user = self.env["connect.user"].get_user_by_uri(request.get("Caller"))
-        if user and user.voicetel_outgoing_callerid:
-            callerId = user.voicetel_outgoing_callerid.number
+        if not user and not request.get("forward_to"):
+            # Only our own registered users dial out; a forwarded leg was
+            # redirected here by the server on a user's behalf.
+            logger.warning(
+                'VoiceTel PSTN call to %s from unknown caller %s refused',
+                number, request.get("Caller"))
+            return REJECT
+        if user:
+            callerId = user.voicetel_pstn_caller_id()
         else:
-            callerId = default_number.number if default_number else False
+            callerId = self.env["connect.voicetel.outgoing_callerid"].sudo().search(
+                [("is_default", "=", True)], limit=1).number
         if not callerId:
             return "<Response><Say>You must select a default number for caller ID!</Say></Response>"
         settings = self.env['connect.settings'].sudo()
         response = VoiceResponse()
         status_url = settings.voicetel_webhook_url("voicetel/webhook/callstatus")
         record_status_url = settings.voicetel_webhook_url("voicetel/webhook/recordingstatus")
-        call_duration_limit = int(settings.get_param('call_duration_limit'))
-        if user and user.record_calls:
-            dial = Dial(
-                timeout=60,
-                callerId=callerId,
-                timeLimit=call_duration_limit,
-                record="record-from-answer",
-                recordingStatusCallback=record_status_url,
-            )
-        else:
-            dial = Dial(timeout=60, callerId=callerId, timeLimit=call_duration_limit)
+        dial_kwargs = {'timeout': 60, 'callerId': callerId}
+        call_duration_limit = int(settings.get_param('call_duration_limit') or 0)
+        if call_duration_limit:
+            dial_kwargs['timeLimit'] = call_duration_limit
+        if settings.calls_are_recorded(user=user or None):
+            dial_kwargs.update({
+                'record': 'record-from-answer-dual',
+                'recordingStatusCallback': record_status_url,
+                'recordingStatusCallbackMethod': 'POST',
+            })
+        dial = Dial(**dial_kwargs)
         dial.number(
             number,
             statusCallback=status_url,
+            statusCallbackMethod='POST',
             statusCallbackEvent="initiated answered completed",
         )
         response.append(dial)

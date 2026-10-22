@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
-import uuid
 from datetime import timedelta
 
 from odoo import fields, models, api
 
-from .voiceml_response import VoiceResponse, Dial
+from .voiceml_response import VoiceResponse
 
 from odoo.addons.connect.models.settings import debug
 from odoo.addons.connect.models.call import CALL_END_STATUSES
@@ -198,47 +197,3 @@ class Call(models.Model):
                 logger.error(
                     'Error fetching price for call %s: %s', call.id, e
                 )
-
-    @api.private
-    def voicetel_transfer(self, user=None):
-        """Attended transfer through a conference room on VoiceML."""
-        self.ensure_one()
-        if not user:
-            user = (
-                self.channels[0].caller_pbx_user
-                or self.channels[0].called_pbx_user
-            )
-        user_channel = self.channels.filtered(
-            lambda x: (
-                x.caller_pbx_user == user or x.called_pbx_user == user
-            )
-        )
-        if not user_channel:
-            logger.warning(
-                'Cannot get user channel for call %s for user %s',
-                self.id, user.name,
-            )
-            return
-        other_channel = self.channels - user_channel
-        if len(other_channel) != 1:
-            logger.warning(
-                'Cannot transfer call, number of other channels: %s',
-                len(other_channel),
-            )
-            return
-        client = self.env['connect.settings'].get_voicetel_client()
-        room = 'user-{}-{}'.format(user.id, uuid.uuid4().hex)
-
-        response = VoiceResponse()
-        response.say('Transfer')
-        dial = Dial()
-        dial.sip('sip:{}'.format(user.voicetel_uri))
-        response.append(dial)
-        client.calls.update(user_channel.sid, UpdateCallRequest(Twiml=str(response)))
-
-        response = VoiceResponse()
-        response.say('Transfer')
-        dial = Dial()
-        dial.conference(room)
-        response.append(dial)
-        client.calls.update(other_channel.sid, UpdateCallRequest(Twiml=str(response)))

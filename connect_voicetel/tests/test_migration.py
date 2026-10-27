@@ -141,6 +141,15 @@ class TestMigration(TransactionCase):
         self.assertFalse(self._icp('connect.voicetel_api_host'))
         self.assertFalse(self._icp('connect.voicetel_rest_host'))
 
+    def test_blank_rest_host_is_dropped_quietly(self):
+        self.env.cr.execute(
+            "UPDATE ir_config_parameter SET value = ''"
+            " WHERE key = 'connect.voicetel_rest_host'")
+        with self.assertNoLogs('odoo.addons.connect_voicetel.hooks', level='WARNING'):
+            self.pre.migrate(self.env.cr, '19.0.3.0.1')
+        self.assertFalse(self._icp('connect.voicetel_api_host'))
+        self.assertFalse(self._icp('connect.voicetel_rest_host'))
+
     def test_installed_voiceml_refuses(self):
         self.env.cr.execute(
             "UPDATE ir_module_module SET state = 'installed' WHERE id = %s", (self.voiceml_id,))

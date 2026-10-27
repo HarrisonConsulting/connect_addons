@@ -475,7 +475,7 @@ def carry_settings(cr):
     """
     rest_host = _icp_get(cr, 'connect.voicetel_rest_host')
     api_host = _icp_get(cr, 'connect.voicetel_api_host')
-    if rest_host is not None and api_host is None:
+    if rest_host and rest_host.strip() and api_host is None:
         host = normalize_host(rest_host)
         if host and in_zone(host, API_HOST_ZONE):
             _icp_set(cr, 'connect.voicetel_api_host', host)

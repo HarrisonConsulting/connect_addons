@@ -15,14 +15,32 @@ UPDATE ir_config_parameter
     'connect.voicetel_fetch_call_prices'
  );
 
-UPDATE connect_settings
-   SET voicetel_api_key = NULL,
-       display_voicetel_api_key = NULL,
-       voicetel_auto_sync = FALSE,
-       voicetel_fetch_call_prices = FALSE;
-
-UPDATE connect_user
-   SET voicetel_password = NULL;
+-- Neutralization runs before the module update on a copied database, so
+-- the columns may not exist yet (an older connect_voicetel, or the stub
+-- that kept its settings in ir_config_parameter): touch only those present.
+DO $$
+DECLARE
+    target record;
+BEGIN
+    FOR target IN
+        SELECT c.table_name, c.column_name, v.value
+          FROM (VALUES
+                ('connect_settings', 'voicetel_api_key', 'NULL'),
+                ('connect_settings', 'display_voicetel_api_key', 'NULL'),
+                ('connect_settings', 'voicetel_auto_sync', 'FALSE'),
+                ('connect_settings', 'voicetel_fetch_call_prices', 'FALSE'),
+                ('connect_user', 'voicetel_password', 'NULL')
+               ) AS v (table_name, column_name, value)
+          JOIN information_schema.columns c
+            ON c.table_schema = current_schema()
+           AND c.table_name = v.table_name
+           AND c.column_name = v.column_name
+    LOOP
+        EXECUTE format('UPDATE %I SET %I = %s',
+                       target.table_name, target.column_name, target.value);
+    END LOOP;
+END
+$$;
 
 UPDATE ir_cron
    SET active = FALSE

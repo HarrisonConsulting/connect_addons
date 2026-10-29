@@ -5,6 +5,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 from odoo.exceptions import AccessError, ValidationError
+from twilio.twiml.voice_response import VoiceResponse
 from odoo.tests import tagged
 
 from odoo.addons.connect.tests.common import ConnectTestCase
@@ -288,6 +289,57 @@ class TestVoicemailBoxStamping(ConnectTestCase):
         })
         cf._stamp_voicemail_box({})
         cf._stamp_voicemail_box(None)
+
+    def _inbound_call(self, sid):
+        call = self._create_test_call(direction='incoming', status='ringing')
+        self.Channel.create({
+            'call': call.id,
+            'sid': sid,
+            'caller': '+15551234567',
+            'called': '+15559876543',
+            'status': 'ringing',
+            'technical_direction': 'inbound',
+        })
+        return call
+
+    def test_unanswered_ring_goes_to_voicemail_with_audio_prompt_only(self):
+        """A ring group with voicemail on and only a prompt audio records.
+
+        The text prompt is legacy; with the audio layer the prompt is the
+        audio or the spoken fallback, so an empty text prompt must not hang
+        up on the caller.
+        """
+        self.env['connect.settings'].set_param('api_url', 'https://odoo.test/')
+        audio = self.env['connect.audio'].create({
+            'name': 'VM prompt', 'source': 'twilio_tts',
+            'static_text': 'Leave it at the tone.', 'state': 'live',
+        })
+        cf = self.Callflow.create({
+            'name': 'Ring Group', 'voicemail_enabled': True,
+            'voicemail_audio_id': audio.id, 'voicemail_box_id': self.box.id,
+        })
+        self.assertFalse(cf.voicemail_prompt)
+        call = self._inbound_call('CA_ring_vm_' + 'x' * 23)
+        response = str(cf.on_call_action(cf.id, {
+            'CallSid': 'CA_ring_vm_' + 'x' * 23,
+            'DialCallStatus': 'no-answer',
+        }))
+        self.assertIn('<Record', response)
+        self.assertNotIn('could not connect', response)
+        call.invalidate_recordset()
+        self.assertEqual(call.voicemail_box_id, self.box)
+        self.assertEqual(call.callflow_id, cf)
+
+    def test_user_voicemail_files_into_user_box(self):
+        """A user's own voicemail step files the call into that user's box."""
+        self.env['connect.settings'].set_param('api_url', 'https://odoo.test/')
+        call = self._inbound_call('CA_user_vm_' + 'x' * 23)
+        response = VoiceResponse()
+        self.pbx_user.render_voicemail(
+            response, {'CallSid': 'CA_user_vm_' + 'x' * 23}, {})
+        self.assertIn('<Record', str(response))
+        call.invalidate_recordset()
+        self.assertEqual(call.voicemail_box_id, self.box)
 
 
 @tagged('post_install', '-at_install')

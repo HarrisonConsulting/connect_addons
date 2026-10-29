@@ -97,6 +97,11 @@ class User(models.Model):
             )
         return True
 
+    def _on_voicemail(self, request):
+        super()._on_voicemail(request)
+        self.env['connect.call']._file_voicemail(
+            (request or {}).get('CallSid'), self.voicemail_box_id)
+
     @api.model
     def get_all_presence(self):
         """Presence of every connect.user for the directory widget."""

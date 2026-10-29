@@ -124,7 +124,7 @@ class CallFlow(models.Model):
         processed = Settings.process_pronunciation(text)
         response.say(processed, voice=voice, language=self.language)
 
-    def _render_after_hours(self):
+    def _render_after_hours(self, request=None):
         self.ensure_one()
         response = VoiceResponse()
         if self.after_hours_audio_id:
@@ -135,6 +135,7 @@ class CallFlow(models.Model):
                 self._say_fallback(response,
                     'Thank you for calling. Our office is currently closed.')
         if self.after_hours_voicemail:
+            self._on_voicemail(request)
             self._say_fallback(response, 'Please leave a message after the tone.')
             vm_max_length = self.env['connect.settings'].sudo().get_param('voicemail_max_length') or 120
             vm_finish_key = self.env['connect.settings'].sudo().get_param('voicemail_finish_key') or '#'
@@ -156,7 +157,7 @@ class CallFlow(models.Model):
     def render(self, request={}, params={}):
         self.ensure_one()
         if not self._is_business_hours():
-            return self._render_after_hours()
+            return self._render_after_hours(request)
         return super().render(request=request, params=params)
 
     def get_prompt_message(self, response):
@@ -177,6 +178,20 @@ class CallFlow(models.Model):
             except Exception as e:
                 logger.error('Invalid input audio render failed for callflow %s: %s', self.id, e)
         self._say_fallback(response, 'We received wrong input. Please try again.')
+
+    def _has_voicemail_prompt(self):
+        # get_voicemail_prompt_message always has something to play: the
+        # prompt audio, or the spoken fallback when there is none.
+        return True
+
+    def _stamp_voicemail_box(self, request):
+        self.ensure_one()
+        self.env['connect.call']._file_voicemail(
+            (request or {}).get('CallSid'), self.voicemail_box_id, callflow=self)
+
+    def _on_voicemail(self, request):
+        super()._on_voicemail(request)
+        self._stamp_voicemail_box(request)
 
     def get_voicemail_prompt_message(self, response):
         if self.voicemail_audio_id:

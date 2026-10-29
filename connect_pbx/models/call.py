@@ -68,6 +68,35 @@ class Call(models.Model):
     def _group_expand_voicemail_stage(self, stages, domain):
         return stages.search([])
 
+    @api.model
+    def _file_voicemail(self, call_sid, box, callflow=None):
+        """File the call on ``call_sid`` into ``box`` as it goes to voicemail.
+
+        Records the callflow that took the caller to voicemail when the call
+        has none, and stamps the box only when the call has no box yet. The
+        recording status webhook that follows carries only the CallSid, so
+        this runs while the voicemail TwiML is built.
+        """
+        if not call_sid:
+            return
+        channel = self.env['connect.channel'].sudo().search(
+            [('sid', '=', call_sid)], limit=1)
+        call = channel.call.sudo()
+        if not call:
+            return
+        if callflow and not call.callflow_id:
+            call.callflow_id = callflow.id
+        if box and not call.voicemail_box_id:
+            call.voicemail_box_id = box.id
+
+    def process_call_event(self, channel, error_data=None):
+        call_id = super().process_call_event(channel, error_data)
+        # A user's voicemails land in that user's box.
+        if (channel.call and not channel.call.voicemail_box_id
+                and channel.called_pbx_user.voicemail_box_id):
+            channel.call.voicemail_box_id = channel.called_pbx_user.voicemail_box_id
+        return call_id
+
     @api.depends('voicemail_url', 'status', 'direction', 'answered_user')
     def _compute_call_result(self):
         for record in self:

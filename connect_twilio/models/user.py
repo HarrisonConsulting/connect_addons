@@ -580,6 +580,7 @@ class User(models.Model):
             api_url,
             'twilio/webhook/vm_recordingstatus#e={}'.format(edge),
         )
+        self._on_voicemail(request)
         self.get_voicemail_prompt(response)
         response.record(
             maxLength=120,
@@ -587,6 +588,9 @@ class User(models.Model):
             playBeep=True,
             recordingStatusCallback=voicemail_record_status_url,
         )
+
+    def _on_voicemail(self, request):
+        """Hook called as the caller is sent to this user's voicemail."""
 
     @api.private
     def render(self, request={}, params={}):

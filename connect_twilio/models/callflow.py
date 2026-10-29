@@ -180,7 +180,8 @@ class CallFlow(models.Model):
                         dial.append(client)
             response.append(dial)
         else:
-            if self.voicemail_enabled and self.voicemail_prompt:
+            if self.voicemail_enabled and self._has_voicemail_prompt():
+                self._on_voicemail(request)
                 response.pause(length=1)
                 self.get_voicemail_prompt_message(response)
                 response.record(
@@ -205,6 +206,13 @@ class CallFlow(models.Model):
     def get_voicemail_prompt_message(self, response):
         response.say(self.voicemail_prompt, language=self.language, voice=self.voice)
 
+    def _has_voicemail_prompt(self):
+        """Whether this callflow has something to play before the beep."""
+        return bool(self.voicemail_prompt)
+
+    def _on_voicemail(self, request):
+        """Hook called as the caller is sent to this callflow's voicemail."""
+
     @api.private
     @api.model
     def on_call_action(self, flow_id, request):
@@ -214,7 +222,8 @@ class CallFlow(models.Model):
         response = VoiceResponse()
         if request.get('DialCallStatus') != 'completed':
             callflow = self.browse(flow_id)
-            if callflow.voicemail_enabled and callflow.voicemail_prompt:
+            if callflow.voicemail_enabled and callflow._has_voicemail_prompt():
+                callflow._on_voicemail(request)
                 api_url = self.env['connect.settings'].sudo().get_param('api_url')
                 edge = self.env['connect.settings'].sudo().get_param('twilio_edge')
                 record_status_url = urljoin(api_url, 'twilio/webhook/vm_recordingstatus#e={}'.format(edge))

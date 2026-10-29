@@ -19,6 +19,16 @@ CONNECT_EE_MODULES = (
     'connect_stripe_enterprise',
 )
 
+# Settings-screen checkboxes backed by connect.settings, the record the call
+# code reads. They are not config parameters: the screen must load the live
+# value, or saving any app's settings writes False over it.
+CONNECT_SETTINGS_FIELDS = {
+    'connect_record_all_calls': 'record_all_calls',
+    'connect_transcript_calls': 'transcript_calls',
+    'connect_proxy_recordings': 'proxy_recordings',
+    'connect_debug_mode': 'debug_mode',
+}
+
 
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
@@ -54,22 +64,18 @@ class ResConfigSettings(models.TransientModel):
 
     connect_record_all_calls = fields.Boolean(
         string='Record all calls',
-        config_parameter='connect.record_all_calls',
         help='Record every call from answer. A stop during the call keeps '
              'the rest of that call silent.',
     )
     connect_transcript_calls = fields.Boolean(
         string='Transcribe calls',
-        config_parameter='connect.transcript_calls',
     )
     connect_proxy_recordings = fields.Boolean(
         string='Proxy recordings',
-        config_parameter='connect.proxy_recordings',
         help='Re-stream recordings using Odoo user authentication.',
     )
     connect_debug_mode = fields.Boolean(
         string='Debug logging',
-        config_parameter='connect.debug_mode',
     )
 
     @api.depends_context('uid')
@@ -95,11 +101,13 @@ class ResConfigSettings(models.TransientModel):
                 self['module_%s' % name] = name in installed
         super().set_values()
         Settings = self.env['connect.settings'].sudo()
-        bridge = {
-            'connect_record_all_calls': 'record_all_calls',
-            'connect_transcript_calls': 'transcript_calls',
-            'connect_proxy_recordings': 'proxy_recordings',
-            'connect_debug_mode': 'debug_mode',
-        }
-        for source, target in bridge.items():
+        for source, target in CONNECT_SETTINGS_FIELDS.items():
             Settings.set_param(target, self[source])
+
+    @api.model
+    def get_values(self):
+        res = super().get_values()
+        Settings = self.env['connect.settings'].sudo()
+        for source, target in CONNECT_SETTINGS_FIELDS.items():
+            res[source] = bool(Settings.get_param(target))
+        return res

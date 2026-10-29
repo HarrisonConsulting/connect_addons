@@ -267,7 +267,7 @@ class Recording(models.Model):
                 temp_file_path = temp_file.name
             with open(temp_file_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model=self._TRANSCRIPTION_MODEL, file=audio_file,
+                    model=self._get_transcription_model(), file=audio_file,
                     response_format='verbose_json', timestamp_granularities=["segment"])
             result['transcription_price'] = self._get_transcription_price(transcript)
             segments = ''
@@ -324,14 +324,22 @@ class Recording(models.Model):
         )
         return self._format_transcription_price(price)
 
+    def _get_transcription_model(self):
+        """Transcription model name; modelnexus_connect returns the configured one."""
+        return self._TRANSCRIPTION_MODEL
+
+    def _get_completion_model(self):
+        """Summary model name; modelnexus_connect returns the configured one."""
+        return (
+            os.environ.get('OPENAI_COMPLETION_MODEL')
+            or self.env['connect.settings'].get_param(
+                'openai_summary_model', 'gpt-5.4-mini')
+        )
+
     def make_summary(self, client, summary_prompt, transcript):
         logger.info('Make summary!')
         try:
-            settings = self.env['connect.settings']
-            model = (
-                os.environ.get('OPENAI_COMPLETION_MODEL')
-                or settings.get_param('openai_summary_model', 'gpt-5.4-mini')
-            )
+            model = self._get_completion_model()
             max_tokens = int(os.environ.get('OPENAI_COMPLETION_MAX_TOKENS', 4096))
             completion_params = {
                 'model': model,

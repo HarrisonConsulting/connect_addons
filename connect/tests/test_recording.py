@@ -457,6 +457,27 @@ class TestRecordingTranscription(ConnectTestCase):
         messages = call_args.kwargs.get('messages', call_args[1].get('messages', []))
         self.assertEqual(len(messages), 1)
 
+    def test_make_summary_uses_completion_model_hook(self):
+        """Summaries ask for the model _get_completion_model returns.
+
+        modelnexus_connect overrides the hook with the configured summary
+        model; reading the legacy selection instead sent a model name the
+        gateway does not serve.
+        """
+        rec = self._create_recording()
+        mock_openai = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = 'Summary.'
+        mock_openai.chat.completions.create.return_value = MagicMock(
+            choices=[mock_choice], usage=MagicMock())
+
+        with patch.object(type(rec), '_get_completion_model',
+                          return_value='gdo/reasoner'):
+            rec.make_summary(mock_openai, 'Summarize: {transcript}', 'Hello.')
+
+        call_args = mock_openai.chat.completions.create.call_args
+        self.assertEqual(call_args.kwargs['model'], 'gdo/reasoner')
+
     def test_make_summary_legacy_separate_messages(self):
         """Legacy prompt without {transcript} sends two separate messages."""
         rec = self._create_recording()

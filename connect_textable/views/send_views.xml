@@ -76,6 +76,7 @@
 
     <record id="action_connect_textable_send" model="ir.actions.act_window">
         <field name="name">Textable Send Log</field>
+        <field name="path">connect-textable-send</field>
         <field name="res_model">connect.textable.send</field>
         <field name="view_mode">list,form</field>
     </record>
@@ -103,6 +104,7 @@
 
     <record id="action_connect_textable_optout" model="ir.actions.act_window">
         <field name="name">Textable Opt-outs</field>
+        <field name="path">connect-textable-optout</field>
         <field name="res_model">connect.textable.optout</field>
         <field name="view_mode">list</field>
     </record>

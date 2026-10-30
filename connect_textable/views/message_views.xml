@@ -28,7 +28,7 @@
                         class="btn-primary"
                         invisible="status != 'failed' or not textable_number_id"/>
             </xpath>
-            <xpath expr="//sheet/group[@string='Body']" position="before">
+            <xpath expr="//sheet/group[field[@name='body']]" position="before">
                 <group string="Textable" name="textable" invisible="not textable_number_id">
                     <group>
                         <field name="textable_state"/>

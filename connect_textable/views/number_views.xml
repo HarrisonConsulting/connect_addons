@@ -103,6 +103,7 @@
 
     <record id="action_connect_textable_number" model="ir.actions.act_window">
         <field name="name">Textable Numbers</field>
+        <field name="path">connect-textable-number</field>
         <field name="res_model">connect.textable.number</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

@@ -1,6 +1,6 @@
 {
     'name': 'Connect Textable',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Phone',
     'summary': 'Send and receive SMS through an ElectSys Textable tenant',
     'description': """

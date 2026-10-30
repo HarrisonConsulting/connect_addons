@@ -62,7 +62,10 @@ commits before the POST. An intent in flight, accepted or ambiguous under
 the same key is never posted again; a definite failure may be, as a new
 claim (`claimed_at`, which the caps count from). A caller's
 `idempotency_key` is bound to its sender, recipient and body: reusing it
-for another message is refused (`idempotency_conflict`). The outcome
+for another message is refused (`idempotency_conflict`). The claiming
+transaction holds an advisory lock on its intent until it ends; a
+duplicate that finds that lock held, or the message committed after its
+own snapshot, is refused instead of recording a second row. The outcome
 is written through a second cursor, and the `connect.message` is created
 in the caller's transaction, linked by `textable_send_key` (the caller's
 snapshot cannot see the intent row, so there is no foreign key).

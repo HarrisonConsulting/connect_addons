@@ -25,9 +25,13 @@ SEND_KEY_WINDOW = 300
 ECHO_WINDOW = timedelta(minutes=15)
 CLAIM_LOCK_TIMEOUT = '10s'
 # First keys of the two-key advisory locks: per sender number for send
-# claims, per MessageID for relay posts.
+# claims, per MessageID for relay posts, per intent for its message.
 CLAIM_LOCK_CLASS = 0x54584254
 RELAY_LOCK_CLASS = 0x54584252
+# Per send intent, held by the transaction that claimed it until that
+# transaction ends: while it is held, the intent's message may not be
+# committed yet.
+INTENT_LOCK_CLASS = 0x54584249
 
 # Opt-out keywords: Textable's own, the CTIA set and REVOKE (FCC 2025 TCPA
 # revocation rule), compared with separators removed, so "STOP ALL",
@@ -220,6 +224,10 @@ class ConnectMessage(models.Model):
             return self._textable_record_duplicate(
                 intent_id, number, recipient, body, body_hash, send_key, prior_outcome,
                 user, res_model, res_id)
+        # Until this transaction ends, a send under the same key knows the
+        # message recording this one may still be on its way.
+        self.env.cr.execute(
+            'SELECT pg_advisory_xact_lock(%s, %s)', (INTENT_LOCK_CLASS, intent_id))
         try:
             result = client.send(number.phone_number, recipient, body)
         except TextableError as exc:
@@ -444,6 +452,16 @@ class ConnectMessage(models.Model):
             return self._textable_echo_uid(cr, intent_id)
 
     @api.model
+    def _textable_intent_has_message(self, send_key):
+        """Whether a message for the key was committed after this
+        transaction's snapshot, read on a fresh cursor."""
+        with self.env.registry.cursor() as cr:
+            _read_committed(cr)
+            cr.execute(
+                'SELECT 1 FROM connect_message WHERE textable_send_key = %s LIMIT 1', [send_key])
+            return bool(cr.fetchone())
+
+    @api.model
     def _textable_outbound_values(self, number, recipient, body, body_hash,
                                   send_key, outcome, user, res_model, res_id,
                                   echo_uid=False):
@@ -491,11 +509,25 @@ class ConnectMessage(models.Model):
                                    send_key, prior_outcome, user, res_model, res_id):
         """A send under an existing intent posts nothing. Return the message
         recorded for it, or record one with the intent's honest state when
-        the original transaction never committed its own."""
+        the original transaction never committed its own.
+
+        While the transaction that claimed the intent is still open (a
+        double click, a concurrent retry), its message is not visible yet:
+        the send is refused rather than recorded a second time, which would
+        leave two rows for one SMS and make its echo ambiguous.
+        """
         existing = self.sudo().search(
             [('textable_send_key', '=', send_key)], order='id desc', limit=1)
         if existing:
             return existing
+        self.env.cr.execute(
+            'SELECT pg_try_advisory_xact_lock(%s, %s)', (INTENT_LOCK_CLASS, intent_id))
+        if not self.env.cr.fetchone()[0]:
+            raise UserError(
+                'The same message is still being sent; nothing was sent again.')
+        if self._textable_intent_has_message(send_key):
+            raise UserError(
+                'The same message was just sent and recorded; nothing was sent again.')
         echo_uid = self._textable_intent_echo_uid(intent_id)
         vals = self._textable_outbound_values(
             number, recipient, body, body_hash, send_key, prior_outcome, user,

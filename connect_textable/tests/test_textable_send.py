@@ -9,10 +9,11 @@ import requests
 from urllib3.exceptions import NewConnectionError
 
 from odoo.exceptions import AccessError, UserError
+from odoo.sql_db import db_connect
 from odoo.tests import new_test_user, tagged
 from odoo.tests.test_cursor import TestCursor
 
-from odoo.addons.connect_textable.models.message import TextableGateError
+from odoo.addons.connect_textable.models.message import INTENT_LOCK_CLASS, TextableGateError
 from odoo.addons.connect_textable.tools.textable_client import PROBE_PATH, SEND_PATH
 
 from .common import (
@@ -355,6 +356,37 @@ class TestTextableSend(TextableSendCase):
         second = self._send(CONTACT, 'Double click', fake)
         self.assertEqual(len(fake.calls), 1)
         self.assertEqual(first, second)
+
+    def test_a_concurrent_duplicate_is_refused_not_recorded_twice(self):
+        """The first request's transaction is still open: its message is
+        not visible yet. The duplicate posts nothing and records nothing;
+        once that transaction has ended, the honest state is recorded."""
+        body = 'Double click while in flight'
+        Message = self.env['connect.message']
+        send_key = Message._textable_send_keys(
+            self.number_a, CONTACT, sha256_hex(body), None, None, self.sender_user, None)[0]
+        intent = self.env['connect.textable.send'].sudo().create({
+            'send_key': send_key, 'number_id': self.number_a.id,
+            'company_id': self.number_a.company_id.id, 'from_number': SENDER_A,
+            'to_number': CONTACT, 'body_hash': sha256_hex(body), 'user_id': self.sender_user.id,
+        })
+        # Another session plays the transaction that claimed the intent.
+        other = db_connect(self.env.cr.dbname).cursor()
+        try:
+            other.execute('SELECT pg_advisory_xact_lock(%s, %s)', (INTENT_LOCK_CLASS, intent.id))
+            fake = FakeTextable()
+            with self.assertRaises(UserError) as caught:
+                self._send(CONTACT, body, fake)
+            self.assertNotIsInstance(caught.exception, TextableGateError)
+            self.assertEqual(fake.calls, [])
+            self.assertFalse(self._messages(textable_send_key=send_key))
+        finally:
+            other.rollback()
+            other.close()
+        message = self._send(CONTACT, body, FakeTextable())
+        self.assertRecordValues(message, [{
+            'textable_state': 'unknown', 'textable_send_key': send_key}])
+        self.assertEqual(len(self._messages(textable_send_key=send_key)), 1)
 
     def test_a_caller_key_dedupes_the_same_message(self):
         fake = FakeTextable(200)

@@ -306,6 +306,49 @@ class TestTextableSend(TextableSendCase):
         self.assertRecordValues(self._intents(body_hash=sha256_hex(body)), [
             {'state': 'queued', 'outcome': False}])
 
+    def _echo_during_post(self, body, uid):
+        """A request hook that delivers the relay echo of ``body`` while the
+        POST is in flight: after the intent committed, before the message
+        exists."""
+        def deliver(request):
+            self.env['connect.message'].sudo()._textable_reconcile_echo(
+                self.number_a, uid, SENDER_A, CONTACT, body)
+        return deliver
+
+    def test_an_echo_before_the_message_exists_settles_it(self):
+        """A read timeout is the usual ambiguous case, and Textable's echo
+        nearly always lands during the wait: the message records it."""
+        for index, answer in enumerate((requests.exceptions.ReadTimeout('read timed out'), 200)):
+            with self.subTest(answer=answer):
+                body = 'Echo while the POST waits %d' % index
+                uid = 'echo-early-%s-%d' % (self.run_tag, index)
+                fake = FakeTextable(answer, on_request=self._echo_during_post(body, uid))
+                message = self._send(CONTACT, body, fake)
+                self.assertEqual(len(fake.calls), 1)
+                self.assertRecordValues(message, [{
+                    'status': 'sent', 'textable_state': 'sent_unconfirmed',
+                    'message_sid': uid, 'has_error': False, 'error_code': False,
+                    'error_message': False,
+                }])
+                self.env.invalidate_all()
+                self.assertEqual(self._intents(body_hash=sha256_hex(body)).echo_message_uid, uid)
+                self.assertFalse(self._messages(textable_state='foreign'))
+
+    def test_a_duplicate_send_records_an_echo_that_reached_the_intent(self):
+        body = 'Echoed, outcome lost, sent again'
+        uid = 'echo-dup-%s' % self.run_tag
+        Message = type(self.env['connect.message'])
+        fake = FakeTextable(200, on_request=self._echo_during_post(body, uid))
+        with patch.object(Message, '_textable_record_outcome', lambda *args, **kwargs: False):
+            self._send(CONTACT, body, fake)
+        self._messages(to_number=CONTACT).unlink()
+        again = FakeTextable()
+        message = self._send(CONTACT, body, again)
+        self.assertEqual(again.calls, [])
+        self.assertRecordValues(message, [{
+            'status': 'sent', 'textable_state': 'sent_unconfirmed', 'message_sid': uid,
+            'has_error': False, 'error_message': False}])
+
     def test_the_same_send_twice_posts_once(self):
         fake = FakeTextable(200)
         first = self._send(CONTACT, 'Double click', fake)

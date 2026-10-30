@@ -88,17 +88,27 @@ def _sha256(text):
     return hashlib.sha256((text or '').encode()).hexdigest()
 
 
+def _read_committed(cr):
+    """Run the cursor's transaction at read committed, so each statement
+    sees what other transactions committed before it; Odoo cursors default
+    to repeatable read, whose snapshot is taken once. Only a transaction
+    that has not started can change level: a test cursor, which runs inside
+    the test's own transaction, is left as it is. Returns whether the level
+    was set."""
+    if cr.connection.get_transaction_status() == TRANSACTION_STATUS_IDLE:
+        cr.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
+        return True
+    return False
+
+
 def _prepare_claim_cursor(cr, number_id):
     """Serialize claims per sender number.
 
     Read committed, so the counts taken after the lock see the intents that
-    the previous holder committed; Odoo cursors default to repeatable read,
-    whose snapshot would predate the lock. Both settings only apply to a
-    transaction that has not started: a test cursor, which runs inside the
-    test's own transaction, takes the lock and changes nothing else.
+    the previous holder committed, and a lock timeout, so a stuck holder
+    makes the send fail rather than hang.
     """
-    if cr.connection.get_transaction_status() == TRANSACTION_STATUS_IDLE:
-        cr.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
+    if _read_committed(cr):
         cr.execute("SET LOCAL lock_timeout = '%s'" % CLAIM_LOCK_TIMEOUT)
     cr.execute('SELECT pg_advisory_xact_lock(%s, %s)', (CLAIM_LOCK_CLASS, number_id))
 
@@ -208,21 +218,21 @@ class ConnectMessage(models.Model):
             number, recipient, body, body_hash, keys, user, privileged)
         if not claimed:
             return self._textable_record_duplicate(
-                number, recipient, body, body_hash, send_key, prior_outcome,
+                intent_id, number, recipient, body, body_hash, send_key, prior_outcome,
                 user, res_model, res_id)
         try:
             result = client.send(number.phone_number, recipient, body)
         except TextableError as exc:
             # Refused before any request was made.
             result = TransportResult(REJECTED_REQUEST, None, str(exc))
-        self._textable_record_outcome(intent_id, result)
+        echo_uid = self._textable_record_outcome(intent_id, result)
         _logger.info(
             'Textable send %s from number %s to %s: %s (%s)',
             intent_id, number.id, last4(recipient), result.outcome, result.detail)
         message = self._textable_create_outbound(
             number, recipient, body, body_hash, send_key, result.outcome, user,
-            res_model, res_id)
-        self._textable_after_send(message, result.outcome, user, res_model, res_id)
+            res_model, res_id, echo_uid=echo_uid)
+        self._textable_after_send(message, user, res_model, res_id)
         return message
 
     @api.model
@@ -391,32 +401,62 @@ class ConnectMessage(models.Model):
 
     @api.model
     def _textable_record_outcome(self, intent_id, result):
-        """Record the outcome through its own cursor. When that fails the
-        intent stays in flight, which is the safe side: it is never sent
-        again."""
+        """Record the outcome through its own cursor, and return the
+        MessageID of a relay echo that already reached the intent (False
+        when none did). When the write fails the intent stays in flight,
+        which is the safe side: it is never sent again.
+
+        Read committed: a relay echo that updated the intent after this
+        cursor began is waited on, not reported as a serialization failure,
+        and the read after the write sees its MessageID.
+        """
         try:
             with self.env.registry.cursor() as cr:
-                self.env(cr=cr, su=True)['connect.textable.send'].browse(intent_id).write({
+                _read_committed(cr)
+                intent = self.env(cr=cr, su=True)['connect.textable.send'].browse(intent_id)
+                intent.write({
                     'state': 'done',
                     'outcome': result.outcome,
                     'http_status': result.http_status or 0,
                     'detail': result.detail,
                     'finished_at': fields.Datetime.now(),
                 })
+                intent.flush_recordset()
+                return self._textable_echo_uid(cr, intent_id)
         except Exception:  # noqa: BLE001 - the send already happened
             _logger.exception(
                 'Textable send intent %s: outcome %s not recorded; the intent '
                 'stays in flight and is never sent again.', intent_id, result.outcome)
+            return False
+
+    @staticmethod
+    def _textable_echo_uid(cr, intent_id):
+        cr.execute('SELECT echo_message_uid FROM connect_textable_send WHERE id = %s', [intent_id])
+        row = cr.fetchone()
+        return (row and row[0]) or False
+
+    @api.model
+    def _textable_intent_echo_uid(self, intent_id):
+        """The echo MessageID of an intent, read on a fresh cursor: the
+        echo may have committed after this transaction's snapshot."""
+        with self.env.registry.cursor() as cr:
+            _read_committed(cr)
+            return self._textable_echo_uid(cr, intent_id)
 
     @api.model
     def _textable_outbound_values(self, number, recipient, body, body_hash,
-                                  send_key, outcome, user, res_model, res_id):
-        if outcome == ACCEPTED:
+                                  send_key, outcome, user, res_model, res_id,
+                                  echo_uid=False):
+        """Values of the message recording a send. A relay echo that already
+        reached the intent settles it: Textable sent it, whatever the
+        transport outcome said."""
+        if echo_uid or outcome == ACCEPTED:
             status, state = 'sent', 'sent_unconfirmed'
         elif outcome in (AMBIGUOUS, False, None):
             status, state = 'unknown', 'unknown'
         else:
             status, state = 'failed', 'failed'
+        sent = state == 'sent_unconfirmed'
         partner = self._textable_find_partner(recipient, number.company_id)
         return {
             'message_type': 'sms',
@@ -428,24 +468,26 @@ class ConnectMessage(models.Model):
             'res_model': res_model or False,
             'res_id': res_id or False,
             'status': status,
+            'message_sid': echo_uid or False,
             'textable_state': state,
             'textable_number_id': number.id,
             'textable_send_key': send_key,
             'textable_body_hash': body_hash,
-            'has_error': outcome != ACCEPTED,
-            'error_code': (outcome or AMBIGUOUS) if outcome != ACCEPTED else False,
-            'error_message': OUTCOME_TEXT.get(outcome or AMBIGUOUS) if outcome != ACCEPTED else False,
+            'has_error': not sent,
+            'error_code': False if sent else (outcome or AMBIGUOUS),
+            'error_message': False if sent else OUTCOME_TEXT.get(outcome or AMBIGUOUS),
         }
 
     @api.model
     def _textable_create_outbound(self, number, recipient, body, body_hash,
-                                  send_key, outcome, user, res_model, res_id):
+                                  send_key, outcome, user, res_model, res_id,
+                                  echo_uid=False):
         return self.sudo().create(self._textable_outbound_values(
             number, recipient, body, body_hash, send_key, outcome, user,
-            res_model, res_id))
+            res_model, res_id, echo_uid=echo_uid))
 
     @api.model
-    def _textable_record_duplicate(self, number, recipient, body, body_hash,
+    def _textable_record_duplicate(self, intent_id, number, recipient, body, body_hash,
                                    send_key, prior_outcome, user, res_model, res_id):
         """A send under an existing intent posts nothing. Return the message
         recorded for it, or record one with the intent's honest state when
@@ -454,20 +496,22 @@ class ConnectMessage(models.Model):
             [('textable_send_key', '=', send_key)], order='id desc', limit=1)
         if existing:
             return existing
-        message = self._textable_create_outbound(
+        echo_uid = self._textable_intent_echo_uid(intent_id)
+        vals = self._textable_outbound_values(
             number, recipient, body, body_hash, send_key, prior_outcome, user,
-            res_model, res_id)
-        message.error_message = (
-            'A send with the same key was already made; nothing was sent '
-            'again. %s' % OUTCOME_TEXT.get(prior_outcome or AMBIGUOUS))
-        return message
+            res_model, res_id, echo_uid=echo_uid)
+        if vals['has_error']:
+            vals['error_message'] = (
+                'A send with the same key was already made; nothing was sent '
+                'again. %s' % OUTCOME_TEXT.get(prior_outcome or AMBIGUOUS))
+        return self.sudo().create(vals)
 
     @api.model
-    def _textable_after_send(self, message, outcome, user, res_model, res_id):
+    def _textable_after_send(self, message, user, res_model, res_id):
         state_label = STATE_LABELS[message.textable_state]
-        if outcome != ACCEPTED and not user._is_superuser():
+        if message.textable_state != 'sent_unconfirmed' and not user._is_superuser():
             self.env['connect.settings'].connect_notify(
-                '%s: %s' % (state_label, OUTCOME_TEXT.get(outcome, '')),
+                '%s: %s' % (state_label, message.error_message or ''),
                 title='Textable', notify_uid=user.id, sticky=True, warning=True)
         if not (res_model and res_id):
             return

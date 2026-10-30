@@ -70,6 +70,12 @@ snapshot cannot see the intent row, so there is no foreign key).
 Echoes (`MessageDirection: out`) reconcile a unique unconfirmed or unknown
 send with the same sender, recipient and body hash within 15 minutes;
 otherwise they are journaled as foreign (a send made in the Textable app).
+An echo that lands while the POST is still in flight (the usual case for
+a read timeout) stamps the intent; the outcome cursor (read committed)
+reads that stamp back, and the message is created as sent with the echo's
+MessageID. An echo that lands after the outcome commits but before the
+caller's transaction does still only reaches the intent
+(`echo_message_uid` in the send log).
 
 ## Nothing calls out by itself
 

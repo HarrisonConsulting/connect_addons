@@ -361,7 +361,8 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
 
     def test_an_inbound_body_is_escaped_on_the_record(self):
         partner = self.env['res.partner'].create({'name': 'Relay Contact'})
-        self._send_now(CONTACT, 'Your order shipped', 200, res_model='res.partner', res_id=partner.id)
+        self._send_now(CONTACT, 'Your order shipped', 200, outgoing_callerid=SENDER_A,
+                       res_model='res.partner', res_id=partner.id)
         payload = self._payload(MessageBody='<img src=x onerror=alert(1)>')
         response, _logs = self._post(payload)
         self.assertEqual(response.status_code, 200)

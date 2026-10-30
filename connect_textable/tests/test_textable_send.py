@@ -357,6 +357,63 @@ class TestTextableSend(TextableSendCase):
             'status': 'sent', 'textable_state': 'sent_unconfirmed', 'message_sid': uid,
             'has_error': False, 'error_message': False}])
 
+    def _run_postcommit(self):
+        """Play this transaction's commit: run its post-commit hooks."""
+        with self.enter_registry_test_mode():
+            self.env.cr.postcommit.run()
+        self.env.invalidate_all()
+
+    def test_an_echo_between_the_outcome_and_the_commit_settles_after_commit(self):
+        """The echo lands after the outcome was read but before the caller's
+        transaction commits: it can only stamp the intent, and the message
+        takes it once the caller has committed."""
+        for index, answer in enumerate((requests.exceptions.ReadTimeout('read timed out'), 200)):
+            with self.subTest(answer=answer):
+                body = 'Echo before the caller commits %d' % index
+                uid = 'echo-late-%s-%d' % (self.run_tag, index)
+                message = self._send(CONTACT, body, FakeTextable(answer))
+                self.assertFalse(message.message_sid)
+                # What a relay post that cannot see the message writes.
+                self.env.flush_all()
+                self.env.cr.execute(
+                    'UPDATE connect_textable_send SET echo_message_uid = %s, '
+                    'echo_received_at = now() WHERE body_hash = %s', [uid, sha256_hex(body)])
+                self._run_postcommit()
+                self.assertRecordValues(message, [{
+                    'status': 'sent', 'textable_state': 'sent_unconfirmed',
+                    'message_sid': uid, 'has_error': False, 'error_code': False,
+                    'error_message': False,
+                }])
+
+    def test_a_message_committed_after_its_echo_takes_it_after_commit(self):
+        """The relay stamps the intent while the message is not visible, and
+        the message commits later: the relay's own post-commit check finds
+        both rows."""
+        body = 'Echo before the message commits'
+        uid = 'echo-first-%s' % self.run_tag
+        Message = self.env['connect.message'].sudo()
+        send_key = Message._textable_send_keys(
+            self.number_a, CONTACT, sha256_hex(body), None, None, self.sender_user, None)[0]
+        intent = self.env['connect.textable.send'].sudo().create({
+            'send_key': send_key, 'number_id': self.number_a.id,
+            'company_id': self.number_a.company_id.id, 'from_number': SENDER_A,
+            'to_number': CONTACT, 'body_hash': sha256_hex(body), 'user_id': self.sender_user.id,
+            'state': 'done', 'outcome': 'ambiguous',
+        })
+        self.assertFalse(Message._textable_reconcile_echo(
+            self.number_a, uid, SENDER_A, CONTACT, body))
+        self.assertEqual(intent.echo_message_uid, uid)
+        # The caller's transaction records the message only now, without
+        # a hook of its own: the relay's hook alone must settle it.
+        message = Message.create(Message._textable_outbound_values(
+            self.number_a, CONTACT, body, sha256_hex(body), send_key, 'ambiguous',
+            self.sender_user, None, None))
+        self.assertEqual(message.textable_state, 'unknown')
+        self._run_postcommit()
+        self.assertRecordValues(message, [{
+            'status': 'sent', 'textable_state': 'sent_unconfirmed', 'message_sid': uid}])
+        self.assertFalse(self._messages(textable_state='foreign'))
+
     def test_the_same_send_twice_posts_once(self):
         fake = FakeTextable(200)
         first = self._send(CONTACT, 'Double click', fake)

@@ -8,7 +8,7 @@ import psycopg2.errors
 from markupsafe import Markup
 from psycopg2.extensions import TRANSACTION_STATUS_IDLE
 
-from odoo import api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from ..tools.textable_client import (
@@ -32,6 +32,8 @@ RELAY_LOCK_CLASS = 0x54584252
 # transaction ends: while it is held, the intent's message may not be
 # committed yet.
 INTENT_LOCK_CLASS = 0x54584249
+# postcommit.data key of the send keys whose echo is settled after commit.
+SETTLE_ECHO_DATA_KEY = 'connect_textable.settle_echo'
 
 # Opt-out keywords: Textable's own, the CTIA set and REVOKE (FCC 2025 TCPA
 # revocation rule), compared with separators removed, so "STOP ALL",
@@ -259,6 +261,7 @@ class ConnectMessage(models.Model):
         message = self._textable_create_outbound(
             number, recipient, body, body_hash, send_key, result.outcome, user,
             res_model, res_id, echo_uid=echo_uid)
+        self._textable_settle_echo_after_commit(message)
         self._textable_after_send(message, user, res_model, res_id)
         return message
 
@@ -563,7 +566,92 @@ class ConnectMessage(models.Model):
             vals['error_message'] = (
                 'A send with the same key was already made; nothing was sent '
                 'again. %s' % OUTCOME_TEXT.get(prior_outcome or AMBIGUOUS))
-        return self.sudo().create(vals)
+        message = self.sudo().create(vals)
+        self._textable_settle_echo_after_commit(message)
+        return message
+
+    @api.model
+    def _textable_settle_echo_after_commit(self, message):
+        """Once this transaction commits, give ``message`` the MessageID of
+        a relay echo that reached its intent instead.
+
+        A relay post that lands after the outcome is read but before the
+        message commits cannot see the message, so it stamps the intent. The
+        relay registers the same check after its own commit: whichever of the
+        two commits last finds both rows, so neither order loses the echo.
+        Without a commit (a rollback) nothing runs; a later send under the
+        same key records the echo from the intent.
+        """
+        if message.message_sid or not message.textable_send_key:
+            return
+        self._textable_settle_echo_on_commit(message.textable_send_key)
+
+    @api.model
+    def _textable_settle_echo_on_commit(self, send_key):
+        """Queue ``send_key`` for _textable_settle_echo after this
+        transaction commits; one cursor settles every key queued."""
+        postcommit = self.env.cr.postcommit
+        keys = postcommit.data.setdefault(SETTLE_ECHO_DATA_KEY, set())
+        already_registered = bool(keys)
+        keys.add(send_key)
+        if already_registered:
+            return
+        registry = self.env.registry
+
+        @postcommit.add
+        def settle():
+            queued = postcommit.data.pop(SETTLE_ECHO_DATA_KEY, set())
+            try:
+                with registry.cursor() as cr:
+                    _read_committed(cr)
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    env['connect.message']._textable_settle_echo(sorted(queued))
+            except Exception:  # noqa: BLE001 - the later post-commit hooks still run
+                _logger.exception(
+                    'Textable echoes of %d send(s) not settled after commit; each '
+                    'stays on its intent.', len(queued))
+
+    @api.model
+    def _textable_settle_echo(self, send_keys):
+        """Copy the echo MessageID of each intent in ``send_keys`` onto its
+        message when the message has none yet. Returns the messages
+        settled."""
+        settled = self.browse()
+        intents = self.env['connect.textable.send'].sudo().search(
+            [('send_key', 'in', list(send_keys)), ('echo_message_uid', '!=', False)])
+        for intent in intents:
+            message = self.sudo().search([
+                ('textable_send_key', '=', intent.send_key),
+                ('message_sid', '=', False),
+                ('textable_state', 'in', ('sent_unconfirmed', 'unknown')),
+            ], order='id desc', limit=1)
+            if not message:
+                continue
+            try:
+                with self.env.cr.savepoint():
+                    message.write(self._textable_echo_values(message, intent.echo_message_uid))
+            except psycopg2.errors.UniqueViolation:
+                _logger.warning(
+                    'Textable send intent %s: its echo MessageID is already on another '
+                    'message; message %s is left as it is.', intent.id, message.id)
+                continue
+            _logger.info('Textable echo settled message %s after commit', message.id)
+            settled |= message
+        return settled
+
+    @api.model
+    def _textable_echo_values(self, message, message_uid, conversation_id=None):
+        """What an echo writes on the message it settles: its MessageID,
+        and, for an unknown outcome, sent with delivery unconfirmed."""
+        vals = {'message_sid': message_uid}
+        if conversation_id:
+            vals['textable_conversation_id'] = conversation_id
+        if message.textable_state == 'unknown':
+            vals.update({
+                'status': 'sent', 'textable_state': 'sent_unconfirmed',
+                'has_error': False, 'error_code': False, 'error_message': False,
+            })
+        return vals
 
     @api.model
     def _textable_after_send(self, message, user, res_model, res_id):
@@ -856,7 +944,8 @@ class ConnectMessage(models.Model):
         A unique unconfirmed or unknown send with the same sender, recipient
         and body in the window takes the echo's MessageID; an unknown one
         becomes sent, delivery unconfirmed. A unique in-flight intent whose
-        message is not committed yet takes the MessageID on the intent.
+        message is not committed yet takes the MessageID on the intent, and
+        the message takes it once both transactions have committed.
         Anything else, a send made in the Textable app included, is
         journaled as a foreign outbound message.
         """
@@ -875,12 +964,7 @@ class ConnectMessage(models.Model):
             ('create_date', '>=', since),
         ], limit=2)
         if len(candidates) == 1:
-            vals = {'message_sid': message_uid, 'textable_conversation_id': conversation_id}
-            if candidates.textable_state == 'unknown':
-                vals.update({
-                    'status': 'sent', 'textable_state': 'sent_unconfirmed',
-                    'has_error': False, 'error_code': False, 'error_message': False,
-                })
+            vals = self._textable_echo_values(candidates, message_uid, conversation_id)
             try:
                 with self.env.cr.savepoint():
                     candidates.write(vals)
@@ -903,6 +987,8 @@ class ConnectMessage(models.Model):
             if len(intents) == 1:
                 intents.write({'echo_message_uid': message_uid, 'echo_received_at': now})
                 _logger.info('Textable echo matched send intent %s', intents.id)
+                # The message may commit after this post's snapshot.
+                self._textable_settle_echo_on_commit(intents.send_key)
                 return Message.browse()
         else:
             _logger.warning(

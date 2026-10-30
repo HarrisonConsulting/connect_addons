@@ -84,8 +84,11 @@ An echo that lands while the POST is still in flight (the usual case for
 a read timeout) stamps the intent; the outcome cursor (read committed)
 reads that stamp back, and the message is created as sent with the echo's
 MessageID. An echo that lands after the outcome commits but before the
-caller's transaction does still only reaches the intent
-(`echo_message_uid` in the send log).
+caller's transaction does reaches only the intent at first; the caller
+and the relay each queue a post-commit check (`postcommit`, one cursor
+per transaction) that copies the intent's echo onto its message, and
+whichever commits last finds both rows. A caller that rolls back leaves
+the echo on the intent, where a later send under the same key reads it.
 
 ## Nothing calls out by itself
 

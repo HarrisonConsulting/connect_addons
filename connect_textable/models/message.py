@@ -307,9 +307,9 @@ class ConnectMessage(models.Model):
         """The key to claim, then the keys a duplicate may sit under.
 
         A caller's key is namespaced by sender number and user, and the
-        claim binds it to recipient and body. Without
-        one, the key covers sender, recipient, body, target record and user
-        in five-minute buckets; the previous bucket is checked too.
+        claim binds it to recipient and body. Without one, the key covers
+        sender, recipient, body, target record and user in five-minute
+        buckets; the previous bucket is checked too.
         """
         if idempotency_key:
             return [_sha256('caller|%s|%s|%s' % (number.id, user.id, idempotency_key))]

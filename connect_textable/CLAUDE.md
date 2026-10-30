@@ -20,13 +20,16 @@ messages and outbound echoes on the unsigned per-user Relay webhook.
   `connect_sms` (out of scope here).
 - **D5 secrets.** The token lives on each sender number
   (`connect.textable.number`), split into account UID and API key, both
-  `groups='base.group_erp_manager'` with masked `display_` twins. The relay
-  path token is stored only as sha256 and compared with
-  `hmac.compare_digest`. TextableOrganizationID and TextableUserID must
-  match. Payloads not to or from an owned number are dropped without a
-  write. AccessToken is never logged or stored. A werkzeug log filter
-  redacts the relay path. `data/neutralize.sql` blanks the tokens and the
-  relay hash.
+  `groups='base.group_erp_manager'` with masked `display_` twins. Textable
+  posts to each user's own relayWebhook (F11), so each Textable user has its
+  own relay URL (`connect.textable.relay`, rotated from a number's form by
+  a system administrator). Its path token is stored only as sha256 and
+  compared with `hmac.compare_digest` against every configured hash; the
+  payload's TextableUserID must be the user the token was issued to, and
+  TextableOrganizationID must match. Payloads not to or from a number that
+  user holds are dropped without a write. AccessToken is never logged or
+  stored. A werkzeug log filter redacts the relay path.
+  `data/neutralize.sql` blanks the tokens and every relay hash.
 - **D6.** Odoo is the only scheduler: no `sendAt`, no `reminder`.
 - **D7, local copy.** `connect.message._textable_check_send_allowed` is
   the gate: assigned sender (or system context), approved campaign, NANP
@@ -70,4 +73,4 @@ Use a clone of a database, never production. Name the module: `gdo test
 `BlockedRequest` turns any unmocked call into an ambiguous outcome, never a
 live one. A supervised live send (T7a) needs a dedicated Textable user that
 holds only a sandbox DID, an approved campaign on that number, and the
-relay URL from "Rotate relay secret" registered on that user.
+relay URL from that number's "Rotate relay URL" registered on that user.

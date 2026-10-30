@@ -21,7 +21,8 @@ RELAY_URL = re.compile(r'https://odoo\.example\.com/textable/webhook/relay/([A-Z
 JSON_HEADERS = {'Content-Type': 'application/json'}
 STORED_TABLES = (
     'connect_message', 'connect_textable_send', 'connect_textable_optout',
-    'connect_settings', 'ir_config_parameter', 'mail_message', 'ir_logging',
+    'connect_textable_relay', 'connect_settings', 'ir_config_parameter', 'mail_message',
+    'ir_logging',
 )
 
 
@@ -39,9 +40,13 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
         super().setUp()
         message_module._ACCESS_TOKEN_WARNED.clear()
         self.addCleanup(message_module._ACCESS_TOKEN_WARNED.clear)
-        action = self.env['connect.settings'].rotate_textable_relay_secret()
-        self.token = RELAY_URL.search(action['params']['message']).group(1)
+        self.token = self._rotate(self.number_a)
+        self.token_b = self._rotate(self.number_b)
         self.serial = 0
+
+    def _rotate(self, number):
+        action = number.action_textable_rotate_relay()
+        return RELAY_URL.search(action['params']['message']).group(1)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -139,9 +144,7 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
         self._assert_nothing_written(before)
 
     def test_no_configured_secret_is_404(self):
-        settings = self.env['connect.settings'].sudo().search([], limit=1)
-        settings.with_context(skip_protected_fields=True, skip_icp_sync=True).write(
-            {'textable_relay_token_hash': False})
+        self.env['connect.textable.relay'].sudo().search([]).write({'token_hash': False})
         before = self._relay_messages()
         response, logs = self._post(self._payload())
         self.assertEqual(response.status_code, 404)
@@ -150,10 +153,14 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
 
     def test_an_old_token_stops_working_after_rotation(self):
         old = self.token
-        self.env['connect.settings'].rotate_textable_relay_secret()
+        self.token = self._rotate(self.number_a)
         response, logs = self._post(self._payload(), token=old)
         self.assertEqual(response.status_code, 404)
         self.assertTrue(self._critical(logs))
+        # The other Textable user's URL keeps working.
+        response, _logs = self._post(self._payload(
+            TextableUserID=TEXTABLE_USER_B, ToNumber=SENDER_B), token=self.token_b)
+        self.assertEqual(response.status_code, 200)
 
     def test_an_oversized_body_is_413_even_with_a_wrong_token(self):
         before = self._relay_messages()
@@ -205,6 +212,25 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
                 self.assertEqual(response.status_code, 404)
                 self.assertTrue(any('SECURITY' in t for t in self._critical(logs)))
         self._assert_nothing_written(before)
+
+    def test_one_users_url_cannot_speak_for_another_user(self):
+        """Textable user ids are readable by Connect users; only the token
+        binds a post to a user. User A's URL carrying user B's id and
+        number is refused and writes nothing."""
+        before = self._relay_messages()
+        before_optouts = self.env['connect.textable.optout'].sudo().search([])
+        for payload in (
+                self._payload(TextableUserID=TEXTABLE_USER_B, ToNumber=SENDER_B),
+                self._payload(TextableUserID=TEXTABLE_USER_B, ToNumber=SENDER_B,
+                              MessageBody='STOP'),
+                self._payload(TextableUserID=TEXTABLE_USER_B, MessageDirection='out',
+                              FromNumber=SENDER_B, ToNumber=CONTACT)):
+            with self.subTest(payload=payload['MessageID']):
+                response, logs = self._post(payload, token=self.token)
+                self.assertEqual(response.status_code, 404)
+                self.assertTrue(any('SECURITY' in t for t in self._critical(logs)))
+        self._assert_nothing_written(before, before_optouts)
+        self.assertFalse(self._blacklisted(CONTACT))
 
     def test_no_configured_organization_refuses_everything(self):
         self.env['connect.settings'].set_param('textable_organization_id', False)
@@ -353,7 +379,7 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
         second, second_logs = self._post(self._payload(AccessToken=access_token))
         self.assertEqual((first.status_code, second.status_code), (200, 200))
         self.assertEqual(len(self._relay_messages()), 2)
-        for value in (access_token, self.token):
+        for value in (access_token, self.token, self.token_b):
             self.assertEqual(self._rows_containing(value), {}, 'A secret is stored')
         warnings = [t for t in first_logs.module_texts(logging.WARNING) if 'AccessToken' in t]
         self.assertEqual(len(warnings), 1, 'The AccessToken warning names the user once')
@@ -436,7 +462,7 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
         payload = self._payload(
             MessageDirection='out', FromNumber=SENDER_B, ToNumber=CONTACT,
             TextableUserID=TEXTABLE_USER_B, MessageBody='From the bravo line')
-        response, _logs = self._post(payload)
+        response, _logs = self._post(payload, token=self.token_b)
         self.assertEqual(response.status_code, 200)
         self.assertRecordValues(self._relay_messages(), [{
             'textable_number_id': self.number_b.id, 'textable_state': 'foreign'}])

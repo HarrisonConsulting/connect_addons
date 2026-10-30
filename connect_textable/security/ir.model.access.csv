@@ -3,6 +3,7 @@ access_textable_number_admin,connect.textable.number admin,model_connect_textabl
 access_textable_number_user,connect.textable.number user,model_connect_textable_number,connect.group_user,1,0,0,0
 access_textable_number_system,connect.textable.number system,model_connect_textable_number,base.group_system,1,0,0,0
 access_textable_number_webhook,connect.textable.number webhook,model_connect_textable_number,connect.group_webhook,1,0,0,0
+access_textable_relay_system,connect.textable.relay system,model_connect_textable_relay,base.group_system,1,0,0,0
 access_textable_send_admin,connect.textable.send admin,model_connect_textable_send,connect.group_admin,1,0,0,0
 access_textable_optout_admin,connect.textable.optout admin,model_connect_textable_optout,connect.group_admin,1,0,0,0
 access_textable_test_message_system,connect.textable.test.message system,model_connect_textable_test_message,base.group_system,1,1,1,1

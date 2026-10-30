@@ -13,9 +13,10 @@ from .common import CONTACT, FakeTextable, TextableSendCase
 RELAY_URL = re.compile(r'(https://odoo\.example\.com/textable/webhook/relay/)([A-Za-z0-9_-]+)')
 
 
-def _rotate(env):
-    """Rotate the relay secret; return (token, the action shown)."""
-    action = env['connect.settings'].rotate_textable_relay_secret()
+def _rotate(number):
+    """Rotate the relay secret of the number's Textable user; return
+    (token, the action shown)."""
+    action = number.action_textable_rotate_relay()
     match = RELAY_URL.search(action['params']['message'])
     if not match:
         raise AssertionError('No relay URL in the rotation notice: %r' % action['params']['message'])
@@ -35,6 +36,10 @@ class TestTextableConfig(TextableSendCase):
 
     def _settings(self):
         return self.env['connect.settings'].sudo().search([], limit=1)
+
+    def _relay(self, textable_user_id):
+        return self.env['connect.textable.relay'].sudo().search(
+            [('textable_user_id', '=', textable_user_id)])
 
     def _rows_containing(self, table, value):
         self.env.flush_all()
@@ -101,57 +106,85 @@ class TestTextableConfig(TextableSendCase):
 
     def test_tenant_settings_are_for_system_administrators(self):
         settings = self._settings().with_user(self.sender_user)
-        for field in ('textable_base_url', 'textable_organization_id', 'textable_relay_token_hash'):
+        for field in ('textable_base_url', 'textable_organization_id'):
             with self.subTest(field=field), self.assertRaises(AccessError):
                 settings.read([field])
+        with self.assertRaises(AccessError):
+            self.env['connect.textable.relay'].with_user(self.sender_user).search([])
 
     # ------------------------------------------------------------------
-    # Relay secret
+    # Relay secret, one per Textable user
     # ------------------------------------------------------------------
 
     def test_rotation_keeps_only_the_hash(self):
-        token, action = _rotate(self.env['connect.settings'].with_user(self.admin))
+        token, action = _rotate(self.number_a.with_user(self.admin))
         self.assertGreaterEqual(len(token), 32)
         self.assertTrue(action['params']['sticky'])
-        settings = self._settings()
-        self.assertEqual(settings.textable_relay_token_hash, hashlib.sha256(token.encode()).hexdigest())
-        self.assertTrue(settings.textable_relay_rotated_at)
-        self.assertTrue(settings.textable_relay_configured)
-        for table in ('connect_settings', 'ir_config_parameter', 'mail_message', 'ir_logging'):
+        self.assertIn(self.number_a.textable_user_id, action['params']['message'])
+        relay = self._relay(self.number_a.textable_user_id)
+        self.assertEqual(relay.token_hash, hashlib.sha256(token.encode()).hexdigest())
+        self.assertTrue(relay.rotated_at)
+        self.assertTrue(self.number_a.textable_relay_configured)
+        for table in ('connect_textable_relay', 'connect_settings', 'ir_config_parameter',
+                      'mail_message', 'ir_logging'):
             self.assertEqual(self._rows_containing(table, token), 0,
                              'The relay token is stored in %s' % table)
-        self.assertFalse(self.env['ir.config_parameter'].sudo().get_param(
-            'connect.textable_relay_token_hash'), 'The relay hash was mirrored into a parameter')
 
     def test_rotation_replaces_the_old_secret(self):
-        first, _action = _rotate(self.env['connect.settings'])
-        second, _action = _rotate(self.env['connect.settings'])
+        first, _action = _rotate(self.number_a)
+        second, _action = _rotate(self.number_a)
         self.assertNotEqual(first, second)
-        self.assertEqual(self._settings().textable_relay_token_hash,
-                         hashlib.sha256(second.encode()).hexdigest())
+        relay = self._relay(self.number_a.textable_user_id)
+        self.assertEqual(len(relay), 1)
+        self.assertEqual(relay.token_hash, hashlib.sha256(second.encode()).hexdigest())
+
+    def test_each_textable_user_has_its_own_secret(self):
+        """Textable posts to each user's own relayWebhook: a rotation for
+        one user leaves the other user's URL working."""
+        token_a, _action = _rotate(self.number_a)
+        self.assertFalse(self.number_b.textable_relay_configured)
+        token_b, _action = _rotate(self.number_b)
+        self.assertNotEqual(token_a, token_b)
+        Relay = self.env['connect.textable.relay']
+        self.assertEqual(Relay._textable_match_token(token_a)[1].textable_user_id,
+                         self.number_a.textable_user_id)
+        self.assertEqual(Relay._textable_match_token(token_b)[1].textable_user_id,
+                         self.number_b.textable_user_id)
+        _rotate(self.number_a)
+        self.assertFalse(Relay._textable_match_token(token_a)[1])
+        self.assertEqual(Relay._textable_match_token(token_b)[1].textable_user_id,
+                         self.number_b.textable_user_id)
+
+    def test_numbers_of_one_textable_user_share_its_secret(self):
+        sibling = self._number(
+            'Alpha second line', '+12015550126', self.number_a.textable_user_id,
+            'acct-a2', 'key-a2-SECRET')
+        _rotate(self.number_a)
+        self.assertTrue(sibling.textable_relay_configured)
+        self.assertEqual(len(self._relay(self.number_a.textable_user_id)), 1)
 
     def test_rotation_is_system_only(self):
-        before = self._settings().textable_relay_token_hash
         with self.assertRaises(AccessError):
-            self.env['connect.settings'].with_user(self.sender_user).rotate_textable_relay_secret()
-        self.assertEqual(self._settings().textable_relay_token_hash, before)
+            self.number_a.with_user(self.sender_user).action_textable_rotate_relay()
+        with self.assertRaises(AccessError):
+            self.env['connect.textable.relay'].with_user(self.sender_user)._textable_rotate(
+                self.number_a.textable_user_id)
+        self.assertFalse(self._relay(self.number_a.textable_user_id))
 
     def test_rotation_needs_an_https_public_url(self):
-        before = self._settings().textable_relay_token_hash
         params = self.env['ir.config_parameter'].sudo()
         params.set_param('connect.api_url', 'http://odoo.example.com')
         with self.assertRaises(UserError):
-            self.env['connect.settings'].rotate_textable_relay_secret()
-        self.assertEqual(self._settings().textable_relay_token_hash, before)
+            self.number_a.action_textable_rotate_relay()
+        self.assertFalse(self._relay(self.number_a.textable_user_id).token_hash)
 
     # ------------------------------------------------------------------
     # Neutralization
     # ------------------------------------------------------------------
 
     def test_neutralization_blanks_every_secret_and_stops_sends(self):
-        _rotate(self.env['connect.settings'])
-        params = self.env['ir.config_parameter'].sudo()
-        params.set_param('connect.textable_relay_token_hash', 'a-mirrored-copy')
+        token_a, _action = _rotate(self.number_a)
+        token_b, _action = _rotate(self.number_b)
         self.env.flush_all()
         queries = list(get_neutralization_queries(['connect_textable']))
         self.assertTrue(queries, 'connect_textable ships no neutralization')
@@ -172,9 +205,12 @@ class TestTextableConfig(TextableSendCase):
             self.assertTrue(number.phone_number)
             self.assertTrue(number.textable_user_id)
             self.assertEqual(number.campaign_state, 'approved')
-        self.assertFalse(self._settings().textable_relay_token_hash)
-        self.assertFalse(self.env['connect.settings']._textable_relay_token_hash())
-        self.assertFalse(params.get_param('connect.textable_relay_token_hash'))
+        for number in (self.number_a, self.number_b):
+            self.assertFalse(self._relay(number.textable_user_id).token_hash)
+            self.assertFalse(number.textable_relay_configured)
+        Relay = self.env['connect.textable.relay']
+        for token in (token_a, token_b):
+            self.assertEqual(Relay._textable_match_token(token), (False, Relay.browse()))
 
         fake = FakeTextable()
         with self.assertRaises(UserError):

@@ -456,8 +456,9 @@ class ConnectMessage(models.Model):
     # ------------------------------------------------------------------
 
     @api.model
-    def _textable_relay(self, payload):
-        """Handle one relay post whose path token already matched.
+    def _textable_relay(self, payload, relay_user):
+        """Handle one relay post whose path token matched the relay secret
+        of the Textable user ``relay_user``.
 
         Returns 'ok', 'duplicate', 'dropped' (not ours, nothing written),
         'refused' (organization or user mismatch) or 'invalid'.
@@ -476,14 +477,15 @@ class ConnectMessage(models.Model):
                 'SECURITY: Textable relay post refused: TextableOrganizationID '
                 'does not match.')
             return 'refused'
+        # Textable user ids are not secret: what binds a post to a user is
+        # the relay token, so the payload must name the token's own user.
         textable_user = _relay_text(payload, 'TextableUserID')
-        Number = self.env['connect.textable.number'].sudo()
-        if not textable_user or not Number.search_count(
-                [('textable_user_id', '=', textable_user)], limit=1):
+        if not relay_user or textable_user != relay_user:
             _logger.critical(
-                'SECURITY: Textable relay post refused: TextableUserID is not a '
-                'configured Textable user.')
+                'SECURITY: Textable relay post refused: TextableUserID is not the '
+                'Textable user this relay URL was issued to.')
             return 'refused'
+        Number = self.env['connect.textable.number'].sudo()
         direction = payload.get('MessageDirection')
         message_uid = _relay_text(payload, 'MessageID')
         to_number = normalize_phone(_relay_text(payload, 'ToNumber', 32) or '')

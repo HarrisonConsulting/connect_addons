@@ -21,14 +21,10 @@
                         </group>
                         <group string="Relay Webhook" name="textable_relay">
                             <div colspan="2">
-                                <small>Rotating shows the relay URL once and keeps only its hash.
-                                    The previous URL stops working at once.</small>
+                                <small>Textable posts to the Relay Webhook of each Textable user, so
+                                    every user gets its own URL: rotate it from any number that user
+                                    holds (Numbers, "Rotate relay URL").</small>
                             </div>
-                            <field name="textable_relay_configured"/>
-                            <field name="textable_relay_rotated_at"/>
-                            <button colspan="2" name="rotate_textable_relay_secret" type="object"
-                                    string="Rotate relay secret" class="btn btn-secondary"
-                                    confirm="The current relay URL stops working at once. Rotate the relay secret?"/>
                         </group>
                     </group>
                 </sheet>

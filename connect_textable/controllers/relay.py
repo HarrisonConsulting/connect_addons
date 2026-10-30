@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import json
 import logging
 import re
@@ -49,13 +47,15 @@ def _reply(status):
 
 
 class TextableRelayController(Controller):
-    """Textable relay webhook.
+    """Textable relay webhook, one URL per Textable user.
 
-    Textable signs nothing (spec 5.29.16, x-webhooks.relayWebhook), so the
-    path token is the only secret: its sha256 is compared in constant time
-    and every missing precondition fails closed. The payload must then name
-    the configured organization and a configured Textable user, and the
-    owned side of the message must be a number that user holds here.
+    Textable signs nothing (spec 5.29.16, x-webhooks.relayWebhook,
+    spec.json:2862-2865), so the path token is the only secret: its sha256
+    is compared in constant time with every configured relay secret and
+    every missing precondition fails closed. The payload must then name the
+    configured organization and the very Textable user the token was issued
+    to, and the owned side of the message must be a number that user holds
+    here.
     """
 
     @route('/textable/webhook/relay/<string:token>', type='http', auth='public',
@@ -68,13 +68,12 @@ class TextableRelayController(Controller):
             return _reply(411)
         if length > MAX_RELAY_BYTES:
             return _reply(413)
-        expected = request.env['connect.settings'].sudo()._textable_relay_token_hash()
-        presented = hashlib.sha256(token.encode()).hexdigest()
-        if not expected:
+        configured, relay = request.env['connect.textable.relay'].sudo()._textable_match_token(token)
+        if not configured:
             _logger.critical(
                 'SECURITY: Textable relay post refused: no relay secret is configured.')
             return _reply(404)
-        if not hmac.compare_digest(presented, expected):
+        if not relay:
             _logger.critical(
                 'SECURITY: Textable relay post refused: the relay token does not match.')
             return _reply(404)
@@ -85,7 +84,8 @@ class TextableRelayController(Controller):
         except ValueError:
             return _reply(400)
         webhook_user = request.env.ref('connect.user_connect_webhook')
-        outcome = request.env['connect.message'].with_user(webhook_user)._textable_relay(payload)
+        outcome = request.env['connect.message'].with_user(webhook_user)._textable_relay(
+            payload, relay.textable_user_id)
         if outcome == 'refused':
             return _reply(404)
         if outcome == 'invalid':

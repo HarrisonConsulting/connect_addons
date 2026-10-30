@@ -64,6 +64,15 @@ class TextableNumber(models.Model):
         string='Credentials Set', compute='_compute_textable_credentials_set',
         compute_sudo=True,
         help='Whether both halves of the Textable token are stored.')
+    textable_relay_configured = fields.Boolean(
+        string='Relay URL Issued', compute='_compute_textable_relay',
+        compute_sudo=True,
+        help='Whether the Textable user of this number has a relay webhook '
+             'secret. Relay posts for the user are refused until one is rotated in.')
+    textable_relay_rotated_at = fields.Datetime(
+        string='Relay URL Rotated', compute='_compute_textable_relay',
+        compute_sudo=True,
+        help='When the relay URL of this number\'s Textable user was last rotated.')
     campaign_state = fields.Selection(
         [('not_approved', 'Not approved'), ('approved', 'Approved')],
         string='10DLC Campaign', required=True, default='not_approved',
@@ -107,6 +116,17 @@ class TextableNumber(models.Model):
     def _compute_textable_credentials_set(self):
         for rec in self:
             rec.textable_credentials_set = bool(rec.account_uid and rec.api_key)
+
+    @api.depends('textable_user_id')
+    def _compute_textable_relay(self):
+        Relay = self.env['connect.textable.relay'].sudo()
+        relays = {
+            relay.textable_user_id: relay for relay in Relay.search(
+                [('textable_user_id', 'in', list(set(self.mapped('textable_user_id'))))])}
+        for rec in self:
+            relay = relays.get(rec.textable_user_id, Relay)
+            rec.textable_relay_configured = bool(relay.token_hash)
+            rec.textable_relay_rotated_at = relay.rotated_at
 
     @api.constrains('phone_number')
     def _check_phone_number(self):
@@ -197,6 +217,27 @@ class TextableNumber(models.Model):
                     result.detail),
                 'type': 'success' if ok else 'danger',
                 'sticky': not ok,
+            },
+        }
+
+    def action_textable_rotate_relay(self):
+        """Issue a new relay URL for the Textable user of this number and
+        show it once. It serves every number that user holds."""
+        self.ensure_one()
+        if not self.env.is_system():
+            raise AccessError('Only system administrators can rotate a Textable relay secret.')
+        url = self.env['connect.textable.relay']._textable_rotate(self.textable_user_id)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Textable relay URL',
+                'message': (
+                    'Register this URL as the Relay Webhook of Textable user %s. '
+                    'It serves every number that user holds, it is shown once, '
+                    'and Odoo keeps only its hash. %s' % (self.textable_user_id, url)),
+                'sticky': True,
+                'type': 'warning',
             },
         }
 

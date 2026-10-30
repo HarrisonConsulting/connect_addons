@@ -2,9 +2,9 @@
 --
 -- A copy must not be able to send through Textable or accept relay posts:
 -- blank every number's token halves (sends then stop at "credentials not
--- set" before any request) and the relay secret hash (relay posts then
--- fail closed with a 404). Columns are checked first, because
--- neutralization can run before the module's tables are up to date.
+-- set" before any request) and every Textable user's relay secret hash
+-- (relay posts then fail closed with a 404). Columns are checked first,
+-- because neutralization can run before the module's tables are up to date.
 DO $$
 DECLARE
     target record;
@@ -16,7 +16,7 @@ BEGIN
                 ('connect_textable_number', 'api_key'),
                 ('connect_textable_number', 'display_account_uid'),
                 ('connect_textable_number', 'display_api_key'),
-                ('connect_settings', 'textable_relay_token_hash')
+                ('connect_textable_relay', 'token_hash')
                ) AS v (table_name, column_name)
           JOIN information_schema.columns c
             ON c.table_schema = current_schema()
@@ -28,8 +28,3 @@ BEGIN
 END
 $$;
 
--- The relay hash is read from its column only, but a normal settings save
--- could have mirrored it into a parameter: blank that copy too.
-UPDATE ir_config_parameter
-   SET value = ''
- WHERE key = 'connect.textable_relay_token_hash';

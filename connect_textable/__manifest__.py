@@ -13,7 +13,7 @@ SMS carrier for Connect through ElectSys's white-label Textable tenant.
 * Records what is actually known: accepted is "sent, delivery unconfirmed",
   and an ambiguous outcome is never sent again.
 * Receives inbound messages and outbound echoes on a per-user relay webhook
-  guarded by a path token kept only as a hash.
+  guarded by a path token per Textable user, kept only as a hash.
 """,
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',

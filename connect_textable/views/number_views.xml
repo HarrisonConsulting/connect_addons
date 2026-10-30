@@ -28,6 +28,10 @@
                     <button name="action_textable_test_connection" type="object"
                             string="Test connection" groups="base.group_system"
                             invisible="not id"/>
+                    <button name="action_textable_rotate_relay" type="object"
+                            string="Rotate relay URL" groups="base.group_system"
+                            invisible="not id"
+                            confirm="The current relay URL of this Textable user stops working at once, for every number it holds. Rotate it?"/>
                     <button name="action_textable_open_test_message" type="object"
                             string="Send test message" groups="base.group_system"
                             invisible="not id or campaign_state != 'approved'"/>
@@ -41,6 +45,8 @@
                             <field name="phone_number" placeholder="+13125550123"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="textable_user_id"/>
+                            <field name="textable_relay_configured"/>
+                            <field name="textable_relay_rotated_at" invisible="not textable_relay_rotated_at"/>
                             <field name="active" invisible="1"/>
                         </group>
                         <group string="Token" name="token">

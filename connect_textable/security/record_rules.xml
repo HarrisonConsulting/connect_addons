@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Global multi-company rules: a company's numbers, send intents and
+         opt-outs are visible only inside the companies the user works in. -->
+    <record id="rule_textable_number_company" model="ir.rule">
+        <field name="name">Textable number: multi-company</field>
+        <field name="model_id" ref="model_connect_textable_number"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="rule_textable_send_company" model="ir.rule">
+        <field name="name">Textable send intent: multi-company</field>
+        <field name="model_id" ref="model_connect_textable_send"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="rule_textable_optout_company" model="ir.rule">
+        <field name="name">Textable opt-out: multi-company</field>
+        <field name="model_id" ref="model_connect_textable_optout"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

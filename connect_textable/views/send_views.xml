@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_connect_textable_send_list" model="ir.ui.view">
+        <field name="name">connect.textable.send.list</field>
+        <field name="model">connect.textable.send</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-warning="state == 'queued' or outcome == 'ambiguous'"
+                  decoration-danger="outcome and outcome not in ('accepted', 'ambiguous')">
+                <field name="create_date" string="Claimed"/>
+                <field name="number_id"/>
+                <field name="to_number"/>
+                <field name="user_id"/>
+                <field name="state"/>
+                <field name="outcome"/>
+                <field name="detail"/>
+                <field name="attempts" optional="hide"/>
+                <field name="echo_message_uid" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_connect_textable_send_form" model="ir.ui.view">
+        <field name="name">connect.textable.send.form</field>
+        <field name="model">connect.textable.send</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group string="Intent">
+                            <field name="send_key"/>
+                            <field name="state"/>
+                            <field name="number_id"/>
+                            <field name="from_number"/>
+                            <field name="to_number"/>
+                            <field name="user_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="message_id"/>
+                        </group>
+                        <group string="Outcome">
+                            <field name="outcome"/>
+                            <field name="http_status"/>
+                            <field name="detail"/>
+                            <field name="attempts"/>
+                            <field name="finished_at"/>
+                            <field name="echo_message_uid"/>
+                            <field name="echo_received_at"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_connect_textable_send_search" model="ir.ui.view">
+        <field name="name">connect.textable.send.search</field>
+        <field name="model">connect.textable.send</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="to_number"/>
+                <field name="number_id"/>
+                <field name="send_key"/>
+                <filter string="In flight" name="in_flight" domain="[('state', '=', 'queued')]"/>
+                <filter string="Ambiguous" name="ambiguous" domain="[('outcome', '=', 'ambiguous')]"/>
+                <filter string="Failed" name="failed"
+                        domain="[('outcome', 'in', ['rejected_request', 'rejected_contact', 'auth_failed', 'throttled', 'unreachable'])]"/>
+                <group>
+                    <filter string="Number" name="group_number" context="{'group_by': 'number_id'}"/>
+                    <filter string="Outcome" name="group_outcome" context="{'group_by': 'outcome'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_connect_textable_send" model="ir.actions.act_window">
+        <field name="name">Textable Send Log</field>
+        <field name="res_model">connect.textable.send</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_connect_textable_optout_list" model="ir.ui.view">
+        <field name="name">connect.textable.optout.list</field>
+        <field name="model">connect.textable.optout</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-muted="capped or released">
+                <field name="create_date" string="Received"/>
+                <field name="phone"/>
+                <field name="number_id"/>
+                <field name="action"/>
+                <field name="keyword"/>
+                <field name="created_entry"/>
+                <field name="released"/>
+                <field name="capped"/>
+                <field name="message_id" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_connect_textable_optout" model="ir.actions.act_window">
+        <field name="name">Textable Opt-outs</field>
+        <field name="res_model">connect.textable.optout</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_connect_message_tree_textable" model="ir.ui.view">
+        <field name="name">connect.message.tree.textable</field>
+        <field name="model">connect.message</field>
+        <field name="inherit_id" ref="connect.view_connect_message_tree"/>
+        <field name="arch" type="xml">
+            <field name="message_type" position="after">
+                <field name="textable_state" optional="show"
+                       decoration-warning="textable_state == 'unknown'"
+                       decoration-danger="textable_state == 'failed'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_connect_message_form_textable" model="ir.ui.view">
+        <field name="name">connect.message.form.textable</field>
+        <field name="model">connect.message</field>
+        <field name="inherit_id" ref="connect.view_connect_message_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[@string='Body']" position="before">
+                <group string="Textable" name="textable" invisible="not textable_number_id">
+                    <group>
+                        <field name="textable_state"/>
+                        <field name="textable_number_id"/>
+                        <field name="textable_keyword" invisible="not textable_keyword"/>
+                    </group>
+                    <group>
+                        <field name="textable_conversation_id"/>
+                        <field name="textable_send_key" groups="base.group_no_one"/>
+                    </group>
+                    <div colspan="2" class="text-muted" invisible="textable_state != 'unknown'">
+                        Textable may have taken this message. It is not sent again; the relay
+                        echo settles it.
+                    </div>
+                    <div colspan="2" class="text-muted" invisible="textable_state != 'sent_unconfirmed'">
+                        Textable accepted this message. It reports no delivery, so delivery
+                        stays unconfirmed.
+                    </div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

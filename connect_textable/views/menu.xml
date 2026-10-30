@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_connect_textable"
+              name="Textable"
+              parent="connect.menu_connect_settings"
+              groups="connect.group_admin,base.group_system"
+              sequence="60"/>
+
+    <menuitem id="menu_connect_textable_settings"
+              name="Settings"
+              parent="menu_connect_textable"
+              action="textable_settings_action"
+              groups="base.group_system"
+              sequence="10"/>
+
+    <menuitem id="menu_connect_textable_numbers"
+              name="Numbers"
+              parent="menu_connect_textable"
+              action="action_connect_textable_number"
+              groups="connect.group_admin"
+              sequence="20"/>
+
+    <menuitem id="menu_connect_textable_send"
+              name="Send Log"
+              parent="menu_connect_textable"
+              action="action_connect_textable_send"
+              groups="connect.group_admin"
+              sequence="30"/>
+
+    <menuitem id="menu_connect_textable_optout"
+              name="Opt-outs"
+              parent="menu_connect_textable"
+              action="action_connect_textable_optout"
+              groups="connect.group_admin"
+              sequence="40"/>
+
+    <menuitem id="menu_connect_textable_test_message"
+              name="Send Test Message"
+              parent="menu_connect_textable"
+              action="action_connect_textable_test_message"
+              groups="base.group_system"
+              sequence="50"/>
+</odoo>

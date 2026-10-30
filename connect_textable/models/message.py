@@ -191,6 +191,23 @@ class ConnectMessage(models.Model):
             recipient, body, res_id=res_id, res_model=res_model,
             sender=outgoing_callerid, idempotency_key=kwargs.get('idempotency_key'))
 
+    def action_textable_retry(self):
+        """Send failed Textable messages again through their own number, as
+        the current user and through the same gate. Only a definite failure
+        is retried: a message whose outcome is unknown is never sent again.
+
+        Core's Retry is hidden on Textable messages: the other carriers'
+        action_retry would resend through the current user's provider.
+        """
+        for rec in self:
+            if not (rec.textable_number_id and rec.status == 'failed'
+                    and rec.textable_state == 'failed'):
+                continue
+            self._textable_send(
+                rec.to_number, rec.body or '', res_id=rec.res_id or None,
+                res_model=rec.res_model or None, sender_number=rec.textable_number_id)
+        return True
+
     @api.model
     def _textable_send(self, recipient, body, res_id=None, res_model=None,
                        sender=None, idempotency_key=None, allow_unassigned=False,

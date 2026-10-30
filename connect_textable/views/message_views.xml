@@ -18,6 +18,16 @@
         <field name="model">connect.message</field>
         <field name="inherit_id" ref="connect.view_connect_message_form"/>
         <field name="arch" type="xml">
+            <!-- Core Retry routes through the current user's provider; a
+                 Textable message is retried through its own number. -->
+            <xpath expr="//header/button[@name='action_retry']" position="attributes">
+                <attribute name="invisible">status != 'failed' or textable_number_id</attribute>
+            </xpath>
+            <xpath expr="//header" position="inside">
+                <button name="action_textable_retry" type="object" string="Retry"
+                        class="btn-primary"
+                        invisible="status != 'failed' or not textable_number_id"/>
+            </xpath>
             <xpath expr="//sheet/group[@string='Body']" position="before">
                 <group string="Textable" name="textable" invisible="not textable_number_id">
                     <group>

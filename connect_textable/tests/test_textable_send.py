@@ -471,6 +471,50 @@ class TestTextableSend(TextableSendCase):
         self.assertRecordValues(self._intents(body_hash=sha256_hex(body)), [
             {'outcome': 'accepted', 'attempts': 2}])
 
+    def _retry(self, message, fake, user=None):
+        with self.enter_registry_test_mode(), fake.installed():
+            return message.with_user(user or self.sender_user).action_textable_retry()
+
+    def test_retry_posts_a_failed_message_again_through_its_number(self):
+        body = 'Refused, then retried from the form'
+        first = self._send(CONTACT, body, FakeTextable(429), outgoing_callerid=SENDER_B)
+        self.assertEqual(first.textable_state, 'failed')
+        fake = FakeTextable(200)
+        self._retry(first, fake)
+        self.assertEqual(len(fake.calls), 1)
+        request = fake.calls[0].request
+        self.assertEqual(request.headers['Authorization'], 'Bearer %s:%s' % (self.uid_b, self.key_b))
+        self.assertEqual(json.loads(request.body), {'to': CONTACT, 'from': SENDER_B, 'message': body})
+        self.env.invalidate_all()
+        retried = self._messages(textable_body_hash=sha256_hex(body)) - first
+        self.assertRecordValues(retried, [{
+            'textable_state': 'sent_unconfirmed', 'textable_number_id': self.number_b.id,
+            'sender_user': self.sender_user.id}])
+
+    def test_retry_never_resends_an_unknown_outcome(self):
+        message = self._send(CONTACT, 'Unknown, not retried', FakeTextable(503))
+        self.assertEqual(message.textable_state, 'unknown')
+        fake = FakeTextable()
+        self._retry(message, fake)
+        self.assertEqual(fake.calls, [])
+
+    def test_retry_goes_through_the_gate(self):
+        message = self._send(CONTACT, 'Retried by someone else', FakeTextable(400))
+        other = new_test_user(
+            self.env, login='textable-retry-other-%s' % self.run_tag,
+            groups='base.group_user,connect.group_user,connect.group_admin')
+        self._connect_user(other)
+        fake = FakeTextable()
+        with self.assertRaises(TextableGateError) as caught:
+            self._retry(message, fake, user=other)
+        self.assertEqual(caught.exception.textable_code, 'sender_not_assigned')
+        self.assertEqual(fake.calls, [])
+
+    def test_core_retry_is_hidden_on_textable_messages(self):
+        arch = self.env['connect.message'].get_view(view_type='form')['arch']
+        self.assertIn('action_textable_retry', arch)
+        self.assertRegex(arch, r'name="action_retry"[^>]*invisible="[^"]*textable_number_id')
+
     # ------------------------------------------------------------------
     # Outcomes
     # ------------------------------------------------------------------

@@ -14,8 +14,12 @@ messages and outbound echoes on the unsigned per-user Relay webhook.
   never read.
 - **D1 / F2 honest states.** accepted shows as "sent, delivery
   unconfirmed". ambiguous (read timeout, 5xx, any unclassified error) shows
-  as "unknown" (status `unknown`, never `failed`), so neither core Retry nor
-  any cron resubmits it. Other outcomes show as failed with their code.
+  as "unknown" (status `unknown`, never `failed`), so neither Retry nor any
+  cron resubmits it. Other outcomes show as failed with their code. On a
+  Textable message the form's Retry is `action_textable_retry`, which sends
+  through the message's own number and the same gate; core's Retry is
+  hidden there, because the other carriers' `action_retry` resends through
+  the current user's provider.
 - **D3.** The carrier module is `connect_textable`; the `sms.sms` bridge is
   `connect_sms` (out of scope here).
 - **D5 secrets.** The token lives on each sender number

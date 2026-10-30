@@ -7,7 +7,7 @@
             <list create="false" edit="false" delete="false"
                   decoration-warning="state == 'queued' or outcome == 'ambiguous'"
                   decoration-danger="outcome and outcome not in ('accepted', 'ambiguous')">
-                <field name="create_date" string="Claimed"/>
+                <field name="claimed_at"/>
                 <field name="number_id"/>
                 <field name="to_number"/>
                 <field name="user_id"/>
@@ -43,6 +43,7 @@
                             <field name="http_status"/>
                             <field name="detail"/>
                             <field name="attempts"/>
+                            <field name="claimed_at"/>
                             <field name="finished_at"/>
                             <field name="echo_message_uid"/>
                             <field name="echo_received_at"/>

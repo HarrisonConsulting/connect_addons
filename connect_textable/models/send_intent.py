@@ -30,7 +30,8 @@ class TextableSend(models.Model):
     send_key = fields.Char(
         required=True, readonly=True,
         help='Idempotency key: the caller\'s key, or one derived from sender, '
-             'recipient, body, target record, user and a five-minute window.')
+             'recipient, body, target record, user and a five-minute window. '
+             'A key is bound to its sender, recipient and body.')
     state = fields.Selection(
         [('queued', 'In flight'), ('done', 'Outcome recorded')],
         required=True, default='queued', readonly=True,
@@ -55,6 +56,11 @@ class TextableSend(models.Model):
     user_id = fields.Many2one(
         'res.users', readonly=True, ondelete='set null',
         help='The user the send was made as.')
+    claimed_at = fields.Datetime(
+        required=True, readonly=True, index=True, default=fields.Datetime.now,
+        help='When the last POST under this key was claimed. The send caps '
+             'and echo matching count from here, so a key posted again after '
+             'a definite failure counts as a new send.')
     attempts = fields.Integer(
         default=1, readonly=True,
         help='POSTs made under this key. Only a definite failure lets a later '

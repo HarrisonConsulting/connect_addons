@@ -59,7 +59,10 @@ configuration error leaves nothing behind), then claim a
 `connect.textable.send` intent through `registry.cursor()`: read committed,
 an advisory lock per number, the gate, and a unique `send_key`. The intent
 commits before the POST. An intent in flight, accepted or ambiguous under
-the same key is never posted again; a definite failure may be. The outcome
+the same key is never posted again; a definite failure may be, as a new
+claim (`claimed_at`, which the caps count from). A caller's
+`idempotency_key` is bound to its sender, recipient and body: reusing it
+for another message is refused (`idempotency_conflict`). The outcome
 is written through a second cursor, and the `connect.message` is created
 in the caller's transaction, linked by `textable_send_key` (the caller's
 snapshot cannot see the intent row, so there is no foreign key).

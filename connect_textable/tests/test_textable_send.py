@@ -313,11 +313,51 @@ class TestTextableSend(TextableSendCase):
         self.assertEqual(len(fake.calls), 1)
         self.assertEqual(first, second)
 
-    def test_a_caller_key_dedupes_across_bodies(self):
+    def test_a_caller_key_dedupes_the_same_message(self):
         fake = FakeTextable(200)
-        self._send(CONTACT, 'Keyed first', fake, idempotency_key='order-42-reminder')
-        self._send(CONTACT, 'Keyed second', fake, idempotency_key='order-42-reminder')
+        first = self._send(CONTACT, 'Keyed reminder', fake, idempotency_key='order-42-reminder')
+        second = self._send(CONTACT, 'Keyed reminder', fake, idempotency_key='order-42-reminder')
         self.assertEqual(len(fake.calls), 1)
+        self.assertEqual(first, second)
+
+    def test_a_caller_key_is_bound_to_its_message(self):
+        """Reusing a key for another body or recipient is refused before
+        anything is sent, whatever the first send's outcome was."""
+        for answer in (200, 400, requests.exceptions.ReadTimeout('read timed out')):
+            with self.subTest(answer=answer):
+                key = 'bound-%r' % (answer,)
+                first_body = 'Keyed first %r' % (answer,)
+                self._send(CONTACT, first_body, FakeTextable(answer), idempotency_key=key)
+                for recipient, body in ((CONTACT, 'Keyed second %r' % (answer,)),
+                                        (CONTACT_2, first_body)):
+                    error = self._assert_refused(
+                        'idempotency_conflict', recipient, body, idempotency_key=key)
+                    self.assertNotIn(body, str(error))
+                self.env.invalidate_all()
+                self.assertRecordValues(self._intents(body_hash=sha256_hex(first_body)), [
+                    {'to_number': CONTACT, 'attempts': 1}])
+
+    def test_a_reclaimed_key_counts_against_the_caps_from_its_new_claim(self):
+        """A key posted again after a definite failure counts as a send made
+        now, not when the key was first used."""
+        self.number_a.hourly_cap = 2
+        body = 'Keyed, refused, then posted again'
+        self._send(CONTACT, body, FakeTextable(400), idempotency_key='cap-key')
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE connect_textable_send SET create_date = create_date - interval '2 days', "
+            "claimed_at = claimed_at - interval '2 days' WHERE body_hash = %s", [sha256_hex(body)])
+        self.env.invalidate_all()
+        fake = FakeTextable(200, 200)
+        again = self._send(CONTACT, body, fake, idempotency_key='cap-key')
+        self.assertEqual(again.textable_state, 'sent_unconfirmed')
+        self._send(CONTACT_2, 'Within the cap', fake)
+        self.assertEqual(len(fake.calls), 2)
+        self._assert_refused('sender_hourly_cap', CONTACT_3, 'Past the cap')
+        self.env.invalidate_all()
+        intent = self._intents(body_hash=sha256_hex(body))
+        self.assertEqual(intent.attempts, 2)
+        self.assertGreater(intent.claimed_at, intent.create_date)
 
     def test_ambiguous_is_unknown_and_never_resent(self):
         for answer in (requests.exceptions.ReadTimeout('read timed out'), 500, 503):

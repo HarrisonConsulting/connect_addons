@@ -261,7 +261,8 @@ class ConnectMessage(models.Model):
                             res_id, user, idempotency_key):
         """The key to claim, then the keys a duplicate may sit under.
 
-        A caller's key is namespaced by sender number and user. Without
+        A caller's key is namespaced by sender number and user, and the
+        claim binds it to recipient and body. Without
         one, the key covers sender, recipient, body, target record and user
         in five-minute buckets; the previous bucket is checked too.
         """
@@ -282,6 +283,14 @@ class ConnectMessage(models.Model):
                 claim_env = self.env(cr=cr, su=True)
                 Intent = claim_env['connect.textable.send']
                 existing = Intent.search([('send_key', 'in', keys)], order='id desc', limit=1)
+                if existing and (existing.number_id.id != number.id
+                                 or existing.to_number != recipient
+                                 or existing.body_hash != body_hash):
+                    # A key is bound to its payload: reusing it for another
+                    # message would bypass the caps and mislabel the send.
+                    raise TextableGateError(
+                        'idempotency_conflict',
+                        'this idempotency key was already used for a different message.')
                 if existing and (existing.state == 'queued'
                                  or existing.outcome in MAYBE_SENT_OUTCOMES):
                     _logger.info(
@@ -292,10 +301,13 @@ class ConnectMessage(models.Model):
                     claim_env['connect.textable.number'].browse(number.id),
                     recipient, body, user, privileged)
                 if existing:
-                    # A definite failure under the same key: post again.
+                    # A definite failure under the same key: post again, as
+                    # a new claim the caps count from now.
                     existing.write({
                         'state': 'queued', 'outcome': False, 'http_status': 0,
                         'detail': False, 'finished_at': False,
+                        'claimed_at': fields.Datetime.now(),
+                        'from_number': number.phone_number,
                         'attempts': existing.attempts + 1, 'user_id': user.id,
                     })
                     return existing.id, existing.send_key, True, False
@@ -355,20 +367,22 @@ class ConnectMessage(models.Model):
         now = fields.Datetime.now()
         maybe_sent = ['|', ('outcome', '=', False), ('outcome', 'in', sorted(MAYBE_SENT_OUTCOMES))]
         sender_domain = [('number_id', '=', number.id)] + maybe_sent
+        # Caps count claims, not rows: a key posted again after a definite
+        # failure is claimed anew.
         if Intent.search_count(sender_domain + [
-                ('create_date', '>=', now - timedelta(hours=1))]) >= number.hourly_cap:
+                ('claimed_at', '>=', now - timedelta(hours=1))]) >= number.hourly_cap:
             raise TextableGateError(
                 'sender_hourly_cap',
                 '%s reached its hourly cap of %d.' % (number.name, number.hourly_cap))
         if Intent.search_count(sender_domain + [
-                ('create_date', '>=', now - timedelta(days=1))]) >= number.daily_cap:
+                ('claimed_at', '>=', now - timedelta(days=1))]) >= number.daily_cap:
             raise TextableGateError(
                 'sender_daily_cap',
                 '%s reached its daily cap of %d.' % (number.name, number.daily_cap))
         if Intent.search_count([
                 ('company_id', '=', number.company_id.id),
                 ('to_number', '=', recipient),
-                ('create_date', '>=', now - timedelta(days=1))] + maybe_sent
+                ('claimed_at', '>=', now - timedelta(days=1))] + maybe_sent
                 ) >= number.recipient_daily_cap:
             raise TextableGateError(
                 'recipient_daily_cap',
@@ -780,7 +794,7 @@ class ConnectMessage(models.Model):
                 ('to_number', '=', to_number),
                 ('body_hash', '=', body_hash),
                 ('echo_message_uid', '=', False),
-                ('create_date', '>=', since),
+                ('claimed_at', '>=', since),
                 '|', ('outcome', '=', False), ('outcome', 'in', sorted(MAYBE_SENT_OUTCOMES)),
             ], limit=2)
             if len(intents) == 1:

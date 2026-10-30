@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import re
 import time
 from datetime import timedelta
 
@@ -35,6 +36,13 @@ HELP_KEYWORDS = frozenset({'HELP'})
 
 MAX_RELAY_FIELD_LENGTH = 128
 MAX_RELAY_BODY_LENGTH = 4096
+# Relay strings carry no control characters: a NUL fails inside psycopg2,
+# whose "bad query" ERROR line echoes the previous query on the cursor.
+_RELAY_FIELD_CONTROL = re.compile(r'[\x00-\x1f\x7f]')
+# The body may keep tabs and line breaks, nothing else below 0x20.
+_RELAY_BODY_CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+# A relay phone number, after formatting is dropped: short codes included.
+_RELAY_PHONE = re.compile(r'\+?[0-9]{3,15}')
 
 TEXTABLE_STATES = [
     ('sent_unconfirmed', 'Sent, delivery unconfirmed'),
@@ -89,15 +97,24 @@ def _prepare_claim_cursor(cr, number_id):
 
 
 def _relay_text(payload, key, limit=MAX_RELAY_FIELD_LENGTH):
-    """A string field of the relay payload, stripped; None when absent or
-    not a string within limit."""
+    """A string field of the relay payload, stripped; None when absent,
+    not a string within limit, or carrying a control character."""
     value = payload.get(key)
     if isinstance(value, int) and not isinstance(value, bool) and key.endswith('ID'):
         value = str(value)
     if not isinstance(value, str):
         return None
     value = value.strip()
-    if len(value) > limit:
+    if len(value) > limit or _RELAY_FIELD_CONTROL.search(value):
+        return None
+    return value
+
+
+def _relay_phone(payload, key):
+    """A phone number of the relay payload without formatting; None unless
+    it is digits with an optional leading +."""
+    value = normalize_phone(_relay_text(payload, key, 32) or '')
+    if not _RELAY_PHONE.fullmatch(value):
         return None
     return value
 
@@ -488,13 +505,14 @@ class ConnectMessage(models.Model):
         Number = self.env['connect.textable.number'].sudo()
         direction = payload.get('MessageDirection')
         message_uid = _relay_text(payload, 'MessageID')
-        to_number = normalize_phone(_relay_text(payload, 'ToNumber', 32) or '')
-        from_number = normalize_phone(_relay_text(payload, 'FromNumber', 32) or '')
+        to_number = _relay_phone(payload, 'ToNumber')
+        from_number = _relay_phone(payload, 'FromNumber')
         body = payload.get('MessageBody') or ''
         media = payload.get('Media') or []
         if (direction not in ('in', 'out') or not message_uid
                 or not to_number or not from_number
                 or not isinstance(body, str) or len(body) > MAX_RELAY_BODY_LENGTH
+                or _RELAY_BODY_CONTROL.search(body)
                 or not isinstance(media, list)):
             _logger.warning('Textable relay post refused: malformed payload.')
             return 'invalid'

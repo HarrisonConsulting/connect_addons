@@ -10,6 +10,7 @@ import requests
 
 from odoo.tests import HttpCase, tagged
 
+from odoo.addons.connect_textable.controllers import relay as relay_controller
 from odoo.addons.connect_textable.models import message as message_module
 
 from .common import (
@@ -40,6 +41,9 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
         super().setUp()
         message_module._ACCESS_TOKEN_WARNED.clear()
         self.addCleanup(message_module._ACCESS_TOKEN_WARNED.clear)
+        # Process-wide state: each test starts with an empty refusal window.
+        relay_controller.REFUSAL_LOG.reset()
+        self.addCleanup(relay_controller.REFUSAL_LOG.reset)
         self.token = self._rotate(self.number_a)
         self.token_b = self._rotate(self.number_b)
         self.serial = 0
@@ -138,10 +142,30 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
                 with self.subTest(token=token):
                     response, logs = self._post(self._payload(), token=token)
                     self.assertEqual(response.status_code, 404)
-                    self.assertTrue(any('SECURITY' in t for t in self._critical(logs)))
                     logs.assert_clean(self, self.token)
             relay.assert_not_called()
         self._assert_nothing_written(before)
+
+    def test_token_refusals_log_one_critical_line_per_interval(self):
+        """Anyone can post to the relay path: a burst of wrong tokens logs
+        one CRITICAL line, and the next interval's line counts the rest."""
+        clock = [1000.0]
+        with patch.object(relay_controller.REFUSAL_LOG, 'clock', lambda: clock[0]):
+            response, logs = self._post(self._payload(), token='scan-1')
+            self.assertEqual(response.status_code, 404)
+            first = self._critical(logs)
+            self.assertEqual(len(first), 1)
+            self.assertIn('SECURITY', first[0])
+            for attempt in range(2, 5):
+                response, logs = self._post(self._payload(), token='scan-%d' % attempt)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(self._critical(logs), [], 'A refusal inside the interval was logged')
+            clock[0] += relay_controller.REFUSAL_LOG_INTERVAL
+            response, logs = self._post(self._payload(), token='scan-5')
+            self.assertEqual(response.status_code, 404)
+            summary = self._critical(logs)
+            self.assertEqual(len(summary), 1)
+            self.assertIn('3 more relay posts', summary[0])
 
     def test_no_configured_secret_is_404(self):
         self.env['connect.textable.relay'].sudo().search([]).write({'token_hash': False})
@@ -272,11 +296,36 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
             'body type': self._payload(MessageBody={'text': 'hi'}),
             'long body': self._payload(MessageBody='y' * 5000),
             'media type': self._payload(Media='https://example.com/a.png'),
+            'NUL in FromNumber': self._payload(FromNumber=CONTACT + '\x00'),
+            'NUL in ToNumber': self._payload(ToNumber=SENDER_A + '\x00'),
+            'NUL in MessageID': self._payload(MessageID='msg-\x00-%s' % self.run_tag),
+            'NUL in body': self._payload(MessageBody='hello\x00world'),
+            'escape in body': self._payload(MessageBody='hello \x1b[31m'),
+            'FromNumber not a number': self._payload(FromNumber='sip:pat@example.com'),
+            'ToNumber not a number': self._payload(ToNumber='owner'),
         }.items():
             with self.subTest(case=name):
                 response, logs = self._post(payload)
                 self.assertEqual(response.status_code, 400)
+                self.assertFalse(
+                    [r for r in logs.module + logs.other if r.levelno >= logging.ERROR],
+                    'A malformed payload logged an ERROR')
         self._assert_nothing_written(before)
+
+    def test_deeply_nested_json_is_400(self):
+        before = self._relay_messages()
+        data = b'[' * 5000 + b']' * 5000
+        self.assertLess(len(data), relay_controller.MAX_RELAY_BYTES)
+        response, logs = self._post(data=data)
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse([r for r in logs.module + logs.other if r.levelno >= logging.ERROR])
+        self._assert_nothing_written(before)
+
+    def test_line_breaks_in_a_body_are_kept(self):
+        payload = self._payload(MessageBody='Line one\nLine two\tend')
+        response, _logs = self._post(payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._relay_messages().body, 'Line one\nLine two\tend')
 
     # ------------------------------------------------------------------
     # Inbound messages

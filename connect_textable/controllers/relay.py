@@ -1,12 +1,16 @@
 import json
 import logging
 import re
+import threading
+import time
 
 from odoo.http import Controller, request, route
 
 _logger = logging.getLogger(__name__)
 
 MAX_RELAY_BYTES = 16384
+# Unauthenticated refusals log one CRITICAL line per this many seconds.
+REFUSAL_LOG_INTERVAL = 60
 RELAY_PATH = re.compile(r'(/textable/webhook/relay/)\S+')
 _REDACTOR_MARKER = 'connect_textable_relay_redactor'
 
@@ -41,6 +45,47 @@ def install_relay_log_redaction():
 install_relay_log_redaction()
 
 
+class RefusalLog:
+    """CRITICAL lines for relay posts refused before any token matched.
+
+    Anyone can post to the relay path, so one line per request would let a
+    scanner flood the log and bury a real forgery attempt. The first
+    refusal of an interval is logged at once; the ones after it in the same
+    interval are counted and reported with the next line that is logged.
+    """
+
+    def __init__(self, interval=REFUSAL_LOG_INTERVAL, clock=time.monotonic):
+        self.interval = interval
+        self.clock = clock
+        self._lock = threading.Lock()
+        self._logged_at = None
+        self._suppressed = 0
+
+    def reset(self):
+        with self._lock:
+            self._logged_at = None
+            self._suppressed = 0
+
+    def refused(self, reason):
+        now = self.clock()
+        with self._lock:
+            if self._logged_at is not None and now - self._logged_at < self.interval:
+                self._suppressed += 1
+                return
+            suppressed, self._suppressed = self._suppressed, 0
+            self._logged_at = now
+        if suppressed:
+            _logger.critical(
+                'SECURITY: Textable relay post refused: %s. %d more relay posts '
+                'were refused without a matching token since the last such line.',
+                reason, suppressed)
+        else:
+            _logger.critical('SECURITY: Textable relay post refused: %s.', reason)
+
+
+REFUSAL_LOG = RefusalLog()
+
+
 def _reply(status):
     return request.make_json_response(
         {'status': 'ok' if status == 200 else 'error'}, status=status)
@@ -70,18 +115,17 @@ class TextableRelayController(Controller):
             return _reply(413)
         configured, relay = request.env['connect.textable.relay'].sudo()._textable_match_token(token)
         if not configured:
-            _logger.critical(
-                'SECURITY: Textable relay post refused: no relay secret is configured.')
+            REFUSAL_LOG.refused('no relay secret is configured')
             return _reply(404)
         if not relay:
-            _logger.critical(
-                'SECURITY: Textable relay post refused: the relay token does not match.')
+            REFUSAL_LOG.refused('the relay token does not match')
             return _reply(404)
         if httprequest.mimetype != 'application/json':
             return _reply(415)
         try:
             payload = json.loads(httprequest.get_data(cache=False, parse_form_data=False))
-        except ValueError:
+        except (ValueError, RecursionError):
+            # RecursionError: deeply nested JSON well within the size limit.
             return _reply(400)
         webhook_user = request.env.ref('connect.user_connect_webhook')
         outcome = request.env['connect.message'].with_user(webhook_user)._textable_relay(

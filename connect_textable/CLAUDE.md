@@ -28,7 +28,11 @@ messages and outbound echoes on the unsigned per-user Relay webhook.
   payload's TextableUserID must be the user the token was issued to, and
   TextableOrganizationID must match. Payloads not to or from a number that
   user holds are dropped without a write. AccessToken is never logged or
-  stored. A werkzeug log filter redacts the relay path.
+  stored. A werkzeug log filter redacts the relay path. Relay strings with
+  control characters, and phone fields that are not digits, are refused
+  as malformed before any query. Posts refused before a token matches log
+  one CRITICAL line per minute, which counts the rest; rate-limit the path
+  at the proxy too (`limit_req` on `/textable/webhook/relay/`).
   `data/neutralize.sql` blanks the tokens and every relay hash.
 - **D6.** Odoo is the only scheduler: no `sendAt`, no `reminder`.
 - **D7, local copy.** `connect.message._textable_check_send_allowed` is

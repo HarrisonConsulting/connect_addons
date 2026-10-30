@@ -12,6 +12,11 @@ _logger = logging.getLogger(__name__)
 # Credential fields: the real column is readable by ERP managers only, and
 # the form edits a display_ twin that is replaced by asterisks on save.
 TEXTABLE_SECRET_FIELDS = ('account_uid', 'api_key')
+# The 10DLC campaign gate and the send and opt-out caps: system
+# administrators only, like the connection test and the relay secret.
+TEXTABLE_POLICY_FIELDS = (
+    'campaign_state', 'campaign_reference', 'campaign_use_case',
+    'hourly_cap', 'daily_cap', 'recipient_daily_cap', 'optout_hourly_cap')
 
 _NUMBER_FORMATTING = re.compile(r'[\s().-]')
 
@@ -64,6 +69,10 @@ class TextableNumber(models.Model):
         string='Credentials Set', compute='_compute_textable_credentials_set',
         compute_sudo=True,
         help='Whether both halves of the Textable token are stored.')
+    textable_policy_editable = fields.Boolean(
+        compute='_compute_textable_policy_editable',
+        help='Whether the current user may change the campaign and the caps: '
+             'system administrators only.')
     textable_relay_configured = fields.Boolean(
         string='Relay URL Issued', compute='_compute_textable_relay',
         compute_sudo=True,
@@ -119,6 +128,25 @@ class TextableNumber(models.Model):
         for rec in self:
             rec.textable_credentials_set = bool(rec.account_uid and rec.api_key)
 
+    @api.depends_context('uid')
+    def _compute_textable_policy_editable(self):
+        self.textable_policy_editable = self.env.is_system()
+
+    def _textable_check_policy_change(self, vals, current):
+        """Refuse a change to the campaign or the caps by anyone but a
+        system administrator. ``current`` maps each field to the values it
+        is compared with."""
+        if self.env.is_system():
+            return
+        changed = [
+            name for name in TEXTABLE_POLICY_FIELDS
+            if name in vals and any((value or False) != (vals[name] or False)
+                                    for value in current(name))]
+        if changed:
+            raise AccessError(
+                'Only system administrators can change the 10DLC campaign or the '
+                'caps of a Textable number (%s).' % ', '.join(changed))
+
     @api.depends('textable_user_id')
     def _compute_textable_relay(self):
         Relay = self.env['connect.textable.relay'].sudo()
@@ -164,8 +192,10 @@ class TextableNumber(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        defaults = self.default_get(list(TEXTABLE_POLICY_FIELDS))
         secrets_list = []
         for vals in vals_list:
+            self._textable_check_policy_change(vals, lambda name: [defaults.get(name)])
             if 'phone_number' in vals:
                 vals['phone_number'] = normalize_phone(vals['phone_number'])
             secrets_list.append(self._textable_take_secrets(vals))
@@ -176,6 +206,7 @@ class TextableNumber(models.Model):
         return records
 
     def write(self, vals):
+        self._textable_check_policy_change(vals, lambda name: self.mapped(name))
         if 'phone_number' in vals:
             vals['phone_number'] = normalize_phone(vals['phone_number'])
         secret_vals = self._textable_take_secrets(vals)

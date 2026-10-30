@@ -84,6 +84,39 @@ class TestTextableConfig(TextableSendCase):
             self.number_a.with_user(self.sender_user).write({'display_api_key': 'stolen-SECRET'})
         self.assertEqual(self.number_a.sudo().api_key, self.key_a)
 
+    def test_campaign_and_caps_are_for_system_administrators(self):
+        """A Connect admin manages numbers but cannot approve a campaign or
+        raise a cap: those gates are the system administrator's."""
+        connect_admin = new_test_user(
+            self.env, login='textable-connect-admin-%s' % self.run_tag,
+            groups='base.group_user,connect.group_admin')
+        number = self.number_b.with_user(connect_admin)
+        self.assertFalse(number.textable_policy_editable)
+        for vals in ({'campaign_state': 'not_approved'}, {'campaign_reference': 'CAMP-FORGED'},
+                     {'campaign_use_case': 'Marketing'}, {'hourly_cap': 2 ** 31 - 1},
+                     {'daily_cap': 100000}, {'recipient_daily_cap': 5000},
+                     {'optout_hourly_cap': 9999}):
+            with self.subTest(vals=vals), self.assertRaises(AccessError):
+                number.write(vals)
+        # Unchanged values and the other fields stay editable.
+        number.write({'name': 'Bravo line renamed', 'hourly_cap': self.number_b.hourly_cap})
+        self.assertEqual(self.number_b.name, 'Bravo line renamed')
+        Number = self.env['connect.textable.number'].with_user(connect_admin)
+        base = {'name': 'Admin line', 'phone_number': '+12015550127',
+                'textable_user_id': 'tx-user-admin'}
+        with self.assertRaises(AccessError):
+            Number.create(dict(base, campaign_state='approved', campaign_reference='CAMP-X'))
+        with self.assertRaises(AccessError):
+            Number.create(dict(base, daily_cap=100000))
+        created = Number.create(dict(base))
+        self.assertEqual(created.campaign_state, 'not_approved')
+        system_admin = new_test_user(
+            self.env, login='textable-policy-admin-%s' % self.run_tag,
+            groups='base.group_user,base.group_system,connect.group_admin')
+        self.assertTrue(self.number_b.with_user(system_admin).textable_policy_editable)
+        self.number_b.with_user(system_admin).write({'hourly_cap': 5})
+        self.assertEqual(self.number_b.hourly_cap, 5)
+
     def test_a_number_is_configured_once_across_companies(self):
         company = self.env['res.company'].create({'name': 'Textable Twin Co %s' % self.run_tag})
         with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):

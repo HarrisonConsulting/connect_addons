@@ -47,6 +47,9 @@ messages and outbound echoes on the unsigned per-user Relay webhook.
   the same number, and removes the global entry only when a STOP through
   this module made it and no STOP through another number still stands
   (`connect.textable.optout`).
+- **Policy fields.** The 10DLC campaign fields and the four caps of a
+  number can be changed only by a system administrator; a Connect admin
+  manages everything else on a number.
 - **F3.** Each send uses the token of the sender number's own Textable user.
 - **F13.** `send()` acts only when `_get_message_provider()` returns
   `textable` (crons route with the `connect_tool_id` context key) and

@@ -55,16 +55,20 @@
                             <field name="textable_credentials_set"/>
                         </group>
                         <group string="10DLC Campaign" name="campaign">
-                            <field name="campaign_state" widget="radio"/>
-                            <field name="campaign_use_case"/>
+                            <field name="textable_policy_editable" invisible="1"/>
+                            <field name="campaign_state" widget="radio"
+                                   readonly="not textable_policy_editable"/>
+                            <field name="campaign_use_case"
+                                   readonly="not textable_policy_editable"/>
                             <field name="campaign_reference"
-                                   required="campaign_state == 'approved'"/>
+                                   required="campaign_state == 'approved'"
+                                   readonly="not textable_policy_editable"/>
                         </group>
                         <group string="Caps" name="caps">
-                            <field name="hourly_cap"/>
-                            <field name="daily_cap"/>
-                            <field name="recipient_daily_cap"/>
-                            <field name="optout_hourly_cap"/>
+                            <field name="hourly_cap" readonly="not textable_policy_editable"/>
+                            <field name="daily_cap" readonly="not textable_policy_editable"/>
+                            <field name="recipient_daily_cap" readonly="not textable_policy_editable"/>
+                            <field name="optout_hourly_cap" readonly="not textable_policy_editable"/>
                         </group>
                     </group>
                     <notebook>

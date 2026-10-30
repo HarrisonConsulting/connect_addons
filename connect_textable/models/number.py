@@ -103,9 +103,11 @@ class TextableNumber(models.Model):
         help='Most STOP/START keyword changes to the phone blacklist that '
              'relay posts for this number may make in any rolling hour.')
 
-    _company_phone_unique = models.Constraint(
-        'UNIQUE(company_id, phone_number)',
-        'This number is already configured for the company.',
+    # A DID belongs to one Textable user: it is configured once, in one
+    # company, so a send or a relay post never resolves to two records.
+    _phone_unique = models.Constraint(
+        'UNIQUE(phone_number)',
+        'This number is already configured.',
     )
     _caps_positive = models.Constraint(
         'CHECK(hourly_cap > 0 AND daily_cap > 0 AND recipient_daily_cap > 0 '

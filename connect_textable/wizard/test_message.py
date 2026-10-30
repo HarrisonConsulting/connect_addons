@@ -24,7 +24,7 @@ class TextableTestMessage(models.TransientModel):
         if not self.env.is_system():
             raise AccessError('Only system administrators can send a Textable test message.')
         message = self.env['connect.message']._textable_send(
-            self.recipient, self.body, sender=self.number_id.sudo().phone_number,
+            self.recipient, self.body, sender_number=self.number_id,
             allow_unassigned=True)
         ok = message.textable_state == 'sent_unconfirmed'
         return {

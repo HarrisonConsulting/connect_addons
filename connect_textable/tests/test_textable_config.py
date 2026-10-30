@@ -4,9 +4,12 @@ import hashlib
 import logging
 import re
 
+from psycopg2 import IntegrityError
+
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.modules.neutralize import get_neutralization_queries
 from odoo.tests import new_test_user, tagged
+from odoo.tools import mute_logger
 
 from .common import CONTACT, FakeTextable, TextableSendCase
 
@@ -80,6 +83,12 @@ class TestTextableConfig(TextableSendCase):
         with self.assertRaises(AccessError):
             self.number_a.with_user(self.sender_user).write({'display_api_key': 'stolen-SECRET'})
         self.assertEqual(self.number_a.sudo().api_key, self.key_a)
+
+    def test_a_number_is_configured_once_across_companies(self):
+        company = self.env['res.company'].create({'name': 'Textable Twin Co %s' % self.run_tag})
+        with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):
+            self._number('Alpha twin', self.number_a.phone_number, 'tx-user-twin',
+                         'acct-twin', 'key-twin-SECRET', company_id=company.id, assigned=False)
 
     def test_numbers_are_nanp_and_approval_needs_a_reference(self):
         with self.assertRaises(ValidationError):

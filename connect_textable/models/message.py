@@ -193,14 +193,16 @@ class ConnectMessage(models.Model):
 
     @api.model
     def _textable_send(self, recipient, body, res_id=None, res_model=None,
-                       sender=None, idempotency_key=None, allow_unassigned=False):
+                       sender=None, idempotency_key=None, allow_unassigned=False,
+                       sender_number=None):
         """Send one SMS through the sender number's own Textable user.
 
         Transport failures are recorded and returned, not raised, so the
         message keeps its honest state; a refusal by the gate raises
-        TextableGateError and sends nothing. ``allow_unassigned`` is for
-        server-side callers that already checked the user (the test-message
-        wizard); RPC cannot reach this method.
+        TextableGateError and sends nothing. ``sender_number`` (a
+        connect.textable.number) wins over the ``sender`` phone.
+        ``allow_unassigned`` is for server-side callers that already checked
+        the user (the test-message wizard); RPC cannot reach this method.
         """
         user = self.env.user
         privileged = bool(self.env.su or user._is_superuser() or allow_unassigned)
@@ -212,7 +214,7 @@ class ConnectMessage(models.Model):
             if res_id:
                 # As the calling user, before any sudo below.
                 self.env[res_model].browse(res_id).check_access('read')
-        number = self._textable_resolve_sender(sender, user, privileged)
+        number = self._textable_resolve_sender(sender, user, privileged, sender_number)
         # Built before the claim: a configuration error leaves no intent.
         client = number._textable_client()
         body_hash = _sha256(body)
@@ -244,17 +246,27 @@ class ConnectMessage(models.Model):
         return message
 
     @api.model
-    def _textable_resolve_sender(self, sender, user, privileged):
-        """The number to send from: the named one, else the user's first
-        assigned number. Whether the user may use it is the gate's call."""
-        Number = self.env['connect.textable.number'].sudo()
-        domain = [('active', '=', True)]
+    def _textable_resolve_sender(self, sender, user, privileged, sender_number=None):
+        """The number to send from: the given record, else the number with
+        the named phone, else the user's first active assigned number.
+
+        A named or given number is returned even when archived: whether it
+        may be used (assignment, archive, campaign) is the gate's call, so
+        each refusal names its own code. A user only finds numbers of the
+        companies they work in.
+        """
+        Number = self.env['connect.textable.number'].sudo().with_context(active_test=False)
+        if sender_number:
+            return Number.browse(sender_number.id)
+        domain = []
         if not privileged:
             domain.append(('company_id', 'in', user.company_ids.ids))
         by_assignment = False
         if sender:
+            # A DID is configured at most once (UNIQUE(phone_number)).
             domain.append(('phone_number', '=', normalize_phone(sender)))
         else:
+            domain.append(('active', '=', True))
             connect_user = self.env['connect.user'].sudo().search(
                 [('user', '=', user.id)], limit=1)
             if connect_user:
@@ -266,13 +278,11 @@ class ConnectMessage(models.Model):
         candidates = Number.search(domain)
         if not candidates:
             raise TextableGateError(
-                'no_sender', 'no active Textable number matches the sender.')
-        preferred = candidates.filtered(
-            lambda n: n.company_id == self.env.company) or candidates
-        if not (sender or by_assignment) and len(preferred) > 1:
+                'no_sender', 'no Textable number matches the sender.')
+        if not (sender or by_assignment) and len(candidates) > 1:
             raise TextableGateError(
                 'no_sender', 'several Textable numbers exist; name the sender.')
-        return preferred[:1]
+        return candidates[:1]
 
     @api.model
     def _textable_send_keys(self, number, recipient, body_hash, res_model,

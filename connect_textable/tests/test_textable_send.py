@@ -120,10 +120,17 @@ class TestTextableSend(TextableSendCase):
             ('sender_not_assigned', 'no_sender'), CONTACT, 'No number at all', as_user=other)
 
     def test_gate_refuses_an_archived_number(self):
+        """A named archived number reaches the gate, which names why."""
         self.number_b.active = False
         self._assert_refused(
-            ('sender_inactive', 'no_sender'), CONTACT, 'Archived sender',
-            outgoing_callerid=SENDER_B)
+            'sender_inactive', CONTACT, 'Archived sender', outgoing_callerid=SENDER_B)
+
+    def test_an_archived_number_is_never_the_default_sender(self):
+        self.number_a.active = False
+        fake = FakeTextable(200)
+        message = self._send(CONTACT, 'Default skips the archived number', fake)
+        self.assertEqual(len(fake.calls), 1)
+        self.assertEqual(message.textable_number_id, self.number_b)
 
     def test_gate_refuses_an_unapproved_campaign(self):
         self._number('Charlie line', SENDER_C, 'tx-user-charlie', 'acct-c', 'key-c-SECRET',

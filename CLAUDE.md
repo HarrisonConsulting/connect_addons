@@ -22,6 +22,7 @@ Connect Addons is a Twilio-based telephony integration suite for Odoo. The `conn
 | `connect_elevenlabs` | 1.4.2 | Other proprietary | ElevenLabs Conversational AI integration for voice agents |
 | `connect_elevenlabs_sale` | 1.0.0 | Other proprietary | AI-powered sale management tools for ElevenLabs agents |
 | `connect_voicetel` | 19.0.4.0.0 | Other proprietary | VoiceTel VoiceML provider (calls, SIP, call flows, SMS, browser phone); from ng PR #230, replaces `connect_voiceml` |
+| `connect_textable` | 19.0.1.0.0 | OPL-1 | ElectSys Textable SMS carrier: per-number tokens, gated sends with a send intent, relay webhook for inbound and echoes; see its CLAUDE.md |
 
 ## Architecture
 

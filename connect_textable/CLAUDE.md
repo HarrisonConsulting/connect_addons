@@ -90,14 +90,23 @@ caller's transaction does still only reaches the intent
 ## Nothing calls out by itself
 
 No install hook, no cron. The only outbound requests are a send, the
-admin-only "Test connection" (one `GET /api/canned-responses`) and the
-admin-only "Send test message" wizard, which goes through the same gate.
+admin-only "Test connection" (one `GET /api/canned-responses`), the
+admin-only "Send test message" wizard and Retry on a failed message, all
+through the same gate. The wizard calls `_textable_send` with its number
+record, not `connect.message.send()`, so it does not exercise provider
+routing (F13): no UI calls `send()` for Textable. Routing is proven by
+`test_textable_coexistence`, or live by a `send()` made as an assigned
+Connect user whose provider is `textable`.
 
 ## Bench
 
 Use a clone of a database, never production. Name the module: `gdo test
-<db> -i connect_textable`. Tests mock `requests.Session.request`; Odoo's
-`BlockedRequest` turns any unmocked call into an ambiguous outcome, never a
+<db> -i connect_textable`. Through `gdo-core gate odoo`, list every tagged
+module in `--modules` too (`--modules connect,connect_textable` with
+`--test-tags /connect_textable,/connect`). Tests patch
+`requests.Session.send`, the method Odoo's `BlockedRequest` guard patches,
+so the client's own request preparation (headers, timeout, redirects off)
+runs for real; any unmocked call ends as an ambiguous outcome, never a
 live one. A supervised live send (T7a) needs a dedicated Textable user that
 holds only a sandbox DID, an approved campaign on that number, and the
 relay URL from that number's "Rotate relay URL" registered on that user.

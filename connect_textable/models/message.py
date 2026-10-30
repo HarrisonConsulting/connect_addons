@@ -29,8 +29,11 @@ CLAIM_LOCK_TIMEOUT = '10s'
 CLAIM_LOCK_CLASS = 0x54584254
 RELAY_LOCK_CLASS = 0x54584252
 
-# Textable's own opt-out keywords; START opts back in.
-STOP_KEYWORDS = frozenset({'STOP', 'END', 'CANCEL', 'QUIT', 'UNSUBSCRIBE', 'OPTOUT'})
+# Opt-out keywords: Textable's own, the CTIA set and REVOKE (FCC 2025 TCPA
+# revocation rule), compared with separators removed, so "STOP ALL",
+# "OPT OUT" and "Opt-out" count. START opts back in.
+STOP_KEYWORDS = frozenset({
+    'STOP', 'STOPALL', 'END', 'CANCEL', 'QUIT', 'UNSUBSCRIBE', 'OPTOUT', 'REVOKE'})
 START_KEYWORDS = frozenset({'START'})
 HELP_KEYWORDS = frozenset({'HELP'})
 
@@ -41,6 +44,10 @@ MAX_RELAY_BODY_LENGTH = 4096
 _RELAY_FIELD_CONTROL = re.compile(r'[\x00-\x1f\x7f]')
 # The body may keep tabs and line breaks, nothing else below 0x20.
 _RELAY_BODY_CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+# Keyword matching ignores punctuation, symbols and emoji around the word,
+# and whitespace, hyphens and underscores inside it.
+_KEYWORD_EDGES = re.compile(r'^[^A-Z0-9]+|[^A-Z0-9]+$')
+_KEYWORD_SEPARATORS = re.compile(r'[\s_-]+')
 # A relay phone number, after formatting is dropped: short codes included.
 _RELAY_PHONE = re.compile(r'\+?[0-9]{3,15}')
 
@@ -625,7 +632,11 @@ class ConnectMessage(models.Model):
 
     @staticmethod
     def _textable_keyword(body):
-        word = (body or '').strip().upper().rstrip('.!')
+        """The keyword a whole message amounts to, in canonical form, or
+        None. "Stop!", "stop" with an emoji, "Opt-out", "STOP ALL" and "Revoke."
+        all count; a keyword inside a longer sentence does not."""
+        text = _KEYWORD_EDGES.sub('', (body or '').upper())
+        word = _KEYWORD_SEPARATORS.sub('', text)
         if word in STOP_KEYWORDS | START_KEYWORDS | HELP_KEYWORDS:
             return word
         return None
@@ -633,8 +644,10 @@ class ConnectMessage(models.Model):
     @api.model
     def _textable_apply_keyword(self, number, phone, keyword, message):
         """STOP and START change phone.blacklist, only for an owned number
-        and within its hourly cap. START lifts only an entry a STOP through
-        this module made. HELP changes nothing: Textable answers it."""
+        and within its hourly cap. START lifts only the opt-outs sent to the
+        same number, and removes the entry only when a STOP through this
+        module made it and no opt-out through another number still stands.
+        HELP changes nothing: Textable answers it."""
         if keyword in HELP_KEYWORDS:
             return
         action = 'stop' if keyword in STOP_KEYWORDS else 'start'
@@ -668,12 +681,7 @@ class ConnectMessage(models.Model):
                         Blacklist._add([phone], message=note)
                     Optout.create(dict(vals, created_entry=not already))
                 else:
-                    made = Optout.search([
-                        ('phone', '=', phone), ('action', '=', 'stop'),
-                        ('created_entry', '=', True), ('released', '=', False)])
-                    if made:
-                        Blacklist._remove([phone], message=note)
-                        made.write({'released': True})
+                    self._textable_release_optout(number, phone, note)
                     Optout.create(vals)
         except UserError:
             # phone.blacklist could not format the number.
@@ -683,6 +691,29 @@ class ConnectMessage(models.Model):
             return
         _logger.info(
             'Textable %s from %s applied for number %s', keyword, last4(phone), number.id)
+
+    @api.model
+    def _textable_release_optout(self, number, phone, note):
+        """A START through ``number``: lift the opt-outs that phone sent to
+        that number. phone.blacklist is global, so its entry is removed only
+        when no opt-out through any other number or company still stands,
+        and only when a STOP through this module made it. Returns whether
+        the entry was removed."""
+        Optout = self.env['connect.textable.optout'].sudo()
+        standing = [
+            ('phone', '=', phone), ('action', '=', 'stop'),
+            ('capped', '=', False), ('lifted', '=', False)]
+        Optout.search(standing + [('number_id', '=', number.id)]).write({'lifted': True})
+        if Optout.search_count(standing, limit=1):
+            return False
+        made = Optout.search([
+            ('phone', '=', phone), ('action', '=', 'stop'),
+            ('created_entry', '=', True), ('released', '=', False)])
+        if not made:
+            return False
+        self.env['phone.blacklist'].sudo()._remove([phone], message=note)
+        made.write({'released': True})
+        return True
 
     @api.model
     def _textable_post_inbound(self, message, partner):

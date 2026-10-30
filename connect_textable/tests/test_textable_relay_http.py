@@ -387,6 +387,63 @@ class TestTextableRelayHttp(TextableFixtureMixin, HttpCase):
         optouts = self.env['connect.textable.optout'].sudo().search([('phone', '=', CONTACT)])
         self.assertEqual(sorted(optouts.mapped('action')), ['start', 'stop'])
 
+    def test_opt_out_wording_is_recognized(self):
+        keyword = type(self.env['connect.message'])._textable_keyword
+        for body, expected in (
+                ('STOP', 'STOP'), ('Stop', 'STOP'), ('stop!', 'STOP'), ('Stop.', 'STOP'),
+                ('Stop, ', 'STOP'), ('stop \U0001F64F', 'STOP'), ('"STOP"', 'STOP'),
+                ('STOP ALL', 'STOPALL'), ('stopall', 'STOPALL'), ('Stop  all!', 'STOPALL'),
+                ('END', 'END'), ('cancel', 'CANCEL'), ('Quit.', 'QUIT'),
+                ('Unsubscribe', 'UNSUBSCRIBE'), ('OPTOUT', 'OPTOUT'), ('Opt-out', 'OPTOUT'),
+                ('opt out', 'OPTOUT'), ('OPT_OUT', 'OPTOUT'), ('Revoke', 'REVOKE'),
+                ('revoke.', 'REVOKE'), ('Start', 'START'), ('help?', 'HELP'),
+                ('Stopping by at 3', None), ("Don't stop", None), ('Please call me', None),
+                ('', None), ('\U0001F64F', None)):
+            with self.subTest(body=body):
+                self.assertEqual(keyword(body), expected)
+
+    def test_opt_out_wording_opts_out_over_the_relay(self):
+        for index, body in enumerate(('Opt-out \U0001F64F', 'Revoke', 'STOP ALL')):
+            with self.subTest(body=body):
+                phone = '+1202555%04d' % (200 + index)
+                response, _logs = self._post(self._payload(FromNumber=phone, MessageBody=body))
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(self._blacklisted(phone), '%r did not opt the contact out' % body)
+
+    def _post_b(self, **overrides):
+        """A post on user B's relay, to number B."""
+        return self._post(self._payload(
+            TextableUserID=TEXTABLE_USER_B, ToNumber=SENDER_B, **overrides), token=self.token_b)
+
+    def test_start_to_another_number_leaves_the_opt_out(self):
+        """STOP to number A, START to number B: the contact never opted back
+        in to A, so the global blacklist entry stays."""
+        response, _logs = self._post(self._payload(MessageBody='STOP'))
+        self.assertEqual(response.status_code, 200)
+        response, _logs = self._post_b(MessageBody='START')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self._blacklisted(CONTACT), 'START to B lifted the opt-out sent to A')
+        response, _logs = self._post(self._payload(MessageBody='START'))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self._blacklisted(CONTACT), 'START to A did not lift the opt-out')
+
+    def test_start_needs_every_number_opted_back_in(self):
+        """STOP to A (makes the entry), STOP to B; START to B alone keeps
+        the entry, START to A then removes it."""
+        for post in (lambda: self._post(self._payload(MessageBody='STOP')),
+                     lambda: self._post_b(MessageBody='STOP'),
+                     lambda: self._post_b(MessageBody='START')):
+            response, _logs = post()
+            self.assertEqual(response.status_code, 200)
+        self.assertTrue(self._blacklisted(CONTACT), 'START to B released the opt-out sent to A')
+        response, _logs = self._post(self._payload(MessageBody='START'))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self._blacklisted(CONTACT))
+        stops = self.env['connect.textable.optout'].sudo().search(
+            [('phone', '=', CONTACT), ('action', '=', 'stop')])
+        self.assertEqual(stops.mapped('lifted'), [True, True])
+        self.assertEqual(sorted(stops.mapped('released')), [False, True])
+
     def test_start_leaves_an_entry_made_elsewhere(self):
         self.env['phone.blacklist'].sudo()._add([CONTACT_2])
         for body in ('STOP', 'START'):

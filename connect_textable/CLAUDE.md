@@ -41,8 +41,12 @@ messages and outbound echoes on the unsigned per-user Relay webhook.
   per-recipient daily cap. **These checks move to connect core with 6642**;
   until then they live in that one method and nowhere else. Inbound STOP /
   START change phone.blacklist only for an owned ToNumber, within the
-  number's hourly cap, and START removes only an entry a STOP through this
-  module made (`connect.textable.optout`).
+  number's hourly cap. Opt-out wording is matched as a whole message with
+  punctuation, emoji and separators ignored (STOP, STOP ALL, END, CANCEL,
+  QUIT, UNSUBSCRIBE, OPT OUT, REVOKE). A START lifts only the STOPs sent to
+  the same number, and removes the global entry only when a STOP through
+  this module made it and no STOP through another number still stands
+  (`connect.textable.optout`).
 - **F3.** Each send uses the token of the sender number's own Textable user.
 - **F13.** `send()` acts only when `_get_message_provider()` returns
   `textable` (crons route with the `connect_tool_id` context key) and

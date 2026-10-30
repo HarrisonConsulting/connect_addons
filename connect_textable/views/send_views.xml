@@ -84,13 +84,14 @@
         <field name="model">connect.textable.optout</field>
         <field name="arch" type="xml">
             <list create="false" edit="false" delete="false"
-                  decoration-muted="capped or released">
+                  decoration-muted="capped or lifted">
                 <field name="create_date" string="Received"/>
                 <field name="phone"/>
                 <field name="number_id"/>
                 <field name="action"/>
                 <field name="keyword"/>
                 <field name="created_entry"/>
+                <field name="lifted"/>
                 <field name="released"/>
                 <field name="capped"/>
                 <field name="message_id" optional="hide"/>

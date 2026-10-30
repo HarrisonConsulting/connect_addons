@@ -4,9 +4,12 @@ from odoo import fields, models
 class TextableOptout(models.Model):
     """Keyword changes this module made to phone.blacklist.
 
-    START removes a blacklist entry only when a row here shows that a STOP
-    through this module created or re-activated it; entries made elsewhere
-    are left alone. The rows also count against the per-number cap.
+    Opt-outs are per sender number: a START lifts only the STOPs sent to
+    the same number. phone.blacklist is global, so its entry is removed
+    only once no STOP through any number still stands, and only when a row
+    here shows that a STOP through this module created or re-activated it;
+    entries made elsewhere are left alone. The rows also count against the
+    per-number cap.
     """
     _name = 'connect.textable.optout'
     _description = 'Textable Opt-out Keyword'
@@ -33,9 +36,13 @@ class TextableOptout(models.Model):
         readonly=True,
         help='This opt-out created or re-activated the blacklist entry, so a '
              'later START may remove it.')
+    lifted = fields.Boolean(
+        readonly=True,
+        help='A later START to the same number lifted this opt-out.')
     released = fields.Boolean(
         readonly=True,
-        help='A later START removed the blacklist entry this opt-out made.')
+        help='The blacklist entry this opt-out made was removed, once no '
+             'opt-out through any number still stood.')
     capped = fields.Boolean(
         readonly=True,
         help='The per-number cap was reached; the blacklist was not changed.')

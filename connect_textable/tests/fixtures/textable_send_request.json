@@ -1,0 +1,18 @@
+{
+  "spec_version": "5.29.16@85ffb089",
+  "spec_sha256": "d4202d605ba2764ebe551a3e008d69551a957da9f01de251480ac55db8fd1dda",
+  "base_url": "https://example-tenant.textable.app",
+  "account_uid": "fixture-account-uid",
+  "api_key": "fixture-api-key",
+  "method": "POST",
+  "url": "https://example-tenant.textable.app/api/send",
+  "headers": {
+    "Authorization": "Bearer fixture-account-uid:fixture-api-key",
+    "Content-Type": "application/json"
+  },
+  "json": {
+    "to": "+12025550147",
+    "from": "+12015550123",
+    "message": "Your appointment is tomorrow at 9:00. Reply STOP to opt out."
+  }
+}

@@ -24,7 +24,7 @@ mapping in ``provider_graph/vi_mapping.json`` and the VI catalog in
 Output: ``graph.json`` with ``generated_at``, ``connect_addons_sha``, ``nodes``,
 ``edges`` and ``totals``. Re-run it after any change to recompute the remaining work.
 
-    python3 scripts/provider_graph.py [--root DIR] [--out FILE]
+    python3 scripts/provider_graph.py [--root DIR] [--addon-root DIR] [--out FILE]
 """
 import argparse
 import ast
@@ -299,14 +299,23 @@ def load_json(path, default):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", default=str(HERE.parent), help="connect_addons checkout")
+    ap.add_argument("--addon-root", action="append", default=[],
+                    help="explicit additional addon root, including private source; keep output private")
     ap.add_argument("--out", default=str(DATA / "graph.json"))
     args = ap.parse_args()
     root = Path(args.root).resolve()
 
-    modules = [CORE] + PROVIDERS + ([TARGET] if (root / TARGET / "__manifest__.py").exists() else [])
-    mans = {m: manifest(root, m) for m in modules}
-    parsed = {m: parse_python(root, m) for m in modules}
-    js = {m: parse_js(root, m) for m in modules}
+    roots = list(dict.fromkeys([root] + [Path(p).resolve() for p in args.addon_root]))
+    module_roots = {}
+    for module in [CORE] + PROVIDERS + [TARGET]:
+        matches = [r for r in roots if (r / module / "__manifest__.py").exists()]
+        if len(matches) > 1:
+            ap.error("duplicate addon source for %s: %s" % (module, matches))
+        module_roots[module] = matches[0] if matches else root
+    modules = [CORE] + PROVIDERS + ([TARGET] if manifest(module_roots[TARGET], TARGET) else [])
+    mans = {m: manifest(module_roots[m], m) for m in modules}
+    parsed = {m: parse_python(module_roots[m], m) for m in modules}
+    js = {m: parse_js(module_roots[m], m) for m in modules}
     owner = model_owner_index(parsed)
 
     per_module = {}
@@ -425,9 +434,12 @@ def main():
     graph = {
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "connect_addons_sha": git_sha(root),
+        "source_roots": [{"path": str(r), "sha": git_sha(r), "dirty": git_dirty(r, modules)} for r in roots],
         "worktree_dirty": git_dirty(root, modules),
         "generator": "scripts/provider_graph.py",
         "modules": {m: {"version": (mans.get(m) or {}).get("version"), "present": mans.get(m) is not None,
+                        "source_root": str(module_roots[m]) if mans.get(m) else None,
+                        "source_status": "supplied" if mans.get(m) else "not_supplied",
                         "family": families.get(m)} for m in modules + ([] if has_target else [TARGET])},
         "layers": [
             {"n": 1, "name": "VI data objects", "source": "vi_catalog.json"},

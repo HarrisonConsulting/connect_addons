@@ -34,7 +34,10 @@ class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     module_connect_twilio = fields.Boolean(string='Twilio')
-    module_connect_voicetel = fields.Boolean(string='VoiceTel')
+    module_connect_voicetel = fields.Boolean(
+        string='VoiceTel',
+        help='Requires the separately supplied private certification adapter. '
+             'See the repository incubation notice for availability.')
     module_connect_byoc = fields.Boolean(string='Bring your own carrier')
     module_connect_pbx = fields.Boolean(string='Audio, voicemail and parking')
     module_connect_sms = fields.Boolean(string='SMS bridge')

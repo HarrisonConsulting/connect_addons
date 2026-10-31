@@ -1,6 +1,9 @@
 import logging
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
+
+from .license import ODUIST_MODULES
 
 _logger = logging.getLogger(__name__)
 
@@ -32,7 +35,11 @@ class IrModuleModule(models.Model):
         License = self.env["oduist.license"]
         for rec in self:
             status = License.get_license_status(rec.name)
-
+            rec.oduist_license_status = ""
+            rec.oduist_module_purchased = False
+            rec.oduist_module_show_price = ""
+            if status["status"] == "private_integration":
+                rec.oduist_license_status = "Private integration"
             if status["status"] == "production":
                 order_id = status.get("order_id", "")
                 rec.oduist_license_status = f"Purchase Order: {order_id}"
@@ -54,6 +61,8 @@ class IrModuleModule(models.Model):
     def buy_oduist_license(self):
         """Buy license for this specific module."""
         self.ensure_one()
+        if self.name not in ODUIST_MODULES:
+            raise ValidationError("Only Oduist catalog products can be purchased here.")
         License = self.env["oduist.license"]
         token = License.sudo().get_param("license_token")
         if not token:

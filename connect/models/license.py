@@ -13,6 +13,9 @@ TOKEN_CLOCK_SKEW_SECONDS = 300
 
 PUBLIC_KEY_PARAM = "oduist_license.public_key"
 ODUIST_MODULES = []
+# Private adapters register development placement separately from sellable products.
+# This metadata supplies no entitlement to the Connect core or other products.
+PRIVATE_INTEGRATION_MODULES = set()
 
 
 def api_call(url: str, request_data: dict) -> dict:
@@ -266,6 +269,8 @@ class OduistLicense(models.Model):
         return set(purchased)
 
     def get_license_status(self, module_name):
+        if module_name not in ODUIST_MODULES:
+            return {"status": "private_integration" if module_name in PRIVATE_INTEGRATION_MODULES else "not_catalogued"}
         token = self._get_license_token()
         if token:
             payload = self.validate_token(token)
@@ -343,6 +348,10 @@ class OduistLicense(models.Model):
 
     @api.model
     def check_license(self, module_name, silent=True):
+        if module_name not in ODUIST_MODULES:
+            if not silent:
+                raise ValidationError("Module {} is not an Oduist catalog product.".format(module_name))
+            return False
         status = self.sudo().get_license_status(module_name)
         is_valid = status["status"] != "trial_expired"
         if not is_valid and not silent:
@@ -516,6 +525,10 @@ class OduistLicense(models.Model):
         Returns:
             ir.actions.act_url action to open payment link
         """
+        if (not isinstance(module_list, list) or not module_list
+                or any(not isinstance(name, str) or name not in ODUIST_MODULES
+                       for name in module_list)):
+            raise ValidationError("Only Oduist catalog products can be purchased here.")
         base_url = (
             self.env["ir.config_parameter"].sudo().get_param("oduist_license_server")
         )

@@ -1,5 +1,0 @@
-"""Shared constants for the managed FreeSWITCH integration."""
-
-FREESWITCH_XMLRPC_INTERNAL_PORT = 8080
-FREESWITCH_XMLRPC_PUBLIC_PORT = 443
-FREESWITCH_XMLRPC_USER = "odoo"

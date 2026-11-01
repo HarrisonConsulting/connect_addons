@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <!-- FreeSWITCH provider header under Connect > Configuration (provider band 200-299). -->
-<menuitem id="menu_freeswitch_root"
-              name="FreeSWITCH"
-              parent="connect.menu_connect_settings"
-              sequence="230"/>
-</odoo>

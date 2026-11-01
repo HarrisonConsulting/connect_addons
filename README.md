@@ -1,6 +1,6 @@
 # Connect
 
-Harrison Consulting maintains an improved fork of the public Oduist Connect modules. Public module identities follow the Oduist Connect and Connect NG 19.0 repositories already integrated by this fork. Harrison-only addon identities are supplied through the paired private distribution.
+Harrison Consulting maintains an opinionated fork of the public Oduist Connect modules. Public module identities follow the Oduist Connect and Connect NG 19.0 repositories already integrated by this fork. Harrison-only addon identities are supplied through the paired private distribution.
 
 Upstream public source:
 - https://github.com/oduist/connect_addons

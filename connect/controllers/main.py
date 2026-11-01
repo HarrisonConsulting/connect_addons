@@ -1,0 +1,91 @@
+import json
+import logging
+from urllib.parse import urlparse
+
+from werkzeug.exceptions import NotFound
+from odoo import http
+from odoo.api import SUPERUSER_ID
+
+logger = logging.getLogger(__name__)
+
+
+class ConnectController(http.Controller):
+
+    @http.route('/connect/transcript', methods=['POST'], type='jsonrpc',
+                auth='public', csrf=False)
+    def upload_transcript(self):
+        data = json.loads(http.request.httprequest.get_data(as_text=True))
+        token = data.get('transcription_token') if isinstance(data, dict) else None
+        if not token:
+            raise NotFound()
+        recording = http.request.env['connect.recording'].with_user(
+            http.request.env.ref('connect.user_connect_webhook'))
+        rec = recording.search([
+            ('transcription_token', '=', token),
+        ], limit=2)
+        if len(rec) != 1:
+            raise NotFound()
+        rec.with_user(SUPERUSER_ID).update_transcript(data)
+        return True
+
+    @http.route('/connect/recording/<int:record_id>', type='http', auth='user')
+    def serve_recording(self, record_id):
+        recording = http.request.env['connect.recording'].browse(record_id)
+        if not recording.exists() or not recording.media_url:
+            return http.Response(status=404)
+        media_url = recording._get_media_download_url()
+        if not media_url:
+            return http.Response(status=404)
+        return self._serve_media(media_url)
+
+    @http.route('/connect/voicemail/<int:record_id>', type='http', auth='user')
+    def serve_voicemail(self, record_id):
+        call = http.request.env['connect.call'].browse(record_id)
+        if not call.exists() or not call.voicemail_url:
+            return http.Response(status=404)
+        media_url = call._get_voicemail_download_url()
+        if not media_url:
+            return http.Response(status=404)
+        settings = http.request.env['connect.settings'].sudo()
+        if not settings._is_trusted_media_url(media_url):
+            logger.warning(
+                'Refusing voicemail media for call %s: %s is not a '
+                'provider media host.', call.id, urlparse(media_url).hostname)
+            return http.Response(status=404)
+        return self._serve_media(media_url)
+
+    def _serve_media(self, media_url):
+        """Proxy provider media to the browser.
+
+        Credentials come from connect.settings._get_media_auth(), which the
+        provider modules override. A failure here is invisible in the UI --
+        the audio element just reports a 0-second recording -- so say what
+        went wrong in the log instead of answering a bare 404.
+        """
+        import requests as req
+        # Signed URLs carry a query string; keep it out of the file name.
+        media_name = '{}.wav'.format(urlparse(media_url).path.split('/')[-1])
+        auth = http.request.env['connect.settings'].sudo()._get_media_auth(
+            media_url)
+        try:
+            response = req.get(media_url, auth=auth, timeout=30)
+        except Exception:
+            logger.exception('Cannot reach recording media at %s', media_url)
+            return http.Response(status=502)
+        if response.status_code != 200:
+            logger.error(
+                'Recording media at %s answered HTTP %s%s. The player will '
+                'show a 0-second recording until it is reachable.',
+                media_url, response.status_code,
+                '' if auth else ' (fetched without credentials)',
+            )
+            return http.Response(status=502)
+        res = http.Response(response.content, content_type='audio/wav')
+        res.headers['Content-Disposition'] = http.content_disposition(media_name)
+        return res
+
+    @http.route('/connect/<string:uid>/', methods=['GET'], type='http',
+                auth='public', csrf=False)
+    def health_check(self, uid):
+        instance_uid = http.request.env['connect.settings'].get_param('instance_uid')
+        return "True" if uid == instance_uid else "False"

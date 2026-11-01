@@ -1,0 +1,69 @@
+<odoo>
+
+  <!-- Elevenlabs Agent -->
+  <record id="connect_elevenlabs_agent_user" model="ir.model.access">
+    <field name="name">connect_elevenlabs_agent_user</field>
+    <field name="model_id" ref="connect_elevenlabs.model_connect_elevenlabs_agent"/>
+    <field name="group_id" ref="connect.group_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Elevenlabs Agent Tool -->
+  <record id="connect_elevenlabs_agent_tool_user" model="ir.model.access">
+    <field name="name">connect_elevenlabs_agent_tool_user</field>
+    <field name="model_id" ref="connect_elevenlabs.model_connect_elevenlabs_agent_tool"/>
+    <field name="group_id" ref="connect.group_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Elevenlabs Agent Tool params-->
+  <record id="connect_elevenlabs_agent_tool_params_user" model="ir.model.access">
+    <field name="name">connect_elevenlabs_agent_tool_params_user</field>
+    <field name="model_id" ref="connect_elevenlabs.model_connect_agent_tool_params"/>
+    <field name="group_id" ref="connect.group_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Elevenlabs Phone Registration -->
+  <record id="connect_elevenlabs_phone_registration_user" model="ir.model.access">
+    <field name="name">connect_elevenlabs_phone_registration_user</field>
+    <field name="model_id" ref="connect_elevenlabs.model_connect_elevenlabs_phone_registration"/>
+    <field name="group_id" ref="connect.group_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Elevenlabs Agent Prompt -->
+  <record id="connect_elevenlabs_agent_prompt_user" model="ir.model.access">
+    <field name="name">connect_elevenlabs_agent_prompt_user</field>
+    <field name="model_id" ref="connect_elevenlabs.model_connect_elevenlabs_agent_prompt"/>
+    <field name="group_id" ref="connect.group_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+  <!-- Elevenlabs Agent Transfer-->
+  <record id="connect_elevenlabs_agent_transfer_user" model="ir.model.access">
+    <field name="name">connect_elevenlabs_agent_transfer_user</field>
+    <field name="model_id" ref="connect_elevenlabs.model_connect_elevenlabs_agent_transfer"/>
+    <field name="group_id" ref="connect.group_user"/>
+    <field name="perm_read" eval="1"/>
+    <field name="perm_write" eval="0"/>
+    <field name="perm_create" eval="0"/>
+    <field name="perm_unlink" eval="0"/>
+  </record>
+
+</odoo>

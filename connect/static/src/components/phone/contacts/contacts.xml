@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="connect.contacts" owl="1">
+        <div>
+            <div t-attf-class="{{ state.isContactMode ? '' : 'o_hide' }} o_phone_number_content">
+                <input class="o_phone_number_input" placeholder="Enter name or number" t-ref="contact-input" t-on-keyup="_onSearchContact" t-on-keydown="_onSearchKeydown" autocomplete="off"/>
+                <div aria-label="Clear" class="fa fa-times-circle o_phone_number_back" role="img" title="Clear" t-on-click="_onClickClearSearchContact"/>
+            </div>
+            <div class="o_dial_contact_list">
+                <div t-if="searchQuery and !state.partners.length and !state.users.length" class="connect-empty-state">
+                    <i class="fa fa-search fa-2x mb-2 text-muted"/>
+                    <p class="text-muted">No contacts found</p>
+                </div>
+                <table class="o_contact_table">
+                    <!-- Users -->
+                    <t t-foreach="state.users" t-as="user" t-key="user.id">
+                        <tr>
+                            <td class="o_contact_avatar">
+                                <img alt="Avatar" class="o_contact_avatar" t-attf-src="/web/image?model=res.users&amp;field=avatar_128&amp;id={{ user.user[0] }}"/>
+                            </td>
+                            <td class="o_contact_info">
+                                <div>
+                                    <span t-attf-class="o_presence_indicator {{ user.presence_status === 'available' ? 'available' : user.presence_status === 'on_call' ? 'on_call' : user.presence_status === 'on_hold' ? 'on_hold' : 'offline' }}" t-attf-title="{{ user.presence_status || 'offline' }}"/>
+                                    <span><t t-out="user.name"/></span>
+                                </div>
+                                <div>
+                                    <span class="icon-dialer_sip o_contact_phone"><t t-out="user.exten_number"/></span>
+                                </div>
+                            </td>
+                            <td class="o_contact_call_button">
+                                <div class="d-flex">
+                                    <div class="o_button_container">
+                                        <button t-if="isTransfer" t-attf-title="Transfer to {{user.exten_number}}" t-on-click="() => this._onClickMakeTransfer(user.exten_number)">
+                                            <i class="fa icon-dialer_sip"/>
+                                        </button>
+                                        <button t-if="isContact" t-attf-title="Call to {{user.exten_number}}" t-on-click="() => this._onClickMakeCall(user.exten_number)">
+                                            <i class="fa icon-dialer_sip"/>
+                                        </button>
+                                        <button t-if="isAddParticipant" t-attf-title="Add {{user.exten_number}} to call" t-on-click="() => this._onClickAddParticipant(user.exten_number)">
+                                            <i class="fa fa-user-plus"/>
+                                        </button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </t>
+                    <!-- Partners -->
+                    <t t-foreach="state.partners" t-as="partner" t-key="partner.id">
+                        <tr>
+                            <td class="o_contact_avatar" t-on-click="() => this._openPartner(partner.id)">
+                                <img alt="Avatar" class="o_contact_avatar" t-attf-src="/web/image?model=res.partner&amp;field=avatar_128&amp;id={{ partner.id }}"/>
+                            </td>
+                            <td class="o_contact_info" t-on-click="() => this._openPartner(partner.id)">
+                                <div>
+                                    <span><t t-out="partner.name"/></span>
+                                    <div t-if="partner.commercial_company_name and partner.commercial_company_name !== partner.name" class="o_contact_company">
+                                        <span class="text-muted small"><t t-out="partner.commercial_company_name"/></span>
+                                    </div>
+                                    <div t-if="partner.phone_sanitized">
+                                        <span class="icon-phone o_contact_phone"><t t-out="partner.phone_sanitized"/></span>
+                                    </div>
+                                    <div t-elif="partner.mobile">
+                                        <span class="fa-mobile o_contact_phone"><t t-out="partner.mobile"/></span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="o_contact_call_button">
+                                <div class="d-flex">
+                                    <div class="o_button_container">
+                                        <!-- Use phone_sanitized first, fallback to mobile -->
+                                        <t t-set="callNumber" t-value="partner.phone_sanitized or partner.mobile"/>
+                                        <t t-if="callNumber">
+                                            <button t-if="isTransfer" t-attf-title="Transfer to {{callNumber}}" t-on-click="() => this._onClickMakeTransfer(callNumber)">
+                                                <i class="fa icon-phone"/>
+                                            </button>
+                                            <button t-if="isContact" t-attf-title="Call {{callNumber}}" t-on-click="() => this._onClickMakeCall(callNumber)">
+                                                <i class="fa icon-phone"/>
+                                            </button>
+                                            <button t-if="isAddParticipant" t-attf-title="Add {{callNumber}} to call" t-on-click="() => this._onClickAddParticipant(callNumber)">
+                                                <i class="fa fa-user-plus"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </t>
+
+                </table>
+            </div>
+        </div>
+    </t>
+
+</templates>

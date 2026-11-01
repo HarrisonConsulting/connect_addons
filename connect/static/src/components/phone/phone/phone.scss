@@ -1,0 +1,1098 @@
+// =============================================================================
+// Connect Phone Component Styles
+// =============================================================================
+// Light mode styling (default) - matches Odoo's standard theming
+// Dark mode is handled separately via phone.dark.scss in web.assets_web_dark
+
+// CSS Custom Properties defined at :root for global access
+:root {
+  // Container colors
+  --Phone-bg: #ffffff;
+  --Phone-text: #495057;
+  --Phone-accent: #875a7b;  // Odoo brand purple
+  --Phone-border: #dee2e6;
+  --Phone-hover-bg: #f8f9fa;
+  --Phone-active-bg: #e9ecef;
+  --Phone-muted: #6c757d;
+  --Phone-activity-bg: #f8f9fa;
+  --Phone-activity-available-bg: #e6f4ea;
+  --Phone-activity-unavailable-bg: #fff3cd;
+  --Phone-activity-busy-bg: #ffe5d0;
+  --Phone-activity-transitory-bg: #e7e3ff;
+  --Phone-activity-offline-bg: #f1f3f5;
+
+  // Call state colors (consistent across themes)
+  --Phone-call-accept: #28a745;
+  --Phone-call-reject: #dc3545;
+  --Phone-call-hold: #ffc107;
+  --Phone-call-active: #28a745;
+  --Phone-whatsapp: #25d366;
+
+  // Input styling
+  --Phone-input-bg: #ffffff;
+  --Phone-input-border: #ced4da;
+}
+
+.o_root_connect_phone {
+  // Golden ratio: width × 1.618 = height (300 × 1.618 = 485.4 ≈ 486)
+  --phone-width: 300px;
+  --phone-height: 486px;  // Exact golden ratio
+  --phone-activity-height: 68px;
+  // Activity bar (connect_enqueue) heights — used by addons that mount the
+  // ActivityToggle widget. Collapsed shows only the current activity line;
+  // expanded reveals the full action button row.
+  --phone-activity-collapsed-height: 40px;
+  --phone-activity-expanded-height: 160px;
+  width: var(--phone-width);
+  height: var(--phone-height);
+  position: fixed;
+  background-color: var(--Phone-bg);
+  color: var(--Phone-text);
+  border-radius: 8px;
+  border: 1px solid var(--Phone-border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  bottom: 0;
+  font-size: 13px;
+  // Match Odoo backend font
+  font-family: var(--o-font-family, "Lato", "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  flex-flow: column nowrap;
+  z-index: 1100;
+  overflow: hidden;
+  // Prevent text selection during drag operations
+  user-select: none;
+  -webkit-user-select: none;
+
+  // Collapsed state - shows as a floating phone icon
+  &.o_collapsed {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: var(--Phone-accent);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    overflow: visible;  // Allow close button to show outside circle
+
+    &:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    // Hide all content except the collapsed icon
+    .o_header_phone,
+    .o_phone_tabs,
+    .o_body_phone,
+    .o_dial_panel,
+    .mt-auto {
+      display: none !important;
+    }
+
+    .o_collapsed_icon {
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;  // Ensures box-shadow pulse follows circular shape
+      color: #ffffff;
+      cursor: grab;
+      position: relative;
+
+      &:active {
+        cursor: grabbing;
+      }
+
+      // Phone icon - always centered, clickable to expand
+      > i.fa {
+        font-size: 24px;
+      }
+
+      // Close button - small badge in top-right corner
+      .o_collapsed_close {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        cursor: pointer;
+        opacity: 0;
+        background-color: var(--Phone-call-reject);
+        border-radius: 50%;
+        border: 2px solid var(--Phone-accent);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        transform: scale(0.8);
+
+        &:hover {
+          background-color: #c82333;
+          transform: scale(1);
+        }
+      }
+
+      // Show close button on hover
+      &:hover .o_collapsed_close {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      // Pulsing animation when in call
+      &.in-call {
+        animation: pulse-call 1.5s ease-in-out infinite;
+      }
+
+      // Incoming call ring animation
+      &.incoming {
+        animation: ring-animation 0.5s ease-in-out infinite;
+      }
+    }
+  }
+
+  // Collapsed icon (hidden by default)
+  .o_collapsed_icon {
+    display: none;
+  }
+
+  .flex-container {
+    display: flex;
+    justify-content: space-around;
+  }
+
+  .flex-item {
+    flex: 1;
+  }
+
+  // ==========================================================================
+  // Header - styled like Odoo smart buttons
+  // ==========================================================================
+  .o_header_phone {
+    border-radius: 8px 8px 0 0;
+    position: relative;
+    background-color: var(--Phone-accent);
+    color: #ffffff;
+    width: 100%;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+
+    .o_header_content {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      color: #ffffff;
+      padding: 0 8px 0 12px;
+      width: 100%;
+      cursor: default;
+      gap: 8px;
+
+      // Push buttons to the right
+      .o_header_title {
+        flex: 1;
+        font-weight: 500;
+      }
+    }
+
+    .fa {
+      font-size: 14px;
+    }
+
+    .o_header_button {
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      transition: background-color 0.15s ease;
+
+      &:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Body / Content Area
+  // ==========================================================================
+  .o_body_phone {
+    display: flex;
+    flex-flow: column nowrap;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+
+    // Panels without a keypad or contact list (notably the in-call dialing
+    // panel) size to their content rather than filling the phone — but they
+    // must still be ALLOWED to shrink. With `flex: 0 0 auto` they were rigid,
+    // and since every other child of .o_root_connect_phone sets
+    // `flex-shrink: 0`, the whole overflow of a tall in-call panel came out of
+    // .mt-auto — which holds the hang-up button, clipped away by the root's
+    // `overflow: hidden`. `0 1 auto` keeps "do not grow" while letting the
+    // panel scroll (it already has `overflow: auto`) when space runs out.
+    &:not(:has(.o_keypad)):not(:has(.o_dial_contact_list)) {
+      flex: 0 1 auto;
+    }
+
+    .o_phone_number_content {
+      padding: 8px 12px;
+      margin: 0;
+      position: relative;
+      border-bottom: 1px solid var(--Phone-border);
+      background-color: var(--Phone-bg);
+      flex-shrink: 0;
+
+      .o_phone_number_input {
+        color: var(--Phone-text);
+        font-size: 18px;
+        font-weight: 600;
+        border: none;
+        background: transparent;
+        width: calc(100% - 30px);
+
+        &:focus {
+          outline: none;
+          box-shadow: none;
+        }
+
+        &::placeholder {
+          color: var(--Phone-muted);
+          font-weight: 400;
+        }
+      }
+
+      .o_phone_number_back {
+        cursor: pointer;
+        font-size: 16px;
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--Phone-muted);
+        padding: 4px;
+        border-radius: 4px;
+        transition: color 0.15s ease, background-color 0.15s ease;
+
+        &:hover {
+          color: var(--Phone-accent);
+          background-color: var(--Phone-hover-bg);
+        }
+      }
+    }
+
+    // Suggestion/Contact list
+    .o_suggestion {
+      flex: 1;
+      overflow: auto;
+
+      .o_contact_table {
+        width: 100%;
+
+        tr {
+          border-bottom: 1px solid var(--Phone-border);
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background-color: var(--Phone-hover-bg);
+            cursor: pointer;
+          }
+        }
+
+        .o_contact_avatar {
+          padding: 8px;
+          width: 50px;
+          height: 50px;
+
+          img {
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+          }
+        }
+
+        .o_contact_info {
+          cursor: default;
+          font-size: 14px;
+          color: var(--Phone-text);
+          padding: 8px 0;
+
+          .o_contact_phone {
+            color: var(--Phone-muted);
+            font-size: 12px;
+            margin-top: 2px;
+          }
+        }
+
+        .o_contact_call_button {
+          width: 50px;
+          text-align: center;
+
+          button {
+            color: var(--Phone-accent);
+            border: none;
+            background: transparent;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background-color 0.15s ease;
+
+            &:hover {
+              background-color: var(--Phone-hover-bg);
+            }
+
+            .fa {
+              font-size: 18px;
+            }
+          }
+        }
+      }
+    }
+
+    // Keypad
+    .o_keypad {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: center;
+      justify-content: center;
+      padding: 4px;
+      margin: 0;
+
+      .o_keypad_button {
+        color: var(--Phone-text);
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 33.33%;
+        height: 57px;
+        font-size: 24px;
+        font-weight: 300;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        transition: background-color 0.15s ease;
+        box-sizing: border-box;
+
+        &:hover {
+          background: var(--Phone-hover-bg);
+        }
+
+        &:active {
+          background: var(--Phone-active-bg);
+        }
+      }
+    }
+
+    // Hold state - pulsing amber animation on the entire call panel
+    .o_phone_call_details.on-hold {
+      animation: hold-pulse 2s ease-in-out infinite;
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.15));
+    }
+
+    // Hold badge - larger, animated
+    .o_hold_badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      background: #f59e0b;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.75rem;
+      border-radius: 12px;
+      animation: hold-badge-pulse 1.5s ease-in-out infinite;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    // In-call display
+    .o_phone_call_details {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      flex: 1;
+
+      .o_partner_link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .o_partner_avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 12px;
+      }
+
+      .o_partner_name {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--Phone-text);
+        text-align: center;
+        margin-bottom: 4px;
+      }
+
+      .custom-whatsapp {
+        margin-right: 4px;
+        color: var(--Phone-whatsapp);
+      }
+
+      // Create partner button
+      button.btn {
+        margin-top: 16px;
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: 1px solid var(--Phone-border);
+        background: var(--Phone-bg);
+        color: var(--Phone-text);
+        font-size: 13px;
+        transition: all 0.15s ease;
+
+        &:hover {
+          background: var(--Phone-hover-bg);
+          border-color: var(--Phone-accent);
+        }
+
+        i {
+          margin-right: 6px;
+        }
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Tab Navigation (Keypad, Favorites, History)
+  // ==========================================================================
+  .o_phone_tabs {
+    border-bottom: 1px solid var(--Phone-border);
+    border-top: none;
+    background: var(--Phone-bg);
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    flex-shrink: 0;
+
+    button {
+      color: var(--Phone-muted);
+      border: none;
+      background: transparent;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease, background-color 0.15s ease;
+
+      &:hover {
+        color: var(--Phone-accent);
+        background-color: var(--Phone-hover-bg);
+      }
+
+      &.active {
+        color: var(--Phone-accent);
+        background-color: var(--Phone-active-bg);
+      }
+
+      i {
+        font-size: 16px;
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Bottom Dial Panel
+  // ==========================================================================
+  .o_dial_panel {
+    justify-content: center;
+    background-color: var(--Phone-bg);
+    border-top: 1px solid var(--Phone-border);
+    display: flex;
+    height: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    width: 100%;
+    flex-flow: row nowrap;
+    padding: 4px 0;
+
+    button {
+      color: var(--Phone-muted);
+      border: none;
+      background: transparent;
+      padding: 4px 12px;
+      border-radius: 6px;
+      transition: color 0.15s ease, background-color 0.15s ease;
+
+      &:hover {
+        color: var(--Phone-accent);
+        background-color: var(--Phone-hover-bg);
+      }
+
+      &.active {
+        color: var(--Phone-accent);
+        background-color: var(--Phone-active-bg);
+      }
+
+      i, .fa {
+        font-size: 18px;
+      }
+
+      .custom-whatsapp {
+          margin-right: 5px;
+          color: #70bd53;
+      }
+    }
+  }
+
+  .o_dial_panel_position {
+    border-radius: 0 0 8px 8px;
+  }
+
+  // ==========================================================================
+  // Recording Toolbar
+  // ==========================================================================
+  .o_recording_panel {
+    justify-content: center;
+    padding: 0 8px;
+
+    .o_record_toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--Phone-muted);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 0 8px;
+      border-radius: 6px;
+      transition: color 0.15s ease, background-color 0.15s ease;
+      cursor: pointer;
+
+      .record-icon-idle {
+        font-size: 10px;
+        color: var(--Phone-muted);
+        transition: color 0.15s ease;
+      }
+
+      .record-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #dc3545;
+        flex-shrink: 0;
+        animation: record-pulse 1.2s ease-in-out infinite;
+      }
+
+      &:hover:not(:disabled) {
+        color: var(--Phone-text);
+        background-color: var(--Phone-hover-bg);
+
+        .record-icon-idle {
+          color: #dc3545;
+        }
+      }
+
+      &.is-recording {
+        color: #dc3545;
+        font-weight: 600;
+      }
+
+      &.is-paused {
+        color: #f59e0b;
+        font-weight: 600;
+
+        .fa-pause {
+          color: #f59e0b;
+        }
+
+        &:hover:not(:disabled) {
+          color: #d97706;
+        }
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .o_optional_dial_panel_position {
+    border-top: none;
+    border-bottom: 1px solid var(--Phone-border);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+
+    button {
+      padding: 4px 6px;
+      min-width: 0;
+
+      i, .fa {
+        font-size: 14px;
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Call/Hangup Buttons
+  // ==========================================================================
+  .mt-auto {
+    // The call controls are the last thing that may be sacrificed for space:
+    // a clipped hang-up button leaves the user unable to end a call. Every
+    // other child of the fixed-height phone already pins `flex-shrink: 0`;
+    // this one was missed, so it absorbed the overflow and got cut off.
+    flex: 0 0 auto;
+
+    .o_dial_panel {
+      height: auto;
+      min-height: 60px;
+      padding: 8px 12px;
+      gap: 12px;
+      justify-content: center;
+
+      button {
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .call, .reject-call {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          color: #ffffff;
+          font-size: 18px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .call {
+          background: var(--Phone-call-accept);
+
+          &:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+          }
+        }
+
+        .reject-call {
+          background: var(--Phone-call-reject);
+
+          &:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+          }
+        }
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Call Waiting Panel
+  // ==========================================================================
+  .o_call_waiting_panel {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.08), rgba(40, 167, 69, 0.15));
+    border: 1px solid rgba(40, 167, 69, 0.3);
+    border-radius: 8px;
+    margin: 4px 8px;
+    animation: call-waiting-pulse 1.5s ease-in-out infinite;
+
+    .call-waiting-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 0.85rem;
+      color: var(--Phone-call-accept);
+    }
+
+    .call-waiting-icon {
+      animation: ring-animation 0.5s ease-in-out infinite;
+    }
+
+    .call-waiting-caller {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--Phone-text);
+      margin-bottom: 2px;
+    }
+
+    .btn {
+      font-size: 0.8rem;
+      padding: 4px 12px;
+    }
+  }
+
+  // ==========================================================================
+  // Phone Lines (multi-line support)
+  // ==========================================================================
+  .o_phone_lines_position {
+    bottom: 0;
+    position: fixed;
+    border-top: 1px solid var(--Phone-border);
+    color: var(--Phone-text);
+    justify-content: center;
+    font-size: 16px;
+    text-align: center;
+
+    div.active {
+      background-color: var(--Phone-active-bg);
+    }
+
+    .line-1 {
+      border-right: 1px solid var(--Phone-border);
+    }
+
+    .col-6 {
+      padding-top: 8px;
+      cursor: pointer;
+    }
+
+    .inactive {
+      cursor: auto;
+      opacity: 0.5;
+    }
+
+    button.active {
+      color: var(--Phone-call-active);
+    }
+
+    button.hold {
+      color: var(--Phone-call-hold);
+    }
+  }
+
+  // ==========================================================================
+  // Connection Status Banner
+  // ==========================================================================
+  .connect-status-banner {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid;
+    flex-shrink: 0;
+
+    &.connecting {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fde68a;
+    }
+    &.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border-color: #fca5a5;
+      animation: error-pulse 2s ease-in-out infinite;
+    }
+    &.offline {
+      background: #f3f4f6;
+      color: #4b5563;
+      border-color: #d1d5db;
+    }
+
+    .btn-link {
+      padding: 0;
+      font-size: 0.8rem;
+      margin-left: auto;
+    }
+  }
+
+  // ==========================================================================
+  // Inline Operation Error
+  // ==========================================================================
+  .connect-operation-error {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fee2e2;
+    color: #991b1b;
+    border-bottom: 1px solid #fca5a5;
+    flex-shrink: 0;
+
+    span {
+      flex: 1;
+    }
+
+    .btn-close {
+      font-size: 0.6rem;
+      opacity: 0.7;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Call Quality Indicator
+  // ==========================================================================
+  .connect-quality-indicator {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    cursor: pointer;
+    padding: 2px 4px;
+    margin-top: 4px;
+
+    .quality-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 16px;
+
+      .bar {
+        width: 3px;
+        background: #d1d5db;
+        border-radius: 1px;
+        transition: background-color 0.3s, height 0.3s;
+      }
+      .bar-1 { height: 4px; }
+      .bar-2 { height: 7px; }
+      .bar-3 { height: 11px; }
+      .bar-4 { height: 16px; }
+
+      &.quality-excellent .bar { background: #22c55e; }
+      &.quality-good {
+        .bar-1, .bar-2, .bar-3 { background: #22c55e; }
+      }
+      &.quality-fair {
+        .bar-1, .bar-2 { background: #f59e0b; }
+      }
+      &.quality-poor {
+        .bar-1 { background: #ef4444; }
+      }
+    }
+
+    .quality-warning {
+      color: #ef4444;
+      font-size: 0.7rem;
+      animation: quality-warn-pulse 1s ease-in-out infinite;
+    }
+
+    .quality-label-text {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--Phone-muted);
+      margin-left: 2px;
+    }
+  }
+
+  .connect-quality-details {
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    margin-top: 4px;
+    width: 100%;
+    max-width: 200px;
+
+    .quality-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+
+      .quality-label {
+        color: #9ca3af;
+      }
+      .quality-value {
+        font-weight: 600;
+        &.quality-excellent { color: #22c55e; }
+        &.quality-good { color: #22c55e; }
+        &.quality-fair { color: #f59e0b; }
+        &.quality-poor { color: #ef4444; }
+      }
+    }
+
+    .quality-warnings {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  // ==========================================================================
+  // Empty State Placeholder
+  // ==========================================================================
+  .connect-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  // ==========================================================================
+  // Focus States
+  // ==========================================================================
+  button:focus, input:focus {
+    outline: none;
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--Phone-accent);
+    outline-offset: 2px;
+  }
+}
+
+// =============================================================================
+// Utility Classes
+// =============================================================================
+.o_hide {
+  display: none !important;
+}
+
+// Incoming notification popup
+.notify-partner {
+  position: absolute;
+  right: 10px;
+
+  img {
+    height: 60px;
+    width: 60px;
+    border-radius: 50%;
+  }
+}
+
+// =============================================================================
+// Animations for collapsed phone icon
+// =============================================================================
+@keyframes hold-pulse {
+  0%, 100% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 5px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    border-color: #d97706;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+  }
+}
+
+@keyframes hold-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes pulse-call {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(40, 167, 69, 0);
+  }
+}
+
+@keyframes ring-animation {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(15deg);
+  }
+  75% {
+    transform: rotate(-15deg);
+  }
+}
+
+@keyframes error-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes quality-warn-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes record-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes call-waiting-pulse {
+  0%, 100% {
+    border-color: rgba(40, 167, 69, 0.3);
+    box-shadow: 0 0 4px rgba(40, 167, 69, 0.1);
+  }
+  50% {
+    border-color: rgba(40, 167, 69, 0.6);
+    box-shadow: 0 0 12px rgba(40, 167, 69, 0.25);
+  }
+}
+
+// =============================================================================
+// Volume Level Display
+// =============================================================================
+.volume-level {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--Phone-muted);
+  min-width: 32px;
+  text-align: right;
+}
+
+// =============================================================================
+// Audio Settings Panel
+// =============================================================================
+.o_audio_settings {
+  overflow-y: auto;
+
+  .form-range {
+    height: 20px;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      background-color: var(--Phone-accent);
+    }
+
+    &::-moz-range-thumb {
+      background-color: var(--Phone-accent);
+    }
+  }
+
+  .form-check-input:checked {
+    background-color: var(--Phone-accent);
+    border-color: var(--Phone-accent);
+  }
+
+  .o_audio_preview_list > div {
+    border-bottom: 1px solid var(--Phone-border);
+    cursor: pointer;
+    padding-left: 4px;
+    padding-right: 4px;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background-color: var(--Phone-hover-bg);
+      border-radius: 4px;
+
+      .fa-play-circle {
+        color: var(--Phone-accent) !important;
+      }
+    }
+  }
+}

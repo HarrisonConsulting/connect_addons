@@ -1,0 +1,14 @@
+<odoo>
+    <!-- Action that filters connect.voice to ElevenLabs-provided voices. -->
+    <record id="action_elevenlabs_voice" model="ir.actions.act_window">
+        <field name="name">ElevenLabs Voices</field>
+        <field name="path">elevenlabs-voices</field>
+        <field name="res_model">connect.voice</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('provider', '=', 'elevenlabs')]</field>
+        <field name="context">{'default_provider': 'elevenlabs'}</field>
+    </record>
+
+    <menuitem id="menu_elevenlabs_voice" parent="elevenlabs_menu"
+        name="Voices" action="action_elevenlabs_voice" sequence="40"/>
+</odoo>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+
+  <meta name="description" content="Enable ElevenLabs AI agents to create partners, search products, and quote or close sales orders during inbound calls.">
+  <meta name="keywords" content="Odoo 19, Connect ElevenLabs, AI sales, voice commerce, order automation, Harrison Consulting">
+  <meta property="og:title" content="Connect ElevenLabs Sale · Harrison Consulting">
+  <meta property="og:description" content="Enable ElevenLabs AI agents to create partners, search products, and quote or close sales orders during inbound calls.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.harrison.consulting/products/connect_elevenlabs_sale">
+  <title>Connect ElevenLabs Sale · Harrison Consulting</title>
+
+  <link rel="icon" href="icon.png" type="image/png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Epilogue:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+  <style>
+    :root {
+      --hc-bg: #F5F1EA;
+      --hc-surface: #FFFFFF;
+      --hc-surface-2: #EFE9DD;
+      --hc-border: rgba(0,0,0,0.08);
+      --hc-border-accent: rgba(0,0,0,0.14);
+      --hc-text: #1A1A1A;
+      --hc-text-muted: #5A5A5A;
+      --hc-text-dim: #8A8680;
+      --hc-amber: #A8862B;
+      --hc-amber-dim: rgba(168,134,43,0.10);
+      --hc-amber-border: rgba(168,134,43,0.30);
+      --hc-lane: #3A6CA8;
+      --hc-lane-soft: rgba(58,108,168,0.10);
+
+      --hc-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --hc-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      color-scheme: light;
+    }
+    [data-bs-theme="dark"] {
+      --hc-bg: #0D0F14;
+      --hc-surface: #1A1E28;
+      --hc-surface-2: #13161E;
+      --hc-border: rgba(255,255,255,0.08);
+      --hc-border-accent: rgba(255,255,255,0.14);
+      --hc-text: #E4DFD5;
+      --hc-text-muted: #7A7670;
+      --hc-text-dim: #4A4845;
+      --hc-amber: #C9A84C;
+      --hc-amber-dim: rgba(201,168,76,0.12);
+      --hc-amber-border: rgba(201,168,76,0.25);
+      --hc-lane: #5A8FC4;
+      --hc-lane-soft: rgba(90,143,196,0.12);
+
+      --hc-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --hc-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+
+    .hc-no-transition,
+    .hc-no-transition *,
+    .hc-no-transition *::before,
+    .hc-no-transition *::after { transition: none !important; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+    @media (min-width: 768px) { html { font-size: 17px; } }
+    body {
+      font-family: 'Epilogue', system-ui, -apple-system, sans-serif;
+      font-weight: 400;
+      line-height: 1.7;
+      color: var(--hc-text);
+      background: var(--hc-bg);
+      transition: background-color 200ms ease, color 200ms ease;
+    }
+    a { color: var(--hc-lane); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img, svg { max-width: 100%; display: block; }
+    code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    h1, h2, h3 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--hc-text);
+    }
+    h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+    h2 { font-size: clamp(1.6rem, 3.2vw, 2.4rem); margin-bottom: 1.2rem; }
+    h3 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+    p { color: var(--hc-text); }
+    p + p { margin-top: 1rem; }
+    .muted { color: var(--hc-text-muted); }
+
+    .hc-container { max-width: 760px; margin: 0 auto; padding: 0 1.5rem; }
+    .hc-container--wide { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+
+    .hc-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--hc-border);
+      max-width: 1100px; margin: 0 auto;
+    }
+    .hc-brand {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.1rem; letter-spacing: 0.02em; color: var(--hc-text);
+    }
+    .hc-brand em { font-style: italic; color: var(--hc-amber); }
+    .hc-topbar-right { display: flex; align-items: center; gap: 1rem; }
+
+    .hc-theme-toggle {
+      background: transparent; border: 1px solid var(--hc-border);
+      color: var(--hc-text-muted);
+      width: 34px; height: 34px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 6px; cursor: pointer;
+      transition: border-color 200ms ease, color 200ms ease;
+    }
+    .hc-theme-toggle:hover { border-color: var(--hc-lane); color: var(--hc-lane); }
+    .hc-theme-toggle svg { width: 18px; height: 18px; }
+
+    .hc-eyebrow {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem; font-weight: 500;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--hc-text-muted); margin-bottom: 1.5rem;
+    }
+    .hc-eyebrow-bar { width: 2px; height: 0.875rem; background: var(--hc-lane); }
+
+    .hc-hero { padding: 5rem 0 4rem; text-align: left; }
+    @media (max-width: 640px) { .hc-hero { padding: 3rem 0 2.5rem; } }
+    .hc-hero h1 { max-width: 18ch; margin-bottom: 1.25rem; }
+    .hc-hero .lede {
+      font-size: clamp(1.05rem, 2vw, 1.2rem);
+      color: var(--hc-text-muted); max-width: 56ch; margin-bottom: 2rem;
+    }
+    .hc-hero-ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+    .hc-section { padding: 4rem 0; }
+    @media (max-width: 640px) { .hc-section { padding: 2.5rem 0; } }
+    .hc-section--alt {
+      background: var(--hc-surface-2);
+      border-top: 1px solid var(--hc-border);
+      border-bottom: 1px solid var(--hc-border);
+      transition: background-color 200ms ease;
+    }
+    .hc-section p { max-width: 60ch; }
+
+    .hc-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .hc-card {
+      background: var(--hc-surface);
+      border: 1px solid var(--hc-border);
+      border-top: 2px solid var(--hc-lane);
+      border-radius: 6px; padding: 1.5rem;
+      box-shadow: var(--hc-shadow-sm);
+      transition: border-color 200ms ease, transform 200ms ease, background-color 200ms ease;
+    }
+    .hc-card:hover {
+      border-color: var(--hc-border-accent);
+      transform: translateY(-2px);
+      box-shadow: var(--hc-shadow-md);
+    }
+    .hc-card h3 { color: var(--hc-text); margin-bottom: 0.5rem; }
+    .hc-card p { font-size: 0.95rem; color: var(--hc-text-muted); }
+
+    .hc-numbered { list-style: none; counter-reset: hc; margin-top: 1.5rem; }
+    .hc-numbered li {
+      counter-increment: hc;
+      display: grid; grid-template-columns: 2.25rem 1fr;
+      gap: 1rem; padding: 1rem 0;
+      border-bottom: 1px solid var(--hc-border);
+    }
+    .hc-numbered li:last-child { border-bottom: 0; }
+    .hc-numbered li::before {
+      content: counter(hc, decimal-leading-zero);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem; color: var(--hc-lane);
+      align-self: start; padding-top: 0.1rem;
+    }
+    .hc-numbered .hc-step-title { font-weight: 600; color: var(--hc-text); margin-bottom: 0.25rem; }
+    .hc-numbered .hc-step-body { color: var(--hc-text-muted); font-size: 0.95rem; }
+
+    .hc-field-note {
+      background: var(--hc-amber-dim);
+      border: 1px solid var(--hc-amber-border);
+      border-radius: 6px; padding: 2rem;
+      margin: 3rem auto 4rem; max-width: 60ch;
+    }
+    .hc-field-note h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--hc-amber); margin-bottom: 0.75rem;
+    }
+    .hc-field-note p {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.15rem; line-height: 1.5; color: var(--hc-text);
+    }
+
+    .hc-cta {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--hc-lane); color: #fff;
+      border: 1px solid var(--hc-lane); border-radius: 6px;
+      font-family: 'Epilogue', sans-serif;
+      font-weight: 500; font-size: 0.95rem;
+      cursor: pointer; transition: opacity 200ms ease;
+    }
+    .hc-cta:hover { opacity: 0.85; text-decoration: none; color: #fff; }
+    .hc-cta--ghost { background: transparent; color: var(--hc-lane); }
+    .hc-cta--ghost:hover { background: var(--hc-lane-soft); }
+
+    .hc-version {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      background: var(--hc-lane-soft);
+      color: var(--hc-lane);
+      border: 1px solid var(--hc-border);
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; font-weight: 500;
+    }
+
+    .hc-foot {
+      max-width: 1100px; margin: 0 auto;
+      padding: 2rem 1.5rem;
+      border-top: 1px solid var(--hc-border);
+      display: flex; flex-wrap: wrap; gap: 1rem;
+      justify-content: space-between;
+      font-size: 0.85rem; color: var(--hc-text-muted);
+    }
+    .hc-foot a { color: var(--hc-text-muted); }
+    .hc-foot a:hover { color: var(--hc-lane); }
+  </style>
+
+  <script>
+    (function(){
+      function getCookie(n){var v="; "+document.cookie,p=v.split("; "+n+"=");if(p.length===2)return p.pop().split(";").shift();return null}
+      function setCookie(n,v){
+        if(v===null||v==='system'){document.cookie=n+'=;path=/;max-age=0;SameSite=Lax';}
+        else{document.cookie=n+'='+v+';path=/;max-age=31536000;SameSite=Lax';}
+      }
+      function systemPrefersDark(){return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;}
+      function resolve(mode){
+        if(mode==='dark'||mode==='light')return mode;
+        return systemPrefersDark()?'dark':'light';
+      }
+      function apply(mode){
+        var resolved=resolve(mode);
+        document.documentElement.setAttribute('data-bs-theme',resolved);
+        document.documentElement.setAttribute('data-hc-theme-mode',mode);
+      }
+      var raw=getCookie('hc_theme');
+      var mode=(raw==='light'||raw==='dark'||raw==='system')?raw:'system';
+      apply(mode);
+
+      document.documentElement.classList.add('hc-no-transition');
+      window.addEventListener('load',function(){
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            document.documentElement.classList.remove('hc-no-transition');
+          });
+        });
+      });
+
+      if(window.matchMedia){
+        var mq=window.matchMedia('(prefers-color-scheme: dark)');
+        var onChange=function(){if(window.hcTheme.getMode()==='system'){apply('system');dispatch();}};
+        if(mq.addEventListener)mq.addEventListener('change',onChange);
+        else if(mq.addListener)mq.addListener(onChange);
+      }
+
+      function dispatch(){
+        window.dispatchEvent(new CustomEvent('hc-theme-change',{
+          detail:{mode:window.hcTheme.getMode(),resolved:window.hcTheme.get()}
+        }));
+      }
+
+      window.hcTheme={
+        get:function(){return document.documentElement.getAttribute('data-bs-theme')||'light';},
+        getMode:function(){return document.documentElement.getAttribute('data-hc-theme-mode')||'system';},
+        setMode:function(m){
+          if(m!=='system'&&m!=='light'&&m!=='dark')return;
+          setCookie('hc_theme',m);
+          apply(m);
+          dispatch();
+        },
+        cycle:function(){
+          var order=['system','light','dark'];
+          var cur=this.getMode();
+          var idx=order.indexOf(cur);
+          this.setMode(order[(idx+1)%order.length]);
+        },
+      };
+    })();
+  </script>
+</head>
+<body>
+
+<main>
+
+  <section class="hc-hero hc-container">
+    <div class="hc-eyebrow">
+      <span class="hc-eyebrow-bar"></span>
+      <span>ODOO MODULE · AI · ELEVENLABS</span>
+    </div>
+    <h1>Voice commerce: AI agents that close deals.</h1>
+    <p class="lede">Connect ElevenLabs Sale gives AI agents tools to search products, create customers on the fly, and quote or close sale orders — all during the call. New partners, new orders, same conversation.</p>
+    <div class="hc-hero-ctas">
+      <a class="hc-cta" href="#how">See how it works</a>
+      <a class="hc-cta hc-cta--ghost" href="https://www.harrison.consulting/contact">Talk to us →</a>
+    </div>
+  </section>
+
+  <section class="hc-section hc-container">
+    <h2>Why</h2>
+    <p>Sales teams hand off callers to order processing after the pitch ends. But if the prospect is new, the order requires manual entry afterward — no way for the AI to close the loop. Without agent access to CRM and order models, you lose the real-time moment and add friction to the deal.</p>
+  </section>
+
+  <section class="hc-section hc-section--alt" id="how">
+    <div class="hc-container">
+      <h2>How it works</h2>
+      <ol class="hc-numbered">
+        <li><div><div class="hc-step-title">AI agent answers inbound call</div><div class="hc-step-body">ElevenLabs voice agent runs your sales pitch, product narrative, or discovery script. If the caller is not in the system, that's okay — the agent can create them.</div></div></li>
+        <li><div><div class="hc-step-title">Agent searches products by name or category</div><div class="hc-step-body">The <span class="mono">get_products</span> tool returns all published products with price, stock, categories, and description — the agent can recommend or answer product questions in real time.</div></div></li>
+        <li><div><div class="hc-step-title">Agent creates new customer if needed</div><div class="hc-step-body">The <span class="mono">create_partner</span> tool creates a new <span class="mono">res.partner</span> with the caller's phone and name, returning the partner ID for the order.</div></div></li>
+        <li><div><div class="hc-step-title">Agent builds and closes order</div><div class="hc-step-body">The <span class="mono">create_order</span> tool takes partner ID, product ID, and quantity, creates a <span class="mono">sale.order</span>, and returns the order number to confirm with the caller.</div></div></li>
+        <li><div><div class="hc-step-title">Order lands in pipeline, call is logged</div><div class="hc-step-body">Sale order is created and linked to the call. When the call ends, the order is ready for fulfillment — no manual data entry needed.</div></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="hc-section">
+    <div class="hc-container--wide">
+      <h2>What's in the box</h2>
+      <div class="hc-grid-3">
+        <div class="hc-card">
+          <h3>get_products tool</h3>
+          <p>Returns all published products with name, ID, price, category, stock, and description. Agent uses this to answer questions and recommend items.</p>
+        </div>
+        <div class="hc-card">
+          <h3>create_partner tool</h3>
+          <p>Webhook that creates a new customer from phone and name. Returns partner ID for use in <span class="mono">create_order</span>.</p>
+        </div>
+        <div class="hc-card">
+          <h3>create_order tool</h3>
+          <p>Creates a sale order with partner, product, and quantity. Returns order number and status to confirm the deal with the caller.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hc-section hc-container">
+    <h2>Compatibility</h2>
+    <p>
+      <span class="hc-version">Odoo 19.0</span>
+    </p>
+    <p class="muted" style="margin-top: 1rem;">
+      Depends on <span class="mono">connect_elevenlabs</span> and <span class="mono">sale_management</span>. Requires an ElevenLabs agent configuration and <span class="mono">sale_management</span> module (Community available, enhanced in Enterprise).
+    </p>
+  </section>
+
+  <aside class="hc-field-note">
+    <h3>Field note — minimal but functional</h3>
+    <p>This module provides baseline tools for voice commerce: product lookup, new customer creation, and order placement. It does not handle discounts, complex approval workflows, or payment processing — those require custom tooling or policy enforcement at the Odoo level.</p>
+  </aside>
+
+</main>
+
+</body>
+</html>

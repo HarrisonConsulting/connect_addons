@@ -1,0 +1,42 @@
+<configuration name="modules.conf" description="Modules">
+  <modules>
+    <!-- Loggers (stdout via mod_logfile → /dev/stdout) -->
+    <load module="mod_logfile"/>
+
+    <!-- XML Interfaces - to fetch config from Odoo -->
+    <load module="mod_xml_curl"/>
+    <load module="mod_xml_cdr"/>
+    <load module="mod_xml_rpc"/>
+
+    <!-- Event Handlers -->
+    <load module="mod_event_socket"/>
+
+    <!-- Endpoints -->
+    <load module="mod_sofia"/>
+    <load module="mod_loopback"/>
+    <load module="mod_rtc"/>
+    <load module="mod_verto"/>
+
+    <!-- Applications -->
+    <load module="mod_commands"/>
+    <load module="mod_curl"/>
+    <load module="mod_dptools"/>
+    <load module="mod_http_cache"/>
+    <load module="mod_dialplan_xml"/>
+    <load module="mod_fifo"/>
+    <load module="mod_valet_parking"/>
+    <load module="mod_local_stream"/>
+
+    <!-- Codecs -->
+    <load module="mod_opus"/>
+
+    <!-- File Formats -->
+    <load module="mod_sndfile"/>
+    <load module="mod_native_file"/>
+    <load module="mod_tone_stream"/>
+
+    <!-- TTS -->
+    <load module="mod_piper_tts"/>
+    <load module="mod_audio_fork"/>
+  </modules>
+</configuration>

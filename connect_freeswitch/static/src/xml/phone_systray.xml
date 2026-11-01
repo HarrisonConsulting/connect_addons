@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="connect_freeswitch.PhoneSystray">
+        <li class="o_nav_entry o_phone_systray">
+            <a href="#" class="dropdown-toggle" t-on-click.prevent="toggleDialpad" t-att-class="getIconClass()">
+                <i class="fa fa-phone"/>
+            </a>
+        </li>
+    </t>
+
+    <t t-name="connect_freeswitch.PhonePanel">
+        <div t-att-class="modeClass" t-if="state.showDialpad">
+            <div class="o_phone_dialpad_overlay" t-on-click="closeDialpad"/>
+            <div class="o_phone_panel_container">
+                <div class="o_phone_panel_tabs">
+                    <button t-att-class="'o_phone_panel_tab ' + (state.activeTab === 'dialer' ? 'active' : '')"
+                            t-on-click="() => this.setTab('dialer')">
+                        <i class="fa fa-phone"/> Dialer
+                    </button>
+                    <button t-att-class="'o_phone_panel_tab ' + (state.activeTab === 'parking' ? 'active' : '')"
+                            t-on-click="() => this.setTab('parking')">
+                        <i class="fa fa-parking"/> Parking
+                    </button>
+                </div>
+                <div class="o_phone_panel_body" t-if="state.activeTab === 'dialer'">
+                    <PhoneDialpad
+                        close.bind="closeDialpad"
+                        vertoClient="props.getVertoClient()"
+                        state="state.vertoState"
+                        callState="state.callState"
+                        callerName="state.callerName"
+                        callerNumber="state.callerNumber"
+                    />
+                </div>
+                <div class="o_phone_panel_body" t-if="state.activeTab === 'parking'">
+                    <ParkingPanel
+                        bus="props.bus"
+                        vertoClient="props.getVertoClient()"
+                        callState="state.callState"
+                    />
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="connect_freeswitch.PhoneDialpad">
+        <div class="o_phone_dialpad">
+            <div class="o_phone_dialpad_header">
+                <span class="o_phone_dialpad_title">Phone</span>
+                <span t-att-class="'o_phone_status badge ' + (isConnected ? 'bg-success' : 'bg-secondary')">
+                    <t t-esc="getStateText()"/>
+                </span>
+                <button class="btn btn-sm btn-close" t-on-click="props.close"/>
+            </div>
+
+            <div class="o_phone_dialpad_display">
+                <div class="o_phone_number" t-if="!isIncoming and !isCallActive">
+                    <input type="text"
+                           class="form-control form-control-lg text-center"
+                           t-ref="numberInput"
+                           t-model="state.number"
+                           t-on-keydown="onInputKeydown"
+                           placeholder="Enter number"/>
+                </div>
+                <div class="o_phone_incoming_info" t-if="isIncoming or isCallActive">
+                    <div class="o_incoming_caller_name" t-esc="displayCallerName"/>
+                    <div class="o_incoming_caller_number" t-esc="props.callerNumber"/>
+                </div>
+                <div class="o_phone_call_status" t-if="props.callState !== 'idle'">
+                    <t t-esc="getCallStateText()"/>
+                </div>
+            </div>
+
+            <div class="o_phone_dialpad_keys" t-if="!isCallActive and !isIncoming">
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('1')">1</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('2')">2</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('3')">3</button>
+                </div>
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('4')">4</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('5')">5</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('6')">6</button>
+                </div>
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('7')">7</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('8')">8</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('9')">9</button>
+                </div>
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('*')">*</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('0')">0</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key" t-on-click="() => this.onKeyPress('#')">#</button>
+                </div>
+            </div>
+
+            <div class="o_phone_dialpad_keys o_phone_incall_keys" t-if="props.callState === 'active'">
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('1')">1</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('2')">2</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('3')">3</button>
+                </div>
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('4')">4</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('5')">5</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('6')">6</button>
+                </div>
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('7')">7</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('8')">8</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('9')">9</button>
+                </div>
+                <div class="o_dialpad_row">
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('*')">*</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('0')">0</button>
+                    <button class="btn btn-outline-secondary o_dialpad_key o_dialpad_key_sm" t-on-click="() => this.onKeyPress('#')">#</button>
+                </div>
+            </div>
+
+            <div class="o_phone_dialpad_actions">
+                <t t-if="props.callState === 'idle'">
+                    <button class="btn btn-success o_phone_call_btn"
+                            t-on-click="onCall"
+                            t-att-disabled="!state.number or !isConnected">
+                        <i class="fa fa-phone"/> Call
+                    </button>
+                </t>
+                <t t-elif="isIncoming">
+                    <button class="btn btn-success o_phone_answer_btn" t-on-click="onAnswer">
+                        <i class="fa fa-phone"/> Answer
+                    </button>
+                    <button class="btn btn-danger o_phone_hangup_btn" t-on-click="onHangup">
+                        <i class="fa fa-phone-slash"/> Decline
+                    </button>
+                </t>
+                <t t-else="">
+                    <button class="btn o_phone_mute_btn"
+                            t-att-class="state.muted ? 'btn-warning' : 'btn-outline-secondary'"
+                            t-on-click="onToggleMute">
+                        <i t-att-class="state.muted ? 'fa fa-microphone-slash' : 'fa fa-microphone'"/>
+                    </button>
+                    <button class="btn o_phone_recording_btn"
+                            t-att-class="isRecordingOn() ? 'btn-outline-secondary o_phone_recording_btn_active' : 'btn-outline-secondary o_phone_recording_btn_idle'"
+                            t-att-aria-label="getRecordingTitle()"
+                            t-att-aria-pressed="isRecordingOn() ? 'true' : 'false'"
+                            t-att-title="getRecordingTitle()"
+                            t-att-disabled="isRecordingButtonDisabled()"
+                            t-on-click="onToggleRecording">
+                        <span t-if="state.recordingState === 'off'"
+                              class="o_phone_recording_idle"
+                              aria-hidden="true">
+                            <span class="o_phone_recording_idle_dot"/>
+                            <span class="o_phone_recording_idle_label">REC</span>
+                        </span>
+                        <i t-else="" t-att-class="getRecordingIconClass()"/>
+                    </button>
+                    <button class="btn btn-danger o_phone_hangup_btn" t-on-click="onHangup">
+                        <i class="fa fa-phone-slash"/> End
+                    </button>
+                </t>
+            </div>
+        </div>
+    </t>
+
+</templates>

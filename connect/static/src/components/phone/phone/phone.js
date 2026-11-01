@@ -1,0 +1,2403 @@
+/** @odoo-module **/
+"use strict"
+import {useBus, useService} from "@web/core/utils/hooks"
+import {Calls} from "@connect/components/phone/calls/calls"
+import {Favorites} from "@connect/components/phone/favorites/favorites"
+import {Contacts} from "@connect/components/phone/contacts/contacts"
+import {dialTone, setFocus} from "@connect/js/utils"
+import {Component, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
+import {useDebounced} from "@web/core/utils/timing"
+import {user} from "@web/core/user"
+import {ConfirmationDialog} from "@web/core/confirmation_dialog/confirmation_dialog"
+import {_t} from "@web/core/l10n/translation"
+import {registry} from "@web/core/registry"
+
+const uid = user.userId
+
+// Audio unlock handler for browser autoplay restrictions
+let audioUnlocked = false
+let audioUnlockListenersAdded = false
+
+function setupAudioUnlock() {
+    if (audioUnlockListenersAdded) return
+    audioUnlockListenersAdded = true
+
+    const unlock = () => {
+        if (audioUnlocked) return
+        // Create and resume an AudioContext to unlock audio
+        const AudioContext = window.AudioContext || window.webkitAudioContext
+        if (AudioContext) {
+            try {
+                const ctx = new AudioContext()
+                if (ctx.state === 'suspended') {
+                    ctx.resume().then(() => {
+                        ctx.close()
+                        audioUnlocked = true
+                        console.debug('Connect: Audio unlocked after user interaction')
+                    }).catch(() => ctx.close())
+                } else {
+                    ctx.close()
+                    audioUnlocked = true
+                }
+            } catch (e) {
+                console.warn('Connect: Could not create AudioContext:', e)
+            }
+        }
+        // Remove listeners after first successful interaction
+        document.removeEventListener('click', unlock)
+        document.removeEventListener('touchstart', unlock)
+        document.removeEventListener('keydown', unlock)
+    }
+
+    // Listen for user interaction to unlock audio
+    document.addEventListener('click', unlock, {passive: true})
+    document.addEventListener('touchstart', unlock, {passive: true})
+    document.addEventListener('keydown', unlock, {passive: true})
+}
+
+export class Phone extends Component {
+    static template = 'connect.phone'
+    static props = {
+        bus: Object,
+        token_data: Object,
+        browserSessionNonce: {type: String, optional: true}
+    }
+
+    static components = {Calls, Contacts, Favorites}
+
+    constructor() {
+        super(...arguments)
+        this.bus = this.props.bus
+        // Identifies this tab across every get_client_token() call it makes
+        // (initial mount in main.js, plus reconnect/updateToken below), for
+        // a provider whose credential is stateful per tab. Unused on the
+        // Twilio path (JWTs are stateless — no cross-tab collision).
+        this.browserSessionNonce = this.props.browserSessionNonce
+        // Last-write-wins queue for connect.user.update_presence. The
+        // method is async but every call site is fire-and-forget; concurrent
+        // UPDATEs of the same connect_user row under REPEATABLE READ
+        // serialisation-fail and occupy HTTP workers on retry.
+        this._presenceDesired = null
+        this._presenceSent = null
+        this._presenceInFlight = false
+        this.token = this.props.token_data.token
+        this.edge = this.props.token_data.edge
+        // Twilio's current get_client_token() response has no 'provider' key
+        // (byte-identical contract, see backend task notes) — default to
+        // 'twilio' when absent.
+        this.provider = this.props.token_data.provider || 'twilio'
+        // SIP connection fields, for a provider whose get_client_token()
+        // response carries a SIP credential. Unused when provider === 'twilio'.
+        this.sipUri = this.props.token_data.sip_uri
+        this.sipUsername = this.props.token_data.username
+        this.sipPassword = this.props.token_data.password
+        this.wssServer = this.props.token_data.wss_server
+        this.displayName = this.props.token_data.display_name
+        this.callStatus = {
+            NoAnswer: 'noanswer',
+            Busy: 'busy',
+            Rejected: 'busy',
+            Answered: 'answered',
+            Terminated: 'hangup',
+            Canceled: 'canceled',
+            Failed: 'failed'
+        }
+        this.tabs = {
+            phone: 'phone',
+            contacts: 'contacts',
+            calls: 'calls',
+            favorites: 'favorites',
+        }
+        this.status = {
+            incoming: 'incoming',
+            outgoing: 'outgoing',
+            connecting: 'connecting',
+            accepted: 'accepted',
+            ended: 'ended'
+        }
+        this.title = 'Connect Phone'
+        this.state = useState({
+            isActive: true,
+            isDisplay: false,
+            isDisplayLastState: false,
+            isCollapsed: false,  // New: collapsed to floating icon
+            isMicrophoneMute: false,
+            isSoundMute: localStorage.getItem('connect_is_sound_mute') === 'true',
+            isKeypad: true,
+            isContacts: false,
+            isFavorites: false,
+            isCalls: false,
+            isPartner: false,
+            isTransfer: false,
+            isOnHold: false,
+            holdInProgress: false,
+            isAddParticipant: false,
+            isAttendedTransfer: false,
+            showTransferChoice: false,
+            pendingTransferNumber: '',
+            isDialingPanel: false,
+            inCall: false,
+            inIncoming: false,
+            isContactList: false,
+            isWhatsapp: false,
+            phoneNumber: '',
+            callPhoneNumber: '',
+            contact_search_query: '',
+            user_search_query: '',
+            partnerName: '',
+            partnerId: '',
+            partnerUrl: '',
+            partnerIconUrl: '',
+            users: [],
+            activeTab: this.tabs.phone,
+            callDurationTime: '',
+            callerId: {},
+            hasWaitingCall: false,
+            waitingCallerId: {},  // {phoneNumber, partnerName, partnerId}
+            xTransferTo: '',
+            xTransferInfo: '',
+            xTransferPartner: false,
+            phone_status: this.status.ended,
+            calls: [],
+            connectionStatus: 'connecting',  // 'connecting', 'ready', 'error', 'offline'
+            connectionError: '',  // Human-readable reason for the current error/offline status
+            lastOperationError: false,
+            // Call quality metrics (from Twilio RTCStats samples)
+            callQuality: 'unknown',  // 'excellent', 'good', 'fair', 'poor', 'unknown'
+            callQualityMos: 0,
+            callQualityJitter: 0,
+            callQualityRtt: 0,
+            callQualityPacketLoss: 0,
+            callQualityWarnings: [],
+            showQualityDetails: false,
+            isAudioSettings: false,
+            audioEnabled: localStorage.getItem('connect_audio_enabled') !== 'false',
+            audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
+            isRecording: false,
+            isPaused: false,
+            recordingLoading: false,
+        })
+        // Phone dimensions for drag constraints (golden ratio)
+        this.phoneWidth = 300
+        this.phoneHeight = 486
+        this.collapsedSize = 56
+        // Offset from collapsed icon center to dialog top-left (for position restore)
+        this.collapseOffsetX = this.phoneWidth - 40  // Approximate minimize button X offset
+        this.collapseOffsetY = 18  // Header center Y offset
+        this.callDuration = 0
+        this.callDurationTimerInstance = null
+        this.phoneInput = useRef('connect-phone-input')
+
+        this.user = uid
+        this.sipRegistered = false
+        this.lastActiveTab = this.tabs.phone
+        this.session = null
+        this.waitingSession = null  // Incoming call waiting while user is in active call
+        this.heldSession = null
+        this.heldCallSid = null
+        this.heldCallId = null
+        this.heldCallerId = null
+        this.transport = null
+        this._reconnecting = false
+        this.call_id = null
+        this.call_sid = null  // Twilio CallSid for the current call
+        this.recording_sid = null        // SID of the active recording
+        this.recording_call_sid = null   // Call/conf SID that owns the recording (may differ from call_sid)
+        this.call_popup_is_enabled = false
+        this.call_popup_is_sticky = false
+        this.phone_ring_volume = 70
+        this.attended_transfer_sequence = '*7'
+        this.disconnect_call_sequence = '**'
+        // Move Phone
+        this.mousePosition = {}
+        this.offset = [0, 0]
+        this.isDown = false
+        this.wasDragged = false  // Track if drag occurred to prevent expand on drag end
+        this.phoneRoot = useRef("phone-root")
+        this.phoneHeader = useRef("phone-header")
+        this.collapsedIcon = useRef("collapsed-icon")
+        // BroadcastChannel
+        this.bc = new BroadcastChannel("connect")
+        this.contactSearch = 'all'
+        this.id = Math.floor(Math.random() * 1000000)
+        this.windows = [this.id]
+        this.sipSessions = []
+        this.suppressBroadcastChannel = false
+    }
+
+    setup() {
+        super.setup()
+        this.orm = useService('orm')
+        this.action = useService('action')
+        this.notification = useService("notification")
+        this.dialog = useService("dialog")
+        this.audioNotification = this.env.services.connect_audio
+        this.busService = useService('bus_service')
+
+        this.notify = (message, {title = 'Connect', sticky = null, type = 'info'}) => {
+            if (sticky === null) {
+                sticky = this.call_popup_is_sticky
+            }
+            if (this.call_popup_is_enabled) {
+                this.notification.add(message, {title, sticky, type})
+            }
+        }
+
+        this.debounceEnterPhoneNumber = useDebounced((ev) => {
+            this._onEnterPhoneNumber(ev)
+        }, 400)
+
+        // The systray button IS the phone's status light: it renders connecting /
+        // offline / error / ringing / in-call, so the user never needs a toast to
+        // learn the phone's state. Pushing that from an effect (rather than a
+        // bus.trigger at each mutation site) means the tray cannot drift out of
+        // sync -- every state change that matters re-runs this by construction.
+        // Precedent for useEffect with an explicit dependency getter:
+        // /mnt/19/odoo/addons/mail/static/src/core/common/message.js
+        useEffect(
+            () => this._syncTray(),
+            () => [
+                this.state.isDisplay,
+                this.state.inCall,
+                this.state.inIncoming,
+                this.state.connectionStatus,
+                this.state.connectionError,
+                this.state.isActive,
+            ],
+        )
+
+        useBus(this.bus, 'busPhoneMakeCall', ({detail}) => this.prepareCall(detail))
+        useBus(this.bus, 'busPhoneMakeTransfer', ({detail}) => this._busPhoneMakeTransfer(detail))
+        useBus(this.bus, 'busPhoneAddParticipant', ({detail}) => this._busPhoneAddParticipant(detail))
+        useBus(this.bus, 'busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
+        useBus(this.bus, 'busPhoneHangUp', ({detail}) => this._busPhoneHangUp(detail))
+        useBus(this.bus, 'busPhoneReconnect', () => this._reconnect())
+
+        onWillStart(async () => {
+            await this._getTransportClass(this.provider).loadDependencies()
+
+            this._beforeUnloadHandler = (event) => {
+                if (this.session) {
+                    event = event || window.event
+                    const message = "You're in call! Are you sure you want to close?"
+                    if (event) {
+                        event.returnValue = message
+                    }
+                    return message
+                }
+            }
+            window.addEventListener("beforeunload", this._beforeUnloadHandler)
+
+            this._unloadHandler = () => {
+                // The page is going away, so every live dialog has to end.
+                // An unanswered incoming dialog is declined; a waiting dialog
+                // is declined on its own and is not promoted into the panel.
+                this._unloading = true
+                this._stopIncomingRing()
+                this._updatePresence('offline')
+                const waiting = this.waitingSession
+                if (waiting) {
+                    this.waitingSession = null
+                    try {
+                        waiting.reject()
+                    } catch (e) {
+                        console.warn('Connect: reject waiting call on unload failed:', e)
+                    }
+                }
+                if (this.session) {
+                    const params = {id: this.id, action: 'pop'}
+                    this.bc.postMessage({event: 'tbcSipSession', params})
+                    this.bc.postMessage({event: "tbcCloseTab", params: {id: this.id}})
+                    this.session.disconnect()
+                }
+            }
+            window.addEventListener("unload", this._unloadHandler)
+        })
+
+        onMounted(() => {
+            // Suppress benign unhandled rejections from the vendored Twilio SDK:
+            //   - AbortError: audio play/pause race conditions
+            //   - InvalidArgumentError "Device not found": AudioHelper._updateDevices()
+            //     fires setTimeout(_setInputDevice('default')) with no .catch() when a
+            //     devicechange leaves no 'default' input device enumerated.
+            this._twilioRejectionHandler = (event) => {
+                const error = event.reason
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    event.preventDefault()
+                    return
+                }
+                if (error?.name === 'InvalidArgumentError'
+                        && error.message?.includes('Device not found')) {
+                    event.preventDefault()
+                }
+            }
+            window.addEventListener('unhandledrejection', this._twilioRejectionHandler)
+
+            // Setup audio unlock handler for browser autoplay restrictions
+            setupAudioUnlock()
+
+            // Subscribe to bus events for park slot notifications
+            this._reloadViewHandler = (payload) => {
+                if (payload && payload.model === "connect.park_slot") {
+                    this.audioNotification.play("park")
+                }
+            }
+            this.busService.subscribe("reload_view", this._reloadViewHandler)
+
+            // When an auto-recording starts (record-from-answer-dual via TwiML), Twilio
+            // sends an in-progress callback that we relay here. Refresh state immediately
+            // so the UI shows "Recording" without waiting for retry polling to succeed.
+            this._recordingStartedHandler = () => {
+                if (this.call_sid) {
+                    this._fetchRecordingState()
+                }
+            }
+            this.busService.subscribe("recording_started", this._recordingStartedHandler)
+
+            // Handle tab visibility changes: when user returns to an idle tab,
+            // the browser may have closed IDB connections and Twilio websocket.
+            // Re-initialize the device if needed.
+            this._visibilityHandler = () => {
+                if (!document.hidden && this.state.isActive) {
+                    if (this._needsTokenRefresh) {
+                        this._needsTokenRefresh = false
+                        this.updateToken()
+                    }
+                    if (!this.transport || this.transport.state === 'destroyed') {
+                        // Transport was destroyed while tab was hidden — full re-init
+                        console.debug('Connect: transport was destroyed while tab was hidden, re-initializing')
+                        this.initTransport()
+                    } else if (this.transport.state === 'unregistered') {
+                        // Transport lost registration while tab was hidden — refresh token and re-register
+                        console.debug('Connect: transport unregistered while tab was hidden, re-registering')
+                        this.updateToken()
+                    }
+                }
+            }
+            document.addEventListener('visibilitychange', this._visibilityHandler)
+
+            this.initTransport()
+
+            // Proactive token refresh every 50 minutes (token TTL is 3600s/60min).
+            // Prevents silent expiry on idle tabs that miss error-driven refresh.
+            this._tokenRefreshInterval = setInterval(() => {
+                if (this.state.isActive && this.transport && this.transport.state !== 'destroyed'
+                        && this.state.connectionStatus !== 'connecting') {
+                    this.updateToken()
+                }
+            }, 50 * 60 * 1000)
+
+            // Network connectivity monitoring
+            this._onlineHandler = () => {
+                if (this.state.connectionStatus === 'offline') {
+                    this._reconnect()
+                }
+            }
+            this._offlineHandler = () => {
+                this._setConnectionStatus('offline', 'This device has no network connection.')
+            }
+            window.addEventListener('online', this._onlineHandler)
+            window.addEventListener('offline', this._offlineHandler)
+
+            const self = this
+            const phoneRoot = this.phoneRoot.el
+            const startDrag = (e) => {
+                self.isDown = true
+                self.offset = [
+                    phoneRoot.offsetLeft - e.clientX,
+                    phoneRoot.offsetTop - e.clientY
+                ]
+            }
+
+            // Drag from header when expanded
+            this.phoneHeader.el.addEventListener("mousedown", startDrag, true)
+
+            // Drag from collapsed icon when collapsed
+            this.collapsedIcon.el.addEventListener("mousedown", (e) => {
+                if (self.state.isCollapsed) {
+                    e.stopPropagation()  // Prevent expand on drag
+                    startDrag(e)
+                }
+            }, true)
+
+            this._mouseUpHandler = function () {
+                // Reset drag state after a short delay to allow click handler to check
+                setTimeout(() => {
+                    self.wasDragged = false
+                }, 50)
+                self.isDown = false
+            }
+            document.addEventListener("mouseup", this._mouseUpHandler, true)
+
+            this._mouseMoveHandler = function (event) {
+                if (self.isDown) {
+                    event.preventDefault()
+                    self.wasDragged = true  // Mark that a drag occurred
+                    self.mousePosition = {
+                        x: event.clientX,
+                        y: event.clientY
+                    }
+                    const px = self.mousePosition.x + self.offset[0]
+                    const py = self.mousePosition.y + self.offset[1]
+                    const cx = document.documentElement.clientWidth
+                    const cy = document.documentElement.clientHeight
+
+                    // Get current dimensions based on collapsed state
+                    const currentWidth = self.state.isCollapsed ? self.collapsedSize : self.phoneWidth
+                    const currentHeight = self.state.isCollapsed ? self.collapsedSize : self.phoneHeight
+
+                    // Allow docking at edges with no margin
+                    let left = px < 0 ? 0 : px
+                    left = left + currentWidth > cx ? cx - currentWidth : left
+                    let top = py < 0 ? 0 : py
+                    // Allow phone to dock at the very bottom with no gap
+                    top = top + currentHeight > cy ? cy - currentHeight : top
+
+                    phoneRoot.style.left = left + "px"
+                    phoneRoot.style.top = top + "px"
+                    // Remove bottom style when manually positioned
+                    phoneRoot.style.bottom = "auto"
+                }
+            }
+            document.addEventListener("mousemove", this._mouseMoveHandler, true)
+            // BroadcastChannel Events
+            this.bc.onmessage = ({data: {event, params}}) => {
+                const localStartCall = () => {
+                    if (self.session) return
+                    const {callerId, isPartner} = params
+                    self.state.isPartner = isPartner
+                    self.state.callerId = callerId
+
+                    self.state.inIncoming = true
+                    self.state.isDialingPanel = true
+                    self.startCall()
+                }
+                if (event === 'tbcStartCall') {
+                    if (!self.session && !self.state.inIncoming) {
+                        self.state.isDisplayLastState = self.state.isDisplay
+                    }
+                    localStartCall()
+                    if (self.id === self.windows.at(-1) && !self.session) {
+                        const ringParams = {id: self.sipSessions[0]}
+                        self.bc.postMessage({event: "tbcRing", params: ringParams})
+                    }
+                } else if (event === 'tbcAnswerCall') {
+                    if (self.session && params.id === self.id) {
+                        self.session.accept()
+                    }
+                    localStartCall()
+                    self.state.inIncoming = false
+                    self.state.phone_status = self.status.accepted
+                    if (self.session) {
+                        setTimeout(() => {
+                            localStartCall()
+                            self.state.inIncoming = false
+                            self.state.phone_status = self.status.accepted
+                        }, 500)
+                    }
+
+                } else if (event === "tbcEndCall") {
+                    if (self.session) {
+                        self.suppressBroadcastChannel = true
+                        self.session.disconnect()
+                    }
+                    self.state.phone_status = self.status.ended
+                    self.endCall().then()
+                } else if (event === 'tbcNewTab') {
+                    self.windows.push(params.id)
+                    if (self.session) {
+                        const syncParams = self.getJsonCallData()
+                        self.bc.postMessage({event: "tbcSync", params: syncParams})
+                    }
+                } else if (event === 'tbcCloseTab') {
+                    const index = self.windows.indexOf(params.id)
+                    if (index > -1) {
+                        self.windows.splice(index, 1)
+                        if (self.id === self.windows.at(-1) && self.transport && self.transport.state === 'unregistered') {
+                            self.transport.register().catch((e) => {
+                                console.warn('Connect: Re-registration on tab close failed:', e?.message || e)
+                            })
+                        }
+                    }
+                } else if (event === 'tbcDtmf') {
+                    if (self.session) {
+                        self.sendDTMF(params.key)
+                    }
+                } else if (event === 'tbcTransfer') {
+                    // Transfer is handled by backend via Twilio API, no SIP action needed
+                } else if (event === 'tbcHold') {
+                    // Sync hold state from another tab (display only, no Twilio SDK call)
+                    self.state.isOnHold = params.isOnHold
+                    self.state.holdInProgress = false
+                } else if (event === 'tbcWaitingCall') {
+                    // Sync call waiting state from the tab that owns the session
+                    self.state.hasWaitingCall = params.hasWaitingCall
+                    self.state.waitingCallerId = params.waitingCallerId || {}
+                } else if (event === 'tbcMicrophoneMute') {
+                    if (self.session) {
+                        // Call.mute(bool) is the only mute primitive the transport interface
+                        // exposes; Twilio's Call never defines .unmute(), so calling it throws.
+                        self.session.mute(params.mute === true)
+                    }
+                    self.state.isMicrophoneMute = params.mute
+                } else if (event === 'tbcSoundMute') {
+                    self.state.isSoundMute = params.mute
+                    self.setIncomingVolume()
+                    self._syncIncomingRing()
+                } else if (event === 'tbcSync') {
+                    if (self.state.inCall === false) {
+                        self.state.callerId = params.callerId
+                        self.state.isPartner = params.isPartner
+                        self.state.inCall = true
+                        self.state.phone_status = params.phoneStatus
+                        self.startCall()
+                    }
+                } else if (event === 'tbcSipSession') {
+                    const {action} = params
+                    if (action === 'push') {
+                        self.sipSessions.push(params.id)
+                    } else if (action === 'clear') {
+                        self.sipSessions = []
+                    } else if (action === 'pop') {
+                        const index = self.sipSessions.indexOf(params.id)
+                        if (index > -1) {
+                            self.sipSessions.splice(index, 1)
+                        }
+                        if (self.sipSessions.length === 0) {
+                            self.state.phone_status = self.status.ended
+                            self.endCall().then()
+                        }
+                    }
+                } else if (event === 'tbcRing') {
+                    // Ring handled by Twilio SDK on the tab that owns the session
+                }
+            }
+            this.bc.postMessage({event: "tbcNewTab", params: {id: this.id}})
+        })
+
+        onWillUnmount(() => {
+            this._stopIncomingRing()
+            window.removeEventListener("beforeunload", this._beforeUnloadHandler)
+            window.removeEventListener("unload", this._unloadHandler)
+            if (this._reloadViewHandler) {
+                this.busService.unsubscribe("reload_view", this._reloadViewHandler)
+            }
+            if (this._recordingStartedHandler) {
+                this.busService.unsubscribe("recording_started", this._recordingStartedHandler)
+            }
+            if (this._twilioRejectionHandler) {
+                window.removeEventListener('unhandledrejection', this._twilioRejectionHandler)
+            }
+            if (this._visibilityHandler) {
+                document.removeEventListener('visibilitychange', this._visibilityHandler)
+            }
+            if (this._mouseUpHandler) {
+                document.removeEventListener('mouseup', this._mouseUpHandler, true)
+            }
+            if (this._mouseMoveHandler) {
+                document.removeEventListener('mousemove', this._mouseMoveHandler, true)
+            }
+            if (this._onlineHandler) {
+                window.removeEventListener('online', this._onlineHandler)
+            }
+            if (this._offlineHandler) {
+                window.removeEventListener('offline', this._offlineHandler)
+            }
+            if (this._errorTimeout) {
+                clearTimeout(this._errorTimeout)
+            }
+            if (this._tokenRefreshInterval) {
+                clearInterval(this._tokenRefreshInterval)
+            }
+            this.destroyCallCounter()
+            this.bc.close()
+        })
+    }
+
+    _busPhoneToggleDisplay() {
+        this.state.isDisplayLastState = !this.state.isDisplay
+        this.toggleDisplay()
+    }
+
+    async _busPhoneHangUp() {
+        await this._onClickEndCall()
+    }
+
+    async _busPhoneMakeTransfer({phoneNumber} = {}) {
+        // Show transfer choice dialog (Blind vs Attended)
+        this.state.pendingTransferNumber = phoneNumber
+        this.state.showTransferChoice = true
+        this.state.isContacts = false
+        this.state.isTransfer = false
+        this.state.isDialingPanel = true
+        this.state.xTransferTo = phoneNumber
+    }
+
+    async _onClickBlindTransfer() {
+        const confirmed = await new Promise(resolve => {
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Blind Transfer"),
+                body: _t("This will immediately transfer the call. The caller cannot be retrieved. Continue?"),
+                confirm: () => resolve(true),
+                cancel: () => resolve(false),
+            })
+        })
+        if (!confirmed) return
+        const phoneNumber = this.state.pendingTransferNumber
+        this.state.showTransferChoice = false
+        this.state.pendingTransferNumber = ''
+        if (this.session) {
+            this.notification.add(_t("Transfer initiated"), {title: 'Connect', type: 'info'})
+            try {
+                const result = await this.orm.call('connect.transfer_wizard', 'execute_transfer', [
+                    phoneNumber,
+                    'blind',
+                    this.call_id,
+                    this.session.params.CallSid
+                ])
+                if (result.success) {
+                    this.notify(result.message, {sticky: false, type: 'success'})
+                    this.audioNotification.play('transfer_complete')
+                } else {
+                    this._setOperationError(result.error || 'Transfer failed')
+                    this.notify(result.error || 'Transfer failed', {sticky: false, type: 'warning'})
+                    this.audioNotification.play('transfer_failed')
+                }
+            } catch (error) {
+                console.error('Transfer error:', error)
+                this._setOperationError('Transfer failed')
+                this.notify('Transfer failed', {sticky: false, type: 'warning'})
+                this.audioNotification.play('transfer_failed')
+            }
+        }
+        this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber}})
+        this.endCall()
+    }
+
+    async _onClickAttendedTransfer() {
+        const phoneNumber = this.state.pendingTransferNumber
+        this.state.showTransferChoice = false
+        this.state.pendingTransferNumber = ''
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        try {
+            const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
+                this._callControlPayload(callSid, {step: 'start'})])
+            if (result.success) {
+                this.state.isAttendedTransfer = true
+                this.state.isOnHold = true
+                this.state.xTransferTo = phoneNumber
+                this.state.xTransferInfo = 'Caller on hold — dial ' + phoneNumber + ' to consult'
+                this.notify('Caller on hold. Dial the consult target.', {type: 'info'})
+            } else {
+                this._callControlFailed(result, 'Failed to hold caller')
+            }
+        } catch (e) {
+            console.error('Attended transfer error:', e)
+            this._callControlFailed(e, 'Failed to initiate attended transfer')
+        }
+    }
+
+    async _onClickCompleteTransfer() {
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        const consultTarget = this.state.xTransferTo
+        if (!callSid || !consultTarget) {
+            this.notify('Missing call or transfer target', {type: 'warning'})
+            return
+        }
+        try {
+            const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
+                this._callControlPayload(callSid, {step: 'complete', number: consultTarget})])
+            if (result.success) {
+                this.notify('Transfer completed', {type: 'success'})
+                this.audioNotification.play('transfer_complete')
+                this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber: consultTarget}})
+                this.endCall()
+            } else {
+                this._callControlFailed(result, 'Transfer completion failed')
+                this.audioNotification.play('transfer_failed')
+            }
+        } catch (e) {
+            console.error('Complete transfer error:', e)
+            this._callControlFailed(e, 'Transfer completion failed')
+            this.audioNotification.play('transfer_failed')
+        }
+    }
+
+    async _onClickCancelTransfer() {
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        if (!callSid) return
+        try {
+            const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
+                this._callControlPayload(callSid, {step: 'cancel'})])
+            if (result.success) {
+                this.state.isAttendedTransfer = false
+                this.state.isOnHold = false
+                this.state.xTransferTo = ''
+                this.state.xTransferInfo = ''
+                this.notify('Transfer cancelled, caller resumed', {type: 'info'})
+            } else {
+                this._callControlFailed(result, 'Cancel failed')
+            }
+        } catch (e) {
+            console.error('Cancel transfer error:', e)
+            this._callControlFailed(e, 'Cancel transfer failed')
+        }
+    }
+
+    async _busPhoneAddParticipant({phoneNumber} = {}) {
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        try {
+            const result = await this.orm.call('connect.channel', 'add_softphone_participant', [
+                this._callControlPayload(callSid, {number: phoneNumber})])
+            if (result.success) {
+                this.notify('Adding participant...', {type: 'info'})
+            } else {
+                this._callControlFailed(result, 'Failed to add participant')
+            }
+        } catch (e) {
+            console.error('Add participant error:', e)
+            this._callControlFailed(e, 'Failed to add participant')
+        }
+        this.state.isAddParticipant = false
+        this.state.isContacts = false
+        this.state.isDialingPanel = true
+    }
+
+    async _reconnect() {
+        // Re-entry guard: cascading device errors (31009 → AccessTokenInvalid → AccessTokenExpired)
+        // can all schedule reconnects through per-device closures. Gate at the instance level so
+        // the whole cascade collapses into a single reconnect cycle.
+        if (this._reconnecting) {
+            return
+        }
+        this._reconnecting = true
+        this._setConnectionStatus('connecting')
+        this.bus.trigger('busTraySetException', {exception: null})
+
+        // Destroy existing transport if present
+        if (this.transport) {
+            try {
+                this.transport.destroy()
+            } catch (e) {
+                console.warn('Connect: Error destroying existing transport:', e)
+            }
+            this.transport = null
+        }
+
+        // Fetch a new token and re-initialize
+        try {
+            const token_data = await this.orm.call(
+                'connect.user', 'get_client_token', [], {nonce: this.browserSessionNonce})
+            if (this._hasCredential(token_data)) {
+                this._applyTokenData(token_data)
+                this.initTransport()
+            } else {
+                this._failReconnect('Could not obtain a phone token.')
+            }
+        } catch (e) {
+            console.error('Connect: Reconnect failed:', e)
+            this._failReconnect(e.message || 'Reconnection failed.')
+        } finally {
+            this._reconnecting = false
+        }
+    }
+
+    /**
+     * Single writer for the connection lifecycle. Connectivity is ambient state,
+     * not an event: it is rendered continuously by the systray button and the
+     * in-panel banner rather than announced by toasts, which pile up during a
+     * flapping network and obscure the very UI the user needs in order to click
+     * Retry.
+     */
+    _setConnectionStatus(status, error = '') {
+        this.state.connectionStatus = status
+        this.state.connectionError = status === 'ready' ? '' : error
+    }
+
+    _failReconnect(message) {
+        this._setConnectionStatus('error', message)
+    }
+
+    /** Push the phone's user-visible state to the systray button. */
+    _syncTray() {
+        this.bus.trigger('busTraySetState', {
+            isDisplay: this.state.isDisplay,
+            inCall: this.state.inCall,
+            inIncoming: this.state.inIncoming,
+            connectionStatus: this.state.connectionStatus,
+            connectionError: this.state.connectionError,
+            isActive: this.state.isActive,
+        })
+    }
+
+    _onClickReconnect() {
+        this._reconnect()
+    }
+
+    _setOperationError(message) {
+        this.state.lastOperationError = message
+        if (this._errorTimeout) clearTimeout(this._errorTimeout)
+        this._errorTimeout = setTimeout(() => { this.state.lastOperationError = false }, 10000)
+    }
+
+    /** Hold, attended transfer and add participant need provider support. */
+    get callControlSupported() {
+        const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
+        return !!(TransportClass && TransportClass.supportsCallControl)
+    }
+
+    _callControlPayload(callSid, extra = {}) {
+        return {provider: this.provider, channel_sid: callSid, ...extra}
+    }
+
+    /**
+     * Surface a call-control failure in the server's words. A UserError
+     * arrives as an RPC error carrying data.message; a {success: false}
+     * result carries error. The fallback is for errors with neither.
+     */
+    _callControlFailed(error, fallback) {
+        const message = error?.data?.message ?? error?.error ?? error?.message ?? fallback
+        this._setOperationError(message)
+        this.notify(message, {type: 'warning'})
+    }
+
+    async prepareCall(props) {
+        if (!this.state.inCall) {
+            this.state.isContactList = false
+            this.state.callPhoneNumber = props.phone
+            await this.searchPartner(props.phone)
+            this.makeCall(props)
+        }
+    }
+
+    async setCallStatus(status) {
+        const currentCallStatus = this.callStatus[status] ? this.callStatus[status] : this.callStatus.Failed
+        this.notify(currentCallStatus.toUpperCase(), {sticky: false})
+    }
+
+    async updateToken() {
+        // Guard: skip if transport is unavailable or a reconnect is already in progress
+        if (!this.transport || this.transport.state === 'destroyed') {
+            return
+        }
+        if (this.state.connectionStatus === 'connecting') {
+            return
+        }
+        try {
+            const token_data = await this.orm.call(
+                'connect.user', 'get_client_token', [], {nonce: this.browserSessionNonce})
+            // Re-check transport state after async call — reconnect may have destroyed it
+            if (!this._hasCredential(token_data) || !this.transport || this.transport.state === 'destroyed') {
+                return
+            }
+            try {
+                this.transport.updateAuth(this._buildConnData(token_data))
+            } catch (e) {
+                // updateAuth() throws synchronously if transport is dead
+                console.warn('Connect: transport.updateAuth() threw:', e?.message || e)
+                return
+            }
+            this._applyTokenData(token_data)
+            // Re-register only if transport is unregistered (e.g. after disconnect)
+            // Calling register() on an already-registered transport throws InvalidStateError
+            if (this.transport.state === 'unregistered') {
+                try {
+                    await this.transport.register()
+                } catch (regErr) {
+                    console.warn('Connect: Re-registration after token refresh failed:', regErr?.message || regErr)
+                }
+            }
+        } catch (e) {
+            console.warn('Connect: Token refresh failed, will retry when tab is active:', e?.message || e)
+            this._needsTokenRefresh = true
+        }
+    }
+
+    /**
+     * Extension point: providers register their transport class into the
+     * "connect.telephony_transports" registry (see twilio_transport.js's
+     * own registry.category(...).add(...) call) —
+     * nothing here, or anywhere else in this file, needs to change to add a
+     * further provider. A provider module that isn't installed simply never
+     * registers, and is never imported by this file either.
+     */
+    _getTransportClass(provider) {
+        const TransportClass = registry.category("connect.telephony_transports").get(provider, null)
+        if (!TransportClass) {
+            throw new Error(`Connect: no telephony transport implemented for provider "${provider}"`)
+        }
+        return TransportClass
+    }
+
+    _createTransport(provider) {
+        return new (this._getTransportClass(provider))()
+    }
+
+    /**
+     * Builds the connData object transport.init()/updateAuth() expect. When
+     * tokenData is omitted, builds from the fields currently held on the
+     * component (set by the constructor or a prior _applyTokenData()).
+     * Delegated to the active provider's transport class — see
+     * TelephonyTransport.buildConnData()'s default and each transport's
+     * override.
+     */
+    _buildConnData(tokenData) {
+        const data = tokenData || {
+            token: this.token, edge: this.edge, sip_uri: this.sipUri,
+            username: this.sipUsername, password: this.sipPassword,
+            wss_server: this.wssServer, display_name: this.displayName,
+        }
+        return this._getTransportClass(this.provider).buildConnData(data)
+    }
+
+    /** True once get_client_token() returned a usable credential for the active provider. */
+    _hasCredential(tokenData) {
+        return this._getTransportClass(this.provider).hasCredential(tokenData)
+    }
+
+    _applyTokenData(tokenData) {
+        this.token = tokenData.token
+        this.edge = tokenData.edge
+        this.sipUri = tokenData.sip_uri
+        this.sipUsername = tokenData.username
+        this.sipPassword = tokenData.password
+        this.wssServer = tokenData.wss_server
+        this.displayName = tokenData.display_name
+    }
+
+    initTransport() {
+        const self = this
+        if (!self.state.isActive) {
+            return
+        }
+
+        // Check WebRTC support before initializing the transport
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('Connect: WebRTC not supported in this browser')
+            self.state.isActive = false
+            self._setConnectionStatus('error', 'This browser does not support WebRTC.')
+            self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
+            return
+        }
+
+        self.transport = self._createTransport(self.provider)
+
+        try {
+            self.transport.init(self._buildConnData())
+        } catch (error) {
+            console.error('Connect: Failed to create transport:', error)
+            self.state.isActive = false
+            self._setConnectionStatus('error', error.message || 'Phone service failed to start.')
+            self.bus.trigger('busTraySetException', {exception: error.name || 'InitFailed'})
+            return
+        }
+
+        // Try to set incoming volume, but don't fail if AudioContext is blocked
+        try {
+            this.setIncomingVolume()
+        } catch (e) {
+            console.warn('Connect: Could not set incoming volume (AudioContext may be blocked):', e)
+        }
+        self.transport.on('authWillExpire', () => {
+            console.debug('Connect: Token expiring, refreshing')
+            self.updateToken()
+        })
+
+        self.transport.on('registered', () => {
+            self._setConnectionStatus('ready')
+            self.sipRegistered = true
+            self._updatePresence('available')
+        })
+
+        self.transport.on('unregistered', () => {
+            self.sipRegistered = false
+            // If not in a call, attempt silent auto-recovery instead of staying offline
+            if (!self.state.inCall && self.state.isActive) {
+                self._setConnectionStatus('connecting')
+                console.debug('Connect: Transport unregistered, attempting silent re-registration')
+                setTimeout(() => {
+                    // Skip soft recovery if a transport error already triggered full reconnect
+                    if (errorRecoveryPending) return
+                    if (self.transport && self.transport.state === 'unregistered') {
+                        self.updateToken()
+                    }
+                }, 3000)
+            } else {
+                self._setConnectionStatus('offline', 'Lost the connection to the phone service.')
+                self._updatePresence('offline')
+            }
+        })
+
+        // Debounce error handling to prevent cascading 31009 loops:
+        // a dead transport fires 31009 on every pending operation (register, setToken, etc.)
+        let errorRecoveryPending = false
+
+        self.transport.on('error', (error) => {
+            console.error('Connect: Transport error:', error.message || error)
+
+            const isTransportError = error.code === 31009 || error.code === 31005
+            const isTokenError = error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid'
+
+            if (isTransportError || isTokenError) {
+                // Dead transport or rejected token — full teardown+rebuild with fresh token.
+                // Per-device debounce + instance-level _reconnecting guard prevent both intra-device
+                // cascades (31009 → AccessTokenInvalid on the same corpse) and cross-device cascades
+                // (each new transport firing its own error before the prior reconnect completes).
+                if (errorRecoveryPending || self._reconnecting) return
+                errorRecoveryPending = true
+                self._setConnectionStatus('connecting')
+                self._updatePresence('offline')
+                setTimeout(() => {
+                    errorRecoveryPending = false
+                    self._reconnect()
+                }, isTransportError ? 5000 : 2000)
+            } else if (error.name === 'NotSupportedError') {
+                console.error('Connect: Browser does not support required features:', error.message)
+                self.state.isActive = false
+                self._setConnectionStatus('error', 'This browser is missing features the phone needs.')
+                self._updatePresence('offline')
+                self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
+            } else {
+                self._setConnectionStatus('error', error.message || 'Phone service error.')
+                self._updatePresence('offline')
+            }
+        })
+
+        // HANDLE incoming calls
+        self.transport.on("incoming", async function (call) {
+            self.state.isContactList = false
+            let phoneNumber = call.params.From
+            if (phoneNumber.startsWith("whatsapp:")) {
+                phoneNumber = phoneNumber.replace(/^whatsapp:/, "")
+                self.state.isWhatsapp = true
+            }
+            const callCallerName = call.params.CallerName
+            const callPartnerId = call.params.Partner
+            const autoAnswer = call.params.autoAnswer
+            const origin = call.params.Origin
+
+            // A click-to-call rings every device signed in as this user. Only
+            // the tab that placed it answers; the others ignore, never reject,
+            // because a reject would end the ring on the answering device too.
+            if (autoAnswer === 'yes' && origin && origin !== self.browserSessionNonce) {
+                call.ignore()
+                return
+            }
+
+            if (self.session === null) {
+                self.session = call
+                self.sipSessions.push(self.id)
+                const params = {id: self.id, action: 'push'}
+                self.bc.postMessage({event: 'tbcSipSession', params})
+            } else {
+                // During attended transfer, incoming call may be the consult leg — don't reject
+                if (self.state.isAttendedTransfer) {
+                    self.waitingSession = call
+                    self.state.hasWaitingCall = true
+                    self.state.waitingCallerId = {
+                        phoneNumber,
+                        partnerName: callCallerName || '',
+                        partnerId: callPartnerId !== 'false' ? callPartnerId : false,
+                    }
+                    self.notify('Consult call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
+                    self.bc.postMessage({event: "tbcWaitingCall", params: {
+                        hasWaitingCall: true,
+                        waitingCallerId: {...self.state.waitingCallerId},
+                    }})
+                    self._syncIncomingRing()
+                    return
+                }
+                // Call waiting: store the incoming call instead of rejecting
+                if (self.waitingSession) {
+                    // Already have a waiting call — reject the third one
+                    call.reject()
+                    return
+                }
+                self.waitingSession = call
+                self.state.hasWaitingCall = true
+
+                // Extract caller info for display
+                self.state.waitingCallerId = {
+                    phoneNumber,
+                    partnerName: callCallerName || '',
+                    partnerId: callPartnerId !== 'false' ? callPartnerId : false,
+                }
+
+                // Notify user and sync waiting call state to other tabs
+                self.notify('Incoming call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
+                self.bc.postMessage({event: "tbcWaitingCall", params: {
+                    hasWaitingCall: true,
+                    waitingCallerId: {...self.state.waitingCallerId},
+                }})
+                self._syncIncomingRing()
+
+                // Set up handlers for the waiting call. Once it is promoted
+                // to the foreground panel these listeners no longer own it.
+                call.on('cancel', () => {
+                    if (self.waitingSession !== call) return
+                    self.waitingSession = null
+                    self.state.hasWaitingCall = false
+                    self.state.waitingCallerId = {}
+                    self._syncIncomingRing()
+                    self.notify('Waiting call ended', {type: 'info'})
+                    self.bc.postMessage({event: "tbcWaitingCall", params: {
+                        hasWaitingCall: false,
+                        waitingCallerId: {},
+                    }})
+                })
+
+                call.on('disconnect', () => {
+                    if (self.waitingSession !== call) return
+                    self.waitingSession = null
+                    self.state.hasWaitingCall = false
+                    self.state.waitingCallerId = {}
+                    self._syncIncomingRing()
+                    self.bc.postMessage({event: "tbcWaitingCall", params: {
+                        hasWaitingCall: false,
+                        waitingCallerId: {},
+                    }})
+                })
+
+                return
+            }
+
+            self.state.callPhoneNumber = phoneNumber
+
+            if (callPartnerId !== 'false') {
+                self.state.isPartner = true
+                self.state.callerId = {
+                    partnerId: parseInt(callPartnerId),
+                    partnerName: callCallerName,
+                    partnerIconUrl: self.computePartnerIconUrl(callPartnerId),
+                    partnerUrl: self.computePartnerUrl(callPartnerId),
+                    phoneNumber,
+                }
+            } else {
+                self.state.callerId = {phoneNumber}
+                await self.searchPartner(phoneNumber)
+            }
+
+            self.state.isDisplayLastState = self.state.isDisplay
+            if (!self.state.isDisplay) {
+                self.toggleDisplay()
+            }
+            const params = self.getJsonCallData()
+            self.bc.postMessage({event: "tbcStartCall", params})
+
+            self.state.inIncoming = true
+            self.state.isDialingPanel = true
+            self.startCall()
+            self._attachIncomingCall(call, phoneNumber)
+
+            if (autoAnswer === 'yes') {
+                call.accept()
+                self.state.phone_status = self.status.accepted
+                self.state.inIncoming = false
+                self.startCall()
+            }
+            self._syncIncomingRing()
+        })
+
+        // Register with exponential backoff retry (3 attempts: 2s, 4s, 8s)
+        const registerWithRetry = async (attempt = 0) => {
+            const maxAttempts = 3
+            try {
+                await self.transport.register()
+            } catch (e) {
+                if (attempt < maxAttempts - 1) {
+                    const delay = Math.pow(2, attempt + 1) * 1000
+                    console.warn(`Connect: Registration attempt ${attempt + 1} failed, retrying in ${delay}ms`)
+                    setTimeout(() => registerWithRetry(attempt + 1), delay)
+                } else {
+                    console.error('Connect: Registration failed after all retries')
+                    self._setConnectionStatus('error', 'Phone registration failed.')
+                }
+            }
+        }
+        registerWithRetry()
+    }
+
+    setIncomingVolume() {
+        try {
+            if (this.transport) {
+                this.transport.setIncomingAudio(!this.state.isSoundMute)
+            }
+        } catch (e) {
+            console.warn('Connect: Could not set incoming volume:', e)
+        }
+    }
+
+    /**
+     * Attach call quality monitoring to a Call. Listens for the transport's
+     * normalized 'quality' event (Twilio-only today — see TwilioCall, which
+     * maps its 'sample' (every ~1s with RTCStats)/'warning'/'warning-cleared'
+     * events into this shape; a transport that can't measure quality simply
+     * never emits it). Only updates state when quality level changes or
+     * metrics shift meaningfully to avoid unnecessary re-renders.
+     */
+    _attachQualityMonitor(call) {
+        const self = this
+
+        call.on('quality', (evt) => {
+            if (evt.kind === 'sample') {
+                const sample = evt.sample
+                const mos = sample.mos
+                let quality = 'unknown'
+                if (mos >= 4.2) quality = 'excellent'
+                else if (mos >= 3.8) quality = 'good'
+                else if (mos >= 3.2) quality = 'fair'
+                else if (mos > 0) quality = 'poor'
+
+                const jitter = sample.jitter ? Math.round(sample.jitter) : 0
+                const rtt = sample.rtt ? Math.round(sample.rtt) : 0
+                let packetLoss = 0
+                if (sample.packetsReceived > 0) {
+                    packetLoss = parseFloat(((sample.packetsLost / (sample.packetsReceived + sample.packetsLost)) * 100).toFixed(1))
+                }
+
+                // Only update state if quality level changed or metrics shifted meaningfully (>10%)
+                const qualityChanged = quality !== self.state.callQuality
+                const metricsChanged = (
+                    Math.abs(jitter - self.state.callQualityJitter) > Math.max(1, self.state.callQualityJitter * 0.1) ||
+                    Math.abs(rtt - self.state.callQualityRtt) > Math.max(1, self.state.callQualityRtt * 0.1) ||
+                    Math.abs(packetLoss - self.state.callQualityPacketLoss) > 0.5
+                )
+
+                if (qualityChanged || metricsChanged) {
+                    self.state.callQuality = quality
+                    self.state.callQualityMos = mos ? mos.toFixed(1) : '—'
+                    self.state.callQualityJitter = jitter
+                    self.state.callQualityRtt = rtt
+                    self.state.callQualityPacketLoss = packetLoss
+                }
+            } else if (evt.kind === 'warning') {
+                if (!self.state.callQualityWarnings.includes(evt.name)) {
+                    self.state.callQualityWarnings = [...self.state.callQualityWarnings, evt.name]
+                }
+            } else if (evt.kind === 'warning-cleared') {
+                self.state.callQualityWarnings = self.state.callQualityWarnings.filter(w => w !== evt.name)
+            }
+        })
+    }
+
+    /**
+     * Reset all call quality state to defaults.
+     */
+    _resetCallQuality() {
+        this.state.callQuality = 'unknown'
+        this.state.callQualityMos = 0
+        this.state.callQualityJitter = 0
+        this.state.callQualityRtt = 0
+        this.state.callQualityPacketLoss = 0
+        this.state.callQualityWarnings = []
+        this.state.showQualityDetails = false
+    }
+
+    _onClickQualityIndicator() {
+        this.state.showQualityDetails = !this.state.showQualityDetails
+    }
+
+    _updatePresence(status) {
+        this._presenceDesired = status
+        if (this._presenceInFlight) {
+            return
+        }
+        this._flushPresence()
+    }
+
+    async _flushPresence() {
+        const status = this._presenceDesired
+        if (status === null || status === this._presenceSent) {
+            return
+        }
+        this._presenceInFlight = true
+        try {
+            await this.orm.call('connect.user', 'update_presence', [status])
+            this._presenceSent = status
+        } catch (e) {
+            // Don't let presence failures affect call operations
+            console.warn('Connect: Presence update failed:', e)
+        } finally {
+            this._presenceInFlight = false
+            if (this._presenceDesired !== this._presenceSent) {
+                this._flushPresence()
+            }
+        }
+    }
+
+    getJsonCallData() {
+        return {
+            id: this.session ? this.id : this.sipSessions[0],
+            isPartner: this.state.isPartner,
+            phoneStatus: this.state.phone_status,
+            callerId: JSON.parse(JSON.stringify(this.state.callerId)),
+        }
+    }
+
+    async makeCall(props) {
+        const self = this
+        let phoneNumber = props.phone
+        self.startCall()
+
+        const syncParams = self.getJsonCallData()
+        self.bc.postMessage({event: "tbcSync", params: syncParams})
+
+        const params = {
+            To: phoneNumber,
+            Called: phoneNumber,
+        }
+
+        self.session = await self.transport.dial(params)
+        const call = self.session
+
+        call.on("accept", async function () {
+            if (self.session !== call) return
+            self.call_sid = call.params.CallSid || null
+            self.createCallCounter(phoneNumber)
+            self.state.phone_status = self.status.accepted
+            self._updatePresence('on_call')
+            self._attachQualityMonitor(call)
+            self.audioNotification.play('connected')
+            await self.setCallStatus("Answered")
+            const params = self.getJsonCallData()
+            self.bc.postMessage({event: "tbcAnswerCall", params})
+            self._fetchRecordingState()
+        })
+        call.on("disconnect", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            const wasAnswered = self.state.phone_status === self.status.accepted
+            ;(async () => {
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus(wasAnswered ? "Terminated" : "Canceled")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
+        })
+        call.on("cancel", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Canceled")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
+        })
+        call.on("reject", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Rejected")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
+        })
+    }
+
+    startCall() {
+        this.state.inCall = true
+        this.state.isDialingPanel = true
+        this.state.isContacts = false
+        this.state.isFavorites = false
+        this.state.isCalls = false
+        this.state.isDisplay = true
+        this.state.isCollapsed = false  // Expand if collapsed when call comes in
+        this.state.isKeypad = false
+        // Ensure phone is visible within viewport (defer until DOM updates)
+        requestAnimationFrame(() => this._ensureWithinViewport())
+    }
+
+    _claimCallEnd(call) {
+        if (!call) return true
+        if (call._connectSettled) return false
+        call._connectSettled = true
+        return true
+    }
+
+    _ringsInApp() {
+        const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
+        return !!(TransportClass && TransportClass.ringsInApp)
+    }
+
+    _stopIncomingRing() {
+        if (this._incomingRingTimer) {
+            clearInterval(this._incomingRingTimer)
+            this._incomingRingTimer = null
+        }
+    }
+
+    _syncIncomingRing() {
+        const should = this._ringsInApp()
+            && !this.state.isSoundMute
+            && (this.state.inIncoming || this.state.hasWaitingCall)
+        if (!should) {
+            this._stopIncomingRing()
+            return
+        }
+        if (this._incomingRingTimer) return
+        const ring = () => {
+            if (this.state.isSoundMute || (!this.state.inIncoming && !this.state.hasWaitingCall)) {
+                this._stopIncomingRing()
+                return
+            }
+            this.audioNotification.play('incoming')
+        }
+        ring()
+        this._incomingRingTimer = setInterval(ring, 3000)
+    }
+
+    _attachIncomingCall(call, phoneNumber) {
+        const self = this
+        call.on("accept", async function () {
+            if (self.session !== call) return
+            self._stopIncomingRing()
+            self.call_sid = call.params.CallSid || null
+            self.createCallCounter(phoneNumber)
+            self.state.phone_status = self.status.accepted
+            self._updatePresence('on_call')
+            self._attachQualityMonitor(call)
+            await self.setCallStatus("Answered")
+            self._fetchRecordingState()
+        })
+        call.on("disconnect", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            const wasAnswered = self.state.phone_status === self.status.accepted
+            ;(async () => {
+                self._stopIncomingRing()
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus(wasAnswered ? "Terminated" : "Canceled")
+                await self.endCall()
+                if (self.session === call) self.session = null
+                if (self.suppressBroadcastChannel) {
+                    self.suppressBroadcastChannel = false
+                } else {
+                    self.bc.postMessage({event: "tbcEndCall"})
+                }
+            })()
+        })
+        call.on("cancel", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self._stopIncomingRing()
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Canceled")
+                const index = self.sipSessions.indexOf(self.id)
+                if (index > -1) self.sipSessions.splice(index, 1)
+                self.bc.postMessage({event: 'tbcSipSession', params: {id: self.id, action: 'pop'}})
+                if (self.session === call) self.session = null
+                await self.endCall()
+            })()
+        })
+        call.on("reject", function () {
+            if (self.heldSession === call) {
+                self._releaseHeldCall()
+                return
+            }
+            if (self.session !== call) return
+            if (!self._claimCallEnd(call)) return
+            ;(async () => {
+                self._stopIncomingRing()
+                self.state.phone_status = self.status.ended
+                await self.setCallStatus("Rejected")
+                const index = self.sipSessions.indexOf(self.id)
+                if (index > -1) self.sipSessions.splice(index, 1)
+                self.bc.postMessage({event: 'tbcSipSession', params: {id: self.id, action: 'pop'}})
+                if (self.session === call) self.session = null
+                await self.endCall()
+            })()
+        })
+    }
+
+    _releaseHeldCall() {
+        this.heldSession = null
+        this.heldCallSid = null
+        this.heldCallId = null
+        this.heldCallerId = null
+        this.state.isOnHold = false
+        this.notify('Held call ended', {type: 'info'})
+        this.bc.postMessage({event: "tbcHold", params: {isOnHold: false}})
+    }
+
+    async _promoteWaitingCall(call) {
+        const info = {...(this.state.waitingCallerId || {})}
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+        this.session = call
+        this.sipSessions = [this.id]
+        const phoneNumber = info.phoneNumber || (call.params && call.params.From) || ''
+        this.state.callPhoneNumber = phoneNumber
+        this.state.phone_status = this.status.incoming
+        this.state.inIncoming = true
+        if (info.partnerId) {
+            this.state.isPartner = true
+            this.state.callerId = {
+                partnerId: parseInt(info.partnerId),
+                partnerName: info.partnerName,
+                partnerIconUrl: this.computePartnerIconUrl(info.partnerId),
+                partnerUrl: this.computePartnerUrl(info.partnerId),
+                phoneNumber,
+            }
+        } else {
+            this.state.isPartner = false
+            this.state.callerId = {phoneNumber}
+            this.searchPartner(phoneNumber)
+        }
+        this.startCall()
+        this._attachIncomingCall(call, phoneNumber)
+        this._syncIncomingRing()
+        this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
+        this.bc.postMessage({event: "tbcStartCall", params: this.getJsonCallData()})
+        this.notify('Incoming call from ' + (info.partnerName || phoneNumber), {type: 'info'})
+    }
+
+    async endCall() {
+        if (this._endingCall) return
+        this._endingCall = true
+        const waiting = this._unloading ? null : this.waitingSession
+        try {
+        this._stopIncomingRing()
+        this._updatePresence(this.sipRegistered ? 'available' : 'offline')
+        this.call_sid = null
+        this.recording_sid = null
+        this.recording_call_sid = null
+        this.state.isRecording = false
+        this.state.isPaused = false
+        this.state.recordingLoading = false
+        this._resetCallQuality()
+        this.state.isDisplay = this.state.isDisplayLastState
+        this.state.isContactList = false
+        this.state.isDialingPanel = false
+        this.state.inIncoming = false
+        this.state.isKeypad = this.lastActiveTab === this.tabs.phone
+        this.state.isContacts = this.lastActiveTab === this.tabs.contacts
+        this.state.isFavorites = this.lastActiveTab === this.tabs.favorites
+        this.state.isCalls = this.lastActiveTab === this.tabs.calls
+        this.state.isTransfer = false
+        this.state.isOnHold = false
+        this.state.holdInProgress = false
+        this.state.isAddParticipant = false
+        this.state.isAttendedTransfer = false
+        this.state.showTransferChoice = false
+        this.state.pendingTransferNumber = ''
+        this.state.isMicrophoneMute = false
+        this.state.isPartner = false
+        this.state.isWhatsapp = false
+        // lastOperationError is left alone: a hold that fails as the agent
+        // leg drops lands right here, and the banner is the only place the
+        // user learns the customer is still waiting. _setOperationError
+        // clears it on its own timer.
+        this.state.callerId = {}
+        this.state.phoneNumber = ''
+        this.state.xPhoneInfoDisplay = ''
+        this.phoneInput.el.value = this.state.phoneNumber
+        this.state.activeTab = this.lastActiveTab
+        if (this.lastActiveTab === this.tabs.calls) {
+            this.getCalls()
+        }
+        const self = this
+        setTimeout(() => {
+            if (!self.state.inIncoming) {
+                self.state.inCall = false
+            }
+        }, 100)
+
+        this.destroyCallCounter()
+        this.sipSessions = []
+        this.state.xTransferTo = ''
+        this.state.xTransferInfo = ''
+        this.state.xTransferPartner = false
+        const promote = waiting && !this._unloading
+        if (!promote) {
+            this.waitingSession = null
+            this.state.hasWaitingCall = false
+            this.state.waitingCallerId = {}
+        }
+        this.heldSession = null
+        this.heldCallSid = null
+        this.heldCallId = null
+        this.heldCallerId = null
+        if (promote) {
+            this._promoteWaitingCall(waiting)
+        }
+        } finally {
+            this._endingCall = false
+        }
+    }
+
+    _openPartner(id) {
+        this.action.doAction({
+            res_id: id,
+            res_model: 'res.partner',
+            target: 'current',
+            type: 'ir.actions.act_window',
+            views: [[false, 'form']],
+        })
+    }
+
+    async searchPartner(phoneNumber) {
+        const partner = await this.getPartner(phoneNumber)
+        if (partner) {
+            this.state.isPartner = true
+            this.state.callerId = this.computePartnerData(partner, phoneNumber)
+        } else {
+            this.state.isPartner = false
+            const pbxUser = await this.getUser(phoneNumber)
+            if (pbxUser) {
+                this.state.callerId = this.computeUserData(pbxUser, phoneNumber)
+            } else {
+                this.state.callerId = {phoneNumber}
+            }
+        }
+        return partner
+    }
+
+    async getPartner(phoneNumber) {
+        const partner = await this.orm.call("res.partner", 'api_get_partner', [phoneNumber])
+        return partner.id ? partner : false
+    }
+
+    computePartnerData(partner, phoneNumber) {
+        return {
+            partnerId: partner.id,
+            partnerName: partner.name,
+            partnerIconUrl: this.computePartnerIconUrl(partner.id),
+            partnerUrl: this.computePartnerUrl(partner.id),
+            phoneNumber: phoneNumber,
+        }
+    }
+
+    computePartnerUrl(partnerId) {
+        return `/web#id=${partnerId}&model=res.partner&view_type=form`
+    }
+
+    computePartnerIconUrl(partnerId) {
+        return `/web/image?model=res.partner&field=avatar_128&id=${partnerId}`
+    }
+
+    async getUser(phoneNumber) {
+        return await this.orm.call("connect.user", 'get_user_by_exten_number', [phoneNumber])
+    }
+
+    computeUserData(user, phoneNumber) {
+        return {
+            partnerId: user.id,
+            partnerName: user.name,
+            partnerIconUrl: this.computeUserIconUrl(user.user[0]),
+            phoneNumber: phoneNumber,
+        }
+    }
+
+    computeUserIconUrl(userId) {
+        return `/web/image?model=res.users&field=avatar_128&id=${userId}`
+    }
+
+    createCallCounter(phoneNumber) {
+        const self = this
+        self.callDuration = 0
+        self.state.callDurationTime = '00:00:00'
+        self.callDurationTimerInstance = setInterval(() => {
+            self.callDuration += 1
+            if (self.state.callerId.phoneNumber === phoneNumber) {
+                self.state.callDurationTime = new Date((self.callDuration) * 1000).toISOString().substring(11, 19)
+            }
+        }, 1000)
+    }
+
+    destroyCallCounter() {
+        const self = this
+        self.state.callDurationTime = ''
+        clearInterval(self.callDurationTimerInstance)
+    }
+
+    setLastActiveTab() {
+        this.lastActiveTab = this.state.activeTab
+    }
+
+    toggleDisplay() {
+        if (this.state.isActive) {
+            this.state.isDisplay = !this.state.isDisplay
+            // Reset collapsed state when toggling via systray
+            this.state.isCollapsed = false
+            if (this.state.inCall) {
+                this.state.isKeypad = false
+                this.state.isDialingPanel = true
+                this.state.isContacts = false
+                this.state.isCalls = false
+                this.state.activeTab = this.tabs.phone
+            } else {
+                setFocus(this.phoneInput.el)
+            }
+            // When showing, ensure phone is within viewport bounds
+            // Double rAF to ensure DOM is fully updated after OWL render
+            if (this.state.isDisplay) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => this._ensureWithinViewport())
+                })
+            }
+        } else {
+            this.notify('Missing configs! Check "User / Preferences"!', {sticky: false})
+        }
+    }
+
+    // Ensure phone dialog is within viewport bounds
+    _ensureWithinViewport() {
+        const phoneRoot = this.phoneRoot.el
+        if (!phoneRoot) return
+
+        const cx = document.documentElement.clientWidth
+        const cy = document.documentElement.clientHeight
+        const width = this.state.isCollapsed ? this.collapsedSize : this.phoneWidth
+        const height = this.state.isCollapsed ? this.collapsedSize : this.phoneHeight
+
+        // Use getBoundingClientRect for accurate position of fixed element
+        const rect = phoneRoot.getBoundingClientRect()
+        let newLeft = rect.left
+        let newTop = rect.top
+
+        // Fallback: if rect returns zeros (element was hidden), parse from inline style
+        if (rect.width === 0 && rect.height === 0) {
+            newLeft = parseFloat(phoneRoot.style.left) || 0
+            newTop = parseFloat(phoneRoot.style.top) || 0
+        }
+
+        // Clamp to viewport bounds
+        // Right edge: ensure dialog right edge doesn't exceed viewport
+        if (newLeft + width > cx) {
+            newLeft = cx - width
+        }
+        // Left edge
+        if (newLeft < 0) {
+            newLeft = 0
+        }
+        // Bottom edge: ensure dialog bottom doesn't exceed viewport
+        if (newTop + height > cy) {
+            newTop = cy - height
+        }
+        // Top edge
+        if (newTop < 0) {
+            newTop = 0
+        }
+
+        // Always apply the clamped position
+        phoneRoot.style.left = newLeft + "px"
+        phoneRoot.style.top = newTop + "px"
+        phoneRoot.style.bottom = "auto"
+    }
+
+    getCalls() {
+        this.bus.trigger('busCallsGetCalls')
+    }
+
+    _onClickMakeCall(ev) {
+        if (this.state.phoneNumber) {
+            this.state.callPhoneNumber = this.state.phoneNumber.replace(/\(|\)|-| /gm, '')
+            this.state.phoneNumber = ''
+            this.phoneInput.el.value = this.state.phoneNumber
+            this.prepareCall({phone: this.state.callPhoneNumber})
+        } else {
+            this.notify("The phone call has no number!", {sticky: false})
+        }
+    }
+
+    _onClickContactCall(phoneNumber) {
+        this.prepareCall({phone: phoneNumber})
+    }
+
+    _onClickPhone(ev) {
+        this.state.activeTab = this.tabs.phone
+        this.setLastActiveTab()
+        this.state.isAudioSettings = false
+        if (this.state.inCall) {
+            this.state.isKeypad = false
+            this.state.isDialingPanel = true
+        } else {
+            this.state.isKeypad = true
+            this.state.isDialingPanel = false
+        }
+        this.state.isContacts = false
+        this.state.isCalls = false
+        this.state.isFavorites = false
+        setFocus(this.phoneInput.el)
+    }
+
+    _onClickContacts(ev) {
+        this.state.activeTab = this.tabs.contacts
+        this.setLastActiveTab()
+        this.state.isAudioSettings = false
+        this.bus.trigger('busContactSetState', {isContact: true, isContactMode: true})
+        this.state.isKeypad = false
+        this.state.isContacts = true
+        this.state.isContactList = false
+        this.state.isFavorites = false
+        this.state.isCalls = false
+        this.state.isDialingPanel = false
+    }
+
+    _onClickFavorites(ev) {
+        this.state.activeTab = this.tabs.favorites
+        this.setLastActiveTab()
+        this.state.isAudioSettings = false
+        this.state.isKeypad = false
+        this.state.isContacts = false
+        this.state.isContactList = false
+        this.state.isFavorites = true
+        this.state.isCalls = false
+        this.state.isDialingPanel = false
+    }
+
+    _onClickHistory(ev) {
+        this.state.activeTab = this.tabs.calls
+        this.setLastActiveTab()
+        this.state.isAudioSettings = false
+        this.state.isKeypad = false
+        this.state.isContacts = false
+        this.state.isContactList = false
+        this.state.isFavorites = false
+        this.state.isCalls = true
+        this.state.isDialingPanel = false
+        this.getCalls()
+    }
+
+    _onClickDialingPanel(ev) {
+        this.state.activeTab = this.tabs.phone
+        this.state.isContacts = false
+        this.state.isTransfer = false
+        this.state.isAddParticipant = false
+        this.state.isCalls = false
+        this.state.isKeypad = false
+        this.state.isDialingPanel = true
+    }
+
+    _onClickKeypad(ev) {
+        this.state.activeTab = this.tabs.phone
+        this.state.isContacts = false
+        this.state.isTransfer = false
+        this.state.isAddParticipant = false
+        this.state.isCalls = false
+        this.state.isKeypad = true
+        this.state.isDialingPanel = false
+        setFocus(this.phoneInput.el)
+    }
+
+    async _onClickHold(ev) {
+        if (this.state.holdInProgress) return
+        this.state.holdInProgress = true
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        if (!callSid) {
+            this.state.holdInProgress = false
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        try {
+            if (this.state.isOnHold) {
+                const result = await this.orm.call('connect.channel', 'resume_softphone_call', [
+                    this._callControlPayload(callSid)])
+                if (result.success) {
+                    this.state.isOnHold = false
+                    this._updatePresence('on_call')
+                    this.notify('Call resumed', {type: 'info'})
+                    this.audioNotification.play('unpark')
+                    this.bc.postMessage({event: "tbcHold", params: {isOnHold: false}})
+                } else {
+                    this._callControlFailed(result, 'Resume failed')
+                }
+            } else {
+                const result = await this.orm.call('connect.channel', 'hold_softphone_call', [
+                    this._callControlPayload(callSid)])
+                if (result.success) {
+                    this.state.isOnHold = true
+                    this._updatePresence('on_hold')
+                    this.notify('Call on hold', {type: 'info'})
+                    this.audioNotification.play('park')
+                    this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
+                } else {
+                    this._callControlFailed(result, 'Hold failed')
+                }
+            }
+        } catch (e) {
+            console.error('Hold error:', e)
+            this._callControlFailed(e, 'Hold operation failed')
+        } finally {
+            this.state.holdInProgress = false
+        }
+    }
+
+    async _fetchRecordingState(retryAttempt = 0) {
+        const callSid = this.call_sid
+        if (!callSid) return
+        // Twilio REST API lags 1-5s before a newly-started dial-level recording appears
+        // in recordings.list(). Retry with exponential backoff when can_record=true.
+        const applyResult = (result) => {
+            if (result.success) {
+                this.state.isRecording = result.is_recording
+                this.state.isPaused = result.is_paused
+                this.recording_sid = result.recording_sid || null
+                this.recording_call_sid = result.recording_call_sid || null
+            }
+            return result
+        }
+        try {
+            const result = applyResult(
+                await this.orm.call('connect.call', 'get_recording_state', [callSid])
+            )
+            // Not found yet but user can record — retry with backoff (2s, 4s, 8s)
+            const maxRetries = 3
+            if (result.success && !result.recording_sid && result.can_record && retryAttempt < maxRetries) {
+                const delay = [2000, 4000, 8000][retryAttempt]
+                setTimeout(async () => {
+                    if (this.call_sid === callSid) {
+                        try { await this._fetchRecordingState(retryAttempt + 1) } catch (e) { /* silent */ }
+                    }
+                }, delay)
+            }
+        } catch (e) {
+            console.warn('Connect: Could not fetch recording state:', e?.message || e)
+        }
+    }
+
+    async _onClickToggleRecording() {
+        if (this.state.recordingLoading) return
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('No active call', {type: 'warning'})
+            return
+        }
+        // Cycle: idle→start, recording→pause, paused→resume
+        let action
+        if (!this.recording_sid) {
+            action = 'start'
+        } else if (this.state.isPaused) {
+            action = 'resume'
+        } else {
+            action = 'pause'
+        }
+        this.state.recordingLoading = true
+        try {
+            const result = await this.orm.call('connect.call', 'toggle_recording', [
+                callSid,
+                this.recording_sid || false,
+                action,
+                this.recording_call_sid || false,
+            ])
+            if (result.success) {
+                this.state.isRecording = result.is_recording
+                this.state.isPaused = result.is_paused
+                this.recording_sid = result.recording_sid || null
+                this.recording_call_sid = result.recording_call_sid || null
+                const msg = action === 'start' ? 'Recording started'
+                    : action === 'pause' ? 'Recording paused'
+                    : 'Recording resumed'
+                this.notify(msg, {type: 'info', sticky: false})
+            } else {
+                this._setOperationError(result.error || 'Recording toggle failed')
+                this.notify(result.error || 'Recording toggle failed', {type: 'warning'})
+            }
+        } catch (e) {
+            console.error('Recording toggle error:', e)
+            this._setOperationError('Recording operation failed')
+            this.notify('Recording operation failed', {type: 'warning'})
+        } finally {
+            this.state.recordingLoading = false
+        }
+    }
+
+    _onClickTransfer(ev) {
+        if (this.state.isTransfer) return
+        this.state.isAddParticipant = false
+        this.state.isKeypad = false
+        this.state.isDialingPanel = false
+        this.state.isTransfer = true
+        this.state.isContacts = true
+        this.bus.trigger('busContactSetState', {isTransfer: true, isContactMode: true})
+    }
+
+    _onClickAddParticipant(ev) {
+        if (this.state.isAddParticipant) return
+        this.state.isTransfer = false
+        this.state.isKeypad = false
+        this.state.isDialingPanel = false
+        this.state.isAddParticipant = true
+        this.state.isContacts = true
+        this.bus.trigger('busContactSetState', {isAddParticipant: true, isContactMode: true})
+    }
+
+    _onClickMicrophoneMute(ev) {
+        if (this.session) {
+            if (this.state.isMicrophoneMute) {
+                this.session.mute(false)
+            } else {
+                this.session.mute(true)
+            }
+        }
+        this.state.isMicrophoneMute = !this.state.isMicrophoneMute
+        this.bc.postMessage({event: "tbcMicrophoneMute", params: {mute: this.state.isMicrophoneMute}})
+    }
+
+    _onClickSoundMute(ev) {
+        this.state.isSoundMute = !this.state.isSoundMute
+        localStorage.setItem('connect_is_sound_mute', `${this.state.isSoundMute}`)
+        this.bc.postMessage({event: "tbcSoundMute", params: {mute: this.state.isSoundMute}})
+        this.setIncomingVolume()
+        this._syncIncomingRing()
+    }
+
+    _onClickAudioSettings(ev) {
+        const show = !this.state.isAudioSettings
+        this.state.isAudioSettings = show
+        if (show) {
+            this.state.isKeypad = false
+            this.state.isContacts = false
+            this.state.isContactList = false
+            this.state.isFavorites = false
+            this.state.isCalls = false
+            this.state.isDialingPanel = false
+        }
+    }
+
+    _onChangeAudioEnabled(ev) {
+        this.state.audioEnabled = ev.target.checked
+        this.audioNotification.setEnabled(this.state.audioEnabled)
+    }
+
+    _onChangeAudioVolume(ev) {
+        this.state.audioVolume = parseFloat(ev.target.value)
+        this.audioNotification.setVolume(this.state.audioVolume)
+    }
+
+    _onClickPreviewSound(ev) {
+        const soundKey = ev.target.dataset.sound || ev.target.closest('[data-sound]')?.dataset.sound
+        if (soundKey) {
+            this.audioNotification.preview(soundKey)
+        }
+    }
+
+    async _onClickEndCall(ev) {
+        const call = this.session
+        const wasAnswered = this.state.phone_status === this.status.accepted
+        const wasIncoming = this.state.inIncoming
+        if (call) {
+            this.suppressBroadcastChannel = true
+            try {
+                call.disconnect()
+            } catch (e) {
+                // An already-ended session is not a failed hang-up. The
+                // cleanup below must run regardless, or the UI is left on a
+                // dead call and the follow-on status/bus updates error out.
+                console.warn('Connect: disconnect on ended session:', e)
+            }
+        }
+        this._stopIncomingRing()
+        this.bc.postMessage({event: "tbcEndCall"})
+        this.state.phone_status = this.status.ended
+        if (this._claimCallEnd(call)) {
+            const label = wasAnswered ? "Terminated" : (wasIncoming ? "Rejected" : "Canceled")
+            await this.setCallStatus(label)
+            await this.endCall()
+            if (this.lastActiveTab === this.tabs.phone) {
+                setFocus(this.phoneInput.el)
+            }
+        }
+    }
+
+    _onClickAcceptIncoming(ev) {
+        this._stopIncomingRing()
+        if (this.session) {
+            this.session.accept()
+        }
+        const params = this.getJsonCallData()
+        this.bc.postMessage({event: "tbcAnswerCall", params})
+        this.state.phone_status = this.status.accepted
+        this.state.inIncoming = false
+        this.audioNotification.play('connected')
+        this.startCall()
+    }
+
+    async _onClickRejectIncoming(ev) {
+        const call = this.session
+        if (call) {
+            this.suppressBroadcastChannel = true
+            try {
+                call.reject()
+            } catch (e) {
+                // Caller already gone == nothing left to reject; still run
+                // the cleanup below.
+                console.warn('Connect: reject on ended session:', e)
+            }
+        }
+        this._stopIncomingRing()
+        this.bc.postMessage({event: "tbcEndCall"})
+        this.state.inIncoming = false
+        if (this._claimCallEnd(call)) {
+            await this.setCallStatus("Rejected")
+            await this.endCall()
+            if (this.lastActiveTab === this.tabs.phone) {
+                setFocus(this.phoneInput.el)
+            }
+        }
+    }
+
+    async _onClickAcceptWaiting() {
+        if (!this.waitingSession) return
+
+        // Hold has to succeed before the second call is answered. A failed
+        // hold used to be logged and then ignored, which left both dialogs live.
+        const callSid = this.session?.params?.CallSid || this.call_sid
+        if (!callSid) {
+            this.notify('The current call cannot be held, so the new one keeps waiting.', {type: 'warning'})
+            return
+        }
+        let held = false
+        let holdError = null
+        try {
+            const result = await this.orm.call('connect.channel', 'hold_softphone_call', [
+                this._callControlPayload(callSid)])
+            held = result !== false && !(result && result.success === false)
+            if (!held) holdError = result
+        } catch (e) {
+            console.error('Connect: Failed to hold current call:', e)
+            holdError = e
+        }
+        if (!held) {
+            this._callControlFailed(holdError, 'Could not hold the current call, so the new one keeps waiting.')
+            return
+        }
+        if (!this.waitingSession) return
+        this.state.isOnHold = true
+
+        const info = {...(this.state.waitingCallerId || {})}
+        const next = this.waitingSession
+        this.heldSession = this.session
+        this.heldCallSid = this.call_sid
+        this.heldCallId = this.call_id
+        this.heldCallerId = {...this.state.callerId}
+
+        const phoneNumber = info.phoneNumber || (next.params && next.params.From) || ''
+        this.session = next
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+        this.state.callPhoneNumber = phoneNumber
+        this.state.inIncoming = false
+        if (info.partnerId) {
+            this.state.isPartner = true
+            this.state.callerId = {
+                partnerId: parseInt(info.partnerId),
+                partnerName: info.partnerName,
+                partnerIconUrl: this.computePartnerIconUrl(info.partnerId),
+                partnerUrl: this.computePartnerUrl(info.partnerId),
+                phoneNumber,
+            }
+        } else {
+            this.state.isPartner = false
+            this.state.callerId = {phoneNumber}
+            this.searchPartner(phoneNumber)
+        }
+        this.destroyCallCounter()
+        this._attachIncomingCall(next, phoneNumber)
+        this._syncIncomingRing()
+        next.accept()
+        this.state.phone_status = this.status.accepted
+        this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
+        this.bc.postMessage({event: "tbcHold", params: {isOnHold: true}})
+    }
+
+    _onClickRejectWaiting() {
+        if (!this.waitingSession) return
+        this.waitingSession.reject()
+        this.waitingSession = null
+        this.state.hasWaitingCall = false
+        this.state.waitingCallerId = {}
+        this.bc.postMessage({event: "tbcWaitingCall", params: {hasWaitingCall: false, waitingCallerId: {}}})
+    }
+
+    // Hide phone entirely (to systray)
+    _onClickHide(ev) {
+        ev.stopPropagation()
+        this.state.isDisplayLastState = !this.state.isDisplay
+        this.state.isCollapsed = false  // Reset collapsed state when hiding
+        this.toggleDisplay()
+    }
+
+    _onClickKeypadButton(ev) {
+        if (this.state.inCall) {
+            if (this.session) {
+                this.sendDTMF(ev.target.textContent)
+            } else {
+                this.bc.postMessage({event: "tbcDtmf", params: {key: ev.target.textContent}})
+            }
+        } else {
+            this.state.phoneNumber += ev.target.textContent
+            this.phoneInput.el.value = this.state.phoneNumber
+        }
+        this.phoneInput.el.focus()
+    }
+
+    _onClickBackSpace(ev) {
+        setFocus(this.phoneInput.el)
+        this.state.phoneNumber = this.state.phoneNumber.slice(0, -1)
+        this.phoneInput.el.value = this.state.phoneNumber
+        if (this.state.isContactList) {
+            this.bus.trigger('busContactSearchQuery', {searchQuery: this.phoneInput.el.value})
+        }
+        if (this.state.phoneNumber === '') this.state.isContactList = false
+    }
+
+    sendDTMF(key) {
+        const validDTMF = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '#']
+        if (validDTMF.includes(key)) {
+            // dialTone(key)
+            this.session.sendDigits(key)
+        }
+    }
+
+
+    _onEnterPhoneNumber(ev) {
+        if (this.state.inCall) {
+            this.sendDTMF(ev.key)
+        } else {
+            if (ev.key === "Enter") {
+                this._onClickMakeCall()
+            } else {
+                this.state.phoneNumber = this.phoneInput.el.value
+                this.state.isContactList = this.state.phoneNumber !== ''
+                this.bus.trigger('busContactSetState', {isContact: true})
+                this.bus.trigger('busContactSearchQuery', {searchQuery: this.phoneInput.el.value})
+            }
+        }
+    }
+
+    _createPartner() {
+        const context = {
+            default_phone: this.state.callerId.phoneNumber,
+            call_id: this.call_id,
+            default_name: `Partner ${this.state.callerId.phoneNumber}`
+        }
+        this.action.doAction({
+            context,
+            res_model: 'res.partner',
+            target: 'new',
+            type: 'ir.actions.act_window',
+            views: [[false, 'form']],
+        })
+    }
+
+    // Collapse to floating phone icon at the minimize button's position
+    _onClickCollapse(ev) {
+        ev.stopPropagation()
+
+        const phoneRoot = this.phoneRoot.el
+        const buttonRect = ev.target.getBoundingClientRect()
+
+        // Calculate position to center the collapsed icon (56px) on the button
+        const collapsedX = buttonRect.left + (buttonRect.width / 2) - (this.collapsedSize / 2)
+        const collapsedY = buttonRect.top + (buttonRect.height / 2) - (this.collapsedSize / 2)
+
+        // Store the offset from the collapsed icon center to the dialog's top-left
+        // This is used to restore position when expanding
+        this.collapseOffsetX = buttonRect.left + (buttonRect.width / 2) - phoneRoot.offsetLeft
+        this.collapseOffsetY = buttonRect.top + (buttonRect.height / 2) - phoneRoot.offsetTop
+
+        // Position the collapsed icon
+        phoneRoot.style.left = collapsedX + "px"
+        phoneRoot.style.top = collapsedY + "px"
+        phoneRoot.style.bottom = "auto"
+
+        this.state.isCollapsed = true
+    }
+
+    // Expand from collapsed icon (only if not dragging)
+    _onClickCollapsedIcon(ev) {
+        if (this.state.isCollapsed && !this.wasDragged) {
+            ev.stopPropagation()
+
+            const phoneRoot = this.phoneRoot.el
+            const currentLeft = phoneRoot.offsetLeft
+            const currentTop = phoneRoot.offsetTop
+            const iconCenterX = currentLeft + (this.collapsedSize / 2)
+            const iconCenterY = currentTop + (this.collapsedSize / 2)
+
+            // Calculate ideal position so the minimize button appears where the icon was
+            const newLeft = iconCenterX - this.collapseOffsetX
+            const newTop = iconCenterY - this.collapseOffsetY
+
+            phoneRoot.style.left = newLeft + "px"
+            phoneRoot.style.top = newTop + "px"
+
+            this.state.isCollapsed = false
+            // Ensure within viewport after expanding
+            this._ensureWithinViewport()
+        }
+    }
+
+    // Double-click on header also collapses (use center of header as reference)
+    _onHeaderDoubleClick(ev) {
+        ev.stopPropagation()
+        if (this.state.isCollapsed) {
+            this._onClickCollapsedIcon(ev)
+        } else {
+            // Simulate clicking the minimize button position
+            const header = this.phoneHeader.el
+            const headerRect = header.getBoundingClientRect()
+            // Use position similar to where minimize button would be
+            this.collapseOffsetX = headerRect.right - 40 - this.phoneRoot.el.offsetLeft
+            this.collapseOffsetY = headerRect.top + (headerRect.height / 2) - this.phoneRoot.el.offsetTop
+
+            const collapsedX = headerRect.right - 40 - (this.collapsedSize / 2)
+            const collapsedY = headerRect.top + (headerRect.height / 2) - (this.collapsedSize / 2)
+
+            this.phoneRoot.el.style.left = collapsedX + "px"
+            this.phoneRoot.el.style.top = collapsedY + "px"
+            this.phoneRoot.el.style.bottom = "auto"
+
+            this.state.isCollapsed = true
+        }
+    }
+}

@@ -503,7 +503,9 @@ class Settings(models.Model):
 
     def write(self, vals):
         if self.env.context.get("skip_protected_fields"):
-            return super(Settings, self).write(vals)
+            res = super(Settings, self).write(vals)
+            self._sync_icp(vals)
+            return res
         if not self.openai_api_key and vals.get("display_openai_api_key"):
             vals.update({"transcript_calls": True})
         res = super(Settings, self).write(vals)
@@ -523,6 +525,7 @@ class Settings(models.Model):
             self.env.registry.clear_cache()
         else:
             self.clear_caches()
+        return res
 
     @api.model
     def get_openai_client(self):

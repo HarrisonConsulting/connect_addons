@@ -36,6 +36,17 @@ class TestSettings(ConnectTestCase):
         result = self.env['connect.settings'].get_param('account_sid')
         self.assertEqual(result, test_value)
 
+    def test_protected_key_reaches_the_parameter_it_is_read_from(self):
+        """A key entered in its display field is stored where get_param reads
+        it, and the display parameter keeps only the mask."""
+        key = 'sk-protected-%s' % os.urandom(4).hex()
+        settings = self.env['connect.settings'].sudo().search([], limit=1)
+        self.assertTrue(settings.write({'display_openai_api_key': key}))
+        icp = self.env['ir.config_parameter'].sudo()
+        self.assertEqual(icp.get_param('connect.openai_api_key'), key)
+        self.assertEqual(icp.get_param('connect.display_openai_api_key'), '*' * len(key))
+        self.assertEqual(self.env['connect.settings'].sudo().get_param('openai_api_key'), key)
+
 
 @tagged('post_install', '-at_install')
 class TestEnvCredentialOverride(ConnectTestCase):

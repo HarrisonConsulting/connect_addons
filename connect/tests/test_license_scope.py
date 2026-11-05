@@ -2,10 +2,12 @@
 from contextlib import nullcontext
 from unittest.mock import patch
 
+from odoo import tools
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
 from ..models import license as license_module
+from .. import post_init_hook
 
 
 @tagged('post_install', '-at_install')
@@ -16,6 +18,19 @@ class TestLicenseScope(TransactionCase):
         self.private_name = 'connect_private_scope_test'
         license_module.PRIVATE_INTEGRATION_MODULES.add(self.private_name)
         self.addCleanup(license_module.PRIVATE_INTEGRATION_MODULES.discard, self.private_name)
+
+    def test_test_initialization_keeps_network_refresh_out_of_local_setup(self):
+        for testing in (True, False):
+            with self.subTest(test_enable=testing), \
+                    patch.dict(tools.config.options, {'test_enable': testing}), \
+                    patch.object(type(self.license), 'update_license_status') as refresh, \
+                    patch('odoo.addons.connect._alias_legacy_xmlids') as aliases:
+                post_init_hook(self.env)
+                if testing:
+                    refresh.assert_not_called()
+                else:
+                    refresh.assert_called_once_with(raise_exc=False)
+                aliases.assert_called_once_with(self.env)
 
     def test_private_status_avoids_token_validation_and_network(self):
         with patch.object(type(self.license), '_get_license_token', side_effect=AssertionError('token read')), \

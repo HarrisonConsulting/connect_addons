@@ -182,8 +182,9 @@ class User(models.Model):
         list with the reason as its `unavailable`, so that the person's choice
         of it can refuse in words. A person with no connect.user has no line to
         keep, and neither does a person whose only line is on a provider that
-        says so in _failed_mint_keeps_the_line. A line minted under a tool says so in `mint_tool_id`, and every
-        later mint for it repeats that tool, even if it is the only line left.
+        says so in _failed_mint_keeps_the_line. A line minted under a tool says
+        so in `mint_tool_id`, and every later mint for it repeats that tool, even
+        if it is the only line left.
         """
         self._check_phone_line_context()
         connect_user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)

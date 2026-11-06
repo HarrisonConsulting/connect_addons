@@ -5,7 +5,7 @@ import {_t} from "@web/core/l10n/translation"
 import {RPCError} from "@web/core/network/rpc"
 import {TelephonyTransport, TelephonyCall} from "@connect/components/phone/phone/transports/telephony_transport"
 
-// How long a call nobody can confirm keeps its line from dialing again. It may
+// How long a call nobody can confirm keeps the phone from dialing again. It may
 // still be ringing, so a redial could ring the same phone twice. [PROPOSAL]
 export const UNKNOWN_CLEAR_MS = 120000
 // How long a call being set up may go with no word from the server before it
@@ -109,6 +109,9 @@ export class ServerOriginateCall extends TelephonyCall {
         }
         this.state = state
         this.terminal = isEnd
+        if (isEnd) {
+            this._transport.forget(this)
+        }
         this._armTimer(state)
         if (state === 'first_leg_answered' || state === 'in_call') {
             this._notePickedUp(since)
@@ -134,7 +137,7 @@ export class ServerOriginateCall extends TelephonyCall {
             return
         }
         this.closed = true
-        // A call nobody can confirm stays that way, and keeps its line from redialing.
+        // A call nobody can confirm stays that way, and keeps the phone from redialing.
         if (this.state !== 'unknown') {
             this.stopTimer()
             this._emit('callState', {state: 'ended', reason_code: '', detail: ''})
@@ -169,7 +172,12 @@ export class ServerOriginateTransport extends TelephonyTransport {
         super()
         this._line = line
         this._state = 'unregistered'
+        // The latest call, which the panel shows.
         this._call = null
+        // Every call the server may still say something about, by ref. A quick
+        // redial must not make an earlier call unreachable: its hang-up can still
+        // fail, and it can still go unconfirmed.
+        this._calls = new Map()
     }
 
     init() {}
@@ -185,7 +193,13 @@ export class ServerOriginateTransport extends TelephonyTransport {
 
     destroy() {
         this._state = 'destroyed'
-        this._call?.stopTimer()
+        for (const call of this._calls.values()) {
+            call.stopTimer()
+        }
+    }
+
+    forget(call) {
+        this._calls.delete(call.ref)
     }
 
     updateAuth() {}
@@ -201,13 +215,12 @@ export class ServerOriginateTransport extends TelephonyTransport {
     }
 
     get dialRefusal() {
-        return this._call?.state === 'unknown' ? callUnconfirmedWords() : null
+        const unconfirmed = [...this._calls.values()].some((call) => call.state === 'unknown')
+        return unconfirmed ? callUnconfirmedWords() : null
     }
 
     receiveCallState(payload) {
-        if (this._call && payload.call_ref === this._call.ref) {
-            this._call.receive(payload)
-        }
+        this._calls.get(payload.call_ref)?.receive(payload)
     }
 
     get _rpcContext() {
@@ -223,6 +236,7 @@ export class ServerOriginateTransport extends TelephonyTransport {
         const call = new ServerOriginateCall(this, To)
         call.placed = this._place(call, To, CallerId)
         this._call = call
+        this._calls.set(call.ref, call)
         return call
     }
 

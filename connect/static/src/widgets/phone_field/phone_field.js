@@ -18,7 +18,9 @@ patch(PhoneField.prototype, {
             bus.trigger("busPhoneMakeCall", {phone: this.props.record.data[this.props.name]})
             return
         }
-        this._originateCall()
+        // The phone holds the From selection, so it answers both of these at the click.
+        const toolId = bus.clickToCallToolId
+        this._originateCall(toolId ? {context: {connect_tool_id: toolId}} : {})
     },
 
     /** Ask the server to place the call, towards this tab when it has a phone. */

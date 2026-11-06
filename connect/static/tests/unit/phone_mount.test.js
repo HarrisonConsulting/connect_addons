@@ -7,7 +7,7 @@
  */
 
 import {after, animationFrame, describe, expect, test} from "@odoo/hoot"
-import {onRpc} from "@web/../tests/web_test_helpers"
+import {onRpc, patchWithCleanup} from "@web/../tests/web_test_helpers"
 import {registry} from "@web/core/registry"
 import {defineMailModels} from "@mail/../tests/mail_test_helpers"
 import {mountPhoneLines} from "@connect/js/main"
@@ -108,7 +108,7 @@ test("a line with no provider says it is unavailable, in words", async () => {
     expect(phone.state.lastOperationError).toBe(LINE_UNAVAILABLE)
 })
 
-test("one line refreshes and reconnects with no tool context", async () => {
+test("a line minted with no tool refreshes and reconnects with no tool context", async () => {
     // Even a line that knows its tool: with one line the call stays what it was.
     const mints = watchMints()
     const phone = await mountLines([TOKEN_LINE])
@@ -125,7 +125,7 @@ test("one line refreshes and reconnects with no tool context", async () => {
 test("two lines each refresh and reconnect under their own tool", async () => {
     registerNeutral()
     const mints = watchMints()
-    const phone = await mountLines([TOKEN_LINE, NEUTRAL_LINE])
+    const phone = await mountLines([{...TOKEN_LINE, mint_tool_id: 7}, {...NEUTRAL_LINE, mint_tool_id: 8}])
     await animationFrame()
     expect(phone.lines.map((line) => line.key)).toEqual(["twilio", NEUTRAL])
     await phone.lines[1].updateToken()
@@ -164,20 +164,15 @@ test("the service mounts from lines, with no token gate", async () => {
     expect(props.lines).toBe(lines)
     expect(props.browserSessionNonce).toBe(SINGLE_LINE_NONCE)
     expect(registry.category("systray").contains("connectPhoneSysTray")).toBe(true)
-    expect(window.connectBus.clickToCallLocal).toBe(false)
+    expect(window.connectBus.browserSessionNonce).toBe(SINGLE_LINE_NONCE)
 })
 
-test("click-to-call dials locally by the first line's token data", async () => {
+test("a mint error goes to the panel as well as the console", async () => {
     cleanUpMount()
-    await mountPhoneLines(fakeOrm({
-        lines: [
-            {...TOKEN_LINE, token_data: {token: "t", first_callflow: "client"}},
-            {...NEUTRAL_LINE, token_data: {token: "t", first_callflow: "sip"}},
-        ],
-        error: false,
-    }), SINGLE_LINE_NONCE)
-    expect(window.connectBus.clickToCallLocal).toBe(true)
-    expect(window.connectBus.browserSessionNonce).toBe(SINGLE_LINE_NONCE)
+    patchWithCleanup(console, {warn() {}})
+    await mountPhoneLines(fakeOrm({lines: [TOKEN_LINE], error: "Not today"}), SINGLE_LINE_NONCE)
+    const {props} = registry.category("main_components").get("connectPhone")
+    expect(props.mintError).toBe("Not today")
 })
 
 test("no lines mounts nothing", async () => {

@@ -30,7 +30,8 @@ function getBrowserSessionNonce() {
 
 /**
  * Mounts the phone from the server's lines. A line needs no token to be a line:
- * the server has already dropped the ones it cannot use.
+ * the server has already dropped the ones with nothing to offer, and a line it
+ * could not mint for comes with the reason, for the phone to say.
  */
 export async function mountPhoneLines(orm, browserSessionNonce) {
     const {lines, error} = await orm.call(
@@ -42,13 +43,11 @@ export async function mountPhoneLines(orm, browserSessionNonce) {
         let bus = new EventBus()
         // Expose the bus globally for the systray component to access
         window.connectBus = bus
-        // Click-to-call from a form dials in this browser when the
-        // user's first callflow is the web client, and otherwise
-        // asks the server to originate towards this tab's nonce.
+        // Click-to-call asks the server to originate towards this tab's nonce,
+        // when the phone does not take the click itself.
         bus.browserSessionNonce = browserSessionNonce
-        bus.clickToCallLocal = lines[0].token_data.first_callflow === 'client'
         sysTrayRegistry.add('connectPhoneSysTray', {Component: PhoneSysTray, props: {bus}})
-        mainComponents.add('connectPhone', {Component: Phone, props: {bus, lines, browserSessionNonce}})
+        mainComponents.add('connectPhone', {Component: Phone, props: {bus, lines, browserSessionNonce, mintError: error}})
     }
     else if (!error) {
         console.log('Web Phone is not enabled for user.')

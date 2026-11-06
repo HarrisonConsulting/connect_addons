@@ -64,6 +64,7 @@
                           lines="lines"
                           line="activeLine"
                           callerId="callerIdOf(activeLine)"
+                          problems="lineProblems"
                           readonly="state.inCall or state.inIncoming"
                           onSelect.bind="selectLine"
                           onPickCallerId.bind="pickCallerId"

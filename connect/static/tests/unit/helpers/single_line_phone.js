@@ -21,7 +21,7 @@ export const ALL_CAPABILITIES = Object.fromEntries([
     "recording_pause", "recording_resume", "recording_stop",
 ].map((action) => [action, true]))
 
-export async function mountLines(lines) {
+export async function mountLines(lines, extraProps = {}) {
     mockService("connect_audio", {play() {}})
     // The phone reports presence as soon as its transport registers.
     onRpc("connect.user", "update_presence", () => true)
@@ -34,6 +34,7 @@ export async function mountLines(lines) {
             bus: new EventBus(),
             lines,
             browserSessionNonce: SINGLE_LINE_NONCE,
+            ...extraProps,
         },
     })
 }

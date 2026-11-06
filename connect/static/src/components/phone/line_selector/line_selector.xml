@@ -10,14 +10,14 @@
                         t-on-change="(ev) => props.onSelect(ev.target.value)">
                     <option t-foreach="props.lines" t-as="item" t-key="item.key"
                             t-att-value="item.key" t-att-selected="item.key === props.line.key">
-                        <t t-out="item.label"/>
+                        <t t-out="item.label"/><t t-if="problem(item)"> (not available)</t>
                     </option>
                 </select>
                 <t t-else="">
                     <button t-foreach="props.lines" t-as="item" t-key="item.key" type="button"
-                            t-attf-class="o_phone_line_chip{{item.key === props.line.key ? ' active' : ''}}"
+                            t-attf-class="o_phone_line_chip{{item.key === props.line.key ? ' active' : ''}}{{problem(item) ? ' o_phone_line_down' : ''}}"
                             t-att-aria-pressed="item.key === props.line.key ? 'true' : 'false'"
-                            t-att-title="item.label"
+                            t-att-title="problem(item) ? item.label + ': ' + problem(item) : item.label"
                             t-att-disabled="props.readonly"
                             t-on-click="() => props.onSelect(item.key)">
                         <t t-out="item.label"/>
@@ -37,7 +37,8 @@
                     <span t-else="" class="o_phone_line_caller_id_value" t-out="props.callerId"/>
                 </div>
                 <div class="o_phone_line_how">
-                    <span t-out="howItConnects"/>
+                    <span t-if="problem(props.line)" class="o_phone_line_problem" t-att-title="problem(props.line)" t-out="problem(props.line)"/>
+                    <span t-else="" t-out="howItConnects"/>
                     <a t-if="!props.readonly" href="#" class="o_phone_line_change" t-on-click.prevent="() => props.onChangeHow()">Change</a>
                 </div>
             </div>

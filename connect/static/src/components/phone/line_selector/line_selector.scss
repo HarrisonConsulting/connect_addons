@@ -47,6 +47,12 @@
         opacity: 0.5;
       }
     }
+
+    &.o_phone_line_down {
+      color: var(--bs-danger);
+      border-style: dashed;
+      border-color: var(--bs-danger);
+    }
   }
 
   .o_phone_line_dropdown,
@@ -81,6 +87,13 @@
     align-items: center;
     gap: 6px;
     white-space: nowrap;
+  }
+
+  .o_phone_line_problem {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--bs-danger);
   }
 
   .o_phone_line_caller_id_picker {

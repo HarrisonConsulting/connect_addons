@@ -151,6 +151,7 @@ test("a remembered line that is gone falls back, and the memory is left alone", 
     browser.localStorage.setItem(STORAGE_KEY, "gone")
     const phone = await mountTwo()
     expect(phone.activeLine.key).toBe("desk")
+    expect(phone.state.lastOperationError).toInclude("Desk")
     expect(browser.localStorage.getItem(STORAGE_KEY)).toBe("gone")
 })
 

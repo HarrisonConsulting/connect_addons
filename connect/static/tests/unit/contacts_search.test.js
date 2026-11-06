@@ -54,6 +54,13 @@ test("the row shows the colleague, offline, and dials the extension", async () =
     expect("button[title='Call to 101']").toHaveCount(1)
 })
 
+test("a colleague whose presence is known shows it", async () => {
+    mockSearch([{...ANN, presence_status: "available"}])
+    await search("ann")
+    expect(".o_presence_indicator").toHaveClass("available")
+    expect(".o_presence_indicator").toHaveAttribute("title", "available")
+})
+
 test("enter on one result dials that colleague's extension", async () => {
     mockSearch([ANN])
     const {bus, contacts} = await search("ann")

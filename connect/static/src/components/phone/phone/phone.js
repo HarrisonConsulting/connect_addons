@@ -79,7 +79,9 @@ export class Phone extends Component {
     static props = {
         bus: Object,
         lines: Array,
-        browserSessionNonce: {type: String, optional: true}
+        browserSessionNonce: {type: String, optional: true},
+        // What the server said while minting, when no line carries it as its reason.
+        mintError: {type: [String, Boolean], optional: true},
     }
 
     static components = {Calls, Contacts, Favorites, LineSelector}
@@ -106,11 +108,19 @@ export class Phone extends Component {
             provider: line.provider,
             media: line.media,
             toolId: line.tool_id,
+            mintToolId: line.mint_tool_id,
+            unavailable: line.unavailable,
             capabilities: line.capabilities,
             label: line.label || _t("Line %s", index + 1),
             callerIds: line.caller_ids,
             tokenData: line.token_data,
         }))
+        // Click-to-call reads these from the bus at the click, so they follow the
+        // From selection.
+        Object.defineProperties(this.bus, {
+            clickToCallLocal: {configurable: true, get: () => this.clickToCallLocal},
+            clickToCallToolId: {configurable: true, get: () => this.clickToCallToolId},
+        })
         this.callStatus = {
             NoAnswer: 'noanswer',
             Busy: 'busy',
@@ -179,6 +189,9 @@ export class Phone extends Component {
             calls: [],
             connectionStatus: 'connecting',  // 'connecting', 'ready', 'error', 'offline'
             connectionError: '',  // Human-readable reason for the current error/offline status
+            // What each line last reported, by key: {status, error}. The two above
+            // are the line on the panel's.
+            lineStatuses: {},
             lastOperationError: false,
             // Call quality metrics (from Twilio RTCStats samples)
             callQuality: 'unknown',  // 'excellent', 'good', 'fair', 'poor', 'unknown'
@@ -267,6 +280,32 @@ export class Phone extends Component {
         return this.lines.length >= 2
     }
 
+    /** The line the next call goes out on, whatever the panel is showing now. */
+    get selectedLine() {
+        return this.lines.find((line) => line.key === this.state.selectedLineKey) || this.lines[0]
+    }
+
+    /**
+     * Whether a click-to-call goes through the panel's dial, on the selected line.
+     * A bridge line and any selection but the first line always do, and so does a
+     * first line that could not mint, which then refuses in words. Otherwise it
+     * goes by the line's first callflow: in this browser when that is the web
+     * client, and from the server when it is not.
+     */
+    get clickToCallLocal() {
+        const line = this.selectedLine
+        if (line.media === 'bridge' || (this.isMultiLine && (line !== this.lines[0] || line.unavailable))) {
+            return true
+        }
+        return line.tokenData.first_callflow === 'client'
+    }
+
+    /** The tool a click-to-call the server places has to go out on, if it must name one. */
+    get clickToCallToolId() {
+        const line = this.selectedLine
+        return (this.isMultiLine || line.mintToolId) && line.toolId || false
+    }
+
     /** A line this browser chose earlier, if it is still one of this person's lines. */
     _initialLineKey() {
         const stored = this.isMultiLine ? loadSelectedLine() : null
@@ -280,6 +319,7 @@ export class Phone extends Component {
         }
         this.state.selectedLineKey = key
         saveSelectedLine(key)
+        this._showLineStatus()
     }
 
     callerIdOf(line) {
@@ -302,6 +342,7 @@ export class Phone extends Component {
         if (lineKey !== undefined) {
             this.state.syncedLineKey = lineKey
             this._callLineKey = lineKey
+            this._showLineStatus()
         }
     }
 
@@ -356,6 +397,7 @@ export class Phone extends Component {
         if (foreground) {
             this._callLineKey = foreground.key
         }
+        this._showLineStatus()
     }
 
     setup() {
@@ -412,6 +454,7 @@ export class Phone extends Component {
         })
 
         onWillStart(async () => {
+            // Each line answers for its own: a failure here stops only that line.
             await Promise.all(this.lines.map((line) => line.loadDependencies()))
 
             this._beforeUnloadHandler = (event) => {
@@ -510,13 +553,15 @@ export class Phone extends Component {
             for (const line of this.lines) {
                 line.initTransport()
             }
+            this._sayWhatTheMountFound()
 
             // Proactive token refresh every 50 minutes (token TTL is 3600s/60min).
             // Prevents silent expiry on idle tabs that miss error-driven refresh.
             this._tokenRefreshInterval = setInterval(() => {
-                if (this.state.isActive && this.state.connectionStatus !== 'connecting') {
+                if (this.state.isActive) {
                     for (const line of this.lines) {
-                        // updateToken() itself skips a line with no live transport.
+                        // updateToken() itself skips a line with no live transport,
+                        // or one that is already connecting.
                         line.updateToken()
                     }
                 }
@@ -524,12 +569,14 @@ export class Phone extends Component {
 
             // Network connectivity monitoring
             this._onlineHandler = () => {
-                if (this.state.connectionStatus === 'offline') {
+                if (Object.values(this.state.lineStatuses).some(({status}) => status === 'offline')) {
                     this._reconnect()
                 }
             }
             this._offlineHandler = () => {
-                this._setConnectionStatus('offline', 'This device has no network connection.')
+                for (const line of this.lines) {
+                    this._setLineStatus(line, 'offline', 'This device has no network connection.')
+                }
             }
             window.addEventListener('online', this._onlineHandler)
             window.addEventListener('offline', this._offlineHandler)
@@ -934,8 +981,49 @@ export class Phone extends Component {
         this.state.connectionError = status === 'ready' ? '' : error
     }
 
-    _failReconnect(message) {
-        this._setConnectionStatus('error', message)
+    /** What a line reports. The banner and the tray speak for the line on the panel. */
+    _setLineStatus(line, status, error = '') {
+        this.state.lineStatuses[line.key] = {status, error}
+        if (line === this.activeLine) {
+            this._setConnectionStatus(status, error)
+        }
+    }
+
+    /** The panel moved to another line, so it speaks for that one now. */
+    _showLineStatus() {
+        const reported = this.state.lineStatuses[this.activeLine.key]
+        if (reported) {
+            this._setConnectionStatus(reported.status, reported.error)
+        }
+    }
+
+    /** What the From row says about each line that is down, by key. */
+    get lineProblems() {
+        const problems = {}
+        for (const [key, {status, error}] of Object.entries(this.state.lineStatuses)) {
+            if (status === 'error' || status === 'offline') {
+                problems[key] = error || _t("This line is not connected.")
+            }
+        }
+        return problems
+    }
+
+    _refreshIsActive() {
+        this.state.isActive = this.lines.some((line) => !line.startFailed)
+    }
+
+    /**
+     * Stays until closed, not on the usual timer: the panel may not be open yet.
+     * A line that could not mint is not said here, because it says so itself.
+     */
+    _sayWhatTheMountFound() {
+        const stored = this.isMultiLine ? loadSelectedLine() : null
+        const mintError = this.props.mintError
+        if (stored && !this.lines.some((line) => line.key === stored)) {
+            this.state.lastOperationError = _t("The line you chose is no longer one of your lines. Calls now go from %s.", this.selectedLine.label)
+        } else if (mintError && !this.lines.some((line) => line.unavailable === mintError)) {
+            this.state.lastOperationError = mintError
+        }
     }
 
     /** Push the phone's user-visible state to the systray button. */
@@ -1000,13 +1088,48 @@ export class Phone extends Component {
         this.notify(message, {type: 'warning'})
     }
 
+    /** Whether another press has to wait: one call goes out at a time, across all lines. */
+    _isDialBusy() {
+        return this.state.inCall || this._preparingCall
+    }
+
+    /**
+     * The second press of the same number is the same press. A different one was
+     * meant, and with two lines may have been meant for another line, so it hears
+     * why nothing happened.
+     */
+    _refuseBusyDial(props) {
+        if (this.isMultiLine && props.phone !== this.state.callPhoneNumber) {
+            this._refuseDial(_t("A call is already going out. End it before you place another."))
+        }
+    }
+
+    /** Says why nothing was dialed, where the person can see it. */
+    _refuseDial(words) {
+        this._setOperationError(words)
+        this.state.isDisplay = true
+        this.state.isCollapsed = false
+    }
+
     async prepareCall(props) {
-        if (!this.state.inCall) {
+        if (this._isDialBusy()) {
+            this._refuseBusyDial(props)
+            return
+        }
+        this._preparingCall = true
+        try {
             this.state.isContactList = false
             this.state.callPhoneNumber = props.phone
             await this.searchPartner(props.phone)
-            this.makeCall(props)
+        } finally {
+            this._preparingCall = false
         }
+        // A call may have rung, here or on another line, during that lookup.
+        if (this.state.inCall) {
+            this._refuseBusyDial(props)
+            return
+        }
+        this.makeCall(props)
     }
 
     async setCallStatus(status) {
@@ -1154,31 +1277,40 @@ export class Phone extends Component {
         let phoneNumber = props.phone
         const line = self._lineToDial(props.lineKey)
         if (!line) {
-            self._setOperationError(_t("The line this call was on is no longer one of your lines, so nothing was dialed. Choose a line and dial from the keypad."))
+            self._refuseDial(_t("The line this call was on is no longer one of your lines, so nothing was dialed. Choose a line and dial from the keypad."))
             return
         }
         if (!line.provider) {
-            self._setOperationError(LINE_UNAVAILABLE)
+            self._refuseDial(LINE_UNAVAILABLE)
             return
         }
         // Never another line instead: the person chose this one.
+        if (line.unavailable) {
+            self._refuseDial(self.isMultiLine
+                ? _t("%s is not available: %s Choose another line, or try again.", line.label, line.unavailable)
+                : line.unavailable)
+            return
+        }
         if (self.isMultiLine && !line.hasLiveTransport) {
-            self._setOperationError(_t("%s is not connected. Choose another line, or try again.", line.label))
+            self._refuseDial(_t("%s is not connected. Choose another line, or try again.", line.label))
             return
         }
         // A second press of the call already going out is the same press.
         if (line.transport?.liveCall) {
             return
         }
-        const refusal = line.transport?.dialRefusal
+        // A call nobody can confirm may still ring the person's own phone, and that
+        // is the phone any other line would ring too.
+        const refusal = self.lines.map((candidate) => candidate.transport?.dialRefusal).find(Boolean)
         if (refusal) {
-            self._setOperationError(refusal)
+            self._refuseDial(refusal)
             return
         }
         self._callLineKey = line.key
         // The panel shows the line being dialed; the selection stays as it is.
         if (line !== self.activeLine) {
             self.state.foregroundLineKey = line.key
+            self._showLineStatus()
         }
         self.startCall()
 
@@ -1193,7 +1325,23 @@ export class Phone extends Component {
             params.CallerId = self.callerIdOf(line)
         }
 
-        self.session = await line.dial(params)
+        try {
+            self.session = await line.dial(params)
+        } catch (error) {
+            // The session setter never ran, so a one-time line has to be let go here.
+            if (self.state.foregroundLineKey === line.key && !line.session) {
+                self.state.foregroundLineKey = null
+                self._showLineStatus()
+            }
+            if (!self.isMultiLine) {
+                throw error
+            }
+            console.warn('Connect: The dial failed:', error?.message || error)
+            await self.endCall()
+            self.bc.postMessage({event: "tbcEndCall"})
+            self._refuseDial(_t("%s could not place the call: %s", line.label, error?.message || _t("no reason given.")))
+            return
+        }
         const call = self.session
 
         self._saidCall = call
@@ -1201,6 +1349,9 @@ export class Phone extends Component {
         call.on("callState", (report) => {
             if (self._saidCall === call) {
                 self._onCallState(report, phoneNumber)
+            } else if (report.state === 'unknown') {
+                // An earlier call went unconfirmed after the panel moved on from it.
+                self._setOperationError(callUnconfirmedWords())
             }
         })
         call.on("accept", async function () {
@@ -1563,6 +1714,7 @@ export class Phone extends Component {
         this.heldCallId = null
         this.heldCallerId = null
         this.state.syncedLineKey = null
+        this._showLineStatus()
         if (promote) {
             this._promoteWaitingCall(waiting)
         }

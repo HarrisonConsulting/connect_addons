@@ -51,6 +51,7 @@ export class LineSelector extends Component {
         lines: Array,
         line: Object,
         callerId: {type: String, optional: true},
+        problems: Object,
         readonly: Boolean,
         onSelect: Function,
         onPickCallerId: Function,
@@ -59,6 +60,11 @@ export class LineSelector extends Component {
 
     get usesDropdown() {
         return this.props.lines.length >= 4
+    }
+
+    /** What is wrong with a line, in words, or nothing. */
+    problem(line) {
+        return this.props.problems[line.key] || ''
     }
 
     get howItConnects() {

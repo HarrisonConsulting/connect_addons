@@ -34,3 +34,4 @@ from . import test_line_authority
 from . import test_softphone_capabilities
 from . import test_line_row
 from . import test_phone_anchors
+from . import test_line_call

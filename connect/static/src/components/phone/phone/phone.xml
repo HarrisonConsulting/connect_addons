@@ -249,7 +249,7 @@
             </div>
             <!--Calls-->
             <div t-attf-class="{{ state.isCalls ? '' : 'o_hide' }} o_body_phone">
-                <Calls bus="bus"/>
+                <Calls bus="bus" lines="lines"/>
             </div>
 
 

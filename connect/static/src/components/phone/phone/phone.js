@@ -1124,10 +1124,25 @@ export class Phone extends Component {
         }
     }
 
+    /**
+     * The line a dial goes out on. A call that names a line gets that line or
+     * none, never another in its place. One line has nowhere else to go.
+     */
+    _lineToDial(lineKey) {
+        if (!this.isMultiLine || !lineKey) {
+            return this.activeLine
+        }
+        return this.lines.find((line) => line.key === lineKey) || null
+    }
+
     async makeCall(props) {
         const self = this
         let phoneNumber = props.phone
-        const line = self.activeLine
+        const line = self._lineToDial(props.lineKey)
+        if (!line) {
+            self._setOperationError(_t("The line this call was on is no longer one of your lines, so nothing was dialed. Choose a line and dial from the keypad."))
+            return
+        }
         if (!line.provider) {
             self._setOperationError(LINE_UNAVAILABLE)
             return
@@ -1138,6 +1153,10 @@ export class Phone extends Component {
             return
         }
         self._callLineKey = line.key
+        // The panel shows the line being dialed; the selection stays as it is.
+        if (line !== self.activeLine) {
+            self.state.foregroundLineKey = line.key
+        }
         self.startCall()
 
         const syncParams = self.getJsonCallData()

@@ -53,6 +53,17 @@ class Call(models.Model):
              'and the parent leg has not rejoined it yet through its <Dial> '
              'action.')
 
+    def _widget_tool_claim(self):
+        """A row with a call_sid was on Twilio: the reader's first Twilio row."""
+        self.ensure_one()
+        if not self.call_sid:
+            return super()._widget_tool_claim()
+        connect_user = self.env.user.connect_user
+        if not connect_user:
+            return self.env['connect.tool']
+        return connect_user.ordered_tools('voice').filtered(
+            lambda row: row.tool_id.adapter == 'twilio')[:1].tool_id
+
     def _conference_state_commit(self, vals):
         """Write `vals` on this call in its own, committed transaction.
 

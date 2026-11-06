@@ -110,7 +110,7 @@
                             </td>
                             <td class="o_history_info w-100 d-flex flex-row">
                                 <div class="d-flex flex-column info-card"
-                                     t-on-click="() => this._onClickContactCall(caller)"
+                                     t-on-click="() => this._onClickContactCall(caller, call.line_key)"
                                      t-attf-title="Call to {{caller}}">
                                     <div>
                                         <div class="card-identifier" t-att-title="caller_id">
@@ -129,6 +129,9 @@
                                     <div class="card-date">
                                         <span class="icon-call"/>
                                         <t t-out="caller"/>
+                                    </div>
+                                    <div t-if="lineLabel(call)" class="card-date o_call_line_label">
+                                        <t t-out="lineLabel(call)"/>
                                     </div>
                                 </div>
                                 <div class="o_favorite">

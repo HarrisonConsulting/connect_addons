@@ -33,6 +33,16 @@ class Call(models.Model):
         'connect.tool', ondelete='set null', string='System',
         help='The system that carried this call.',
     )
+    line_key = fields.Char(
+        compute='_compute_widget_line', string='Line Key',
+        help='The phone line this call was on, as the person reading it knows '
+             'that line. Empty when the line cannot be known.',
+    )
+    line_label = fields.Char(
+        compute='_compute_widget_line', string='Line',
+        help='The name of the phone line this call was on. Empty when the line '
+             'cannot be known.',
+    )
     partner_img = fields.Binary(related='partner.image_1920', string='Partner Image')
     direction = fields.Char(index=True, readonly=True)
     call_type = fields.Selection([
@@ -71,6 +81,29 @@ class Call(models.Model):
     has_error = fields.Boolean(index=True)
     error_code = fields.Char(readonly=True)
     error_message = fields.Text(readonly=True)
+
+    def _widget_tool(self):
+        """The tool this call was on: its stamp, or a provider's claim."""
+        self.ensure_one()
+        return self.tool_id or self._widget_tool_claim()
+
+    def _widget_tool_claim(self):
+        """A provider's read-time answer for a row with no stamp, or no tool.
+
+        An override claims a row only on the provider's own mark and otherwise
+        calls super, so the order providers load in does not matter. A row with
+        no mark has no tool, because nothing is ever guessed or written back.
+        """
+        self.ensure_one()
+        return self.env['connect.tool']
+
+    @api.depends('tool_id')
+    @api.depends_context('uid')
+    def _compute_widget_line(self):
+        for call in self:
+            tool = call._widget_tool()
+            call.line_key = self.env['connect.user']._phone_line_identity(tool) if tool else False
+            call.line_label = tool.name
 
     def _get_name(self):
         for rec in self:
@@ -561,5 +594,7 @@ class Call(models.Model):
             "called_users",
             "partner",
             "create_date",
-            "direction"
+            "direction",
+            "line_key",
+            "line_label",
         ]

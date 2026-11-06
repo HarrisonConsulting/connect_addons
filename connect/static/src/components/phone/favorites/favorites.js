@@ -38,6 +38,7 @@ export class Favorites extends Component {
             "partner",
             "user",
             "phone_number",
+            "line_key",
         ]
 
         this.orm.searchRead("connect.favorite", [], fields, {limit: 30}).then((records) => {
@@ -45,8 +46,8 @@ export class Favorites extends Component {
         })
     }
 
-    _onClickContactCall(phone_number) {
-        this.bus.trigger('busPhoneMakeCall', {phone: phone_number})
+    _onClickContactCall(phone_number, lineKey) {
+        this.bus.trigger('busPhoneMakeCall', {phone: phone_number, lineKey})
     }
 
     _onClickRemoveFavorite(ev, id) {

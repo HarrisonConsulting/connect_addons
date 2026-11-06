@@ -90,6 +90,7 @@ export class Calls extends Component {
     static template = 'connect.calls'
     static props = {
         bus: Object,
+        lines: {type: Array, optional: true},
     }
     static components = {CallDetail}
 
@@ -149,14 +150,26 @@ export class Calls extends Component {
         })
     }
 
-    _onClickContactCall(phoneNumber) {
-        this.bus.trigger('busPhoneMakeCall', {phone: phoneNumber})
+    /** The line a call was on, by the name the From row uses. One line needs no label. */
+    lineLabel(call) {
+        const lines = this.props.lines || []
+        if (lines.length < 2 || !call.line_key) {
+            return false
+        }
+        return lines.find((line) => line.key === call.line_key)?.label || call.line_label
+    }
+
+    _onClickContactCall(phoneNumber, lineKey) {
+        this.bus.trigger('busPhoneMakeCall', {phone: phoneNumber, lineKey})
     }
 
     async _onClickFavorite(call) {
         const kwargs = {}
         const isCalled = call.called_users[0] === this.user
         kwargs.phone_number = isCalled ? call.caller : call.called
+        if (call.line_key) {
+            kwargs.line_key = call.line_key
+        }
         if (call.partner) {
             kwargs.partner = call.partner[0]
         } else {

@@ -97,12 +97,24 @@ class Call(models.Model):
         self.ensure_one()
         return self.env['connect.tool']
 
+    def _widget_gone_line_key(self):
+        """The line this call was on, when it is known and the reader holds no tool.
+
+        A key none of the reader's lines has makes a redial say the line has gone,
+        which is the point: empty would mean nobody knows, and the redial would go
+        out on the visible selection. An override answers only on its own mark.
+        """
+        self.ensure_one()
+        return False
+
     @api.depends('tool_id')
     @api.depends_context('uid')
     def _compute_widget_line(self):
         for call in self:
             tool = call._widget_tool()
-            call.line_key = self.env['connect.user']._phone_line_identity(tool) if tool else False
+            call.line_key = (
+                self.env['connect.user']._phone_line_identity(tool) if tool
+                else call._widget_gone_line_key())
             call.line_label = tool.name
 
     def _get_name(self):

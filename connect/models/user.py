@@ -1,10 +1,11 @@
+import functools
 import json
 import logging
 import re
 from datetime import timedelta
 
 from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 if release.version_info[0] >= 19:
     from odoo.models import Constraint
 from .settings import debug
@@ -177,8 +178,13 @@ class User(models.Model):
         the call a person with one line has always made. A line's provider is
         resolved under the same context as its mint and sits beside token_data,
         never inside it. A line with no credential and no bridge media is
-        dropped, and a mint that fails costs only its own line.
+        dropped. A mint that fails costs only its own line, which stays in the
+        list with the reason as its `unavailable`, so that the person's choice
+        of it can refuse in words. A person with no connect.user has no line to
+        keep. A line minted under a tool says so in `mint_tool_id`, and every
+        later mint for it repeats that tool, even if it is the only line left.
         """
+        self._check_phone_line_context()
         connect_user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
         by_identity = {}
         if connect_user:
@@ -195,6 +201,7 @@ class User(models.Model):
         lines = []
         errors = []
         for key, tool, scoped in candidates:
+            failure = False
             try:
                 with self.env.cr.savepoint():
                     token_data = scoped.get_client_token(nonce)
@@ -203,18 +210,25 @@ class User(models.Model):
                 logger.warning(
                     'No phone credential for user %s on tool %s: %s',
                     self.env.user.id, tool.id, type(error).__name__)
-                errors.append('Could not get a credential for a phone line.')
-                continue
+                failure = 'Could not get a credential for a phone line.'
+                token_data = {}
+                provider = tool.adapter or scoped._get_phone_provider()
             if token_data.get('error'):
-                errors.append(token_data['error'])
+                failure = token_data['error']
+            if failure:
+                errors.append(failure)
             media = token_data.get('media') or 'browser'
             if not (token_data.get('token') or token_data.get('password') or media == 'bridge'):
-                continue
+                if not (failure and connect_user):
+                    continue
+                token_data = {}
+            else:
+                failure = False
             # With no context, the first row can name another adapter than the
             # projected tool, and then this line is not that tool.
             if tool.adapter != provider:
                 key, tool = provider or '', self.env['connect.tool']
-            lines.append({
+            line = {
                 'key': key,
                 'tool_id': tool.id,
                 'label': token_data.get('label') or tool.name or '',
@@ -223,8 +237,52 @@ class User(models.Model):
                 'token_data': token_data,
                 'capabilities': self.env['connect.channel'].softphone_capabilities(provider),
                 'caller_ids': token_data.get('caller_ids') or [],
-            })
+            }
+            mint_tool_id = scoped.env.context.get('connect_tool_id')
+            if mint_tool_id:
+                line['mint_tool_id'] = mint_tool_id
+            if failure:
+                line['unavailable'] = failure
+            lines.append(line)
         return {'lines': lines, 'error': errors[0] if errors else False}
+
+    @api.model
+    def _check_phone_line_context(self):
+        """Refuse a caller naming a tool they do not hold as a line.
+
+        A mint under a tool's context answers for that tool's line. With no such
+        context the caller's own rows decide and this has nothing to say, and code
+        running as superuser brings its own authority.
+        """
+        tool_id = self.env.context.get('connect_tool_id')
+        if self.env.su or not tool_id:
+            return
+        tool = self.env['connect.tool'].sudo().browse(tool_id).exists()
+        connect_user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
+        if not connect_user or tool not in connect_user._phone_line_tools():
+            raise AccessError('This line is not assigned to you.')
+
+    def _register_hook(self):
+        """Fence every mint, whichever provider's override answers it.
+
+        Provider overrides answer without reaching this class and some run as
+        superuser inside, so the composed method is wrapped once per registry:
+        the technique connect.settings uses for originate_call.
+        """
+        res = super()._register_hook()
+        cls = type(self)
+        original = cls.get_client_token
+        if getattr(original, '_connect_checks_line', False):
+            return res
+
+        @functools.wraps(original)
+        def get_client_token(self, *args, **kwargs):
+            self._check_phone_line_context()
+            return original(self, *args, **kwargs)
+
+        get_client_token._connect_checks_line = True
+        cls.get_client_token = get_client_token
+        return res
 
     @api.model
     def update_presence(self, status):
@@ -401,6 +459,8 @@ class User(models.Model):
         Returns a list of {id, name, user_id, exten_number}; provider
         extension fields come from `_pbx_number_fields()`, so a database with
         several providers installed resolves whichever one the colleague has.
+        A module that keeps presence adds presence_status to the model, and then
+        each entry carries it too.
         """
         has_group = self.env.user.has_group
         if not any([has_group('connect.group_user'), has_group('connect.group_admin')]):
@@ -415,8 +475,9 @@ class User(models.Model):
             (field_name, '=ilike', '%{}%'.format(query))
             for field_name in number_fields
         ]
+        presence_fields = ['presence_status'] if 'presence_status' in self._fields else []
         records = self.sudo().search_read(
-            domain, ['id', 'name', 'user'] + number_fields,
+            domain, ['id', 'name', 'user'] + number_fields + presence_fields,
             order='name asc', limit=limit)
         return [
             {
@@ -426,6 +487,7 @@ class User(models.Model):
                 'exten_number': next(
                     (record[field_name] for field_name in number_fields
                      if record.get(field_name)), ''),
+                **{field_name: record[field_name] for field_name in presence_fields},
             }
             for record in records
         ]

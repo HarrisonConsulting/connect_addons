@@ -83,10 +83,14 @@ class TestLineCallTwilio(TwilioTestCommon):
         call = self._call(call_sid=SID, caller_user=self.odoo_user.id)
         self.assertEqual(self._read(call)['line_label'], 'First')
 
-    def test_a_reader_with_no_twilio_row_gets_no_line(self):
+    def test_a_reader_with_no_twilio_row_hears_the_line_has_gone(self):
+        """The row is known to be Twilio's, so a key no line of theirs has makes the
+        redial say the line has gone, instead of going out on the selection."""
         self._row(adapter='sip', name='Not Twilio')
         call = self._call(call_sid=SID, caller_user=self.odoo_user.id)
-        self.assertIs(self._read(call)['line_key'], False)
+        row = self._read(call)
+        self.assertEqual(row['line_key'], 'twilio')
+        self.assertIs(row['line_label'], False)
 
     def test_each_reader_gets_their_own_row(self):
         other_user = new_test_user(

@@ -64,6 +64,11 @@ class Call(models.Model):
         return connect_user.ordered_tools('voice').filtered(
             lambda row: row.tool_id.adapter == 'twilio')[:1].tool_id
 
+    def _widget_gone_line_key(self):
+        """A row with a call_sid was on Twilio, whoever is reading it now."""
+        self.ensure_one()
+        return 'twilio' if self.call_sid else super()._widget_gone_line_key()
+
     def _conference_state_commit(self, vals):
         """Write `vals` on this call in its own, committed transaction.
 

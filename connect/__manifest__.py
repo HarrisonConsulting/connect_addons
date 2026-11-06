@@ -53,6 +53,7 @@
             '/connect/static/src/components/phone/line_selector/*',
             '/connect/static/src/components/phone/phone/transports/telephony_transport.js',
             '/connect/static/src/components/phone/phone/transports/twilio_transport.js',
+            '/connect/static/src/components/phone/phone/transports/server_originate_transport.js',
             '/connect/static/src/components/phone/phone/phone_line.js',
             '/connect/static/src/components/phone/phone/phone.js',
             '/connect/static/src/components/phone/phone/phone.xml',

@@ -149,6 +149,14 @@
                 <span t-out="state.lastOperationError"/>
                 <button class="btn-close btn-close-sm" t-on-click="() => this.state.lastOperationError = false"/>
             </div>
+            <!--A call on the person's own phone, in words-->
+            <div t-if="state.callStateText or isOnOwnPhone" class="o_call_state text-center small p-1" aria-live="polite" role="status">
+                <div t-if="state.callStateText" class="o_call_state_text" t-out="state.callStateText"/>
+                <t t-if="isOnOwnPhone">
+                    <div class="o_call_state_timer_label">since you picked up</div>
+                    <div class="o_call_state_note">Mute and keypad are on your phone</div>
+                </t>
+            </div>
             <!--Dial panel-->
             <div t-attf-class="{{ state.isDialingPanel ? '' : 'o_hide' }} o_body_phone" aria-live="polite" role="status">
                 <div t-attf-class="o_phone_call_details flex-column {{ state.isOnHold ? 'on-hold' : '' }}">

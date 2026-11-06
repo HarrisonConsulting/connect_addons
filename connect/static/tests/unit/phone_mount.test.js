@@ -60,7 +60,6 @@ function watchMints() {
 }
 
 test("a bridge line with no token mounts, and asks the server for nothing", async () => {
-    registerNeutral()
     const mints = watchMints()
     const phone = await mountLines([{
         key: NEUTRAL,

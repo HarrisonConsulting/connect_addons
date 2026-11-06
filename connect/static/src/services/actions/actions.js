@@ -20,6 +20,7 @@ export const pbxActionService = {
         bus_service.addChannel(common_channel)
         bus_service.subscribe("connect_notify", (action) => this.connect_handle_notify(action))
         bus_service.subscribe("reload_view", (action) => this.connect_handle_reload_view(action))
+        bus_service.subscribe("connect_call_state", (payload) => this.connect_handle_call_state(payload))
     },
 
     connect_handle_reload_view: function (message) {
@@ -28,6 +29,11 @@ export const pbxActionService = {
         if (action.res_model === message.model) {
             routerBus.trigger("ROUTE_CHANGE")
         }
+    },
+
+    connect_handle_call_state: function (payload) {
+        // Nothing to route to when this person has no phone mounted.
+        window.connectBus?.trigger("busPhoneCallState", payload)
     },
 
     connect_handle_notify: function ({title, message, sticky, warning}) {

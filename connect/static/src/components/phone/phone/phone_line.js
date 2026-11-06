@@ -2,6 +2,7 @@
 "use strict"
 
 import {registry} from "@web/core/registry"
+import {ServerOriginateTransport} from "@connect/components/phone/phone/transports/server_originate_transport"
 
 export const LINE_UNAVAILABLE = 'This phone line is not available: it has no telephony provider. Ask your administrator to check your Connect user.'
 
@@ -58,9 +59,13 @@ export class PhoneLine {
      * own registry.category(...).add(...) call) —
      * nothing here, or anywhere else in this file, needs to change to add a
      * further provider. A provider module that isn't installed simply never
-     * registers, and is never imported by this file either.
+     * registers, and is never imported by this file either. A bridge line has no
+     * transport of its own: its calls are the server's.
      */
     get _transportClass() {
+        if (this.media === 'bridge') {
+            return ServerOriginateTransport
+        }
         const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
         if (!TransportClass) {
             throw new Error(`Connect: no telephony transport implemented for provider "${this.provider}"`)
@@ -237,7 +242,7 @@ export class PhoneLine {
         }
 
         // Check WebRTC support before initializing the transport
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (this.needsBrowserMedia && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) {
             console.error('Connect: WebRTC not supported in this browser')
             phone.state.isActive = false
             phone._setConnectionStatus('error', 'This browser does not support WebRTC.')
@@ -245,7 +250,7 @@ export class PhoneLine {
             return
         }
 
-        this.transport = new this._transportClass()
+        this.transport = new this._transportClass(this)
 
         try {
             this.transport.init(this._transportClass.buildConnData(this.tokenData))

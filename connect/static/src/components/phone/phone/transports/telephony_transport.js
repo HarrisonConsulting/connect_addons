@@ -160,6 +160,27 @@ export class TelephonyTransport extends Emitter {
     setIncomingAudio(enabled) {
         throw new Error(`${this.constructor.name}: setIncomingAudio() not implemented`)
     }
+
+    /**
+     * The call a further press would only repeat, for a transport whose dial takes
+     * long enough to be pressed twice.
+     * @returns {TelephonyCall|null}
+     */
+    get liveCall() {
+        return null
+    }
+
+    /** @returns {string|null} why this transport must not dial right now, in words */
+    get dialRefusal() {
+        return null
+    }
+
+    /**
+     * What the server published about a call, for a transport whose calls the
+     * server drives. See connect.settings _notify_call_state.
+     * @param {Object} payload
+     */
+    receiveCallState(payload) {}
 }
 
 /**
@@ -189,6 +210,9 @@ export class TelephonyTransport extends Emitter {
  *                  must not assume it ever fires.
  *   'progress'   - OPTIONAL. The call is being set up at the far end, before
  *                  'accept'. Transports that cannot tell never emit it.
+ *   'callState'  - OPTIONAL. {state, reason_code, detail}, for a call whose
+ *                  progress the panel has to put in words because none of it is
+ *                  heard in the browser.
  *
  * OPTIONAL method, deliberately not defined here so that its presence can be
  * tested: hold(on), for a transport that holds its own media. The Hold button
@@ -198,6 +222,11 @@ export class TelephonyCall extends Emitter {
     /** @returns {{From, CallerName, Partner, autoAnswer, Origin, CallSid}} */
     get params() {
         throw new Error(`${this.constructor.name}: params getter not implemented`)
+    }
+
+    /** How long the call has already been up when 'accept' fires. */
+    get elapsedSeconds() {
+        return 0
     }
 
     accept() {

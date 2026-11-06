@@ -364,6 +364,22 @@ class Channel(models.Model):
         return getattr(self, method)(payload)
 
     @api.model
+    def hangup_softphone_call(self, payload):
+        """End a server-originated call: {provider, call_ref, line_key}.
+
+        Not a capability, because every provider that originates this way must
+        have it. `_softphone_hangup_<provider>` checks whose call call_ref is.
+        """
+        payload = payload or {}
+        provider = payload.get('provider')
+        if not provider:
+            raise UserError('Missing telephony provider.')
+        method = '_softphone_hangup_{}'.format(provider)
+        if not hasattr(self, method):
+            raise UserError('Hanging up a call is not supported by this provider.')
+        return getattr(self, method)(payload)
+
+    @api.model
     def softphone_capabilities(self, provider):
         """What `provider` can do on a softphone call, as {action: bool}.
 

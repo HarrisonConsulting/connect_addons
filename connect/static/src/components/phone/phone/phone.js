@@ -4,6 +4,7 @@ import {useBus, useService} from "@web/core/utils/hooks"
 import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {LINE_UNAVAILABLE, PhoneLine} from "@connect/components/phone/phone/phone_line"
+import {callUnconfirmedWords} from "@connect/components/phone/phone/transports/server_originate_transport"
 import {LineSelector, howLineConnects, loadSelectedLine, saveSelectedLine} from "@connect/components/phone/line_selector/line_selector"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, maskNumber, setFocus} from "@connect/js/utils"
@@ -28,6 +29,9 @@ const LINE_ROW_HEIGHT = 86
 // What another tab says about its call, which means nothing to a tab whose own
 // call is on another line.
 const LINE_BOUND_EVENTS = new Set(['tbcAnswerCall', 'tbcEndCall', 'tbcDtmf', 'tbcMicrophoneMute', 'tbcHold'])
+
+// How long the panel keeps saying how a call on the person's own phone ended.
+const CALL_ENDING_WORDS_MS = 10000
 
 // Audio unlock handler for browser autoplay restrictions
 let audioUnlocked = false
@@ -198,6 +202,8 @@ export class Phone extends Component {
             syncedLineKey: null,
             // The caller ID picked per line key.
             pickedCallerIds: {},
+            // What the panel says about a call nothing in this browser can hear.
+            callStateText: '',
         })
         // Phone dimensions for drag constraints (golden ratio)
         this.phoneWidth = 300
@@ -399,6 +405,11 @@ export class Phone extends Component {
         useBus(this.bus, 'busPhoneToggleDisplay', ({detail}) => this._busPhoneToggleDisplay(detail))
         useBus(this.bus, 'busPhoneHangUp', ({detail}) => this._busPhoneHangUp(detail))
         useBus(this.bus, 'busPhoneReconnect', () => this._reconnect())
+        useBus(this.bus, 'busPhoneCallState', ({detail}) => {
+            for (const line of this.lines) {
+                line.transport?.receiveCallState(detail)
+            }
+        })
 
         onWillStart(async () => {
             await Promise.all(this.lines.map((line) => line.loadDependencies()))
@@ -435,7 +446,10 @@ export class Phone extends Component {
                     const params = {id: this.id, action: 'pop'}
                     this.bc.postMessage({event: 'tbcSipSession', params})
                     this.bc.postMessage({event: "tbcCloseTab", params: {id: this.id}})
-                    this.session.disconnect()
+                    // A call on the person's own phone does not need this tab.
+                    if (this.lines.find((line) => line.owns(this.session))?.needsBrowserMedia) {
+                        this.session.disconnect()
+                    }
                 }
             }
             window.addEventListener("unload", this._unloadHandler)
@@ -1152,6 +1166,15 @@ export class Phone extends Component {
             self._setOperationError(_t("%s is not connected. Choose another line, or try again.", line.label))
             return
         }
+        // A second press of the call already going out is the same press.
+        if (line.transport?.liveCall) {
+            return
+        }
+        const refusal = line.transport?.dialRefusal
+        if (refusal) {
+            self._setOperationError(refusal)
+            return
+        }
         self._callLineKey = line.key
         // The panel shows the line being dialed; the selection stays as it is.
         if (line !== self.activeLine) {
@@ -1173,10 +1196,17 @@ export class Phone extends Component {
         self.session = await line.dial(params)
         const call = self.session
 
+        self._saidCall = call
+        self._sayCallState('')
+        call.on("callState", (report) => {
+            if (self._saidCall === call) {
+                self._onCallState(report, phoneNumber)
+            }
+        })
         call.on("accept", async function () {
             if (self.session !== call) return
             self.call_sid = call.params.CallSid || null
-            self.createCallCounter(phoneNumber)
+            self.createCallCounter(phoneNumber, call.elapsedSeconds)
             self.state.phone_status = self.status.accepted
             self._updatePresence('on_call')
             self._attachQualityMonitor(call)
@@ -1244,6 +1274,56 @@ export class Phone extends Component {
                 }
             })()
         })
+    }
+
+    _sayCallState(text, clearAfterMs = 0) {
+        clearTimeout(this._callStateTimer)
+        this.state.callStateText = text
+        if (clearAfterMs) {
+            this._callStateTimer = setTimeout(() => { this.state.callStateText = '' }, clearAfterMs)
+        }
+    }
+
+    _onCallState({state, reason_code, detail}, phoneNumber) {
+        const isEnd = state === 'ended' || state === 'failed'
+        this._sayCallState(this._callStateWords(state, reason_code, detail, phoneNumber), isEnd ? CALL_ENDING_WORDS_MS : 0)
+    }
+
+    /** In words. The codes are neutral, so no carrier's vocabulary reaches the panel. */
+    _callStateWords(state, reasonCode, detail, phoneNumber) {
+        if (state === 'calling') {
+            return _t("Calling your phone")
+        }
+        if (state === 'first_leg_answered' || state === 'connecting') {
+            return _t("You picked up, connecting %s", this.displayNumber(phoneNumber))
+        }
+        if (state === 'in_call') {
+            return reasonCode === 'far_end_unknown' ? _t("Connected from your phone") : _t("In call")
+        }
+        if (state === 'unknown') {
+            return callUnconfirmedWords()
+        }
+        if (detail) {
+            return detail
+        }
+        switch (reasonCode) {
+            case 'no_answer':
+                return _t("They did not answer")
+            case 'busy':
+                return _t("Line busy")
+            case 'own_phone_no_answer':
+                return _t("Your phone did not answer")
+            case 'own_phone_may_ring':
+                return _t("Your phone may ring until it times out. Answering will not connect.")
+            case 'unconfirmed':
+                return ''
+        }
+        return state === 'failed' ? _t("The call could not be placed.") : _t("Call ended")
+    }
+
+    /** A call on the person's own phone, up: nothing in this browser can touch its audio. */
+    get isOnOwnPhone() {
+        return this.state.phone_status === this.status.accepted && !this.can('mute')
     }
 
     startCall() {
@@ -1558,10 +1638,10 @@ export class Phone extends Component {
         return `/web/image?model=res.users&field=avatar_128&id=${userId}`
     }
 
-    createCallCounter(phoneNumber) {
+    createCallCounter(phoneNumber, elapsedSeconds = 0) {
         const self = this
-        self.callDuration = 0
-        self.state.callDurationTime = '00:00:00'
+        self.callDuration = elapsedSeconds
+        self.state.callDurationTime = new Date(elapsedSeconds * 1000).toISOString().substring(11, 19)
         self.callDurationTimerInstance = setInterval(() => {
             self.callDuration += 1
             if (self.state.callerId.phoneNumber === phoneNumber) {

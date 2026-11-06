@@ -18,6 +18,11 @@ ODUIST_MODULES.append('connect')
 
 logger = logging.getLogger(__name__)
 
+# What a call on the person's own phone can be doing, as the panel understands it.
+CALL_STATES = frozenset((
+    'calling', 'first_leg_answered', 'connecting', 'in_call', 'ended', 'failed', 'unknown',
+))
+
 MAX_EXTEN_LEN = 4
 PROTECTED_FIELDS = [
     "display_openai_api_key",
@@ -170,6 +175,35 @@ class Settings(models.Model):
             )
 
         return True
+
+    @api.model
+    def _notify_call_state(self, uid, payload):
+        """Tell one user's browsers how a server-originated call is going.
+
+        `call_ref` is the idempotency_key the press sent to originate_call, so a
+        browser that never got the answer to that request still finds its call.
+        `reason_code` is neutral, never a carrier's word, and the panel turns it
+        into wording. `since` is when this state began and defaults to now.
+
+        Anyone signed in could listen on this channel, so nothing else goes in the
+        message: no number, and call_ref is no authority. A provider's
+        _softphone_hangup method checks whose call it is.
+        """
+        state = payload.get('state')
+        if state not in CALL_STATES:
+            raise ValueError('Unknown call state: %s' % state)
+        since = payload.get('since') or fields.Datetime.now()
+        self.env['bus.bus']._sendone(
+            'connect_actions_{}'.format(uid),
+            'connect_call_state',
+            {
+                'call_ref': payload['call_ref'],
+                'line_key': payload.get('line_key') or '',
+                'state': state,
+                'reason_code': payload.get('reason_code') or '',
+                'since': fields.Datetime.to_string(fields.Datetime.to_datetime(since)),
+            },
+        )
 
     @api.model
     def connect_reload_view(self, model):

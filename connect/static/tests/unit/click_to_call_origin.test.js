@@ -2,26 +2,17 @@
 "use strict"
 
 import {describe, expect, test} from "@odoo/hoot"
-import {EventBus} from "@odoo/owl"
-import {mockService, mountWithCleanup} from "@web/../tests/web_test_helpers"
-import {Phone} from "@connect/components/phone/phone/phone"
+import {defineMailModels} from "@mail/../tests/mail_test_helpers"
 import {LoopbackCall} from "@connect/../tests/helpers/loopback_transport"
+import {
+    SINGLE_LINE_NONCE,
+    mountSingleLinePhone,
+} from "@connect/../tests/unit/helpers/single_line_phone"
 
 describe.current.tags("desktop")
+defineMailModels()
 
-const NONCE = "tab-nonce-1"
-
-async function mountPhone() {
-    mockService("connect_audio", {})
-    const phone = await mountWithCleanup(Phone, {
-        props: {
-            bus: new EventBus(),
-            token_data: {token: "test-token", edge: "ashburn"},
-            browserSessionNonce: NONCE,
-        },
-    })
-    return phone
-}
+const mountPhone = () => mountSingleLinePhone({token: "test-token", edge: "ashburn"})
 
 function ringWith(phone, params) {
     const call = new LoopbackCall({From: "+15550100", autoAnswer: "yes", ...params})
@@ -35,7 +26,7 @@ function ringWith(phone, params) {
 
 test("click-to-call is answered by the tab that placed it", async () => {
     const phone = await mountPhone()
-    const seen = ringWith(phone, {Origin: NONCE})
+    const seen = ringWith(phone, {Origin: SINGLE_LINE_NONCE})
     expect(seen.accept).toBe(1)
     expect(seen.ignore).toBe(0)
 })

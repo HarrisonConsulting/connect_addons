@@ -18,6 +18,10 @@
  */
 
 import { registry } from "@web/core/registry"
+// The real transport registers under the same key, so it has to load first or
+// the unit bundle aborts when its own registry add runs after the forced one
+// below.
+import "@connect/components/phone/phone/transports/twilio_transport"
 import {
     TelephonyCall,
     TelephonyTransport,
@@ -103,3 +107,13 @@ export class LoopbackTransport extends TelephonyTransport {
 registry.category("connect.telephony_transports").add("twilio", LoopbackTransport, {
     force: true,
 })
+
+/**
+ * Register the loopback under another provider key, for tests that need a
+ * second line alongside the one above.
+ */
+export function registerLoopbackProvider(key) {
+    registry.category("connect.telephony_transports").add(key, LoopbackTransport, {
+        force: true,
+    })
+}

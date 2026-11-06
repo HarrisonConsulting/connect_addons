@@ -3,7 +3,9 @@ import {animationFrame} from "@odoo/hoot-mock"
 import {makeMockEnv, mockService, mountWithCleanup} from "@web/../tests/web_test_helpers"
 import {Component, EventBus, useState, xml} from "@odoo/owl"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
+import {defineMailModels} from "@mail/../tests/mail_test_helpers"
 
+defineMailModels()
 
 // Regression: Contacts used to register its busContact* handlers with a bare
 // addEventListener on the page-lifetime phone bus and never removed them, so

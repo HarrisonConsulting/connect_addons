@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Browser cover for the two Connect systray surfaces.
+"""Browser cover for the active-calls systray button.
 
-Both behaviours here are invisible to a server-side test: whether the phone
-button renders its connection state in place (rather than raising toasts), and
-whether the active-calls button is present at all. Only a real page load can
-say.
+Whether the active-calls button is present at all is invisible to a server-side
+test. Only a real page load can say. The tours that mount a softphone need a
+provider, so they live with it: connect_twilio/tests/test_softphone_tour.py.
 """
 
 from odoo.tests import HttpCase, tagged
@@ -31,63 +30,9 @@ class TestSystrayTour(HttpCase):
         # it with session.debug, which is '' in a test session.
         cls.env['ir.ui.menu'].with_user(cls.admin).load_web_menus('')
 
-    @classmethod
-    def _enable_softphone(cls):
-        """Make get_client_token() mint a credential so the phone mounts.
-
-        Only the tours that need the phone's own DOM call this. The values are
-        throwaway, and cost nothing: web.assets_tests swaps the provider
-        transport for a loopback one that registers without a network, so the
-        credential is never presented to anyone who could reject it. That is
-        what makes a mounted softphone hermetic — HttpCase counts ANY browser
-        console error as a failure (common.py sets had_failure BEFORE
-        consulting error_checker), so a tour that provokes even a filtered
-        error cannot pass however far it gets.
-        """
-        Settings = cls.env['connect.settings'].sudo()
-        Settings.set_param('webrtc_provider', 'twilio')
-        Settings.set_param('account_sid', 'AC' + '0' * 32)
-        Settings.set_param('twilio_api_key', 'SK' + '0' * 32)
-        Settings.set_param('twilio_api_secret', 's' * 32)
-
-        ConnectUser = cls.env['connect.user']
-        connect_user = ConnectUser.search([('user', '=', cls.admin.id)], limit=1)
-        if connect_user:
-            connect_user.client_enabled = True
-            return connect_user
-        Domain = cls.env['connect.domain']
-        domain = Domain.search([], limit=1) or Domain.with_context(
-            no_twilio_create=True,
-        ).create({
-            'friendly_name': 'Systray Tour Domain',
-            'subdomain': 'systraytour',
-        })
-        return ConnectUser.create({
-            'username': 'systrayadmin',
-            'domain': domain.id,
-            'sip_enabled': False,
-            'client_enabled': True,
-            'user': cls.admin.id,
-        })
-
-    def test_phone_tray_renders_state_not_toasts(self):
-        self._enable_softphone()
-        self.start_tour('/odoo', 'connect_phone_tray_state_tour',
-                        login=self.admin.login)
-
-    def test_dialer_keeps_hangup_button_visible(self):
-        """The in-call dialer must never clip its own hang-up button.
-
-        The phone is a fixed-height flex column with overflow:hidden, so a tall
-        in-call body panel used to push the call controls off the bottom edge.
-        """
-        self._enable_softphone()
-        self.start_tour('/odoo', 'connect_dialer_layout_tour',
-                        login=self.admin.login)
-
     def test_active_calls_tray_hidden_without_calls(self):
-        # No softphone here: the active-calls button is a separate service and
-        # renders without one.
+        # The active-calls button is a separate service and renders without a
+        # softphone.
         self.env['connect.call'].search([('status', '=', 'in-progress')]).unlink()
         self.start_tour(
             '/odoo', 'connect_active_calls_absent_tour', login=self.admin.login)

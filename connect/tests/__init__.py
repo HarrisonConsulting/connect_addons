@@ -16,6 +16,7 @@ from . import test_campaign_tool
 from . import test_customer_portal
 from . import test_reload_broadcast
 from . import test_systray_tour
+from . import test_single_line_freeze
 from . import test_sync_safety
 from . import test_ng_recording_media
 from . import test_migration_model_references

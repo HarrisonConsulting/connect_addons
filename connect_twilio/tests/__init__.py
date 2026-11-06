@@ -30,3 +30,5 @@ from . import test_s3_settings
 from . import test_s3_recording
 from . import test_webhook_privacy
 from . import test_neutralize
+from . import test_softphone_tour
+from . import test_single_line_token_keys

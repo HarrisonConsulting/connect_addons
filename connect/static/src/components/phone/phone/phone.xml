@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="connect.phone" owl="1">
-        <div t-attf-class="{{state.isDisplay ? '' : 'o_hide'}} {{state.isCollapsed ? 'o_collapsed' : ''}} o_root_connect_phone" t-ref="phone-root" t-on-click="_onClickCollapsedIcon" role="application" aria-label="Connect Phone">
+        <div t-attf-class="{{state.isDisplay ? '' : 'o_hide'}} {{state.isCollapsed ? 'o_collapsed' : ''}} {{isMultiLine ? 'o_phone_multi_line' : ''}} o_root_connect_phone" t-ref="phone-root" t-on-click="_onClickCollapsedIcon" role="application" aria-label="Connect Phone">
             <!--Collapsed Icon - shown when collapsed, context-aware for call status, draggable-->
             <div t-ref="collapsed-icon" t-attf-class="o_collapsed_icon {{state.inCall ? 'in-call' : ''}} {{state.inIncoming ? 'incoming' : ''}}">
                 <i t-attf-class="fa {{state.inCall ? 'fa-phone' : state.inIncoming ? 'fa-bell' : 'fa-phone'}}"/>
@@ -59,6 +59,15 @@
                     <i class="fa fa-volume-up"/>
                 </button>
             </div>
+            <!--From row: only with two or more lines-->
+            <LineSelector t-if="isMultiLine and state.activeTab !== 'work' and !state.isAudioSettings"
+                          lines="lines"
+                          line="activeLine"
+                          callerId="callerIdOf(activeLine)"
+                          readonly="state.inCall or state.inIncoming"
+                          onSelect.bind="selectLine"
+                          onPickCallerId.bind="pickCallerId"
+                          onChangeHow.bind="_onClickAudioSettings"/>
             <!--Audio Settings Panel-->
             <div t-attf-class="{{state.isAudioSettings ? '' : 'o_hide'}} o_body_phone o_audio_settings">
                 <div class="p-2">
@@ -103,10 +112,19 @@
                         </div>
                     </div>
                 </div>
+                <div t-if="isMultiLine" class="o_phone_line_how_block">
+                    <label class="small fw-bold mb-1">How this line connects</label>
+                    <div t-foreach="lines" t-as="line" t-key="line.key" class="o_phone_line_how_item">
+                        <span t-out="line.label"/>
+                        <span t-out="howLineConnects(line)"/>
+                    </div>
+                    <div class="o_phone_line_how_hint">Your administrator sets how a line connects.</div>
+                </div>
             </div>
             <!--Keypad-->
             <div t-attf-class="{{state.isKeypad ? '' : 'o_hide'}} o_body_phone">
                 <div class="o_phone_number_content">
+                    <label t-if="isMultiLine" class="o_phone_to_label">To</label>
                     <input class="o_phone_number_input" type="tel" t-ref="connect-phone-input" t-on-keyup="debounceEnterPhoneNumber" placeholder="Enter name or number" autocomplete="off"/>
                     <div aria-label="Backspace" class="fa fa-long-arrow-left o_phone_number_back" role="img" title="Backspace" t-on-click="_onClickBackSpace"/>
                 </div>

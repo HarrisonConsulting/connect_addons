@@ -4,6 +4,7 @@ import {useBus, useService} from "@web/core/utils/hooks"
 import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {LINE_UNAVAILABLE, PhoneLine} from "@connect/components/phone/phone/phone_line"
+import {LineSelector, howLineConnects, loadSelectedLine, saveSelectedLine} from "@connect/components/phone/line_selector/line_selector"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, maskNumber, setFocus} from "@connect/js/utils"
 import {Component, status, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
@@ -19,6 +20,14 @@ const uid = user.userId
 // the cap. A server that keeps refusing must not be asked in a tight loop.
 const PRESENCE_RETRY_BASE_MS = 1000
 const PRESENCE_RETRY_MAX_MS = 60000
+
+// What the From row and the To label add to the panel; phone.scss raises
+// --phone-height by the same number under .o_phone_multi_line.
+const LINE_ROW_HEIGHT = 86
+
+// What another tab says about its call, which means nothing to a tab whose own
+// call is on another line.
+const LINE_BOUND_EVENTS = new Set(['tbcAnswerCall', 'tbcEndCall', 'tbcDtmf', 'tbcMicrophoneMute', 'tbcHold'])
 
 // Audio unlock handler for browser autoplay restrictions
 let audioUnlocked = false
@@ -69,7 +78,7 @@ export class Phone extends Component {
         browserSessionNonce: {type: String, optional: true}
     }
 
-    static components = {Calls, Contacts, Favorites}
+    static components = {Calls, Contacts, Favorites, LineSelector}
 
     constructor() {
         super(...arguments)
@@ -88,12 +97,14 @@ export class Phone extends Component {
         this._presenceInFlight = false
         this._presenceFailures = 0
         this._presenceRetryTimer = null
-        this.lines = this.props.lines.map((line) => new PhoneLine(this, {
+        this.lines = this.props.lines.map((line, index) => new PhoneLine(this, {
             key: line.key,
             provider: line.provider,
             media: line.media,
             toolId: line.tool_id,
             capabilities: line.capabilities,
+            label: line.label || _t("Line %s", index + 1),
+            callerIds: line.caller_ids,
             tokenData: line.token_data,
         }))
         this.callStatus = {
@@ -179,10 +190,18 @@ export class Phone extends Component {
             isRecording: false,
             isPaused: false,
             recordingLoading: false,
+            // The line the next call goes out on. Only the person changes it.
+            selectedLineKey: this._initialLineKey(),
+            // The line with this tab's foreground call, or none.
+            foregroundLineKey: null,
+            // The line of a call another tab owns and this tab is showing.
+            syncedLineKey: null,
+            // The caller ID picked per line key.
+            pickedCallerIds: {},
         })
         // Phone dimensions for drag constraints (golden ratio)
         this.phoneWidth = 300
-        this.phoneHeight = 486
+        this.phoneHeight = this.lines.length >= 2 ? 486 + LINE_ROW_HEIGHT : 486
         this.collapsedSize = 56
         // Offset from collapsed icon center to dialog top-left (for position restore)
         this.collapseOffsetX = this.phoneWidth - 40  // Approximate minimize button X offset
@@ -214,6 +233,12 @@ export class Phone extends Component {
         this.collapsedIcon = useRef("collapsed-icon")
         // BroadcastChannel
         this.bc = new BroadcastChannel("connect")
+        this._callLineKey = null  // The line of the latest call, for what is said after it ends
+        const post = this.bc.postMessage.bind(this.bc)
+        this.bc.postMessage = (message) => post(this.isMultiLine ? {
+            ...message,
+            params: {...message.params, lineKey: this._callLineKey ?? this.activeLine.key},
+        } : message)
         this.contactSearch = 'all'
         this.id = Math.floor(Math.random() * 1000000)
         this.windows = [this.id]
@@ -222,12 +247,56 @@ export class Phone extends Component {
     }
 
     /**
-     * The line the panel is showing: the one with the foreground call, otherwise
-     * the first. At most one line has a foreground call, because the setter below
-     * is the only writer.
+     * The line the panel is showing: the one with the call on it, otherwise the
+     * selected one. At most one line has a foreground call, because the session
+     * setter below is the only writer. A call on another line shows that line
+     * and leaves the selection alone, so the panel returns to it afterwards.
      */
     get activeLine() {
-        return this.lines.find((line) => line.session) || this.lines[0]
+        const key = this.state.foregroundLineKey ?? this.state.syncedLineKey ?? this.state.selectedLineKey
+        return this.lines.find((line) => line.key === key) || this.lines[0]
+    }
+
+    get isMultiLine() {
+        return this.lines.length >= 2
+    }
+
+    /** A line this browser chose earlier, if it is still one of this person's lines. */
+    _initialLineKey() {
+        const stored = this.isMultiLine ? loadSelectedLine() : null
+        const line = this.lines.find((candidate) => candidate.key === stored) || this.lines[0]
+        return line?.key
+    }
+
+    selectLine(key) {
+        if (this.state.inCall || this.state.inIncoming || !this.lines.some((line) => line.key === key)) {
+            return
+        }
+        this.state.selectedLineKey = key
+        saveSelectedLine(key)
+    }
+
+    callerIdOf(line) {
+        return this.state.pickedCallerIds[line.key] || line.defaultCallerId
+    }
+
+    pickCallerId(number) {
+        const line = this.activeLine
+        if (!this.state.inCall && !this.state.inIncoming && line.callerIds.includes(number)) {
+            this.state.pickedCallerIds[line.key] = number
+        }
+    }
+
+    howLineConnects(line) {
+        return howLineConnects(line)
+    }
+
+    /** Follows a call another tab owns, if that tab said which line it is on. */
+    _followLine({lineKey} = {}) {
+        if (lineKey !== undefined) {
+            this.state.syncedLineKey = lineKey
+            this._callLineKey = lineKey
+        }
     }
 
     get transport() {
@@ -272,8 +341,14 @@ export class Phone extends Component {
 
     /** Makes `call` the foreground call of the line that owns it, and of no other. */
     set session(call) {
+        let foreground = null
         for (const line of this.lines) {
             line.session = line.owns(call) ? call : null
+            foreground = line.session ? line : foreground
+        }
+        this.state.foregroundLineKey = foreground ? foreground.key : null
+        if (foreground) {
+            this._callLineKey = foreground.key
         }
     }
 
@@ -508,8 +583,13 @@ export class Phone extends Component {
             document.addEventListener("mousemove", this._mouseMoveHandler, true)
             // BroadcastChannel Events
             this.bc.onmessage = ({data: {event, params}}) => {
+                const own = self.state.foregroundLineKey
+                if (LINE_BOUND_EVENTS.has(event) && params?.lineKey !== undefined && own !== null && params.lineKey !== own) {
+                    return
+                }
                 const localStartCall = () => {
                     if (self.session) return
+                    self._followLine(params)
                     const {callerId, isPartner} = params
                     self.state.isPartner = isPartner
                     self.state.callerId = callerId
@@ -596,6 +676,7 @@ export class Phone extends Component {
                     self._syncIncomingRing()
                 } else if (event === 'tbcSync') {
                     if (self.state.inCall === false) {
+                        self._followLine(params)
                         self.state.callerId = params.callerId
                         self.state.isPartner = params.isPartner
                         self.state.inCall = true
@@ -887,8 +968,11 @@ export class Phone extends Component {
         return this.can('attended_start') && this.can('attended_complete') && this.can('attended_cancel')
     }
 
+    /** Control goes to the provider of the line the call is on, not the one showing. */
     _callControlPayload(callSid, extra = {}) {
-        return {provider: this.provider, channel_sid: callSid, ...extra}
+        const call = [this.session, this.heldSession].find((candidate) => candidate?.params?.CallSid === callSid)
+        const line = this.lines.find((candidate) => candidate.owns(call)) || this.activeLine
+        return {provider: line.provider, channel_sid: callSid, ...extra}
     }
 
     /**
@@ -1043,10 +1127,17 @@ export class Phone extends Component {
     async makeCall(props) {
         const self = this
         let phoneNumber = props.phone
-        if (!self.activeLine.provider) {
+        const line = self.activeLine
+        if (!line.provider) {
             self._setOperationError(LINE_UNAVAILABLE)
             return
         }
+        // Never another line instead: the person chose this one.
+        if (self.isMultiLine && !line.hasLiveTransport) {
+            self._setOperationError(_t("%s is not connected. Choose another line, or try again.", line.label))
+            return
+        }
+        self._callLineKey = line.key
         self.startCall()
 
         const syncParams = self.getJsonCallData()
@@ -1056,8 +1147,11 @@ export class Phone extends Component {
             To: phoneNumber,
             Called: phoneNumber,
         }
+        if (self.isMultiLine && line.callerIds.length) {
+            params.CallerId = self.callerIdOf(line)
+        }
 
-        self.session = await self.activeLine.dial(params)
+        self.session = await line.dial(params)
         const call = self.session
 
         call.on("accept", async function () {
@@ -1154,7 +1248,10 @@ export class Phone extends Component {
     }
 
     _ringsInApp() {
-        const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
+        // A call waiting behind the panel's call can be on another line.
+        const waitingLine = !this.state.inIncoming && this.lines.find((line) => line.owns(this.waitingSession))
+        const provider = (waitingLine || this.activeLine).provider
+        const TransportClass = registry.category("connect.telephony_transports").get(provider, null)
         return !!(TransportClass && TransportClass.ringsInApp)
     }
 
@@ -1366,6 +1463,7 @@ export class Phone extends Component {
         this.heldCallSid = null
         this.heldCallId = null
         this.heldCallerId = null
+        this.state.syncedLineKey = null
         if (promote) {
             this._promoteWaitingCall(waiting)
         }

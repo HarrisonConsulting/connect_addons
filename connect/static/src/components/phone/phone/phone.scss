@@ -63,6 +63,13 @@
   user-select: none;
   -webkit-user-select: none;
 
+  // With two or more lines the panel grows by the From row and the To label. It
+  // moves --phone-height, not height, so anything that adds to that height still
+  // composes. Phone#phoneHeight carries the same number for its drag limits.
+  &.o_phone_multi_line {
+    --phone-height: 572px;
+  }
+
   // Collapsed state - shows as a floating phone icon
   &.o_collapsed {
     width: 56px;
@@ -734,45 +741,6 @@
     .btn {
       font-size: 0.8rem;
       padding: 4px 12px;
-    }
-  }
-
-  // ==========================================================================
-  // Phone Lines (multi-line support)
-  // ==========================================================================
-  .o_phone_lines_position {
-    bottom: 0;
-    position: fixed;
-    border-top: 1px solid var(--Phone-border);
-    color: var(--Phone-text);
-    justify-content: center;
-    font-size: 16px;
-    text-align: center;
-
-    div.active {
-      background-color: var(--Phone-active-bg);
-    }
-
-    .line-1 {
-      border-right: 1px solid var(--Phone-border);
-    }
-
-    .col-6 {
-      padding-top: 8px;
-      cursor: pointer;
-    }
-
-    .inactive {
-      cursor: auto;
-      opacity: 0.5;
-    }
-
-    button.active {
-      color: var(--Phone-call-active);
-    }
-
-    button.hold {
-      color: var(--Phone-call-hold);
     }
   }
 

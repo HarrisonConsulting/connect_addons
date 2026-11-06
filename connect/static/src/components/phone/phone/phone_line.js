@@ -30,15 +30,19 @@ export class PhoneLine {
      * @param {number|false} [params.toolId] - the connect.tool this line is
      * @param {Object} [params.capabilities] - {action: bool} from the server;
      *     an action that is absent is one the line cannot do
+     * @param {string} [params.label] - the tool or plan name the person knows it by
+     * @param {string[]} [params.callerIds] - numbers this line may call from
      * @param {Object} params.tokenData - the raw get_client_token() response
      */
-    constructor(phone, {key, provider, media, toolId, capabilities = {}, tokenData}) {
+    constructor(phone, {key, provider, media, toolId, capabilities = {}, label = '', callerIds = [], tokenData}) {
         this.phone = phone
         this.key = key
         this.provider = provider
         this.media = media
         this.toolId = toolId
         this.capabilities = capabilities
+        this.label = label
+        this.callerIds = callerIds
         this.tokenData = tokenData
         this.transport = null
         this.session = null
@@ -73,6 +77,16 @@ export class PhoneLine {
         if (this.provider) {
             await this._transportClass.loadDependencies()
         }
+    }
+
+    /** The number this line calls from unless the person picks another. */
+    get defaultCallerId() {
+        return this.callerIds[0] || this.tokenData.outgoing_callerid || ''
+    }
+
+    /** Whether a dial on this line has a transport to go through. */
+    get hasLiveTransport() {
+        return !!this.transport && this.transport.state !== 'destroyed'
     }
 
     /** A new credential. With one line this is the call it has always been. */

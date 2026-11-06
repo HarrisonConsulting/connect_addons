@@ -50,6 +50,7 @@
             '/connect/static/src/components/phone/calls/*',
             '/connect/static/src/components/phone/contacts/*',
             '/connect/static/src/components/phone/favorites/*',
+            '/connect/static/src/components/phone/line_selector/*',
             '/connect/static/src/components/phone/phone/transports/telephony_transport.js',
             '/connect/static/src/components/phone/phone/transports/twilio_transport.js',
             '/connect/static/src/components/phone/phone/phone_line.js',

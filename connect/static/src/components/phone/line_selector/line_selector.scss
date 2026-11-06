@@ -1,0 +1,126 @@
+.o_root_connect_phone {
+  .o_phone_line_selector {
+    flex-shrink: 0;
+    padding: 6px 12px 4px;
+    border-bottom: 1px solid var(--Phone-border);
+    background-color: var(--Phone-bg);
+  }
+
+  .o_phone_line_row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .o_phone_line_from {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--Phone-muted);
+  }
+
+  .o_phone_line_chip {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 24px;
+    padding: 0 8px;
+    font-size: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--Phone-text);
+    background-color: transparent;
+    border: 1px solid var(--Phone-border);
+    border-radius: 12px;
+
+    &.active {
+      color: var(--Phone-accent);
+      font-weight: 600;
+      background-color: var(--Phone-active-bg);
+      border-color: var(--Phone-accent);
+    }
+
+    &:disabled {
+      cursor: default;
+
+      &:not(.active) {
+        opacity: 0.5;
+      }
+    }
+  }
+
+  .o_phone_line_dropdown,
+  .o_phone_line_caller_id_picker {
+    min-width: 0;
+    color: var(--Phone-text);
+    background-color: var(--Phone-input-bg);
+    border: 1px solid var(--Phone-input-border);
+    border-radius: 4px;
+
+    &:disabled {
+      opacity: 0.7;
+    }
+  }
+
+  .o_phone_line_dropdown {
+    flex: 1 1 0;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .o_phone_line_caption {
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--Phone-muted);
+  }
+
+  .o_phone_line_caller_id,
+  .o_phone_line_how {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .o_phone_line_caller_id_picker {
+    flex: 1 1 0;
+    height: 16px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .o_phone_line_change {
+    margin-left: auto;
+    color: var(--Phone-accent);
+  }
+
+  .o_phone_to_label {
+    display: block;
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 14px;
+    color: var(--Phone-muted);
+  }
+
+  .o_phone_line_how_block {
+    padding: 8px;
+    border-top: 1px solid var(--Phone-border);
+  }
+
+  .o_phone_line_how_item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 12px;
+  }
+
+  .o_phone_line_how_hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--Phone-muted);
+  }
+}

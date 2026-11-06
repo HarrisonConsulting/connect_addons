@@ -143,6 +143,89 @@ class User(models.Model):
         return {'token': False}
 
     @api.model
+    def _phone_line_identity(self, tool):
+        """What makes a tool a line of its own.
+
+        By default the adapter, so two tools on one adapter are one line. An
+        adapter whose accounts are separate lines overrides this.
+        """
+        return tool.adapter
+
+    def _phone_line_tools(self):
+        """Tools this person can place a call on, in row order.
+
+        A line is an active voice row on a live tool the person's companies can
+        use, whose adapter is a phone provider: the same gate
+        _get_phone_provider uses, so a row on any other adapter is not a line.
+        """
+        self.ensure_one()
+        options = self._fields['originate_provider'].get_values(self.env)
+        companies = self.user.company_ids
+        rows = self.ordered_tools('voice').filtered(lambda row: (
+            row.role == 'active'
+            and row.tool_id.active
+            and row.tool_id.adapter in options
+            and (not row.tool_id.company_id or row.tool_id.company_id in companies)
+        ))
+        return rows.tool_id
+
+    @api.model
+    def get_phone_lines(self, nonce=False):
+        """Everything the browser phone mounts from, one record per line.
+
+        Fewer than two identities means one get_client_token with no context,
+        the call a person with one line has always made. A line's provider is
+        resolved under the same context as its mint and sits beside token_data,
+        never inside it. A line with no credential and no bridge media is
+        dropped, and a mint that fails costs only its own line.
+        """
+        connect_user = self.sudo().search([('user', '=', self.env.user.id)], limit=1)
+        by_identity = {}
+        if connect_user:
+            for tool in connect_user._phone_line_tools():
+                by_identity.setdefault(self._phone_line_identity(tool), tool)
+        if len(by_identity) < 2:
+            key, tool = next(iter(by_identity.items()), ('', self.env['connect.tool']))
+            candidates = [(key, tool, self)]
+        else:
+            candidates = [
+                (key, tool, self.with_context(connect_tool_id=tool.id))
+                for key, tool in by_identity.items()
+            ]
+        lines = []
+        errors = []
+        for key, tool, scoped in candidates:
+            try:
+                with self.env.cr.savepoint():
+                    token_data = scoped.get_client_token(nonce)
+                    provider = scoped._get_phone_provider()
+            except Exception as error:
+                logger.warning(
+                    'No phone credential for user %s on tool %s: %s',
+                    self.env.user.id, tool.id, type(error).__name__)
+                errors.append('Could not get a credential for a phone line.')
+                continue
+            if token_data.get('error'):
+                errors.append(token_data['error'])
+            media = token_data.get('media') or 'browser'
+            if not (token_data.get('token') or token_data.get('password') or media == 'bridge'):
+                continue
+            # With no context, the first row can name another adapter than the
+            # projected tool, and then this line is not that tool.
+            if tool.adapter != provider:
+                key, tool = provider or '', self.env['connect.tool']
+            lines.append({
+                'key': key,
+                'tool_id': tool.id,
+                'label': token_data.get('label') or tool.name or '',
+                'provider': provider,
+                'media': media,
+                'token_data': token_data,
+                'caller_ids': token_data.get('caller_ids') or [],
+            })
+        return {'lines': lines, 'error': errors[0] if errors else False}
+
+    @api.model
     def update_presence(self, status):
         """The softphone reports presence through this on every state change.
 

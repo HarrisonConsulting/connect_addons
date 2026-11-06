@@ -29,3 +29,5 @@ from . import test_license_scope
 from . import test_settings_screen
 from . import test_core_assets
 from . import test_presence_base
+from . import test_phone_lines
+from . import test_line_authority

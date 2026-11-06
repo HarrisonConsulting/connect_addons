@@ -3,7 +3,7 @@
 import {useBus, useService} from "@web/core/utils/hooks"
 import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
-import {PhoneLine} from "@connect/components/phone/phone/phone_line"
+import {LINE_UNAVAILABLE, PhoneLine} from "@connect/components/phone/phone/phone_line"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, setFocus} from "@connect/js/utils"
 import {Component, status, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
@@ -65,7 +65,7 @@ export class Phone extends Component {
     static template = 'connect.phone'
     static props = {
         bus: Object,
-        token_data: Object,
+        lines: Array,
         browserSessionNonce: {type: String, optional: true}
     }
 
@@ -88,11 +88,13 @@ export class Phone extends Component {
         this._presenceInFlight = false
         this._presenceFailures = 0
         this._presenceRetryTimer = null
-        // Twilio's current get_client_token() response has no 'provider' key
-        // (byte-identical contract, see backend task notes) — default to
-        // 'twilio' when absent.
-        const provider = this.props.token_data.provider || 'twilio'
-        this.lines = [new PhoneLine(this, {key: provider, provider, tokenData: this.props.token_data})]
+        this.lines = this.props.lines.map((line) => new PhoneLine(this, {
+            key: line.key,
+            provider: line.provider,
+            media: line.media,
+            toolId: line.tool_id,
+            tokenData: line.token_data,
+        }))
         this.callStatus = {
             NoAnswer: 'noanswer',
             Busy: 'busy',
@@ -1004,6 +1006,10 @@ export class Phone extends Component {
     async makeCall(props) {
         const self = this
         let phoneNumber = props.phone
+        if (!self.activeLine.provider) {
+            self._setOperationError(LINE_UNAVAILABLE)
+            return
+        }
         self.startCall()
 
         const syncParams = self.getJsonCallData()

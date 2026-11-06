@@ -28,35 +28,39 @@ function getBrowserSessionNonce() {
     return nonce
 }
 
+/**
+ * Mounts the phone from the server's lines. A line needs no token to be a line:
+ * the server has already dropped the ones it cannot use.
+ */
+export async function mountPhoneLines(orm, browserSessionNonce) {
+    const {lines, error} = await orm.call(
+        'connect.user', 'get_phone_lines', [], {nonce: browserSessionNonce})
+    if (error) {
+        console.warn(error)
+    }
+    if (lines.length) {
+        let bus = new EventBus()
+        // Expose the bus globally for the systray component to access
+        window.connectBus = bus
+        // Click-to-call from a form dials in this browser when the
+        // user's first callflow is the web client, and otherwise
+        // asks the server to originate towards this tab's nonce.
+        bus.browserSessionNonce = browserSessionNonce
+        bus.clickToCallLocal = lines[0].token_data.first_callflow === 'client'
+        sysTrayRegistry.add('connectPhoneSysTray', {Component: PhoneSysTray, props: {bus}})
+        mainComponents.add('connectPhone', {Component: Phone, props: {bus, lines, browserSessionNonce}})
+    }
+    else if (!error) {
+        console.log('Web Phone is not enabled for user.')
+    }
+}
+
 export const phoneService = {
     dependencies: ["orm"],
     async start(env, {orm}) {
         const pathname = document.location.pathname
         if (pathname.includes("/odoo")) {
-            const browserSessionNonce = getBrowserSessionNonce()
-            const token_data = await orm.call(
-                'connect.user', 'get_client_token', [], {nonce: browserSessionNonce})
-            // Twilio responses carry 'token', a SIP provider's responses carry
-            // 'password' instead (no 'token' key at all) — either means a
-            // usable credential was minted and the phone should mount.
-            if (token_data.token || token_data.password) {
-                let bus = new EventBus()
-                // Expose the bus globally for the systray component to access
-                window.connectBus = bus
-                // Click-to-call from a form dials in this browser when the
-                // user's first callflow is the web client, and otherwise
-                // asks the server to originate towards this tab's nonce.
-                bus.browserSessionNonce = browserSessionNonce
-                bus.clickToCallLocal = token_data.first_callflow === 'client'
-                sysTrayRegistry.add('connectPhoneSysTray', {Component: PhoneSysTray, props: {bus}})
-                mainComponents.add('connectPhone', {Component: Phone, props: {bus, token_data, browserSessionNonce}})
-            }
-            else if (token_data.error) {
-                console.warn(token_data.error)
-            }
-            else {
-                console.log('Web Phone is not enabled for user.')
-            }
+            await mountPhoneLines(orm, getBrowserSessionNonce())
         } else {
             console.log(`[Phone] Doesn't work on path: ${pathname}`)
         }

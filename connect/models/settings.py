@@ -10,7 +10,7 @@ import random
 import httpx
 import openai
 from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import AccessError, ValidationError, UserError
 
 from odoo.addons.connect.models.license import ODUIST_MODULES
 ODUIST_MODULES.append('connect')
@@ -243,6 +243,10 @@ class Settings(models.Model):
         def originate_call(self, number=None, res_model=None, res_id=None,
                            *args, **kwargs):
             user = kwargs.get('user') or (args[0] if args else None)
+            self._check_originate_line(user)
+            caller_id = kwargs.pop('caller_id', None)
+            if caller_id:
+                self = self.with_context(connect_caller_id=caller_id)
             self._remember_originate_origin(number, res_model, res_id, user)
             return original(self, number, res_model, res_id, *args, **kwargs)
 
@@ -288,29 +292,57 @@ class Settings(models.Model):
             'module (Twilio, FreeSWITCH, Asterisk) and select a click-to-call '
             'provider on the Connect user.')
 
-    def _context_provider_key(self, selection_values):
-        """Adapter from context when it is one of selection_values.
+    def _context_tool(self, selection_values):
+        """Tool from context when its adapter is one of selection_values.
 
         connect_tool_id wins. connect_campaign_id is used only when that
         model is loaded and its tool points at a voice system. Anything
-        else, including sip, falls through.
+        else, including sip, falls through to an empty recordset.
         """
         tool_id = self.env.context.get('connect_tool_id')
         if tool_id:
             tool = self.env['connect.tool'].sudo().browse(tool_id).exists()
             if tool.adapter in selection_values:
-                return tool.adapter
+                return tool
         campaign_id = self.env.context.get('connect_campaign_id')
         if campaign_id and 'connect.campaign' in self.env:
             campaign_model = self.env['connect.campaign'].sudo()
             tool_field = campaign_model._fields.get('tool_id')
             if (tool_field and tool_field.type == 'many2one'
                     and tool_field.comodel_name == 'connect.tool'):
-                campaign = campaign_model.browse(campaign_id).exists()
-                adapter = campaign.tool_id.adapter
-                if adapter in selection_values:
-                    return adapter
-        return False
+                tool = campaign_model.browse(campaign_id).exists().tool_id
+                if tool.adapter in selection_values:
+                    return tool
+        return self.env['connect.tool']
+
+    def _context_provider_key(self, selection_values):
+        """Adapter of the context tool, or False. See _context_tool."""
+        return self._context_tool(selection_values).adapter
+
+    @api.model
+    def _check_originate_line(self, user=None):
+        """Refuse a caller naming a tool or campaign that is not their own line.
+
+        Rows are self-grantable by RPC, so this is one part of a line's authority,
+        not all of it. A caller who names a tool or campaign must hold that tool
+        as a line and can only call as themselves. A call with no such context
+        resolves the caller's own provider and is not this fence's business, and
+        code running as superuser brings its own authority.
+        """
+        context = self.env.context
+        if self.env.su or not (context.get('connect_tool_id') or context.get('connect_campaign_id')):
+            return
+        user_id = user.id if isinstance(user, models.BaseModel) else user
+        if user_id and user_id != self.env.user.id:
+            raise AccessError('You can only place a call on a line as yourself.')
+        options = self.env['connect.user']._fields['originate_provider'].get_values(self.env)
+        tool = self._context_tool(options)
+        if not tool:
+            return
+        connect_user = self.env['connect.user'].sudo().search(
+            [('user', '=', self.env.user.id)], limit=1)
+        if not connect_user or tool not in connect_user._phone_line_tools():
+            raise AccessError('This line is not assigned to you.')
 
     @api.model
     def _get_originate_provider(self, user=None):

@@ -3,6 +3,8 @@
 
 import {registry} from "@web/core/registry"
 
+export const LINE_UNAVAILABLE = 'This phone line is not available: it has no telephony provider. Ask your administrator to check your Connect user.'
+
 /**
  * One line of the phone: one transport, its credential, its reconnect and token
  * refresh cycles, and the call in the foreground on it.
@@ -22,13 +24,18 @@ export class PhoneLine {
      * @param {Phone} phone
      * @param {Object} params
      * @param {string} params.key - identifies the line among the phone's lines
-     * @param {string} params.provider - key in connect.telephony_transports
+     * @param {string|false} params.provider - key in connect.telephony_transports;
+     *     empty means the server could not resolve one, and the line is unavailable
+     * @param {string} [params.media] - 'browser' or 'bridge'
+     * @param {number|false} [params.toolId] - the connect.tool this line is
      * @param {Object} params.tokenData - the raw get_client_token() response
      */
-    constructor(phone, {key, provider, tokenData}) {
+    constructor(phone, {key, provider, media, toolId, tokenData}) {
         this.phone = phone
         this.key = key
         this.provider = provider
+        this.media = media
+        this.toolId = toolId
         this.tokenData = tokenData
         this.transport = null
         this.session = null
@@ -55,7 +62,19 @@ export class PhoneLine {
     }
 
     async loadDependencies() {
-        await this._transportClass.loadDependencies()
+        if (this.provider) {
+            await this._transportClass.loadDependencies()
+        }
+    }
+
+    /** A new credential. With one line this is the call it has always been. */
+    _fetchToken() {
+        const phone = this.phone
+        const kwargs = {nonce: phone.browserSessionNonce}
+        if (phone.lines.length >= 2) {
+            kwargs.context = {connect_tool_id: this.toolId}
+        }
+        return phone.orm.call('connect.user', 'get_client_token', [], kwargs)
     }
 
     /** Whether this call rang on, or was placed from, this line. */
@@ -105,6 +124,10 @@ export class PhoneLine {
 
     async reconnect() {
         const phone = this.phone
+        if (!this.provider) {
+            phone._setConnectionStatus('error', LINE_UNAVAILABLE)
+            return
+        }
         // Re-entry guard: cascading device errors (31009 → AccessTokenInvalid → AccessTokenExpired)
         // can all schedule reconnects through per-device closures. Gate at the line level so
         // the whole cascade collapses into a single reconnect cycle.
@@ -127,8 +150,7 @@ export class PhoneLine {
 
         // Fetch a new token and re-initialize
         try {
-            const token_data = await phone.orm.call(
-                'connect.user', 'get_client_token', [], {nonce: phone.browserSessionNonce})
+            const token_data = await this._fetchToken()
             if (this._transportClass.hasCredential(token_data)) {
                 this.tokenData = token_data
                 this.initTransport()
@@ -153,8 +175,7 @@ export class PhoneLine {
             return
         }
         try {
-            const token_data = await phone.orm.call(
-                'connect.user', 'get_client_token', [], {nonce: phone.browserSessionNonce})
+            const token_data = await this._fetchToken()
             // Re-check transport state after async call — reconnect may have destroyed it
             if (!this._transportClass.hasCredential(token_data) || !this.transport || this.transport.state === 'destroyed') {
                 return
@@ -185,6 +206,11 @@ export class PhoneLine {
     initTransport() {
         const phone = this.phone
         if (!phone.state.isActive) {
+            return
+        }
+
+        if (!this.provider) {
+            phone._setConnectionStatus('error', LINE_UNAVAILABLE)
             return
         }
 

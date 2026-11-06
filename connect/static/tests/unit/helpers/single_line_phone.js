@@ -13,7 +13,7 @@ import "@connect/../tests/helpers/loopback_transport"
 
 export const SINGLE_LINE_NONCE = "tab-nonce-1"
 
-export async function mountSingleLinePhone(tokenData) {
+export async function mountLines(lines) {
     mockService("connect_audio", {play() {}})
     // The phone reports presence as soon as its transport registers.
     onRpc("connect.user", "update_presence", () => true)
@@ -24,8 +24,12 @@ export async function mountSingleLinePhone(tokenData) {
     return mountWithCleanup(Phone, {
         props: {
             bus: new EventBus(),
-            token_data: tokenData,
+            lines,
             browserSessionNonce: SINGLE_LINE_NONCE,
         },
     })
+}
+
+export function mountSingleLinePhone(tokenData) {
+    return mountLines([{key: "twilio", provider: "twilio", media: "browser", token_data: tokenData}])
 }

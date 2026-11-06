@@ -34,12 +34,10 @@
     ],
     'assets': {
         'web.assets_backend': [
-            'connect_twilio/static/src/icomoon/style.css',
             # The softphone and its ConnectPhoneService are bundled by connect;
             # this module bundles only the helpers, widgets and services below.
             'connect_twilio/static/src/js/utils.js',
             'connect_twilio/static/src/widgets/phone_field/*',
-            'connect_twilio/static/src/services/actions/*',
             'connect_twilio/static/src/services/errors/*',
             'connect_twilio/static/src/services/mail/*',
         ],

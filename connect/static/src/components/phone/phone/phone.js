@@ -5,7 +5,7 @@ import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, setFocus} from "@connect/js/utils"
-import {Component, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
+import {Component, status, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 import {useDebounced} from "@web/core/utils/timing"
 import {user} from "@web/core/user"
 import {ConfirmationDialog} from "@web/core/confirmation_dialog/confirmation_dialog"
@@ -13,6 +13,11 @@ import {_t} from "@web/core/l10n/translation"
 import {registry} from "@web/core/registry"
 
 const uid = user.userId
+
+// A failed presence update waits this long before its next try, doubling up to
+// the cap. A server that keeps refusing must not be asked in a tight loop.
+const PRESENCE_RETRY_BASE_MS = 1000
+const PRESENCE_RETRY_MAX_MS = 60000
 
 // Audio unlock handler for browser autoplay restrictions
 let audioUnlocked = false
@@ -80,6 +85,8 @@ export class Phone extends Component {
         this._presenceDesired = null
         this._presenceSent = null
         this._presenceInFlight = false
+        this._presenceFailures = 0
+        this._presenceRetryTimer = null
         this.token = this.props.token_data.token
         this.edge = this.props.token_data.edge
         // Twilio's current get_client_token() response has no 'provider' key
@@ -606,6 +613,8 @@ export class Phone extends Component {
             if (this._errorTimeout) {
                 clearTimeout(this._errorTimeout)
             }
+            clearTimeout(this._presenceRetryTimer)
+            this._presenceRetryTimer = null
             if (this._tokenRefreshInterval) {
                 clearInterval(this._tokenRefreshInterval)
             }
@@ -1305,30 +1314,41 @@ export class Phone extends Component {
         this.state.showQualityDetails = !this.state.showQualityDetails
     }
 
-    _updatePresence(status) {
-        this._presenceDesired = status
-        if (this._presenceInFlight) {
+    _updatePresence(presence) {
+        this._presenceDesired = presence
+        if (this._presenceInFlight || this._presenceRetryTimer) {
             return
         }
         this._flushPresence()
     }
 
     async _flushPresence() {
-        const status = this._presenceDesired
-        if (status === null || status === this._presenceSent) {
+        const presence = this._presenceDesired
+        if (presence === null || presence === this._presenceSent) {
             return
         }
         this._presenceInFlight = true
+        let retryDelay = 0
         try {
-            await this.orm.call('connect.user', 'update_presence', [status])
-            this._presenceSent = status
+            await this.orm.call('connect.user', 'update_presence', [presence])
+            this._presenceSent = presence
+            this._presenceFailures = 0
         } catch (e) {
             // Don't let presence failures affect call operations
             console.warn('Connect: Presence update failed:', e)
+            retryDelay = Math.min(PRESENCE_RETRY_BASE_MS * 2 ** this._presenceFailures, PRESENCE_RETRY_MAX_MS)
+            this._presenceFailures++
         } finally {
             this._presenceInFlight = false
             if (this._presenceDesired !== this._presenceSent) {
-                this._flushPresence()
+                if (!retryDelay) {
+                    this._flushPresence()
+                } else if (status(this) !== 'destroyed') {
+                    this._presenceRetryTimer = setTimeout(() => {
+                        this._presenceRetryTimer = null
+                        this._flushPresence()
+                    }, retryDelay)
+                }
             }
         }
     }

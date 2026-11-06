@@ -58,6 +58,8 @@
             '/connect/static/src/components/phone/tray/*',
             '/connect/static/src/components/chat/*',
             '/connect/static/src/js/main.js',
+            '/connect/static/src/services/actions/actions.js',
+            '/connect/static/src/icomoon/style.css',
         ],
         # Dark-mode overrides for the softphone and the chat thread.
         'web.assets_web_dark': [

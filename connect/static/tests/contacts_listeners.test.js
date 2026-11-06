@@ -20,6 +20,10 @@ test("destroyed Contacts ignores busContactSearchQuery and busContactSetState", 
             calls.push(args)
             return Promise.resolve([])
         },
+        call: (...args) => {
+            calls.push(args)
+            return Promise.resolve([])
+        },
     })
     mockService("action", {doAction() {}})
     mockService("bus_service", {subscribe() {}, unsubscribe() {}})

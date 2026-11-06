@@ -18,16 +18,37 @@
 -- keeping it lets ops see which account the copy descends from.
 
 UPDATE connect_settings
-   SET auth_token = NULL,
-       region_auth_token = NULL,
-       twilio_api_key = NULL,
-       twilio_api_secret = NULL,
-       twilio_balance = NULL,
-       openai_api_key = NULL,
-       display_auth_token = NULL,
-       display_region_auth_token = NULL,
-       display_twilio_api_secret = NULL,
+   SET openai_api_key = NULL,
        display_openai_api_key = NULL;
+
+-- These belong to connect_twilio, so a copy without it has no such columns. One
+-- that once had it can still hold them with a live credential inside: blank
+-- whichever are present.
+DO $$
+DECLARE
+    target record;
+BEGIN
+    FOR target IN
+        SELECT c.column_name
+          FROM (VALUES
+                ('auth_token'),
+                ('region_auth_token'),
+                ('twilio_api_key'),
+                ('twilio_api_secret'),
+                ('twilio_balance'),
+                ('display_auth_token'),
+                ('display_region_auth_token'),
+                ('display_twilio_api_secret')
+               ) AS v (column_name)
+          JOIN information_schema.columns c
+            ON c.table_schema = current_schema()
+           AND c.table_name = 'connect_settings'
+           AND c.column_name = v.column_name
+    LOOP
+        EXECUTE format('UPDATE connect_settings SET %I = NULL', target.column_name);
+    END LOOP;
+END
+$$;
 
 -- Provider secrets that live on ir.config_parameter. Settings saves them
 -- here and get_param() lets a stored parameter win over the column, so

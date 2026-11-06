@@ -138,7 +138,7 @@ export class Contacts extends Component {
                 const contact = this.state.partners[0]
                 phoneNumber = contact.phone ? contact.phone : contact.mobile
             } else {
-                phoneNumber = this.state.users[0].exten
+                phoneNumber = this.state.users[0].exten_number
             }
         } else {
             phoneNumber = this.searchQuery
@@ -182,16 +182,13 @@ export class Contacts extends Component {
         if (this.contactSearch !== searching.all && this.contactSearch !== searching.extensions) return
         const self = this
         if (self.searchQuery) {
-            self.orm.searchRead(
-                "connect.user",
-                [
-                    '|', ['exten_number', '=ilike', `%${self.searchQuery}%`],
-                    ['user', '=ilike', `%${self.searchQuery}%`]
-                ],
-                ['id', 'name', 'exten_number', 'user', 'presence_status'],
-                {order: 'exten_number asc', limit: 10}
-            ).then((records) => {
-                self.state.users = records
+            // A Connect user's record rule hides every other connect.user, so
+            // colleagues come from the directory, reshaped for the template.
+            self.orm.call("connect.user", "search_directory", [self.searchQuery]).then((records) => {
+                self.state.users = records.map((record) => ({
+                    ...record,
+                    user: [record.user_id, record.name],
+                }))
             })
         } else {
             self.state.users = []

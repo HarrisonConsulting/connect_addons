@@ -142,6 +142,15 @@ class User(models.Model):
         """
         return {'token': False}
 
+    @api.model
+    def update_presence(self, status):
+        """The softphone reports presence through this on every state change.
+
+        Core stores no presence, so this is a no-op. A module that keeps
+        presence overrides it.
+        """
+        return True
+
     if release.version_info[0] >= 19:
         _user_uniq = Constraint('UNIQUE("user")', 'This Odoo user account is already defined!')
     else:

@@ -38,7 +38,7 @@ class Emitter {
  *
  * init()/updateAuth() are deliberately NOT required to be async: Twilio's
  * Device constructor and Device#updateToken() both throw synchronously on
- * bad input, and callers (phone.js) rely on a plain try/catch, with no
+ * bad input, and callers (phone_line.js) rely on a plain try/catch, with no
  * await, to catch that at the exact call site — declaring these `async`
  * in an implementation would silently turn that synchronous throw into an
  * unhandled promise rejection. Implementations that are inherently
@@ -52,7 +52,7 @@ class Emitter {
  *   'error'          - provider-specific error object, passed through
  *                      unnormalized (callers that classify errors, e.g. for
  *                      reconnect logic, currently do so per-provider — see
- *                      phone.js's transport error handling for the shape
+ *                      phone_line.js's transport error handling for the shape
  *                      TwilioTransport passes through)
  *   'incoming'       - fired with a TelephonyCall for a new inbound call
  *   'authWillExpire' - the current credential is about to expire/need

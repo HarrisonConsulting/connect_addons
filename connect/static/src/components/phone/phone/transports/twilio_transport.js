@@ -80,7 +80,7 @@ export class TwilioCall extends TelephonyCall {
  * SDK (Twilio.Device). This is a faithful, mechanical wrapper: every event
  * name, error object, and call sequence Device/Call ever produced is passed
  * through unchanged. All reconnect/backoff/error-classification decisions
- * stay in phone.js exactly as before this extraction — this class does not
+ * stay in phone_line.js exactly as before this extraction — this class does not
  * make any of those decisions, it only translates the Twilio SDK's shape
  * into the ITelephonyTransport shape.
  *
@@ -108,7 +108,7 @@ export class TwilioTransport extends TelephonyTransport {
 
     /**
      * Synchronous by design (not declared async): `new Twilio.Device()`
-     * throws synchronously on bad config, and phone.js's call site relies on
+     * throws synchronously on bad config, and phone_line.js's call site relies on
      * a plain try/catch (no await) to catch that, exactly as it did before
      * this extraction. See the note on TelephonyTransport#init().
      */
@@ -145,7 +145,7 @@ export class TwilioTransport extends TelephonyTransport {
 
     /**
      * Synchronous for the same reason as init(): Device#updateToken() throws
-     * synchronously when the transport is already dead, and phone.js's
+     * synchronously when the transport is already dead, and phone_line.js's
      * updateToken() relies on catching that synchronously.
      */
     updateAuth(connData) {

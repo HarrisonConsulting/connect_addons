@@ -3,6 +3,7 @@
 import {useBus, useService} from "@web/core/utils/hooks"
 import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
+import {PhoneLine} from "@connect/components/phone/phone/phone_line"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, setFocus} from "@connect/js/utils"
 import {Component, status, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
@@ -74,7 +75,7 @@ export class Phone extends Component {
         super(...arguments)
         this.bus = this.props.bus
         // Identifies this tab across every get_client_token() call it makes
-        // (initial mount in main.js, plus reconnect/updateToken below), for
+        // (initial mount in main.js, plus PhoneLine's reconnect/updateToken), for
         // a provider whose credential is stateful per tab. Unused on the
         // Twilio path (JWTs are stateless — no cross-tab collision).
         this.browserSessionNonce = this.props.browserSessionNonce
@@ -87,19 +88,11 @@ export class Phone extends Component {
         this._presenceInFlight = false
         this._presenceFailures = 0
         this._presenceRetryTimer = null
-        this.token = this.props.token_data.token
-        this.edge = this.props.token_data.edge
         // Twilio's current get_client_token() response has no 'provider' key
         // (byte-identical contract, see backend task notes) — default to
         // 'twilio' when absent.
-        this.provider = this.props.token_data.provider || 'twilio'
-        // SIP connection fields, for a provider whose get_client_token()
-        // response carries a SIP credential. Unused when provider === 'twilio'.
-        this.sipUri = this.props.token_data.sip_uri
-        this.sipUsername = this.props.token_data.username
-        this.sipPassword = this.props.token_data.password
-        this.wssServer = this.props.token_data.wss_server
-        this.displayName = this.props.token_data.display_name
+        const provider = this.props.token_data.provider || 'twilio'
+        this.lines = [new PhoneLine(this, {key: provider, provider, tokenData: this.props.token_data})]
         this.callStatus = {
             NoAnswer: 'noanswer',
             Busy: 'busy',
@@ -196,16 +189,12 @@ export class Phone extends Component {
         this.phoneInput = useRef('connect-phone-input')
 
         this.user = uid
-        this.sipRegistered = false
         this.lastActiveTab = this.tabs.phone
-        this.session = null
         this.waitingSession = null  // Incoming call waiting while user is in active call
         this.heldSession = null
         this.heldCallSid = null
         this.heldCallId = null
         this.heldCallerId = null
-        this.transport = null
-        this._reconnecting = false
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
         this.recording_sid = null        // SID of the active recording
@@ -230,6 +219,39 @@ export class Phone extends Component {
         this.windows = [this.id]
         this.sipSessions = []
         this.suppressBroadcastChannel = false
+    }
+
+    /**
+     * The line the panel is showing: the one with the foreground call, otherwise
+     * the first. At most one line has a foreground call, because the setter below
+     * is the only writer.
+     */
+    get activeLine() {
+        return this.lines.find((line) => line.session) || this.lines[0]
+    }
+
+    get transport() {
+        return this.activeLine.transport
+    }
+
+    get provider() {
+        return this.activeLine.provider
+    }
+
+    get sipRegistered() {
+        return this.lines.some((line) => line.registered)
+    }
+
+    /** The foreground call, whichever line it is on. */
+    get session() {
+        return this.lines.find((line) => line.session)?.session ?? null
+    }
+
+    /** Makes `call` the foreground call of the line that owns it, and of no other. */
+    set session(call) {
+        for (const line of this.lines) {
+            line.session = line.owns(call) ? call : null
+        }
     }
 
     setup() {
@@ -281,7 +303,7 @@ export class Phone extends Component {
         useBus(this.bus, 'busPhoneReconnect', () => this._reconnect())
 
         onWillStart(async () => {
-            await this._getTransportClass(this.provider).loadDependencies()
+            await Promise.all(this.lines.map((line) => line.loadDependencies()))
 
             this._beforeUnloadHandler = (event) => {
                 if (this.session) {
@@ -366,31 +388,25 @@ export class Phone extends Component {
             // Re-initialize the device if needed.
             this._visibilityHandler = () => {
                 if (!document.hidden && this.state.isActive) {
-                    if (this._needsTokenRefresh) {
-                        this._needsTokenRefresh = false
-                        this.updateToken()
-                    }
-                    if (!this.transport || this.transport.state === 'destroyed') {
-                        // Transport was destroyed while tab was hidden — full re-init
-                        console.debug('Connect: transport was destroyed while tab was hidden, re-initializing')
-                        this.initTransport()
-                    } else if (this.transport.state === 'unregistered') {
-                        // Transport lost registration while tab was hidden — refresh token and re-register
-                        console.debug('Connect: transport unregistered while tab was hidden, re-registering')
-                        this.updateToken()
+                    for (const line of this.lines) {
+                        line.resume()
                     }
                 }
             }
             document.addEventListener('visibilitychange', this._visibilityHandler)
 
-            this.initTransport()
+            for (const line of this.lines) {
+                line.initTransport()
+            }
 
             // Proactive token refresh every 50 minutes (token TTL is 3600s/60min).
             // Prevents silent expiry on idle tabs that miss error-driven refresh.
             this._tokenRefreshInterval = setInterval(() => {
-                if (this.state.isActive && this.transport && this.transport.state !== 'destroyed'
-                        && this.state.connectionStatus !== 'connecting') {
-                    this.updateToken()
+                if (this.state.isActive && this.state.connectionStatus !== 'connecting') {
+                    for (const line of this.lines) {
+                        // updateToken() itself skips a line with no live transport.
+                        line.updateToken()
+                    }
                 }
             }, 50 * 60 * 1000)
 
@@ -520,10 +536,14 @@ export class Phone extends Component {
                     const index = self.windows.indexOf(params.id)
                     if (index > -1) {
                         self.windows.splice(index, 1)
-                        if (self.id === self.windows.at(-1) && self.transport && self.transport.state === 'unregistered') {
-                            self.transport.register().catch((e) => {
-                                console.warn('Connect: Re-registration on tab close failed:', e?.message || e)
-                            })
+                        if (self.id === self.windows.at(-1)) {
+                            for (const line of self.lines) {
+                                if (line.transport && line.transport.state === 'unregistered') {
+                                    line.transport.register().catch((e) => {
+                                        console.warn('Connect: Re-registration on tab close failed:', e?.message || e)
+                                    })
+                                }
+                            }
                         }
                     }
                 } else if (event === 'tbcDtmf') {
@@ -781,42 +801,7 @@ export class Phone extends Component {
     }
 
     async _reconnect() {
-        // Re-entry guard: cascading device errors (31009 → AccessTokenInvalid → AccessTokenExpired)
-        // can all schedule reconnects through per-device closures. Gate at the instance level so
-        // the whole cascade collapses into a single reconnect cycle.
-        if (this._reconnecting) {
-            return
-        }
-        this._reconnecting = true
-        this._setConnectionStatus('connecting')
-        this.bus.trigger('busTraySetException', {exception: null})
-
-        // Destroy existing transport if present
-        if (this.transport) {
-            try {
-                this.transport.destroy()
-            } catch (e) {
-                console.warn('Connect: Error destroying existing transport:', e)
-            }
-            this.transport = null
-        }
-
-        // Fetch a new token and re-initialize
-        try {
-            const token_data = await this.orm.call(
-                'connect.user', 'get_client_token', [], {nonce: this.browserSessionNonce})
-            if (this._hasCredential(token_data)) {
-                this._applyTokenData(token_data)
-                this.initTransport()
-            } else {
-                this._failReconnect('Could not obtain a phone token.')
-            }
-        } catch (e) {
-            console.error('Connect: Reconnect failed:', e)
-            this._failReconnect(e.message || 'Reconnection failed.')
-        } finally {
-            this._reconnecting = false
-        }
+        await Promise.all(this.lines.map((line) => line.reconnect()))
     }
 
     /**
@@ -892,355 +877,9 @@ export class Phone extends Component {
         this.notify(currentCallStatus.toUpperCase(), {sticky: false})
     }
 
-    async updateToken() {
-        // Guard: skip if transport is unavailable or a reconnect is already in progress
-        if (!this.transport || this.transport.state === 'destroyed') {
-            return
-        }
-        if (this.state.connectionStatus === 'connecting') {
-            return
-        }
-        try {
-            const token_data = await this.orm.call(
-                'connect.user', 'get_client_token', [], {nonce: this.browserSessionNonce})
-            // Re-check transport state after async call — reconnect may have destroyed it
-            if (!this._hasCredential(token_data) || !this.transport || this.transport.state === 'destroyed') {
-                return
-            }
-            try {
-                this.transport.updateAuth(this._buildConnData(token_data))
-            } catch (e) {
-                // updateAuth() throws synchronously if transport is dead
-                console.warn('Connect: transport.updateAuth() threw:', e?.message || e)
-                return
-            }
-            this._applyTokenData(token_data)
-            // Re-register only if transport is unregistered (e.g. after disconnect)
-            // Calling register() on an already-registered transport throws InvalidStateError
-            if (this.transport.state === 'unregistered') {
-                try {
-                    await this.transport.register()
-                } catch (regErr) {
-                    console.warn('Connect: Re-registration after token refresh failed:', regErr?.message || regErr)
-                }
-            }
-        } catch (e) {
-            console.warn('Connect: Token refresh failed, will retry when tab is active:', e?.message || e)
-            this._needsTokenRefresh = true
-        }
-    }
-
-    /**
-     * Extension point: providers register their transport class into the
-     * "connect.telephony_transports" registry (see twilio_transport.js's
-     * own registry.category(...).add(...) call) —
-     * nothing here, or anywhere else in this file, needs to change to add a
-     * further provider. A provider module that isn't installed simply never
-     * registers, and is never imported by this file either.
-     */
-    _getTransportClass(provider) {
-        const TransportClass = registry.category("connect.telephony_transports").get(provider, null)
-        if (!TransportClass) {
-            throw new Error(`Connect: no telephony transport implemented for provider "${provider}"`)
-        }
-        return TransportClass
-    }
-
-    _createTransport(provider) {
-        return new (this._getTransportClass(provider))()
-    }
-
-    /**
-     * Builds the connData object transport.init()/updateAuth() expect. When
-     * tokenData is omitted, builds from the fields currently held on the
-     * component (set by the constructor or a prior _applyTokenData()).
-     * Delegated to the active provider's transport class — see
-     * TelephonyTransport.buildConnData()'s default and each transport's
-     * override.
-     */
-    _buildConnData(tokenData) {
-        const data = tokenData || {
-            token: this.token, edge: this.edge, sip_uri: this.sipUri,
-            username: this.sipUsername, password: this.sipPassword,
-            wss_server: this.wssServer, display_name: this.displayName,
-        }
-        return this._getTransportClass(this.provider).buildConnData(data)
-    }
-
-    /** True once get_client_token() returned a usable credential for the active provider. */
-    _hasCredential(tokenData) {
-        return this._getTransportClass(this.provider).hasCredential(tokenData)
-    }
-
-    _applyTokenData(tokenData) {
-        this.token = tokenData.token
-        this.edge = tokenData.edge
-        this.sipUri = tokenData.sip_uri
-        this.sipUsername = tokenData.username
-        this.sipPassword = tokenData.password
-        this.wssServer = tokenData.wss_server
-        this.displayName = tokenData.display_name
-    }
-
-    initTransport() {
-        const self = this
-        if (!self.state.isActive) {
-            return
-        }
-
-        // Check WebRTC support before initializing the transport
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            console.error('Connect: WebRTC not supported in this browser')
-            self.state.isActive = false
-            self._setConnectionStatus('error', 'This browser does not support WebRTC.')
-            self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
-            return
-        }
-
-        self.transport = self._createTransport(self.provider)
-
-        try {
-            self.transport.init(self._buildConnData())
-        } catch (error) {
-            console.error('Connect: Failed to create transport:', error)
-            self.state.isActive = false
-            self._setConnectionStatus('error', error.message || 'Phone service failed to start.')
-            self.bus.trigger('busTraySetException', {exception: error.name || 'InitFailed'})
-            return
-        }
-
-        // Try to set incoming volume, but don't fail if AudioContext is blocked
-        try {
-            this.setIncomingVolume()
-        } catch (e) {
-            console.warn('Connect: Could not set incoming volume (AudioContext may be blocked):', e)
-        }
-        self.transport.on('authWillExpire', () => {
-            console.debug('Connect: Token expiring, refreshing')
-            self.updateToken()
-        })
-
-        self.transport.on('registered', () => {
-            self._setConnectionStatus('ready')
-            self.sipRegistered = true
-            self._updatePresence('available')
-        })
-
-        self.transport.on('unregistered', () => {
-            self.sipRegistered = false
-            // If not in a call, attempt silent auto-recovery instead of staying offline
-            if (!self.state.inCall && self.state.isActive) {
-                self._setConnectionStatus('connecting')
-                console.debug('Connect: Transport unregistered, attempting silent re-registration')
-                setTimeout(() => {
-                    // Skip soft recovery if a transport error already triggered full reconnect
-                    if (errorRecoveryPending) return
-                    if (self.transport && self.transport.state === 'unregistered') {
-                        self.updateToken()
-                    }
-                }, 3000)
-            } else {
-                self._setConnectionStatus('offline', 'Lost the connection to the phone service.')
-                self._updatePresence('offline')
-            }
-        })
-
-        // Debounce error handling to prevent cascading 31009 loops:
-        // a dead transport fires 31009 on every pending operation (register, setToken, etc.)
-        let errorRecoveryPending = false
-
-        self.transport.on('error', (error) => {
-            console.error('Connect: Transport error:', error.message || error)
-
-            const isTransportError = error.code === 31009 || error.code === 31005
-            const isTokenError = error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid'
-
-            if (isTransportError || isTokenError) {
-                // Dead transport or rejected token — full teardown+rebuild with fresh token.
-                // Per-device debounce + instance-level _reconnecting guard prevent both intra-device
-                // cascades (31009 → AccessTokenInvalid on the same corpse) and cross-device cascades
-                // (each new transport firing its own error before the prior reconnect completes).
-                if (errorRecoveryPending || self._reconnecting) return
-                errorRecoveryPending = true
-                self._setConnectionStatus('connecting')
-                self._updatePresence('offline')
-                setTimeout(() => {
-                    errorRecoveryPending = false
-                    self._reconnect()
-                }, isTransportError ? 5000 : 2000)
-            } else if (error.name === 'NotSupportedError') {
-                console.error('Connect: Browser does not support required features:', error.message)
-                self.state.isActive = false
-                self._setConnectionStatus('error', 'This browser is missing features the phone needs.')
-                self._updatePresence('offline')
-                self.bus.trigger('busTraySetException', {exception: 'NotSupported'})
-            } else {
-                self._setConnectionStatus('error', error.message || 'Phone service error.')
-                self._updatePresence('offline')
-            }
-        })
-
-        // HANDLE incoming calls
-        self.transport.on("incoming", async function (call) {
-            self.state.isContactList = false
-            let phoneNumber = call.params.From
-            if (phoneNumber.startsWith("whatsapp:")) {
-                phoneNumber = phoneNumber.replace(/^whatsapp:/, "")
-                self.state.isWhatsapp = true
-            }
-            const callCallerName = call.params.CallerName
-            const callPartnerId = call.params.Partner
-            const autoAnswer = call.params.autoAnswer
-            const origin = call.params.Origin
-
-            // A click-to-call rings every device signed in as this user. Only
-            // the tab that placed it answers; the others ignore, never reject,
-            // because a reject would end the ring on the answering device too.
-            if (autoAnswer === 'yes' && origin && origin !== self.browserSessionNonce) {
-                call.ignore()
-                return
-            }
-
-            if (self.session === null) {
-                self.session = call
-                self.sipSessions.push(self.id)
-                const params = {id: self.id, action: 'push'}
-                self.bc.postMessage({event: 'tbcSipSession', params})
-            } else {
-                // During attended transfer, incoming call may be the consult leg — don't reject
-                if (self.state.isAttendedTransfer) {
-                    self.waitingSession = call
-                    self.state.hasWaitingCall = true
-                    self.state.waitingCallerId = {
-                        phoneNumber,
-                        partnerName: callCallerName || '',
-                        partnerId: callPartnerId !== 'false' ? callPartnerId : false,
-                    }
-                    self.notify('Consult call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
-                    self.bc.postMessage({event: "tbcWaitingCall", params: {
-                        hasWaitingCall: true,
-                        waitingCallerId: {...self.state.waitingCallerId},
-                    }})
-                    self._syncIncomingRing()
-                    return
-                }
-                // Call waiting: store the incoming call instead of rejecting
-                if (self.waitingSession) {
-                    // Already have a waiting call — reject the third one
-                    call.reject()
-                    return
-                }
-                self.waitingSession = call
-                self.state.hasWaitingCall = true
-
-                // Extract caller info for display
-                self.state.waitingCallerId = {
-                    phoneNumber,
-                    partnerName: callCallerName || '',
-                    partnerId: callPartnerId !== 'false' ? callPartnerId : false,
-                }
-
-                // Notify user and sync waiting call state to other tabs
-                self.notify('Incoming call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
-                self.bc.postMessage({event: "tbcWaitingCall", params: {
-                    hasWaitingCall: true,
-                    waitingCallerId: {...self.state.waitingCallerId},
-                }})
-                self._syncIncomingRing()
-
-                // Set up handlers for the waiting call. Once it is promoted
-                // to the foreground panel these listeners no longer own it.
-                call.on('cancel', () => {
-                    if (self.waitingSession !== call) return
-                    self.waitingSession = null
-                    self.state.hasWaitingCall = false
-                    self.state.waitingCallerId = {}
-                    self._syncIncomingRing()
-                    self.notify('Waiting call ended', {type: 'info'})
-                    self.bc.postMessage({event: "tbcWaitingCall", params: {
-                        hasWaitingCall: false,
-                        waitingCallerId: {},
-                    }})
-                })
-
-                call.on('disconnect', () => {
-                    if (self.waitingSession !== call) return
-                    self.waitingSession = null
-                    self.state.hasWaitingCall = false
-                    self.state.waitingCallerId = {}
-                    self._syncIncomingRing()
-                    self.bc.postMessage({event: "tbcWaitingCall", params: {
-                        hasWaitingCall: false,
-                        waitingCallerId: {},
-                    }})
-                })
-
-                return
-            }
-
-            self.state.callPhoneNumber = phoneNumber
-
-            if (callPartnerId !== 'false') {
-                self.state.isPartner = true
-                self.state.callerId = {
-                    partnerId: parseInt(callPartnerId),
-                    partnerName: callCallerName,
-                    partnerIconUrl: self.computePartnerIconUrl(callPartnerId),
-                    partnerUrl: self.computePartnerUrl(callPartnerId),
-                    phoneNumber,
-                }
-            } else {
-                self.state.callerId = {phoneNumber}
-                await self.searchPartner(phoneNumber)
-            }
-
-            self.state.isDisplayLastState = self.state.isDisplay
-            if (!self.state.isDisplay) {
-                self.toggleDisplay()
-            }
-            const params = self.getJsonCallData()
-            self.bc.postMessage({event: "tbcStartCall", params})
-
-            self.state.inIncoming = true
-            self.state.isDialingPanel = true
-            self.startCall()
-            self._attachIncomingCall(call, phoneNumber)
-
-            if (autoAnswer === 'yes') {
-                call.accept()
-                self.state.phone_status = self.status.accepted
-                self.state.inIncoming = false
-                self.startCall()
-            }
-            self._syncIncomingRing()
-        })
-
-        // Register with exponential backoff retry (3 attempts: 2s, 4s, 8s)
-        const registerWithRetry = async (attempt = 0) => {
-            const maxAttempts = 3
-            try {
-                await self.transport.register()
-            } catch (e) {
-                if (attempt < maxAttempts - 1) {
-                    const delay = Math.pow(2, attempt + 1) * 1000
-                    console.warn(`Connect: Registration attempt ${attempt + 1} failed, retrying in ${delay}ms`)
-                    setTimeout(() => registerWithRetry(attempt + 1), delay)
-                } else {
-                    console.error('Connect: Registration failed after all retries')
-                    self._setConnectionStatus('error', 'Phone registration failed.')
-                }
-            }
-        }
-        registerWithRetry()
-    }
-
     setIncomingVolume() {
-        try {
-            if (this.transport) {
-                this.transport.setIncomingAudio(!this.state.isSoundMute)
-            }
-        } catch (e) {
-            console.warn('Connect: Could not set incoming volume:', e)
+        for (const line of this.lines) {
+            line.setIncomingVolume()
         }
     }
 
@@ -1375,7 +1014,7 @@ export class Phone extends Component {
             Called: phoneNumber,
         }
 
-        self.session = await self.transport.dial(params)
+        self.session = await self.activeLine.dial(params)
         const call = self.session
 
         call.on("accept", async function () {

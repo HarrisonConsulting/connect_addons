@@ -896,7 +896,7 @@ export class Phone extends Component {
         try {
             const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
                 this._callControlPayload(callSid, {step: 'start'})])
-            if (result.success) {
+            if (result.success && await this._holdCallMedia(this.session, true)) {
                 this.state.isAttendedTransfer = true
                 this.state.isOnHold = true
                 this.state.xTransferTo = phoneNumber
@@ -943,7 +943,7 @@ export class Phone extends Component {
         try {
             const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
                 this._callControlPayload(callSid, {step: 'cancel'})])
-            if (result.success) {
+            if (result.success && await this._holdCallMedia(this.session, false)) {
                 this.state.isAttendedTransfer = false
                 this.state.isOnHold = false
                 this.state.xTransferTo = ''
@@ -1084,6 +1084,15 @@ export class Phone extends Component {
     /** An attended transfer that starts has to be able to finish or back out. */
     get canAttendedTransfer() {
         return this.can('attended_start') && this.can('attended_complete') && this.can('attended_cancel')
+    }
+
+    /**
+     * Moves the audio, on a transport that holds its own media, once the server has
+     * said yes. On any other transport the server's yes was the hold. False means
+     * the audio did not move.
+     */
+    async _holdCallMedia(call, on) {
+        return typeof call?.hold !== 'function' || await call.hold(on)
     }
 
     /** Control goes to the provider of the line the call is on, not the one showing. */
@@ -2014,7 +2023,7 @@ export class Phone extends Component {
             if (this.state.isOnHold) {
                 const result = await this.orm.call('connect.channel', 'resume_softphone_call', [
                     this._callControlPayload(callSid)])
-                if (result.success) {
+                if (result.success && await this._holdCallMedia(this.session, false)) {
                     this.state.isOnHold = false
                     this._updatePresence('on_call')
                     this.notify('Call resumed', {type: 'info'})
@@ -2026,7 +2035,7 @@ export class Phone extends Component {
             } else {
                 const result = await this.orm.call('connect.channel', 'hold_softphone_call', [
                     this._callControlPayload(callSid)])
-                if (result.success) {
+                if (result.success && await this._holdCallMedia(this.session, true)) {
                     this.state.isOnHold = true
                     this._updatePresence('on_hold')
                     this.notify('Call on hold', {type: 'info'})
@@ -2319,6 +2328,7 @@ export class Phone extends Component {
                 this._callControlPayload(callSid)])
             held = result !== false && !(result && result.success === false)
             if (!held) holdError = result
+            held = held && await this._holdCallMedia(this.session, true)
         } catch (e) {
             console.error('Connect: Failed to hold current call:', e)
             holdError = e
@@ -2327,7 +2337,10 @@ export class Phone extends Component {
             this._callControlFailed(holdError, 'Could not hold the current call, so the new one keeps waiting.')
             return
         }
-        if (!this.waitingSession) return
+        if (!this.waitingSession) {
+            await this._holdCallMedia(this.session, false)
+            return
+        }
         this.state.isOnHold = true
 
         const info = {...(this.state.waitingCallerId || {})}

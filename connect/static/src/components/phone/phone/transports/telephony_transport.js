@@ -215,8 +215,9 @@ export class TelephonyTransport extends Emitter {
  *                  heard in the browser.
  *
  * OPTIONAL method, deliberately not defined here so that its presence can be
- * tested: hold(on), for a transport that holds its own media. The Hold button
- * goes by the line's capabilities either way.
+ * tested: hold(on), for a transport that holds its own media. The panel calls it
+ * after the server agrees, and it answers whether the audio moved, or a promise of
+ * that. The Hold button goes by the line's capabilities either way.
  */
 export class TelephonyCall extends Emitter {
     /** @returns {{From, CallerName, Partner, autoAnswer, Origin, CallSid}} */

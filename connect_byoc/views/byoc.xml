@@ -39,29 +39,46 @@
         <field name="arch" type="xml">
             <form string="BYOC">
                 <sheet>
+                    <field name="id" invisible="1"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="friendly_name" placeholder="Carrier name..."/>
+                        </h1>
+                    </div>
                     <group>
-                        <group>
-                            <field name="friendly_name"/>
-                            <field name="origination_uris"
-                                    invisible="id == False">
-                                <list editable="bottom">
-                                    <field name="target" placeholder="sip:your.siptrunk.com:5060"/>
-                                    <field name="priority"/>
-                                    <field name="weight"/>
-                                    <field name="enabled"/>
-                                </list>
-                            </field>
+                        <group string="Trunk">
                             <field name="app"/>
-                        </group>
-                        <group>
-                            <field name="id" invisible="1"/>
                             <field name="default_callerid"/>
                             <field name="cnam_lookup_enabled"/>
-                            <field name="sip_username" invisible="id == False" required="id != False"/>
-                            <field name="sip_password" invisible="id == False" required="id != False"/>
                             <field name="domain_name" string="Domain" invisible="id == False"/>
                         </group>
+                        <group string="SIP credentials" invisible="id == False">
+                            <field name="sip_username" required="id != False"/>
+                            <field name="sip_password" password="True" required="id != False"/>
+                        </group>
                     </group>
+                    <group string="Origination" invisible="id == False">
+                        <field name="origination_uris" nolabel="1" colspan="2">
+                            <list editable="bottom">
+                                <field name="target" placeholder="sip:your.siptrunk.com:5060"/>
+                                <field name="priority"/>
+                                <field name="weight"/>
+                                <field name="enabled"/>
+                            </list>
+                        </field>
+                    </group>
+                    <notebook>
+                        <page name="reference" string="Reference" groups="base.group_no_one" invisible="id == False">
+                            <group>
+                                <field name="sid"/>
+                                <field name="connection_policy_sid"/>
+                                <field name="sip_credential_sid"/>
+                                <field name="voice_url"/>
+                                <field name="voice_fallback_url"/>
+                                <field name="voice_status_url"/>
+                            </group>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

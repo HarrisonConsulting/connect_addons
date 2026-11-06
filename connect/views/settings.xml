@@ -29,12 +29,6 @@
                                     <field name="delete_twilio_recording"
                                            invisible="recording_storage == 'twilio'"/>
                                 </group>
-                                <group string="API">
-                                    <field name="api_url" readonly="1"/>
-                                    <field name="web_base_url" readonly="1"/>
-                                    <field name="instance_uid" readonly="1"/>
-                                    <field name="call_duration_limit" readonly="1"/>
-                                </group>
                             </group>
                         </page>
                         <page name="transcription" string="Transcription">
@@ -46,12 +40,20 @@
                                     <field name="register_summary"/>
                                 </group>
                                 <group name="openai_api" string="OpenAI">
-                                    <field name="display_openai_api_key" string="API Key"/>
+                                    <field name="display_openai_api_key" string="API Key" password="True"/>
                                     <field name="openai_summary_model" string="Summary Model"/>
                                 </group>
                             </group>
                             <group string="Summary Prompt">
                                 <field name="summary_prompt" nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+                        <page name="reference" string="Reference" groups="base.group_no_one">
+                            <group>
+                                <field name="api_url" readonly="1"/>
+                                <field name="web_base_url" readonly="1"/>
+                                <field name="instance_uid" readonly="1"/>
+                                <field name="call_duration_limit" readonly="1"/>
                             </group>
                         </page>
                     </notebook>

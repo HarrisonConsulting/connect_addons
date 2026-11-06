@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 {
     'name': 'Connect Odoo Helpdesk module',
-    'version': '1.0.6',
+    'version': '1.0.7',
     'author': 'Oduist',
     'price': 0,
     'currency': 'EUR',

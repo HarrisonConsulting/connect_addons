@@ -6,12 +6,21 @@
         <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
             <xpath expr="//page[@name='channels']" position="after">
-                <page name="twilio" string="Twilio">
+                <!-- group_no_one beside another group becomes debug-and, so price and the SID cannot share one groups value. -->
+                <page name="twilio" string="Twilio" invisible="not call_sid"
+                      groups="connect.group_admin">
                     <group>
-                        <field name="call_sid"/>
                         <field name="price"/>
                         <field name="price_unit"/>
                         <field name="price_currency"/>
+                        <field name="call_sid" groups="base.group_no_one"/>
+                        <field name="is_price_fetched" groups="base.group_no_one"/>
+                    </group>
+                </page>
+                <page name="twilio_reference" string="Twilio" invisible="not call_sid"
+                      groups="!connect.group_admin,base.group_no_one">
+                    <group>
+                        <field name="call_sid"/>
                         <field name="is_price_fetched"/>
                     </group>
                 </page>

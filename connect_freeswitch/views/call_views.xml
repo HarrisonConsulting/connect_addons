@@ -6,15 +6,10 @@
         <field name="model">connect.call</field>
         <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//header" position="inside">
-                <button name="action_fs_park"
-                        type="object"
-                        string="Park"
-                        class="btn-secondary"
-                        invisible="status in ('completed','busy','failed','no-answer','canceled') or fs_parked_slot"/>
+            <xpath expr="//page[@name='channels']" position="inside">
                 <field name="fs_parked_slot"
                        readonly="1"
-                       widget="many2one_tag"
+                       groups="base.group_no_one"
                        invisible="not fs_parked_slot"/>
             </xpath>
         </field>

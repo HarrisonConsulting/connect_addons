@@ -18,10 +18,11 @@
         <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
             <button name="create_partner_button" position="after">
-                <button string="Ticket" name="create_ticket_button" type="object" class="btn btn-info" icon='fa-ticket'/>
+                <button string="Create ticket" name="create_ticket_button" type="object"
+                        invisible="ticket"/>
             </button>
             <page name="call" position="after">
-                <page name="ticket" string="Ticket">
+                <page name="ticket" string="Ticket" invisible="not ticket">
                     <group>
                         <group>
                             <field name="ticket"/>
@@ -42,11 +43,11 @@
         <field name="inherit_id" ref="connect_pbx.voicemail_form"/>
         <field name="arch" type="xml">
             <button name="action_assign_to_me" position="after">
-                <button string="Ticket" name="create_ticket_button" type="object"
-                    class="btn btn-info" icon="fa-ticket"/>
+                <button string="Create ticket" name="create_ticket_button" type="object"
+                        invisible="ticket"/>
             </button>
             <group name="assignment" position="after">
-                <group string="Ticket" name="ticket_details">
+                <group string="Ticket" name="ticket_details" invisible="not ticket">
                     <field name="ticket"/>
                     <button name="unlink_ticket" type="object" string="Unlink Ticket"
                         invisible="not ticket" class="btn-link p-0"/>

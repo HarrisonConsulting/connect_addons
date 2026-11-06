@@ -721,3 +721,199 @@ test("a call on another line shows that line's status while it lasts", async () 
     expect(phone.activeLine.key).toBe("other")
     expect(phone.state.connectionStatus).toBe("error")
 })
+
+// A click the server would place answers to the same rules
+
+/** A call on the bridge line, with the selection left on the line before it. */
+async function redialOnBridge(phone, requests) {
+    await phone.prepareCall({phone: NUMBER, lineKey: "bridge:1"})
+    await waitUntil(() => requests.originates.length === 1)
+    await animationFrame()
+    return phone.session
+}
+
+test("a click over a call nobody can confirm refuses, on a line the server would call from", async () => {
+    const {phone, requests} = await mount([browserLine(), bridgeLine()])
+    phone.selectLine("bridge:1")
+    const call = await dial(phone, requests)
+    publish(phone, call.ref, "unknown")
+    await animationFrame()
+    await phone._onClickEndCall()
+    await settleEnd()
+    phone.selectLine("twilio")
+    phone.state.lastOperationError = false
+    expect(clickToCall(phone)).toEqual([])
+    await waitUntil(() => phone.state.lastOperationError)
+    expect(phone.state.lastOperationError).toBe(UNCONFIRMED)
+    expect(phone.state.isDisplay).toBe(true)
+    expect(requests.originates.length).toBe(1)
+})
+
+test("a click during a call on another line places nothing, and says so", async () => {
+    const {phone, requests} = await mount([browserLine(), bridgeLine()])
+    const call = await redialOnBridge(phone, requests)
+    publish(phone, call.ref, "in_call")
+    await animationFrame()
+    expect(phone.state.selectedLineKey).toBe("twilio")
+    expect(clickToCall(phone, "+15550198")).toEqual([])
+    await waitUntil(() => phone.state.lastOperationError)
+    expect(phone.state.lastOperationError).toInclude("already")
+    expect(requests.originates.length).toBe(1)
+    expect(phone.session).toBe(call)
+})
+
+test("a second click of the number on the call places nothing either", async () => {
+    const {phone, requests} = await mount([browserLine(), bridgeLine()])
+    const call = await redialOnBridge(phone, requests)
+    publish(phone, call.ref, "in_call")
+    await animationFrame()
+    expect(clickToCall(phone)).toEqual([])
+    await animationFrame()
+    expect(requests.originates.length).toBe(1)
+    expect(phone.state.lastOperationError).toBe(false)
+})
+
+test("once nothing stands in the way, the click goes to the server again", async () => {
+    const {phone, requests} = await mount([browserLine(), bridgeLine()])
+    phone.selectLine("bridge:1")
+    const call = await dial(phone, requests)
+    publish(phone, call.ref, "unknown")
+    await animationFrame()
+    await phone._onClickEndCall()
+    await settleEnd()
+    publish(phone, call.ref, "ended")
+    await animationFrame()
+    phone.selectLine("twilio")
+    const calls = clickToCall(phone)
+    expect(calls.length).toBe(1)
+    expect(calls[0][3].context).toEqual({connect_tool_id: 7})
+})
+
+test("one line clicks to the server during a call, as it always has", async () => {
+    const {phone} = await mount([browserLine()])
+    await phone.prepareCall({phone: NUMBER})
+    await animationFrame()
+    expect(phone.state.inCall).toBe(true)
+    expect(clickToCall(phone, "+15550198").length).toBe(1)
+})
+
+// Retry on a line that could not mint
+
+class NeedsItsLibrary extends LoopbackTransport {
+    static loads = 0
+    static async loadDependencies() {
+        this.loads++
+    }
+    init() {
+        if (!NeedsItsLibrary.loads) {
+            throw new Error("Library is not defined")
+        }
+        super.init()
+    }
+}
+
+test("a line that could not mint loads its library when Retry succeeds", async () => {
+    NeedsItsLibrary.loads = 0
+    register("library", NeedsItsLibrary)
+    onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
+    const failed = browserLine({key: "library", provider: "library", token_data: {}, unavailable: "No credential today"})
+    const {phone} = await mount([failed])
+    const [line] = phone.lines
+    expect(NeedsItsLibrary.loads).toBe(0)
+    await line.reconnect()
+    await animationFrame()
+    expect(NeedsItsLibrary.loads).toBe(1)
+    expect(line.startFailed).toBe(false)
+    expect(line.unavailable).toBe("")
+    expect(line.hasLiveTransport).toBe(true)
+    expect(phone.state.connectionStatus).toBe("ready")
+    await line.reconnect()
+    await animationFrame()
+    expect(NeedsItsLibrary.loads).toBe(1)
+})
+
+test("a library that will not load on that Retry says so, on that line only", async () => {
+    patchWithCleanup(console, {error() {}})
+    register("noload", SdkWillNotLoad)
+    onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
+    const failed = browserLine({key: "noload", provider: "noload", token_data: {}, unavailable: "No credential today"})
+    const {phone} = await mount([bridgeLine(), failed])
+    const line = phone.lines[1]
+    await line.reconnect()
+    await animationFrame()
+    expect(line.startFailed).toBe(true)
+    expect(phone.state.lineStatuses.noload.error).toBe("The phone library did not load")
+    expect(phone.lines[0].hasLiveTransport).toBe(true)
+    expect(phone.state.isActive).toBe(true)
+})
+
+test("Retry on a line still failing says the server's reason, and refuses with it", async () => {
+    onRpc("connect.user", "get_client_token", () => ({token: false, error: "Still no credential"}))
+    const {phone} = await mount([browserLine(), failedLine()])
+    phone.selectLine("bridge:1")
+    const line = phone.lines[1]
+    await line.reconnect()
+    await animationFrame()
+    expect(phone.state.connectionStatus).toBe("error")
+    expect(bannerText()).toInclude("Still no credential")
+    expect(bannerText()).not.toInclude("fake_bridge")
+    await phone.prepareCall({phone: NUMBER})
+    expect(phone.state.lastOperationError).toInclude("Still no credential")
+})
+
+test("Retry that gets nothing at all still names no provider", async () => {
+    onRpc("connect.user", "get_client_token", () => ({token: false}))
+    const {phone} = await mount([browserLine(), failedLine()])
+    phone.selectLine("bridge:1")
+    await phone.lines[1].reconnect()
+    await animationFrame()
+    expect(bannerText()).toInclude("Could not obtain a phone token.")
+    expect(bannerText()).not.toInclude("fake_bridge")
+})
+
+test("one line's Retry keeps the words it always had", async () => {
+    onRpc("connect.user", "get_client_token", () => ({error: "internal-host refused for key SK123"}))
+    const {phone} = await mount([browserLine()])
+    await phone.lines[0].reconnect()
+    await animationFrame()
+    expect(phone.state.connectionStatus).toBe("error")
+    expect(bannerText()).toInclude("Could not obtain a phone token.")
+    expect(bannerText()).not.toInclude("SK123")
+})
+
+// Presence belongs to the person
+
+test("a line coming back during a call leaves the person on the call", async () => {
+    onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
+    const {phone, requests} = await mount([browserLine(), bridgeLine()])
+    phone.selectLine("bridge:1")
+    const call = await dial(phone, requests)
+    publish(phone, call.ref, "in_call")
+    await animationFrame()
+    expect(phone._presenceDesired).toBe("on_call")
+    window.dispatchEvent(new Event("offline"))
+    window.dispatchEvent(new Event("online"))
+    await waitUntil(() => phone.lines[0].registered && phone.state.lineStatuses.twilio.status === "ready")
+    await animationFrame()
+    expect(phone._presenceDesired).toBe("on_call")
+    expect(phone.session).toBe(call)
+    await phone._onClickEndCall()
+    await settleEnd()
+    expect(phone._presenceDesired).toBe("available")
+})
+
+test("a line coming up with no call still says available", async () => {
+    const {phone} = await mount([browserLine(), bridgeLine()])
+    phone._presenceDesired = "offline"
+    phone.lines[0].transport._emit("registered")
+    expect(phone._presenceDesired).toBe("available")
+})
+
+test("one line registering during its call does as it always has", async () => {
+    const {phone} = await mount([browserLine()])
+    await phone.prepareCall({phone: NUMBER})
+    await animationFrame()
+    phone._presenceDesired = "on_call"
+    phone.lines[0].transport._emit("registered")
+    expect(phone._presenceDesired).toBe("available")
+})

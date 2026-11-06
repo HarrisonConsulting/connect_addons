@@ -60,6 +60,7 @@ export class PhoneLine {
         this.registered = false
         this._reconnecting = false
         this._needsTokenRefresh = false
+        this._dependenciesLoaded = false
         this._calls = new WeakSet()
     }
 
@@ -98,6 +99,7 @@ export class PhoneLine {
         }
         try {
             await this._transportClass.loadDependencies()
+            this._dependenciesLoaded = true
         } catch (error) {
             console.error('Connect: Failed to load a phone line:', error)
             this._failStart(error.message || 'Phone service failed to start.', error.name || 'InitFailed')
@@ -251,11 +253,22 @@ export class PhoneLine {
             if (this.unavailable && token_data.media) {
                 this.media = token_data.media
             }
-            if (this._transportClass.hasCredential(token_data)) {
+            // A line that could not mint may not know yet how it connects, so a
+            // refusal here can have no transport class to ask.
+            if (this._findTransportClass()?.hasCredential(token_data)) {
                 this._adoptCredential(token_data)
+                // A line that could not mint never loaded its library.
+                if (!this._dependenciesLoaded) {
+                    await this.loadDependencies()
+                }
                 this.initTransport()
             } else {
-                phone._setLineStatus(this, 'error', token_data.error || 'Could not obtain a phone token.')
+                // One line that was working says what it always has.
+                const reason = this.unavailable || phone.isMultiLine || this.mintToolId ? token_data.error : ''
+                if (this.unavailable && reason) {
+                    this.unavailable = reason
+                }
+                phone._setLineStatus(this, 'error', reason || 'Could not obtain a phone token.')
             }
         } catch (e) {
             console.error('Connect: Reconnect failed:', e)
@@ -348,7 +361,11 @@ export class PhoneLine {
         this.transport.on('registered', () => {
             phone._setLineStatus(this, 'ready')
             this.registered = true
-            phone._updatePresence('available')
+            // With two or more lines this can happen during a call on any of them,
+            // and the person is still on that call. Ending it sets presence again.
+            if (!(phone.isMultiLine && phone.state.inCall)) {
+                phone._updatePresence('available')
+            }
         })
 
         this.transport.on('unregistered', () => {

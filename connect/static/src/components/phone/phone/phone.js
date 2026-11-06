@@ -288,13 +288,18 @@ export class Phone extends Component {
     /**
      * Whether a click-to-call goes through the panel's dial, on the selected line.
      * A bridge line and any selection but the first line always do, and so does a
-     * first line that could not mint, which then refuses in words. Otherwise it
-     * goes by the line's first callflow: in this browser when that is the web
-     * client, and from the server when it is not.
+     * first line that could not mint, which then refuses in words. With two or more
+     * lines, so does any click the panel would refuse, because the server knows
+     * nothing of the call that stands in its way. Otherwise it goes by the line's
+     * first callflow: in this browser when that is the web client, and from the
+     * server when it is not.
      */
     get clickToCallLocal() {
         const line = this.selectedLine
-        if (line.media === 'bridge' || (this.isMultiLine && (line !== this.lines[0] || line.unavailable))) {
+        if (line.media === 'bridge') {
+            return true
+        }
+        if (this.isMultiLine && (line !== this.lines[0] || line.unavailable || this._isDialBusy() || this._dialRefusal)) {
             return true
         }
         return line.tokenData.first_callflow === 'client'
@@ -1088,6 +1093,14 @@ export class Phone extends Component {
         this.notify(message, {type: 'warning'})
     }
 
+    /**
+     * A call nobody can confirm may still ring the person's own phone, and that is
+     * the phone any other line would ring too.
+     */
+    get _dialRefusal() {
+        return this.lines.map((line) => line.transport?.dialRefusal).find(Boolean) || null
+    }
+
     /** Whether another press has to wait: one call goes out at a time, across all lines. */
     _isDialBusy() {
         return this.state.inCall || this._preparingCall
@@ -1299,9 +1312,7 @@ export class Phone extends Component {
         if (line.transport?.liveCall) {
             return
         }
-        // A call nobody can confirm may still ring the person's own phone, and that
-        // is the phone any other line would ring too.
-        const refusal = self.lines.map((candidate) => candidate.transport?.dialRefusal).find(Boolean)
+        const refusal = self._dialRefusal
         if (refusal) {
             self._refuseDial(refusal)
             return

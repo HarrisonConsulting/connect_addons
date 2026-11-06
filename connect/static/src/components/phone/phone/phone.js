@@ -845,32 +845,41 @@ export class Phone extends Component {
         const phoneNumber = this.state.pendingTransferNumber
         this.state.showTransferChoice = false
         this.state.pendingTransferNumber = ''
-        if (this.session) {
-            this.notification.add(_t("Transfer initiated"), {title: 'Connect', type: 'info'})
-            try {
-                const result = await this.orm.call('connect.transfer_wizard', 'execute_transfer', [
-                    phoneNumber,
-                    'blind',
-                    this.call_id,
-                    this.session.params.CallSid
-                ])
-                if (result.success) {
-                    this.notify(result.message, {sticky: false, type: 'success'})
-                    this.audioNotification.play('transfer_complete')
-                } else {
-                    this._setOperationError(result.error || 'Transfer failed')
-                    this.notify(result.error || 'Transfer failed', {sticky: false, type: 'warning'})
-                    this.audioNotification.play('transfer_failed')
-                }
-            } catch (error) {
-                console.error('Transfer error:', error)
-                this._setOperationError('Transfer failed')
-                this.notify('Transfer failed', {sticky: false, type: 'warning'})
-                this.audioNotification.play('transfer_failed')
-            }
+        const call = this.session
+        const callSid = call?.params?.CallSid || this.call_sid
+        // The call can end while the question is open, which clears the number.
+        if (!callSid || !phoneNumber) {
+            this._transferFailed({}, _t("That call has already ended, so there is nothing to transfer."))
+            return
         }
+        try {
+            // A refusal arrives as an error. An answer is the provider having
+            // moved the other party, and it need not carry a success key.
+            const result = await this.orm.call('connect.channel', 'forward_softphone_call', [
+                this._callControlPayload(callSid, {number: phoneNumber})])
+            if (result?.success === false) {
+                this._transferFailed(result)
+                return
+            }
+        } catch (error) {
+            console.warn('Connect: transfer failed:', error)
+            this._transferFailed(error)
+            return
+        }
+        this.notify(_t("Transferring the call to %s.", phoneNumber), {sticky: false, type: 'success'})
+        this.audioNotification.play('transfer_complete')
         this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber}})
-        this.endCall()
+        // If the leg dropped during the wait, the panel may be on another call by now.
+        if (this.session === call) {
+            this.endCall()
+        }
+    }
+
+    /** The call stays up, and the person is told it did not move. */
+    _transferFailed(error, fallback = _t("The call could not be transferred. You are still on it.")) {
+        this.state.xTransferTo = ''
+        this._callControlFailed(error, fallback)
+        this.audioNotification.play('transfer_failed')
     }
 
     async _onClickAttendedTransfer() {

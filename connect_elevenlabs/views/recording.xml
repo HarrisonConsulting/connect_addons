@@ -30,15 +30,14 @@
             <field name="summary" position="after">
                 <field name="elevenlabs_summary" string="Agent Summary"
                     invisible="not elevenlabs_summary"/>
-                <field name="elevenlabs_recording_widget" string="Agent Recording"
-                    invisible="not elevenlabs_transcript"/>
             </field>
             <page name="transcript" position="after">
                 <page name="agent" string="Agent"
-                        invisible="not elevenlabs_transcript">
-                    <group>
-                        <field name="elevenlabs_transcript" string="Agent Transcript"/>
-                    </group>
+                        invisible="not elevenlabs_transcript and not elevenlabs_recording_widget">
+                    <field name="elevenlabs_recording_widget" nolabel="1"
+                           invisible="not elevenlabs_recording_widget"/>
+                    <field name="elevenlabs_transcript" string="Agent Transcript"
+                           nolabel="1" invisible="not elevenlabs_transcript"/>
                 </page>
             </page>
         </field>

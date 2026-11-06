@@ -5,9 +5,12 @@
         <field name="model">connect.message</field>
         <field name="inherit_id" ref="connect.view_connect_message_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='parent_message']" position="after">
-                <field name="account_sid"/>
-                <field name="messaging_service_sid"/>
+            <xpath expr="//sheet" position="inside">
+                <group string="Twilio" groups="base.group_no_one"
+                       invisible="not account_sid and not messaging_service_sid">
+                    <field name="account_sid"/>
+                    <field name="messaging_service_sid"/>
+                </group>
             </xpath>
         </field>
     </record>

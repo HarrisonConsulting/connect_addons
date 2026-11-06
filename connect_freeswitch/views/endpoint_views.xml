@@ -21,10 +21,16 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="create_extension" type="object" string="Extension"
-                            class="btn btn-primary" invisible="connect_user_id"/>
+                    <button name="create_extension" type="object" string="Create extension"
+                            class="btn-primary" invisible="connect_user_id or exten"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="create_extension" type="object"
+                                class="oe_stat_button" icon="fa-phone"
+                                string="Extension"
+                                invisible="not exten"/>
+                    </div>
                     <div class="oe_title">
                         <label for="name"/>
                         <h1>

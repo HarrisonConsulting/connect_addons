@@ -14,21 +14,6 @@
                     <notebook>
                         <page name="freeswitch" string="FreeSWITCH">
                             <group>
-                                <group string="Status">
-                                    <field name="freeswitch_status"/>
-                                    <field name="freeswitch_uptime"/>
-                                    <field name="freeswitch_calls"/>
-                                    <field name="freeswitch_registrations"/>
-                                    <button name="check_freeswitch_status" type="object"
-                                            string="CHECK STATUS" class="btn btn-info"
-                                            colspan="2"/>
-                                </group>
-                                <group string="Gateway Status">
-                                    <field name="freeswitch_gateway_statuses"
-                                           nolabel="1" colspan="2"/>
-                                </group>
-                            </group>
-                            <group>
                                 <group string="Connection">
                                     <field name="freeswitch_socket_url"
                                            placeholder="wss://your-fs-domain:8082"/>
@@ -43,6 +28,21 @@
                                 <group string="XML-RPC">
                                     <field name="freeswitch_xmlrpc_host"
                                            placeholder="fs.example.com"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Status">
+                                    <field name="freeswitch_status"/>
+                                    <field name="freeswitch_uptime"/>
+                                    <field name="freeswitch_calls"/>
+                                    <field name="freeswitch_registrations"/>
+                                    <button name="check_freeswitch_status" type="object"
+                                            string="Check status" class="btn btn-info"
+                                            colspan="2"/>
+                                </group>
+                                <group string="Gateway Status">
+                                    <field name="freeswitch_gateway_statuses"
+                                           nolabel="1" colspan="2"/>
                                 </group>
                             </group>
                             <group>

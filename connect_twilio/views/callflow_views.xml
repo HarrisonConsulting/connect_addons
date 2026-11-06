@@ -16,11 +16,17 @@
         <field name="model">connect.twilio.callflow</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="create_extension" type="object"
+                            string="Create extension" class="btn-primary"
+                            invisible="exten"/>
+                </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="create_extension" type="object"
                                 class="oe_stat_button" icon="fa-phone"
-                                string="Extension"/>
+                                string="Extension"
+                                invisible="not exten"/>
                     </div>
                     <group>
                         <group string="General">

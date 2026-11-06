@@ -7,11 +7,13 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button name="create_freeswitch_extension" type="object"
-                        string="FreeSWITCH Extension" class="btn btn-primary"/>
+                        string="Create extension" class="btn-primary"
+                        invisible="freeswitch_exten"/>
             </xpath>
             <div class="oe_button_box" position="inside">
                 <button name="%(connect_freeswitch.action_freeswitch_endpoint)d" type="action"
                         class="oe_stat_button" icon="fa-headphones"
+                        invisible="not freeswitch_endpoint_count"
                         context="{'default_connect_user_id': id, 'search_default_connect_user_id': id}">
                     <field name="freeswitch_endpoint_count" widget="statinfo" string="Endpoints"/>
                 </button>
@@ -37,7 +39,6 @@
                         <list editable="bottom">
                             <field name="name"/>
                             <field name="auth_user"/>
-                            <field name="auth_password" password="True"/>
                             <field name="originate_ring"/>
                             <field name="auto_answer_header" optional="hide"/>
                             <field name="active" column_invisible="1"/>

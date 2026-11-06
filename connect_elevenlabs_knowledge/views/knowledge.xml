@@ -10,9 +10,8 @@
                 <field name="document_type"/>
                 <field name="state" decoration-success="state == 'active'" decoration-danger="state == 'error'" decoration-warning="state == 'creating'"/>
                 <field name="agent_count" string="Agents"/>
-                <field name="document_size" optional="show"/>
-                <field name="updated_at" optional="show"/>
-                <field name="knowledge_id" optional="hide"/>
+                <field name="document_size" optional="hide"/>
+                <field name="updated_at" optional="hide"/>
             </list>
         </field>
     </record>
@@ -38,32 +37,28 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,creating,active,error"/>
-                    <button name="action_retry_creation" type="object" string="Retry Creation" 
+                    <button name="action_retry_creation" type="object" string="Retry creation"
                             invisible="state != 'error'" class="btn-primary"/>
-                    <button name="action_view_agents" type="object" string="View Agents" 
-                            invisible="agent_count == 0" class="btn-secondary"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,creating,active,error"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_agents" type="object"
+                                class="oe_stat_button" icon="fa-users"
+                                invisible="not agent_count">
+                            <field name="agent_count" widget="statinfo" string="Agents"/>
+                        </button>
+                    </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="Document name..."/>
                         </h1>
                     </div>
                     <group>
-                        <group name="document_info">
-                            <field name="document_type"/>
-                            <field name="knowledge_id" string="Document ID" readonly="1" invisible="not knowledge_id"/>
-                            <field name="document_size" readonly="1" invisible="document_size == 0"/>
-                        </group>
-                        <group name="timestamps">
-                            <field name="created_at" readonly="1"/>
-                            <field name="updated_at" readonly="1"/>
-                            <field name="force_delete" invisible="not knowledge_id"/>
-                        </group>
+                        <field name="document_type"/>
                     </group>
                     <group name="content" string="Content">
-                        <field name="url" invisible="document_type != 'url'" required="document_type == url"/>
+                        <field name="url" invisible="document_type != 'url'" required="document_type == 'url'"/>
                         <field name="file_name" invisible="1"/>
                         <field name="file" filename="file_name"
                                invisible="document_type != 'file'" required="document_type == 'file'"/>
@@ -71,15 +66,8 @@
                                invisible="document_type != 'text'" required="document_type == 'text'"/>
                         <field name="description" placeholder="Document description..."/>
                     </group>
-                    <group name="error_info" string="Error Information" 
-                           invisible="not error_message">
-                        <field name="error_message" readonly="1" nolabel="1" colspan="2"/>
-                    </group>
                     <notebook>
                         <page name="agents" string="Used by Agents">
-                            <group>
-                                <field name="agent_count" readonly="1"/>
-                            </group>
                             <field name="agent_ids" nolabel="1">
                                 <list>
                                     <field name="name"/>
@@ -88,6 +76,22 @@
                                     <field name="voice"/>
                                 </list>
                             </field>
+                        </page>
+                        <page name="details" string="Details"
+                              invisible="not knowledge_id and not created_at and not updated_at and document_size == 0">
+                            <group>
+                                <field name="document_size" readonly="1"/>
+                                <field name="created_at" readonly="1"/>
+                                <field name="updated_at" readonly="1"/>
+                                <field name="force_delete" invisible="not knowledge_id"/>
+                            </group>
+                            <group string="Document reference" groups="base.group_no_one"
+                                   invisible="not knowledge_id">
+                                <field name="knowledge_id" string="Document ID" readonly="1"/>
+                            </group>
+                        </page>
+                        <page name="error" string="Error" invisible="not error_message">
+                            <field name="error_message" readonly="1"/>
                         </page>
                     </notebook>
                 </sheet>

@@ -18,23 +18,32 @@
         <field name="model">connect.call</field>
         <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
+            <page name="recording" position="attributes">
+                <attribute name="invisible">not recording_widget and not transcript and not elevenlabs_recording_widget and not elevenlabs_transcript</attribute>
+            </page>
+            <page name="recording" position="inside">
+                <field name="elevenlabs_recording_widget" nolabel="1"
+                       invisible="not elevenlabs_recording_widget"/>
+                <field name="elevenlabs_transcript" string="Agent Transcript"
+                       nolabel="1" invisible="not elevenlabs_transcript"/>
+            </page>
             <page name="recording" position="before">
-                <page name="elevenlabs" string="Agent" invisible="not elevenlabs_transcript">
+                <page name="elevenlabs" string="Agent"
+                      invisible="not elevenlabs_transcript">
                     <group>
-                        <group>
-                            <field name="elevenlabs_recording_widget" nolabel="1"/>
-                        </group>
-                        <group>
-                            <field name="elevenlabs_agent"/>
-                        </group>
-                    </group>
-                    <group>
-                        <field name="elevenlabs_transcript" string="Agent Transcript"/>
+                        <field name="elevenlabs_agent"/>
                     </group>
                 </page>
             </page>
+            <page name="details" position="inside">
+                <group string="Agent reference" groups="base.group_no_one"
+                       invisible="not elevenlabs_conversation_id">
+                    <field name="elevenlabs_conversation_id"/>
+                </group>
+            </page>
             <field name="summary" position="after">
-                <field name="elevenlabs_summary" string="Agent Summary" invisible="not elevenlabs_summary"/>
+                <field name="elevenlabs_summary" string="Agent Summary"
+                       invisible="not elevenlabs_summary"/>
             </field>
         </field>
     </record>

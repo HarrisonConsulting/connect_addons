@@ -35,16 +35,19 @@
                                    help="Select the Twilio phone number to register"/>
                             <field name="phone_number" readonly="1"/>
                             <field name="label" placeholder="Optional label in ElevenLabs"/>
-                        </group>
-                        <group string="ElevenLabs Registration">
-                            <field name="elevenlabs_phone_id" readonly="1"/>
-                            <field name="last_sync" readonly="1"/>
                             <field name="active" invisible="1"/>
                         </group>
                     </group>
-                    <group string="Error Details" invisible="not sync_error">
-                        <field name="sync_error" readonly="1" nolabel="1" colspan="2"/>
+                    <group string="ElevenLabs reference" groups="base.group_no_one"
+                           invisible="not elevenlabs_phone_id and not last_sync">
+                        <field name="elevenlabs_phone_id" readonly="1"/>
+                        <field name="last_sync" readonly="1"/>
                     </group>
+                    <notebook>
+                        <page name="error" string="Error" invisible="not sync_error">
+                            <field name="sync_error" readonly="1"/>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>
@@ -67,8 +70,7 @@
                        decoration-danger="sync_status == 'error'"
                        decoration-warning="sync_status == 'draft'"
                        widget="badge"/>
-                <field name="elevenlabs_phone_id" optional="hide"/>
-                <field name="last_sync" optional="show"/>
+                <field name="last_sync" optional="hide"/>
             </list>
         </field>
     </record>

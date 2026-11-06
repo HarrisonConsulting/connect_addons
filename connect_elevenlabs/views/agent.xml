@@ -101,20 +101,17 @@
                             icon="fa-external-link"
                             invisible="not agent_uid"/>
                     <button name="create_extension" type="object"
-                            string="Create Extension" class="btn-secondary"
+                            string="Create extension" class="btn-secondary"
                             invisible="exten"/>
                     <field name="sync_status" widget="statusbar"
                            statusbar_visible="draft,synced"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_open_elevenlabs" type="object"
-                                class="oe_stat_button" icon="fa-cloud"
-                                invisible="not agent_uid">
-                            <div class="o_stat_info">
-                                <span class="o_stat_text">ElevenLabs</span>
-                            </div>
-                        </button>
+                        <button name="create_extension" type="object"
+                                class="oe_stat_button" icon="fa-phone"
+                                string="Extension"
+                                invisible="not exten"/>
                     </div>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-secondary"
                             invisible="active"/>
@@ -213,7 +210,7 @@
                                     <field name="exten_number" string="Extension Number"/>
                                 </group>
                                 <group string="Sync Status">
-                                    <field name="agent_uid" readonly="1"/>
+                                    <field name="agent_uid" readonly="1" groups="base.group_no_one"/>
                                     <field name="sync_status" readonly="1"/>
                                     <field name="last_sync" readonly="1"/>
                                     <field name="elevenlabs_archived"/>

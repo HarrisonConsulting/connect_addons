@@ -28,12 +28,12 @@
                                     <field name="twilio_region" string="Region"/>
                                     <field name="twilio_edge" string="Edge"/>
                                     <button colspan="2" name="sync" type="object"
-                                            string="SYNC TWILIO ACCOUNT" class="btn btn-primary"/>
+                                            string="Sync account" class="btn btn-primary"/>
                                 </group>
                                 <group string="Balance">
                                     <field name="twilio_balance" string="Current Balance" readonly="1"/>
                                     <button class="btn btn-info" colspan="2" name="get_twilio_balance"
-                                            type="object" string="GET TWILIO BALANCE"/>
+                                            type="object" string="Get balance"/>
                                 </group>
                             </group>
                             <group>

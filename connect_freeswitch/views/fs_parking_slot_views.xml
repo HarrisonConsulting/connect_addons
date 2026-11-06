@@ -25,11 +25,6 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_unpark"
-                            type="object"
-                            string="Unpark"
-                            class="btn-primary"
-                            invisible="not is_occupied"/>
                     <button name="action_reset"
                             type="object"
                             string="Reset Slot"
@@ -58,7 +53,7 @@
                             <field name="parked_caller_name"/>
                             <field name="parked_by_user"/>
                             <field name="parked_at"/>
-                            <field name="parked_uuid"/>
+                            <field name="parked_uuid" groups="base.group_no_one"/>
                         </group>
                     </group>
                 </sheet>

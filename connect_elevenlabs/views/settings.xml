@@ -28,27 +28,22 @@
           <page name="elevenlabs_api" string="API">
             <group>
               <group>
-                <a invisible="display_elevenlabs_api_key" class="btn btn-info" role="button"
-                  colspan="2" target="_new" href="https://try.elevenlabs.io/connect">OPEN A NEW ELEVENLABS ACCOUNT HERE</a>
                 <field name="elevenlabs_enabled"/>
                 <field name="display_elevenlabs_api_key" password="1" string="API Key"
                        invisible="not elevenlabs_enabled"
                        required="elevenlabs_enabled"/>
                 <field name="elevenlabs_voice"
                        invisible="not elevenlabs_enabled"/>
-                <div class="d-flex flex-row" colspan="2">
-                  <button name="elevenlabs_sync" type="object" string="SYNC" class="btn btn-secondary me-1"
-                          invisible="not elevenlabs_enabled"/>
-                   <button name="elevenlabs_unbind_account" type="object" string="UNBIND ACCOUNT" class="btn btn-warning me-1"
-                           invisible="not elevenlabs_enabled"
+                <div class="d-flex flex-row" colspan="2" invisible="not elevenlabs_enabled">
+                  <button name="elevenlabs_sync" type="object" string="Sync" class="btn btn-secondary me-1"/>
+                  <button name="elevenlabs_unbind_account" type="object" string="Unbind account" class="btn btn-warning me-1"
                            confirm="Are you sure you want to unbind your ElevenLabs account? This will clear all agent and tool IDs."/>
-                  <button name="elevenlabs_regenerate_prompts" type="object" string="REGENERATE PROMPTS" class="btn btn-secondary me-1"
-                          invisible="not elevenlabs_enabled"/>
-                  <button name="elevenlabs_regenerate_system_messages" type="object" string="REGENERATE SYSTEM MESSAGES" class="btn btn-secondary me-1"
-                          invisible="not elevenlabs_enabled"/>
-                  <button name="elevenlabs_sync_tools" type="object" string="SYNC TOOLS" class="btn btn-secondary me-1"
-                          invisible="not elevenlabs_enabled"/>
+                  <button name="elevenlabs_regenerate_prompts" type="object" string="Regenerate prompts" class="btn btn-secondary me-1"/>
+                  <button name="elevenlabs_regenerate_system_messages" type="object" string="Regenerate system messages" class="btn btn-secondary me-1"/>
+                  <button name="elevenlabs_sync_tools" type="object" string="Sync tools" class="btn btn-secondary me-1"/>
                 </div>
+                <a invisible="display_elevenlabs_api_key" role="button"
+                  colspan="2" target="_new" href="https://try.elevenlabs.io/connect">Open an ElevenLabs account</a>
                 <a invisible="not elevenlabs_enabled"
                   colspan="2" target="_new" href="https://elevenlabs.io/app/voice-library?">Add shared voices</a>
               </group>
@@ -69,7 +64,7 @@
               </group>
               <div colspan="2">
                 <small>Changing any of these invalidates previously cached utterances; they
-                  will regenerate on next playback. Click <em>REGENERATE PROMPTS</em>
+                  will regenerate on next playback. Click <em>Regenerate prompts</em>
                   above to clear the cache explicitly.</small>
               </div>
             </group>
@@ -82,8 +77,6 @@
                 </div>
                 <field name="elevenlabs_post_call_webhook_url" string="Post Call Webhook URL"/>
                 <field name="display_elevenlabs_post_call_webhook_secret" string="Post Call Webhook Secret" password="True"/>
-            </group>
-            <group>
             </group>
           </page>
           <page name="agent" string="Agent"

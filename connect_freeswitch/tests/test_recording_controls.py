@@ -22,6 +22,7 @@ class TestFreeSwitchRecordingControls(TransactionCase):
                 'user': cls.owner_user.id,
                 'record_calls': False,
             })
+        cls.env.company.connect_panel_recording = True
         cls.Settings = cls.env['connect.settings']
         cls.Settings.set_param('freeswitch_webhook_token', 'fs-token-1234567890')
         cls.env['ir.config_parameter'].sudo().set_param(
@@ -163,3 +164,20 @@ class TestFreeSwitchRecordingControls(TransactionCase):
                         'provider': 'freeswitch',
                         'call_id': 'uuid-1',
                     })
+
+    def test_nothing_is_recorded_while_the_company_setting_is_off(self):
+        self.env.company.connect_panel_recording = False
+        with patch.object(type(self.Settings), 'freeswitch_api') as api:
+            with self.assertRaises(UserError):
+                self.env['connect.channel'].with_user(
+                    self.owner_user).start_softphone_recording({
+                        'provider': 'freeswitch',
+                        'call_id': 'uuid-1',
+                    })
+            state = self.env['connect.channel'].with_user(
+                self.owner_user).get_softphone_recording_state({
+                    'provider': 'freeswitch',
+                    'call_id': 'uuid-1',
+                })
+        api.assert_not_called()
+        self.assertFalse(state['supported'])

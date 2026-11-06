@@ -61,6 +61,9 @@
                         <setting string="Record all calls" help="Record every call from answer. Stopping a call keeps the rest of that call silent.">
                             <field name="connect_record_all_calls"/>
                         </setting>
+                        <setting string="Record from the phone panel" help="Off by default. Lets people start recording a call from the phone panel. Turning this on needs consent wording and approval first. It does not change automatic recording settings.">
+                            <field name="connect_panel_recording"/>
+                        </setting>
                         <setting string="Transcribe calls" help="Transcribe recordings after the call.">
                             <field name="connect_transcript_calls"/>
                         </setting>

@@ -33,6 +33,12 @@ CONNECT_SETTINGS_FIELDS = {
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
+    connect_panel_recording = fields.Boolean(
+        related='company_id.connect_panel_recording',
+        readonly=False,
+        help='Off by default. Lets people start recording a call from the phone '
+             'panel. Turning this on needs consent wording and approval first. '
+             'It does not change automatic recording settings.')
     module_connect_twilio = fields.Boolean(string='Twilio')
     module_connect_voicetel = fields.Boolean(
         string='VoiceTel',

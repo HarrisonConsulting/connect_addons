@@ -206,6 +206,7 @@ export class Phone extends Component {
             audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
             isRecording: false,
             isPaused: false,
+            isRecordingStopped: false,
             recordingLoading: false,
             // The line the next call goes out on. Only the person changes it.
             selectedLineKey: this._initialLineKey(),
@@ -238,8 +239,9 @@ export class Phone extends Component {
         this.heldCallerId = null
         this.call_id = null
         this.call_sid = null  // Twilio CallSid for the current call
-        this.recording_sid = null        // SID of the active recording
-        this.recording_call_sid = null   // Call/conf SID that owns the recording (may differ from call_sid)
+        this.recording_ref = null        // The provider's reference for the active recording
+        this.recording_path = null       // Where the provider writes it, for those that need it to stop
+        this._recordingControls = 0      // Presses so far, so an older state answer can be ignored
         this.attended_transfer_sequence = '*7'
         this.disconnect_call_sequence = '**'
         // Move Phone
@@ -1675,10 +1677,11 @@ export class Phone extends Component {
         this._stopIncomingRing()
         this._updatePresence(this.sipRegistered ? 'available' : 'offline')
         this.call_sid = null
-        this.recording_sid = null
-        this.recording_call_sid = null
+        this.recording_ref = null
+        this.recording_path = null
         this.state.isRecording = false
         this.state.isPaused = false
+        this.state.isRecordingStopped = false
         this.state.recordingLoading = false
         this._resetCallQuality()
         this.state.isDisplay = this.state.isDisplayLastState
@@ -2041,80 +2044,124 @@ export class Phone extends Component {
         }
     }
 
+    /** Pausing is only offered where a paused recording can come back. */
+    get canPauseRecording() {
+        return this.can('recording_pause') && this.can('recording_resume')
+    }
+
+    /** What pressing the recording button does now, or null when it can do nothing. */
+    get recordingToggleAction() {
+        if (this.state.isRecordingStopped) return null
+        if (this.state.isPaused) {
+            if (this.can('recording_resume')) return 'resume'
+            return this.can('recording_stop') ? 'stop' : null
+        }
+        if (this.state.isRecording) {
+            if (this.canPauseRecording) return 'pause'
+            return this.can('recording_stop') ? 'stop' : null
+        }
+        return this.can('recording_start') ? 'start' : null
+    }
+
+    get recordingToggleTitle() {
+        if (this.state.isRecordingStopped) return 'Recording stays off for the rest of this call.'
+        return {
+            start: 'Start recording',
+            pause: 'Pause recording',
+            resume: 'Resume recording',
+            stop: 'Stop recording',
+        }[this.recordingToggleAction] || 'This line cannot change the recording.'
+    }
+
+    /** Stop beside the button, for lines where pressing the button itself pauses. */
+    get showRecordingStop() {
+        return (this.state.isRecording || this.state.isPaused)
+            && this.recordingToggleAction !== 'stop'
+            && this.can('recording_stop')
+    }
+
+    /**
+     * Show what the server said. An error beside `paused` or `on` means the
+     * provider refused the change, so the recording is still as it was.
+     */
+    _applyRecordingState(result) {
+        const refused = !!result?.error
+        const state = result?.state
+        this.state.isRecording = (state === 'on' && !refused)
+            || (state === 'paused' && refused) || state === 'starting'
+        this.state.isPaused = (state === 'paused' && !refused) || (state === 'on' && refused)
+        this.state.isRecordingStopped = state === 'stopped'
+        this.recording_ref = result?.recording_ref || null
+        this.recording_path = result?.recording_path || null
+    }
+
     async _fetchRecordingState(retryAttempt = 0) {
         const callSid = this.call_sid
         if (!callSid || !this.can('recording_state')) return
-        // Twilio REST API lags 1-5s before a newly-started dial-level recording appears
-        // in recordings.list(). Retry with exponential backoff when can_record=true.
-        const applyResult = (result) => {
-            if (result.success) {
-                this.state.isRecording = result.is_recording
-                this.state.isPaused = result.is_paused
-                this.recording_sid = result.recording_sid || null
-                this.recording_call_sid = result.recording_call_sid || null
-            }
-            return result
-        }
+        const asked = this._recordingControls
         try {
-            const result = applyResult(
-                await this.orm.call('connect.call', 'get_recording_state', [callSid])
-            )
-            // Not found yet but user can record — retry with backoff (2s, 4s, 8s)
-            const maxRetries = 3
-            if (result.success && !result.recording_sid && result.can_record && retryAttempt < maxRetries) {
-                const delay = [2000, 4000, 8000][retryAttempt]
-                setTimeout(async () => {
-                    if (this.call_sid === callSid) {
-                        try { await this._fetchRecordingState(retryAttempt + 1) } catch (e) { /* silent */ }
+            const result = await this.orm.call('connect.channel', 'get_softphone_recording_state', [
+                this._callControlPayload(callSid)])
+            // The call ended or someone pressed the button, so this answer is old.
+            if (this.call_sid !== callSid || this._recordingControls !== asked) return
+            this._applyRecordingState(result)
+            // A recording started at answer takes the provider a moment to list,
+            // so look again after 2, 4 and 8 seconds.
+            if (result?.state === 'off' && retryAttempt < 3) {
+                setTimeout(() => {
+                    if (this.call_sid === callSid && this._recordingControls === asked) {
+                        this._fetchRecordingState(retryAttempt + 1)
                     }
-                }, delay)
+                }, [2000, 4000, 8000][retryAttempt])
             }
         } catch (e) {
             console.warn('Connect: Could not fetch recording state:', e?.message || e)
         }
     }
 
-    async _onClickToggleRecording() {
-        if (this.state.recordingLoading) return
+    _onClickToggleRecording() {
+        return this._controlRecording(this.recordingToggleAction)
+    }
+
+    _onClickStopRecording() {
+        return this._controlRecording(this.showRecordingStop ? 'stop' : null)
+    }
+
+    async _controlRecording(action) {
+        if (!action || this.state.recordingLoading || !this.can(`recording_${action}`)) return
         const callSid = this.session?.params?.CallSid || this.call_sid
         if (!callSid) {
             this.notify('No active call', {type: 'warning'})
             return
         }
-        // Cycle: idle→start, recording→pause, paused→resume
-        let action
-        if (!this.recording_sid) {
-            action = 'start'
-        } else if (this.state.isPaused) {
-            action = 'resume'
-        } else {
-            action = 'pause'
-        }
+        const words = {
+            start: {done: 'Recording started', failed: 'The recording could not be started.'},
+            pause: {done: 'Recording paused', failed: 'The recording could not be paused. It is still recording.'},
+            resume: {done: 'Recording resumed', failed: 'The recording could not be resumed. It is still paused.'},
+            stop: {done: 'Recording stopped', failed: 'The recording could not be confirmed as stopped. It may still be recording.'},
+        }[action]
+        const extra = {}
+        if (this.recording_ref) extra.recording_ref = this.recording_ref
+        if (this.recording_path) extra.recording_path = this.recording_path
+        this._recordingControls++
         this.state.recordingLoading = true
         try {
-            const result = await this.orm.call('connect.call', 'toggle_recording', [
-                callSid,
-                this.recording_sid || false,
-                action,
-                this.recording_call_sid || false,
-            ])
-            if (result.success) {
-                this.state.isRecording = result.is_recording
-                this.state.isPaused = result.is_paused
-                this.recording_sid = result.recording_sid || null
-                this.recording_call_sid = result.recording_call_sid || null
-                const msg = action === 'start' ? 'Recording started'
-                    : action === 'pause' ? 'Recording paused'
-                    : 'Recording resumed'
-                this.notify(msg, {type: 'info', sticky: false})
+            const result = await this.orm.call('connect.channel', `${action}_softphone_recording`, [
+                this._callControlPayload(callSid, extra)])
+            if (this.call_sid !== callSid && this.session?.params?.CallSid !== callSid) return
+            if (result?.supported === false) {
+                this._callControlFailed(result, words.failed)
+                return
+            }
+            this._applyRecordingState(result)
+            if (result?.error) {
+                this._callControlFailed({error: words.failed}, words.failed)
             } else {
-                this._setOperationError(result.error || 'Recording toggle failed')
-                this.notify(result.error || 'Recording toggle failed', {type: 'warning'})
+                this.notify(words.done, {type: 'info', sticky: false})
             }
         } catch (e) {
-            console.error('Recording toggle error:', e)
-            this._setOperationError('Recording operation failed')
-            this.notify('Recording operation failed', {type: 'warning'})
+            console.warn('Connect: recording control failed:', e?.message || e)
+            this._callControlFailed(e, words.failed)
         } finally {
             this.state.recordingLoading = false
         }

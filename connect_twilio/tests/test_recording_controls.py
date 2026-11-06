@@ -24,6 +24,7 @@ class TestTwilioRecordingControls(TransactionCase):
                 'sip_enabled': False,
                 'client_enabled': False,
             })
+        cls.env.company.connect_panel_recording = True
         cls.Settings = cls.env['connect.settings']
         cls.Settings.set_param('api_url', 'https://odoo.example.com/')
         cls.Settings.set_param('twilio_edge', 'ashburn')
@@ -295,3 +296,23 @@ class TestTwilioRecordingControls(TransactionCase):
                     'provider': 'twilio',
                     'channel_sid': channel.sid,
                 })
+
+    def test_nothing_is_recorded_while_the_company_setting_is_off(self):
+        self.env.company.connect_panel_recording = False
+        channel = self._channel()
+        client = self._mock_client()
+        with patch.object(type(self.Settings), 'get_client', return_value=client) as get_client:
+            for method in ('start_softphone_recording', 'resume_softphone_recording'):
+                with self.assertRaises(UserError):
+                    getattr(self.env['connect.channel'].with_user(self.owner_user), method)({
+                        'provider': 'twilio', 'channel_sid': channel.sid})
+            state = self.env['connect.channel'].with_user(
+                self.owner_user).get_softphone_recording_state({
+                    'provider': 'twilio', 'channel_sid': channel.sid})
+        get_client.assert_not_called()
+        self.assertFalse(state['supported'])
+        self.assertEqual(state['state'], 'off')
+        self.assertEqual(channel.recording_state, 'off')
+        self.assertFalse(channel.recording_control_ref)
+        self.assertFalse(self.env['connect.recording.mark'].sudo().search_count(
+            [('channel', '=', channel.id)]))

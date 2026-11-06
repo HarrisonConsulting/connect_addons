@@ -134,6 +134,7 @@ export class PhoneDialpad extends Component {
 
     _applyRecordingResult(result) {
         if (!result) return;
+        this.state.recordingAvailable = result.supported !== false;
         this.state.recordingState = result.state || "off";
         this.state.recordingPath = result.recording_path || "";
         this.state.recordingError = result.error || "";
@@ -144,6 +145,7 @@ export class PhoneDialpad extends Component {
         const callId = this.getRecordingCallId(props.vertoClient);
         if (props.callState !== "active") {
             this.lastRecordingCallId = null;
+            this.state.recordingAvailable = false;
             this.state.recordingState = "off";
             this.state.recordingBusy = false;
             this.state.recordingError = "";
@@ -172,6 +174,7 @@ export class PhoneDialpad extends Component {
             this._applyRecordingResult(result);
         } catch (error) {
             console.warn("Recording state sync failed:", error);
+            this.state.recordingAvailable = false;
             this.state.recordingState = "error";
             this.state.recordingError = error.message || String(error);
         }

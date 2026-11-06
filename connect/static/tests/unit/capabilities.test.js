@@ -49,7 +49,7 @@ async function mountInCall(capabilities, TransportClass) {
     const phone = await mountLines([line(capabilities)])
     // After the mount, because the mount helper answers this one too and the
     // last handler wins.
-    onRpc("connect.call", "get_recording_state", () => {
+    onRpc("connect.channel", "get_softphone_recording_state", () => {
         asked.recording++
         return {}
     })

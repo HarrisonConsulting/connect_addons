@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""A Twilio line can do everything, so nothing disappears from a Twilio phone."""
+"""A Twilio line can do everything, except recording until the company turns it on."""
 
 from uuid import uuid4
 
@@ -17,6 +17,17 @@ ACTIONS = {
 
 @tagged('post_install', '-at_install')
 class TestCapabilitiesTwilio(TwilioTestCommon):
+
+    def setUp(self):
+        super().setUp()
+        self.env.company.connect_panel_recording = True
+
+    def test_recording_is_off_until_the_company_turns_it_on(self):
+        self.env.company.connect_panel_recording = False
+        caps = self.env['connect.channel'].softphone_capabilities('twilio')
+        self.assertEqual({action for action, on in caps.items() if not on}, {
+            'recording_state', 'recording_start', 'recording_pause',
+            'recording_resume', 'recording_stop'})
 
     def test_all_on(self):
         caps = self.env['connect.channel'].softphone_capabilities('twilio')

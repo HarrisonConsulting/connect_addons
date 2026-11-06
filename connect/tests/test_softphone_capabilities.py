@@ -25,6 +25,7 @@ class TestSoftphoneCapabilities(TransactionCase):
     def setUp(self):
         super().setUp()
         self.Channel = self.env['connect.channel']
+        self.env.company.connect_panel_recording = True
 
     def _implement(self, *methods):
         for method in methods:

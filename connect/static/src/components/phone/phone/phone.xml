@@ -283,15 +283,20 @@
                 <div t-if="state.phone_status === status.accepted and can('recording_start')" class="o_dial_panel o_recording_panel">
                     <button
                         t-attf-class="o_record_toggle {{ state.isRecording ? 'is-recording' : state.isPaused ? 'is-paused' : '' }}"
-                        t-att-disabled="state.recordingLoading"
-                        t-attf-title="{{ state.isRecording ? 'Pause recording' : state.isPaused ? 'Resume recording' : 'Start recording' }}"
+                        t-att-disabled="state.recordingLoading or !recordingToggleAction"
+                        t-att-title="recordingToggleTitle"
                         t-on-click="_onClickToggleRecording">
                         <span t-if="state.isRecording" class="record-dot"/>
                         <i t-elif="state.isPaused" class="fa fa-pause" title="Paused"/>
                         <i t-else="" class="fa fa-circle record-icon-idle" title="Not recording"/>
-                        <span t-out="state.isRecording ? 'Recording' : state.isPaused ? 'Paused' : 'Record call'"/>
+                        <span t-out="state.isRecording ? 'Recording' : state.isPaused ? 'Paused' : state.isRecordingStopped ? 'Recording stopped' : 'Record call'"/>
                         <i t-if="state.recordingLoading" class="fa fa-spinner fa-spin"/>
                     </button>
+                    <button t-if="showRecordingStop"
+                        class="o_record_stop"
+                        title="Stop recording for the rest of this call"
+                        t-att-disabled="state.recordingLoading"
+                        t-on-click="_onClickStopRecording">Stop</button>
                 </div>
                 <!--Optional call buttons-->
                 <div t-attf-class="{{ state.isKeypad or state.inCall or state.inIncoming ? '' : 'o_hide' }} o_dial_panel o_optional_dial_panel_position flex-container">

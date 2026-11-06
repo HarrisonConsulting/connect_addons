@@ -26,7 +26,7 @@ export async function mountLines(lines, extraProps = {}) {
     // The phone reports presence as soon as its transport registers.
     onRpc("connect.user", "update_presence", () => true)
     // An answered call asks for its recording state.
-    onRpc("connect.call", "get_recording_state", () => ({}))
+    onRpc("connect.channel", "get_softphone_recording_state", () => ({}))
     // The favorites tab loads with the panel.
     onRpc("connect.favorite", "search_read", () => [])
     return mountWithCleanup(Phone, {

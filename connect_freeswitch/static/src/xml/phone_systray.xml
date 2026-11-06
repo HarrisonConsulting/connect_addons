@@ -140,7 +140,7 @@
                             t-on-click="onToggleMute">
                         <i t-att-class="state.muted ? 'fa fa-microphone-slash' : 'fa fa-microphone'"/>
                     </button>
-                    <button class="btn o_phone_recording_btn"
+                    <button t-if="state.recordingAvailable" class="btn o_phone_recording_btn"
                             t-att-class="isRecordingOn() ? 'btn-outline-secondary o_phone_recording_btn_active' : 'btn-outline-secondary o_phone_recording_btn_idle'"
                             t-att-aria-label="getRecordingTitle()"
                             t-att-aria-pressed="isRecordingOn() ? 'true' : 'false'"

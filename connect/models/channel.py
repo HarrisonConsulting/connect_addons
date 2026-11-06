@@ -9,6 +9,13 @@ logger = logging.getLogger(__name__)
 CALL_END_STATUSES = ('completed', 'busy', 'failed', 'no-answer', 'canceled')
 
 
+SOFTPHONE_RECORDING_CAPABILITIES = (
+    'recording_state', 'recording_start', 'recording_pause',
+    'recording_resume', 'recording_stop',
+)
+SOFTPHONE_RECORDING_OFF = 'Recording from the phone is turned off for this company.'
+
+
 class Channel(models.Model):
     _name = 'connect.channel'
     _description = 'Channel'
@@ -299,11 +306,29 @@ class Channel(models.Model):
         return True
 
     @api.model
+    def _softphone_recording_allowed(self):
+        """Whether this company has turned on recording from the phone panel.
+
+        This covers only what a person presses. Automatic recording has its own
+        settings and does not pass through here.
+        """
+        return bool(self.env.company.sudo().connect_panel_recording)
+
+    @api.model
     def _dispatch_softphone_recording(self, payload, action):
         payload = payload or {}
         provider = payload.get('provider')
         if not provider:
             raise UserError('Missing recording provider.')
+        # Pause and stop still pass, so turning the setting off during a call
+        # cannot leave a person unable to end a recording.
+        if not self._softphone_recording_allowed():
+            if action in ('start', 'resume'):
+                raise UserError(SOFTPHONE_RECORDING_OFF)
+            if action == 'state':
+                return dict(
+                    self._softphone_recording_unsupported(),
+                    state='off', error=SOFTPHONE_RECORDING_OFF)
         method = '_softphone_recording_{}_{}'.format(action, provider)
         if not hasattr(self, method):
             return self._softphone_recording_unsupported()
@@ -386,10 +411,13 @@ class Channel(models.Model):
         Read from the methods it implements, then narrowed by the provider. It
         reaches the browser only on each line record from get_phone_lines.
         """
-        return self._softphone_capabilities_narrow(provider, {
+        caps = self._softphone_capabilities_narrow(provider, {
             action: hasattr(self, '_softphone_{}_{}'.format(action, provider))
             for action in self.SOFTPHONE_CAPABILITIES
         })
+        if not self._softphone_recording_allowed():
+            caps.update(dict.fromkeys(SOFTPHONE_RECORDING_CAPABILITIES, False))
+        return caps
 
     @api.model
     def _softphone_capabilities_narrow(self, provider, caps):

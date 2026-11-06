@@ -900,8 +900,8 @@ export class Phone extends Component {
                 this.state.isAttendedTransfer = true
                 this.state.isOnHold = true
                 this.state.xTransferTo = phoneNumber
-                this.state.xTransferInfo = 'Caller on hold — dial ' + phoneNumber + ' to consult'
-                this.notify('Caller on hold. Dial the consult target.', {type: 'info'})
+                this.state.xTransferInfo = 'Caller on hold. Complete sends the call to ' + phoneNumber
+                this.notify('Caller on hold. Complete sends the call to ' + phoneNumber + '.', {type: 'info'})
             } else {
                 this._callControlFailed(result, 'Failed to hold caller')
             }
@@ -918,6 +918,7 @@ export class Phone extends Component {
             this.notify('Missing call or transfer target', {type: 'warning'})
             return
         }
+        const call = this.session
         try {
             const result = await this.orm.call('connect.channel', 'attended_transfer_softphone_call', [
                 this._callControlPayload(callSid, {step: 'complete', number: consultTarget})])
@@ -925,7 +926,10 @@ export class Phone extends Component {
                 this.notify('Transfer completed', {type: 'success'})
                 this.audioNotification.play('transfer_complete')
                 this.bc.postMessage({event: "tbcTransfer", params: {phoneNumber: consultTarget}})
-                this.endCall()
+                // If the leg dropped during the wait, the panel may be on another call by now.
+                if (this.session === call) {
+                    this.endCall()
+                }
             } else {
                 this._callControlFailed(result, 'Transfer completion failed')
                 this.audioNotification.play('transfer_failed')

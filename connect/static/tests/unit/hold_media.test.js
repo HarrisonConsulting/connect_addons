@@ -72,6 +72,7 @@ test("an attended transfer holds the audio and gives it back", async () => {
     phone.state.pendingTransferNumber = "+15550200"
     await phone._onClickAttendedTransfer()
     expect(phone.state.isAttendedTransfer).toBe(true)
+    expect(phone.state.xTransferInfo).toBe("Caller on hold. Complete sends the call to +15550200")
     await phone._onClickCancelTransfer()
     expect(phone.state.isOnHold).toBe(false)
     expect(steps).toEqual(["server start", "media true", "server cancel", "media false"])

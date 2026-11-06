@@ -50,10 +50,7 @@ class Emitter {
  *   'registered'     - transport is registered and can place/receive calls
  *   'unregistered'   - transport lost or dropped registration
  *   'error'          - provider-specific error object, passed through
- *                      unnormalized (callers that classify errors, e.g. for
- *                      reconnect logic, currently do so per-provider — see
- *                      phone_line.js's transport error handling for the shape
- *                      TwilioTransport passes through)
+ *                      unnormalized; classifyError() says what it means
  *   'incoming'       - fired with a TelephonyCall for a new inbound call
  *   'authWillExpire' - the current credential is about to expire/need
  *                      rotation; caller should fetch a fresh one and call
@@ -95,13 +92,29 @@ export class TelephonyTransport extends Emitter {
     }
 
     /**
-     * Whether the backend implements hold, attended transfer and add
-     * participant for this provider (connect.channel
-     * `_softphone_<action>_<provider>`). The phone hides those buttons when
-     * false; the backend refuses in words either way.
+     * Whether a call on this transport has its audio in the browser. Mute and
+     * DTMF need that, so the phone offers them only when this is true. What the
+     * server can do for a call comes from the line's capabilities, not from here.
      */
-    static get supportsCallControl() {
-        return false
+    static needsBrowserMedia = true
+
+    /**
+     * What an 'error' event's object means for the line's recovery. Override for
+     * a provider's own codes and call super for the rest.
+     *
+     * @param {Object} error
+     * @returns {'transport'|'auth'|'unsupported'|'other'} 'transport' is a dead
+     *   connection and 'auth' a rejected credential, and both rebuild with a new
+     *   credential. 'unsupported' stops the phone. 'other' is shown as it is.
+     */
+    static classifyError(error) {
+        if (error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid') {
+            return 'auth'
+        }
+        if (error.name === 'NotSupportedError') {
+            return 'unsupported'
+        }
+        return 'other'
     }
 
     /**
@@ -174,6 +187,12 @@ export class TelephonyTransport extends Emitter {
  *                  'warning-cleared', ...}. Transports that can't measure
  *                  quality (e.g. a SIP stack) simply never emit it; callers
  *                  must not assume it ever fires.
+ *   'progress'   - OPTIONAL. The call is being set up at the far end, before
+ *                  'accept'. Transports that cannot tell never emit it.
+ *
+ * OPTIONAL method, deliberately not defined here so that its presence can be
+ * tested: hold(on), for a transport that holds its own media. The Hold button
+ * goes by the line's capabilities either way.
  */
 export class TelephonyCall extends Emitter {
     /** @returns {{From, CallerName, Partner, autoAnswer, Origin, CallSid}} */

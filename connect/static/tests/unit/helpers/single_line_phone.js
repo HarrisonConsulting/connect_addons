@@ -13,6 +13,14 @@ import "@connect/../tests/helpers/loopback_transport"
 
 export const SINGLE_LINE_NONCE = "tab-nonce-1"
 
+// What connect.channel answers for Twilio: every action, and asserted so by
+// connect_twilio's TestCapabilitiesTwilio.
+export const ALL_CAPABILITIES = Object.fromEntries([
+    "hold", "resume", "attended_start", "attended_complete", "attended_cancel",
+    "add_participant", "forward", "recording_state", "recording_start",
+    "recording_pause", "recording_resume", "recording_stop",
+].map((action) => [action, true]))
+
 export async function mountLines(lines) {
     mockService("connect_audio", {play() {}})
     // The phone reports presence as soon as its transport registers.
@@ -31,5 +39,11 @@ export async function mountLines(lines) {
 }
 
 export function mountSingleLinePhone(tokenData) {
-    return mountLines([{key: "twilio", provider: "twilio", media: "browser", token_data: tokenData}])
+    return mountLines([{
+        key: "twilio",
+        provider: "twilio",
+        media: "browser",
+        capabilities: ALL_CAPABILITIES,
+        token_data: tokenData,
+    }])
 }

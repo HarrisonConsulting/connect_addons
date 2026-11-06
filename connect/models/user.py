@@ -221,6 +221,7 @@ class User(models.Model):
                 'provider': provider,
                 'media': media,
                 'token_data': token_data,
+                'capabilities': self.env['connect.channel'].softphone_capabilities(provider),
                 'caller_ids': token_data.get('caller_ids') or [],
             })
         return {'lines': lines, 'error': errors[0] if errors else False}

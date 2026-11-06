@@ -28,6 +28,11 @@ export function getNotifyMessage(isPartner, contact) {
         `
 }
 
+export function maskNumber(phoneNumber) {
+    const half = Math.floor(phoneNumber.length / 2)
+    return phoneNumber.substring(0, half - 1) + '**' + phoneNumber.substring(half + 1)
+}
+
 export function cleanNumber(number) {
     return number ? number.replace(/[^0-9+]/g, '') : ''
 }

@@ -28,14 +28,17 @@ export class PhoneLine {
      *     empty means the server could not resolve one, and the line is unavailable
      * @param {string} [params.media] - 'browser' or 'bridge'
      * @param {number|false} [params.toolId] - the connect.tool this line is
+     * @param {Object} [params.capabilities] - {action: bool} from the server;
+     *     an action that is absent is one the line cannot do
      * @param {Object} params.tokenData - the raw get_client_token() response
      */
-    constructor(phone, {key, provider, media, toolId, tokenData}) {
+    constructor(phone, {key, provider, media, toolId, capabilities = {}, tokenData}) {
         this.phone = phone
         this.key = key
         this.provider = provider
         this.media = media
         this.toolId = toolId
+        this.capabilities = capabilities
         this.tokenData = tokenData
         this.transport = null
         this.session = null
@@ -59,6 +62,11 @@ export class PhoneLine {
             throw new Error(`Connect: no telephony transport implemented for provider "${this.provider}"`)
         }
         return TransportClass
+    }
+
+    /** Whether this line's calls have their audio in the browser. */
+    get needsBrowserMedia() {
+        return !!this.provider && this._transportClass.needsBrowserMedia
     }
 
     async loadDependencies() {
@@ -128,7 +136,7 @@ export class PhoneLine {
             phone._setConnectionStatus('error', LINE_UNAVAILABLE)
             return
         }
-        // Re-entry guard: cascading device errors (31009 → AccessTokenInvalid → AccessTokenExpired)
+        // Re-entry guard: cascading device errors (dead transport → AccessTokenInvalid → AccessTokenExpired)
         // can all schedule reconnects through per-device closures. Gate at the line level so
         // the whole cascade collapses into a single reconnect cycle.
         if (this._reconnecting) {
@@ -268,20 +276,21 @@ export class PhoneLine {
             }
         })
 
-        // Debounce error handling to prevent cascading 31009 loops:
-        // a dead transport fires 31009 on every pending operation (register, setToken, etc.)
+        // Debounce error handling to prevent cascading loops: a dead transport fires
+        // the same error on every pending operation (register, setToken, etc.)
         let errorRecoveryPending = false
 
         this.transport.on('error', (error) => {
             console.error('Connect: Transport error:', error.message || error)
 
-            const isTransportError = error.code === 31009 || error.code === 31005
-            const isTokenError = error.name === 'AccessTokenExpired' || error.name === 'AccessTokenInvalid'
+            const kind = this._transportClass.classifyError(error)
+            const isTransportError = kind === 'transport'
+            const isTokenError = kind === 'auth'
 
             if (isTransportError || isTokenError) {
                 // Dead transport or rejected token — full teardown+rebuild with fresh token.
                 // Per-device debounce + line-level _reconnecting guard prevent both intra-device
-                // cascades (31009 → AccessTokenInvalid on the same corpse) and cross-device cascades
+                // cascades (dead transport → AccessTokenInvalid on the same corpse) and cross-device cascades
                 // (each new transport firing its own error before the prior reconnect completes).
                 if (errorRecoveryPending || this._reconnecting) return
                 errorRecoveryPending = true
@@ -291,7 +300,7 @@ export class PhoneLine {
                     errorRecoveryPending = false
                     this.reconnect()
                 }, isTransportError ? 5000 : 2000)
-            } else if (error.name === 'NotSupportedError') {
+            } else if (kind === 'unsupported') {
                 console.error('Connect: Browser does not support required features:', error.message)
                 phone.state.isActive = false
                 phone._setConnectionStatus('error', 'This browser is missing features the phone needs.')
@@ -361,7 +370,7 @@ export class PhoneLine {
                     partnerName: callCallerName || '',
                     partnerId: callPartnerId !== 'false' ? callPartnerId : false,
                 }
-                phone.notify('Consult call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
+                phone.notify('Consult call from ' + (callCallerName || phone.displayNumber(phoneNumber)), {type: 'info', sticky: true})
                 phone.bc.postMessage({event: "tbcWaitingCall", params: {
                     hasWaitingCall: true,
                     waitingCallerId: {...phone.state.waitingCallerId},
@@ -386,7 +395,7 @@ export class PhoneLine {
             }
 
             // Notify user and sync waiting call state to other tabs
-            phone.notify('Incoming call from ' + (callCallerName || phoneNumber), {type: 'info', sticky: true})
+            phone.notify('Incoming call from ' + (callCallerName || phone.displayNumber(phoneNumber)), {type: 'info', sticky: true})
             phone.bc.postMessage({event: "tbcWaitingCall", params: {
                 hasWaitingCall: true,
                 waitingCallerId: {...phone.state.waitingCallerId},

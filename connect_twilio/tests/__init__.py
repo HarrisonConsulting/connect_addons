@@ -34,3 +34,4 @@ from . import test_softphone_tour
 from . import test_single_line_token_keys
 from . import test_originate_kwargs
 from . import test_phone_lines_twilio
+from . import test_capabilities_twilio

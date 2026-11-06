@@ -341,9 +341,13 @@ class Channel(models.Model):
     # without the method refuses in words; the softphone hides the buttons
     # for such providers, so this is the backstop, not the UX.
 
-    CALL_CONTROL_ACTIONS = (
+    # Every key names the method `_softphone_<key>_<provider>`, so a recording
+    # resume and a call resume cannot be taken for one another.
+    SOFTPHONE_CAPABILITIES = (
         'hold', 'resume', 'attended_start', 'attended_complete',
-        'attended_cancel', 'add_participant',
+        'attended_cancel', 'add_participant', 'forward',
+        'recording_state', 'recording_start', 'recording_pause',
+        'recording_resume', 'recording_stop',
     )
 
     @api.model
@@ -360,11 +364,21 @@ class Channel(models.Model):
         return getattr(self, method)(payload)
 
     @api.model
-    def softphone_call_control_supported(self, provider):
-        """Whether `provider` implements every call-control action."""
-        return all(
-            hasattr(self, '_softphone_{}_{}'.format(action, provider))
-            for action in self.CALL_CONTROL_ACTIONS)
+    def softphone_capabilities(self, provider):
+        """What `provider` can do on a softphone call, as {action: bool}.
+
+        Read from the methods it implements, then narrowed by the provider. It
+        reaches the browser only on each line record from get_phone_lines.
+        """
+        return self._softphone_capabilities_narrow(provider, {
+            action: hasattr(self, '_softphone_{}_{}'.format(action, provider))
+            for action in self.SOFTPHONE_CAPABILITIES
+        })
+
+    @api.model
+    def _softphone_capabilities_narrow(self, provider, caps):
+        """Override to turn off what `provider` implements but must not offer."""
+        return caps
 
     @api.model
     def hold_softphone_call(self, payload):

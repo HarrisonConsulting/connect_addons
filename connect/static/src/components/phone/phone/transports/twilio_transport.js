@@ -79,10 +79,10 @@ export class TwilioCall extends TelephonyCall {
  * TwilioTransport — ITelephonyTransport implementation over the Twilio Voice
  * SDK (Twilio.Device). This is a faithful, mechanical wrapper: every event
  * name, error object, and call sequence Device/Call ever produced is passed
- * through unchanged. All reconnect/backoff/error-classification decisions
- * stay in phone_line.js exactly as before this extraction — this class does not
- * make any of those decisions, it only translates the Twilio SDK's shape
- * into the ITelephonyTransport shape.
+ * through unchanged. All reconnect/backoff decisions stay in phone_line.js
+ * exactly as before this extraction — this class does not make any of those
+ * decisions, it only translates the Twilio SDK's shape into the
+ * ITelephonyTransport shape, and names what its error codes mean.
  *
  * Precedent: connect/static/src/components/phone/phone/phone.js
  * initUserAgent() (pre-extraction) — this is that logic, moved verbatim.
@@ -92,9 +92,12 @@ export class TwilioTransport extends TelephonyTransport {
         await loadJS('/connect/static/src/lib/twilio.min.js')
     }
 
-    // connect_twilio implements hold / attended transfer / add participant.
-    static get supportsCallControl() {
-        return true
+    /** 31009 and 31005 are the SDK's codes for a dead signalling connection. */
+    static classifyError(error) {
+        if (error.code === 31009 || error.code === 31005) {
+            return 'transport'
+        }
+        return super.classifyError(error)
     }
 
     // hasCredential()/buildConnData() use TelephonyTransport's defaults —

@@ -119,6 +119,7 @@ class TestPhoneLines(TransactionCase):
             'provider': 'twilio',
             'media': 'browser',
             'token_data': {'token': 'token-None'},
+            'capabilities': self.env['connect.channel'].softphone_capabilities('twilio'),
             'caller_ids': [],
         }])
 

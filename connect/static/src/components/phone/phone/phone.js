@@ -5,7 +5,7 @@ import {Calls} from "@connect/components/phone/calls/calls"
 import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {LINE_UNAVAILABLE, PhoneLine} from "@connect/components/phone/phone/phone_line"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
-import {dialTone, setFocus} from "@connect/js/utils"
+import {dialTone, maskNumber, setFocus} from "@connect/js/utils"
 import {Component, status, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
 import {useDebounced} from "@web/core/utils/timing"
 import {user} from "@web/core/user"
@@ -93,6 +93,7 @@ export class Phone extends Component {
             provider: line.provider,
             media: line.media,
             toolId: line.tool_id,
+            capabilities: line.capabilities,
             tokenData: line.token_data,
         }))
         this.callStatus = {
@@ -201,9 +202,6 @@ export class Phone extends Component {
         this.call_sid = null  // Twilio CallSid for the current call
         this.recording_sid = null        // SID of the active recording
         this.recording_call_sid = null   // Call/conf SID that owns the recording (may differ from call_sid)
-        this.call_popup_is_enabled = false
-        this.call_popup_is_sticky = false
-        this.phone_ring_volume = 70
         this.attended_transfer_sequence = '*7'
         this.disconnect_call_sequence = '**'
         // Move Phone
@@ -238,6 +236,29 @@ export class Phone extends Component {
 
     get provider() {
         return this.activeLine.provider
+    }
+
+    // Optional preferences a provider may put on a line's credential. Absent means
+    // the default, so a credential that has none keeps the phone as it always was.
+    get call_popup_is_enabled() {
+        return this.activeLine.tokenData.call_popup_is_enabled ?? false
+    }
+
+    get call_popup_is_sticky() {
+        return this.activeLine.tokenData.call_popup_is_sticky ?? false
+    }
+
+    get phone_ring_volume() {
+        return this.activeLine.tokenData.phone_ring_volume ?? 70
+    }
+
+    get isMaskCallNumber() {
+        return this.activeLine.tokenData.mask_call_number ?? false
+    }
+
+    /** A phone number as the panel shows it. */
+    displayNumber(phoneNumber) {
+        return phoneNumber && this.isMaskCallNumber ? maskNumber(phoneNumber) : phoneNumber
     }
 
     get sipRegistered() {
@@ -844,10 +865,26 @@ export class Phone extends Component {
         this._errorTimeout = setTimeout(() => { this.state.lastOperationError = false }, 10000)
     }
 
-    /** Hold, attended transfer and add participant need provider support. */
-    get callControlSupported() {
-        const TransportClass = registry.category("connect.telephony_transports").get(this.provider, null)
-        return !!(TransportClass && TransportClass.supportsCallControl)
+    /**
+     * Whether the line on the panel can do `action`. Mute and dtmf go by whether
+     * its calls have browser media, everything else by its capabilities.
+     */
+    can(action) {
+        const line = this.activeLine
+        if (action === 'mute' || action === 'dtmf') {
+            return line.needsBrowserMedia
+        }
+        return !!line.capabilities[action]
+    }
+
+    /** A caller put on hold has to be able to come back. */
+    get canHold() {
+        return this.can('hold') && this.can('resume')
+    }
+
+    /** An attended transfer that starts has to be able to finish or back out. */
+    get canAttendedTransfer() {
+        return this.can('attended_start') && this.can('attended_complete') && this.can('attended_cancel')
     }
 
     _callControlPayload(callSid, extra = {}) {
@@ -1637,7 +1674,7 @@ export class Phone extends Component {
 
     async _fetchRecordingState(retryAttempt = 0) {
         const callSid = this.call_sid
-        if (!callSid) return
+        if (!callSid || !this.can('recording_state')) return
         // Twilio REST API lags 1-5s before a newly-started dial-level recording appears
         // in recordings.list(). Retry with exponential backoff when can_record=true.
         const applyResult = (result) => {
@@ -1957,7 +1994,7 @@ export class Phone extends Component {
 
     sendDTMF(key) {
         const validDTMF = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '#']
-        if (validDTMF.includes(key)) {
+        if (this.can('dtmf') && validDTMF.includes(key)) {
             // dialTone(key)
             this.session.sendDigits(key)
         }

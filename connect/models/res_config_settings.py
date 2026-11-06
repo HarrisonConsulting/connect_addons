@@ -18,6 +18,9 @@ CONNECT_EE_MODULES = (
     'connect_ai',
     'connect_stripe_enterprise',
 )
+# Checkboxes behind the same gate. A purchase of one of these alone does not
+# unlock the others, so they are not in CONNECT_EE_MODULES.
+CONNECT_EE_CHECKBOXES = CONNECT_EE_MODULES + ('connect_textable',)
 
 # Settings-screen checkboxes backed by connect.settings, the record the call
 # code reads. They are not config parameters: the screen must load the live
@@ -63,6 +66,9 @@ class ResConfigSettings(models.TransientModel):
     module_connect_portal = fields.Boolean(string='Portal')
     module_connect_ai = fields.Boolean(string='AI queries')
     module_connect_stripe_enterprise = fields.Boolean(string='Stripe EE')
+    module_connect_textable = fields.Boolean(
+        string='Textable',
+        help='Text messages through Textable. Available with a Connect EE subscription.')
 
     connect_ee_entitled = fields.Boolean(
         string='Connect EE subscription',
@@ -101,10 +107,10 @@ class ResConfigSettings(models.TransientModel):
     def set_values(self):
         if not self.connect_ee_entitled:
             installed = set(self.env['ir.module.module'].sudo().search([
-                ('name', 'in', list(CONNECT_EE_MODULES)),
+                ('name', 'in', list(CONNECT_EE_CHECKBOXES)),
                 ('state', 'in', ('installed', 'to upgrade', 'to install')),
             ]).mapped('name'))
-            for name in CONNECT_EE_MODULES:
+            for name in CONNECT_EE_CHECKBOXES:
                 # A locked checkbox must not uninstall a module that is
                 # already there, and must not install one that is not.
                 self['module_%s' % name] = name in installed

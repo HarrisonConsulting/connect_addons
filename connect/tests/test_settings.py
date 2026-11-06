@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from odoo.tools import config
-from odoo.tests import tagged
+from odoo.tests import new_test_user, tagged
 from .common import ConnectTestCase
 from ..models import settings as settings_module
 
@@ -45,6 +45,59 @@ class TestSettings(ConnectTestCase):
         self.assertEqual(icp.get_param('connect.openai_api_key'), key)
         self.assertEqual(icp.get_param('connect.display_openai_api_key'), '*' * len(key))
         self.assertEqual(self.env['connect.settings'].sudo().get_param('openai_api_key'), key)
+
+
+@tagged('post_install', '-at_install')
+class TestReadIcpUsesGetParam(ConnectTestCase):
+    """A stored setting is read through ir.config_parameter.get_param, the
+    method a secrets module overrides, and only after the group check."""
+
+    def _resolving(self, value):
+        """Stand in for a get_param override, leaving every other key alone."""
+        IrConfig = type(self.env['ir.config_parameter'])
+        original = IrConfig.get_param
+        asked = []
+
+        def get_param(model, key, default=False):
+            asked.append(key)
+            return value if key == 'connect.openai_api_key' else original(model, key, default)
+        return patch.object(IrConfig, 'get_param', get_param), asked
+
+    def test_an_override_of_get_param_is_honoured(self):
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('connect.openai_api_key', 'a-stored-reference')
+        override, _asked = self._resolving('the-resolved-value')
+        with override:
+            self.assertEqual(
+                self.env['connect.settings'].sudo().get_param('openai_api_key'),
+                'the-resolved-value')
+        self.assertEqual(
+            self.env['connect.settings'].sudo().get_param('openai_api_key'),
+            'a-stored-reference')
+
+    def test_someone_outside_the_group_never_reaches_get_param(self):
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('connect.openai_api_key', 'a-stored-reference')
+        plain = new_test_user(self.env, login='read_icp_plain', groups='base.group_user')
+        field = self.env['connect.settings']._fields['openai_api_key']
+        with patch.object(field, 'groups', 'base.group_system'):
+            override, asked = self._resolving('the-resolved-value')
+            with override:
+                self.assertFalse(
+                    self.env['connect.settings'].with_user(plain)._read_icp('openai_api_key'))
+        self.assertNotIn('connect.openai_api_key', asked)
+
+    def test_no_row_stays_no_answer(self):
+        self.env['ir.config_parameter'].sudo().search(
+            [('key', '=', 'connect.openai_api_key')]).unlink()
+        self.assertIsNone(self.env['connect.settings'].sudo()._read_icp('openai_api_key'))
+
+    def test_values_are_still_parsed_by_field_type(self):
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('connect.debug_mode', 'True')
+        self.assertIs(self.env['connect.settings'].sudo()._read_icp('debug_mode'), True)
+        icp.set_param('connect.debug_mode', 'False')
+        self.assertIs(self.env['connect.settings'].sudo()._read_icp('debug_mode'), False)
 
 
 @tagged('post_install', '-at_install')

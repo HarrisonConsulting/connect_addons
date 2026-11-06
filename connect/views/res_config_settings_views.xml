@@ -11,6 +11,12 @@
             <xpath expr="//form" position="inside">
                 <app data-string="Connect" string="Connect" name="connect" groups="base.group_system" logo="/connect/static/description/icon.png">
                     <field name="connect_ee_entitled" invisible="1"/>
+                    <block title="General" name="connect_general_settings">
+                        <setting string="General settings" help="Call settings, recording storage, transcription and summaries for all of Connect.">
+                            <button name="%(connect.connect_settings_action)d" type="action"
+                                    string="Open general settings" class="btn-link o_connect_general_settings"/>
+                        </setting>
+                    </block>
                     <block title="Providers" name="connect_provider_settings">
                         <setting string="Twilio" help="Calls, numbers, and the browser phone.">
                             <field name="module_connect_twilio"/>
@@ -92,6 +98,9 @@
                         </setting>
                         <setting string="Stripe EE" help="Available with a Connect EE subscription.">
                             <field name="module_connect_stripe_enterprise" readonly="not connect_ee_entitled"/>
+                        </setting>
+                        <setting string="Textable" help="Text messages through Textable. Available with a Connect EE subscription.">
+                            <field name="module_connect_textable" readonly="not connect_ee_entitled"/>
                         </setting>
                     </block>
                 </app>

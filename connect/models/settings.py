@@ -498,9 +498,9 @@ class Settings(models.Model):
         field = self._fields.get(param)
         if field is None or param not in self._config_parameter_names():
             return None
-        stored = self.env['ir.config_parameter'].sudo().search(
-            [('key', '=', self._icp_key(param))], limit=1)
-        if not stored:
+        icp = self.env['ir.config_parameter'].sudo()
+        key = self._icp_key(param)
+        if not icp.search_count([('key', '=', key)], limit=1):
             return None
         if field.groups and not self.env.su:
             allowed = any(
@@ -510,7 +510,9 @@ class Settings(models.Model):
             )
             if not allowed:
                 return False
-        return self._parse_icp(field, stored.value)
+        # get_param, not the row's value: a module that keeps secrets elsewhere
+        # resolves them in get_param, and the row may only hold a reference.
+        return self._parse_icp(field, icp.get_param(key) or '')
 
     def _sync_icp(self, vals):
         if self.env.context.get('skip_icp_sync'):

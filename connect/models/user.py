@@ -181,7 +181,8 @@ class User(models.Model):
         dropped. A mint that fails costs only its own line, which stays in the
         list with the reason as its `unavailable`, so that the person's choice
         of it can refuse in words. A person with no connect.user has no line to
-        keep. A line minted under a tool says so in `mint_tool_id`, and every
+        keep, and neither does a person whose only line is on a provider that
+        says so in _failed_mint_keeps_the_line. A line minted under a tool says so in `mint_tool_id`, and every
         later mint for it repeats that tool, even if it is the only line left.
         """
         self._check_phone_line_context()
@@ -219,7 +220,10 @@ class User(models.Model):
                 errors.append(failure)
             media = token_data.get('media') or 'browser'
             if not (token_data.get('token') or token_data.get('password') or media == 'bridge'):
-                if not (failure and connect_user):
+                keep = failure and connect_user and (
+                    scoped.env.context.get('connect_tool_id')
+                    or self._failed_mint_keeps_the_line(provider))
+                if not keep:
                     continue
                 token_data = {}
             else:
@@ -245,6 +249,16 @@ class User(models.Model):
                 line['unavailable'] = failure
             lines.append(line)
         return {'lines': lines, 'error': errors[0] if errors else False}
+
+    @api.model
+    def _failed_mint_keeps_the_line(self, provider):
+        """Whether a person's only line stays, with the reason, when its mint fails.
+
+        Among several lines a failed one always stays. A provider overrides this
+        if a person with one line on it has no phone when the mint fails, so that
+        they see what they always have.
+        """
+        return True
 
     @api.model
     def _check_phone_line_context(self):

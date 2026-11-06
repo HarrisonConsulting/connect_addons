@@ -824,7 +824,16 @@ class User(models.Model):
             }
         except Exception as e:
             logger.exception('Error getting Twilio JWT:')
+            # With no context this is a person's only line, and the error only
+            # reaches the console. A line among several says this to the person.
+            if self.env.context.get('connect_tool_id'):
+                return {'error': 'Could not get a credential for a phone line.'}
             return {'error': str(e)}
+
+    @api.model
+    def _failed_mint_keeps_the_line(self, provider):
+        """A person whose only line is Twilio has no phone without a token."""
+        return provider != 'twilio' and super()._failed_mint_keeps_the_line(provider)
 
     def _get_caller_id(self, request, params):
         caller_user = self.env['connect.user'].get_user_by_uri(

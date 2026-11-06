@@ -302,6 +302,35 @@ class TestPhoneLines(TransactionCase):
         self.assertEqual(result['lines'][0]['unavailable'], 'Not today')
         self.assertNotIn('mint_tool_id', result['lines'][0])
 
+    def test_a_provider_can_keep_its_only_line_silent_as_it_was(self):
+        """A person with one line on such a provider has no phone, as ever."""
+        self._row(self._tool('twilio'))
+        self.answers[None] = {'error': 'Not today'}
+
+        @api.model
+        def keeps(model, provider):
+            return False
+
+        self.patch(type(self.env['connect.user']), '_failed_mint_keeps_the_line', keeps)
+        self.assertEqual(self._lines(), {'lines': [], 'error': 'Not today'})
+        self._assert_one_uncontexted_mint()
+
+    def test_such_a_provider_keeps_its_failed_line_among_several(self):
+        """With two lines the person chose one, and its refusal has to say why."""
+        first, second = self._tool('twilio'), self._tool('other_voice')
+        self._row(first, sequence=1)
+        self._row(second, sequence=2)
+        self.answers[first.id] = {'error': 'Not today'}
+
+        @api.model
+        def keeps(model, provider):
+            return False
+
+        self.patch(type(self.env['connect.user']), '_failed_mint_keeps_the_line', keeps)
+        lines = self._lines()['lines']
+        self.assertEqual(lines[0]['unavailable'], 'Not today')
+        self.assertNotIn('unavailable', lines[1])
+
     def test_someone_with_no_connect_user_gets_no_line_from_a_failure(self):
         """They have no phone to put a banner on, and never had one."""
         stranger = new_test_user(self.env, login='no-connect-%s' % uuid4().hex)

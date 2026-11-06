@@ -22,7 +22,7 @@ class Settings(models.Model):
         'connect.twilio.domain', string='Connect Domain', ondelete='set null')
 
     @api.model
-    def originate_call(self, number, res_model=None, res_id=None, user=None):
+    def originate_call(self, number, res_model=None, res_id=None, user=None, **kwargs):
         if len(number) == 8 and not ('+' in number):
             number = strip_number(number)
             client = self.get_client()
@@ -72,4 +72,4 @@ class Settings(models.Model):
                 'caller': caller_id,
             })
         else:
-            return super().originate_call(number, res_model, res_id, user)
+            return super().originate_call(number, res_model, res_id, user, **kwargs)

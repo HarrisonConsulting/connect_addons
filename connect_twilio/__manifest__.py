@@ -41,6 +41,9 @@
             'connect_twilio/static/src/services/errors/*',
             'connect_twilio/static/src/services/mail/*',
         ],
+        'web.assets_unit_tests': [
+            'connect_twilio/static/tests/unit/**/*.js',
+        ],
     },
     'post_init_hook': 'post_init_hook',
     'images': ['static/description/icon.png'],

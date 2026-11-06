@@ -14,31 +14,19 @@ patch(PhoneField.prototype, {
     },
 
     _onClickCallButton(e) {
-        e.preventDefault()
-        const number = this.props.record.data[this.props.name]
-        const bus = window.connectBus
-        if (bus && bus.clickToCallLocal) {
-            // Dial from this browser, so the audio stays on the device that clicked.
-            bus.trigger("busPhoneMakeCall", {phone: number})
-            return
+        if (window.connectBus) {
+            return super._onClickCallButton(e)
         }
-        const {resModel, resId} = this.props.record.model.config
-        const args = [number, resModel, resId]
-        const kwargs = bus && bus.browserSessionNonce ? {origin_nonce: bus.browserSessionNonce} : {}
-        this.env.model.orm.call("connect.settings", "originate_call", args, kwargs)
+        // No softphone is not no phone: the server rings the user's first
+        // callflow, which can be a desk phone on SIP.
+        e.preventDefault()
+        this._originateCall()
     },
 
     _onClickWhatsappCallButton(e) {
         e.preventDefault()
-        const {resModel, resId} = this.props.record.model.config
-        const args = [this.props.record.data[this.props.name], resModel, resId]
-        const bus = window.connectBus
         // Pass whatsapp_call flag via kwargs to avoid breaking positional args
-        const kwargs = {whatsapp_call: true}
-        if (bus && bus.browserSessionNonce) {
-            kwargs.origin_nonce = bus.browserSessionNonce
-        }
-        this.env.model.orm.call("connect.settings", "originate_call", args, kwargs)
+        this._originateCall({whatsapp_call: true})
     },
 
     async _onClickWhatsappMessageButton(e){

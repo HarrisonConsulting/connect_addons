@@ -57,6 +57,7 @@
             '/connect/static/src/components/phone/phone/phone.scss',
             '/connect/static/src/components/phone/tray/*',
             '/connect/static/src/components/chat/*',
+            '/connect/static/src/widgets/phone_field/*',
             '/connect/static/src/js/main.js',
             '/connect/static/src/services/actions/actions.js',
             '/connect/static/src/icomoon/style.css',

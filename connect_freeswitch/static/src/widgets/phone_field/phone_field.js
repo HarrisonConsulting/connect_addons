@@ -6,14 +6,12 @@ import {PhoneField} from "@web/views/fields/phone/phone_field"
 
 patch(PhoneField.prototype, {
 
-    setup() {
-        super.setup()
-    },
-
     _onClickCallButton(e) {
+        if (window.connectBus) {
+            return super._onClickCallButton(e)
+        }
+        // FreeSWITCH has its own panel and rings from the server.
         e.preventDefault()
-        const {resModel, resId} = this.props.record.model.config
-        const args = [this.props.record.data[this.props.name], resModel, resId]
-        this.env.model.orm.call("connect.settings", "originate_call", args, {})
+        this._originateCall()
     },
 })

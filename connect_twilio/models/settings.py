@@ -292,7 +292,8 @@ class Settings(models.Model):
         # other installed telephony modules when it is not Twilio.
         if self._get_originate_provider(user) != 'twilio':
             return super().originate_call(
-                number, res_model=res_model, res_id=res_id, user=user, **kwargs)
+                number, res_model=res_model, res_id=res_id, user=user,
+                whatsapp_call=whatsapp_call, origin_nonce=origin_nonce, **kwargs)
         self.env["oduist.license"].check_license("connect", silent=False)
         number = strip_number(number)
         if len(number) > MAX_EXTEN_LEN:

@@ -4,7 +4,8 @@
         <field name="name">connect.call.tree</field>
         <field name="model">connect.call</field>
         <field name="arch" type="xml">
-            <list default_order="id desc">
+            <list default_order="id desc" decoration-danger="has_error">
+                <field name="has_error" column_invisible="1"/>
                 <field name="direction"/>
                 <field name="call_type" optional="hide"/>
                 <field name="caller"/>
@@ -14,9 +15,17 @@
                 <field name="duration_human" string="Duration"/>
                 <field name="recording_icon" string="Rec"/>
                 <field name="voicemail_icon" string="VM"/>
+                <field name="tool_id" optional="hide"/>
                 <field name="create_date" string="Date"/>
             </list>
         </field>
+    </record>
+
+    <record id="action_connect_call_channels" model="ir.actions.act_window">
+        <field name="name">Channels</field>
+        <field name="res_model">connect.channel</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('call', '=', active_id)]</field>
     </record>
 
     <record id="view_connect_call_form" model="ir.ui.view">
@@ -25,51 +34,73 @@
         <field name="arch" type="xml">
             <form create="false">
                 <header>
+                    <button name="create_partner_button" type="object"
+                            string="Create contact" class="oe_highlight"
+                            invisible="partner"/>
                     <field name="status" widget="badge"/>
+                    <field name="direction" widget="badge"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="create_partner_button" type="object"
-                                class="oe_stat_button" icon="fa-user-plus"
-                                string="Create Partner"
-                                invisible="partner"/>
-                        <button name="transfer_button" type="object"
-                                class="oe_stat_button" icon="fa-exchange"
-                                string="Transfer"
-                                invisible="status == 'completed'"/>
+                        <button name="%(action_connect_call_channels)d" type="action"
+                                class="oe_stat_button" icon="fa-sitemap"
+                                groups="base.group_no_one"
+                                invisible="not channels"
+                                string="Channels"/>
                     </div>
                     <group>
-                        <group string="Call Info">
-                            <field name="direction"/>
-                            <field name="call_type"/>
-                            <field name="tool_id" readonly="1"/>
+                        <group>
                             <field name="caller" widget="phone"/>
-                            <field name="called" widget="phone"/>
                             <field name="partner"/>
-                            <field name="origin_ref" invisible="not origin_ref"/>
-                            <field name="duration_human" string="Duration"/>
-                        </group>
-                        <group string="Users">
-                            <field name="caller_pbx_user"/>
-                            <field name="answered_pbx_user"/>
+                            <field name="partner_img" widget="image" class="oe_avatar"
+                                   invisible="not partner"/>
                             <field name="caller_user"/>
-                            <field name="answered_user"/>
+                            <field name="caller_user_img" widget="image" class="oe_avatar"
+                                   invisible="not caller_user"/>
                         </group>
-                    </group>
-                    <group string="Voicemail" invisible="not voicemail_widget">
-                        <field name="voicemail_widget" nolabel="1" colspan="2"/>
+                        <group>
+                            <field name="called" widget="phone"/>
+                            <field name="answered_user"/>
+                            <field name="answered_user_img" widget="image" class="oe_avatar"
+                                   invisible="not answered_user"/>
+                            <field name="called_users" widget="many2many_tags"
+                                   invisible="not called_users"/>
+                            <field name="duration_human"/>
+                            <field name="origin_ref" invisible="not origin_ref"/>
+                        </group>
                     </group>
                     <group string="Summary" invisible="not summary">
                         <field name="summary" nolabel="1" colspan="2"/>
                     </group>
+                    <group string="Voicemail" invisible="not voicemail_widget">
+                        <field name="voicemail_widget" nolabel="1" colspan="2"/>
+                    </group>
                     <notebook>
                         <page name="call" string="Call" invisible="1"/>
-                        <page name="recording" string="Recording">
-                            <field name="recording_widget" nolabel="1" colspan="2"
+                        <page name="recording" string="Recording"
+                              invisible="not recording_widget and not transcript">
+                            <field name="recording_widget" nolabel="1"
                                    invisible="not recording_widget"/>
-                            <field name="transcript" nolabel="1" colspan="2"/>
+                            <field name="transcript" nolabel="1" invisible="not transcript"/>
                         </page>
-                        <page name="channels" string="Channels">
+                        <page name="details" string="Details">
+                            <group>
+                                <group>
+                                    <field name="create_date"/>
+                                    <field name="call_type"/>
+                                    <field name="duration"/>
+                                    <field name="duration_minutes"/>
+                                    <field name="parent_call"/>
+                                </group>
+                                <group>
+                                    <field name="caller_pbx_user"/>
+                                    <field name="answered_pbx_user"/>
+                                    <field name="called_pbx_users" widget="many2many_tags"/>
+                                    <field name="tool_id" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page name="channels" string="Channels" groups="base.group_no_one">
                             <field name="channels">
                                 <list>
                                     <field name="caller"/>
@@ -82,10 +113,10 @@
                         </page>
                         <page name="error" string="Error" invisible="not has_error">
                             <group>
-                                <field name="has_error"/>
-                                <field name="error_code"/>
-                                <field name="error_message"/>
+                                <field name="error_message" string="What happened"/>
+                                <field name="error_code" string="Code"/>
                             </group>
+                            <field name="has_error" invisible="1"/>
                         </page>
                     </notebook>
                 </sheet>

@@ -10,6 +10,7 @@ from . import test_outgoing_callerid
 from . import test_recording_controls
 from . import test_recording_media
 from . import test_recording_sync
+from . import test_recording_carrier_delete
 from . import test_user_callflow_walk
 from . import test_user_caller_id
 from . import test_user_prompts

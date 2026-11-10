@@ -2,6 +2,9 @@
 import json
 import logging
 from datetime import timezone
+from urllib.parse import urlparse
+
+from twilio.base.exceptions import TwilioRestException
 
 from odoo import fields, models, api
 
@@ -43,10 +46,38 @@ class Recording(models.Model):
         data['channel'] = channel.id
         return data
 
+    def _twilio_owns_recording(self):
+        """True when Twilio holds this recording: its media URL is on a Twilio host.
+
+        With Twilio External Storage the media URL is the account's own bucket
+        and Twilio keeps no copy, so there is nothing to delete there.
+        """
+        self.ensure_one()
+        host = (urlparse(self.media_url or '').hostname or '').lower()
+        return host == 'twilio.com' or host.endswith('.twilio.com')
+
+    def _provider_owns_recording(self):
+        self.ensure_one()
+        return self._twilio_owns_recording() or super()._provider_owns_recording()
+
+    def _provider_delete_recording(self):
+        """DELETE Recordings/{sid} at Twilio. A 404 means it is already gone."""
+        self.ensure_one()
+        if not self._twilio_owns_recording():
+            return super()._provider_delete_recording()
+        client = self.env['connect.settings'].sudo().get_client()
+        try:
+            deleted = client.recordings(self.sid).delete()
+        except TwilioRestException as error:
+            if error.status == 404:
+                return True
+            raise
+        return deleted is True
+
     def sync(self):
         client = self.env['connect.settings'].get_client()
         for rec in self:
-            if not rec.media_url:
+            if not rec.media_url or rec.provider_deleted_at:
                 continue
             recording = client.recordings(rec.sid).fetch()
             data = self.prepare_data(recording)

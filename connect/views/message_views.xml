@@ -114,17 +114,19 @@
         </field>
     </record>
 
+    <!-- The raw message log is for administrators and debugging. People read
+         and send messages in the conversations interface (connect_pbx). -->
     <record id="action_connect_message" model="ir.actions.act_window">
-        <field name="name">Messages</field>
+        <field name="name">Message Log</field>
         <field name="res_model">connect.message</field>
         <field name="view_mode">list,form</field>
         <field name="path">connect-message</field>
     </record>
 
     <menuitem id="menu_connect_messages"
-              name="Messages"
-              parent="connect_messaging_menu"
+              name="Message Log"
+              parent="connect_debug_menu"
               action="action_connect_message"
-              sequence="10"/>
+              sequence="40"/>
 
 </odoo>

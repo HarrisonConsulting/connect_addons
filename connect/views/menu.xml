@@ -25,6 +25,9 @@
               name="Telephony"
               parent="menu_connect_settings"
               sequence="20"/>
+    <!-- Kept as an anchor for messaging modules. connect_pbx puts the
+         top-level Messages entry (the conversations interface) beside it; a
+         header with nothing under it is not shown. -->
     <menuitem id="connect_messaging_menu"
               name="Messaging"
               parent="menu_connect_root"

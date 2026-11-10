@@ -110,8 +110,15 @@ class ConnectMessage(models.Model):
     @api.model
     def _own_numbers(self):
         """Numbers and senders this database sends from, across every
-        installed provider. Provider modules add theirs to super()'s set."""
-        return set()
+        installed provider."""
+        return set(self._own_lines())
+
+    @api.model
+    def _own_lines(self):
+        """The lines this database sends from, as {number: provider}, where
+        provider is that module's message_provider key on connect.user.
+        Provider modules add theirs to super()'s mapping."""
+        return {}
 
     @api.depends('direction')
     def _compute_direction_display(self):

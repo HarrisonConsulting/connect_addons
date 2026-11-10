@@ -19,13 +19,14 @@ class ConnectMessage(models.Model):
     messaging_service_sid = fields.Char('Messaging Service SID')
 
     @api.model
-    def _own_numbers(self):
+    def _own_lines(self):
         """Twilio numbers and WhatsApp senders this database sends from."""
-        return (
-            super()._own_numbers()
-            | set(self.env['connect.twilio.number'].search([]).mapped('phone_number'))
-            | set(self.env['connect.whatsapp_sender'].search([]).mapped('number'))
-        )
+        lines = super()._own_lines()
+        numbers = (
+            self.env['connect.twilio.number'].sudo().search([]).mapped('phone_number')
+            + self.env['connect.whatsapp_sender'].sudo().search([]).mapped('number'))
+        lines.update(dict.fromkeys(filter(None, numbers), 'twilio'))
+        return lines
 
     @api.private
     @api.model

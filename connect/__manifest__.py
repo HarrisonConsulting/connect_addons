@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.6.13',
+    'version': '19.0.4.6.14',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -41,6 +41,7 @@
     'assets': {
         'web.assets_backend': [
             '/connect/static/src/js/idb_error_handler.js',
+            '/connect/static/src/js/restored_view_fields.js',
             '/connect/static/src/services/audio_notification.js',
             '/connect/static/src/components/license_banner/*',
             '/connect/static/src/services/active_calls/*',

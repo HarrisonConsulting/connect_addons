@@ -82,3 +82,21 @@ BEGIN
     END IF;
 END
 $$;
+
+-- A copy never deletes recordings at a carrier: they are production's. The
+-- column is absent on a copy taken before the setting existed.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'connect_settings'
+           AND column_name = 'delete_provider_recording'
+    ) THEN
+        UPDATE connect_settings SET delete_provider_recording = false;
+    END IF;
+END
+$$;
+UPDATE ir_config_parameter
+   SET value = 'False'
+ WHERE key = 'connect.delete_provider_recording';

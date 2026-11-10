@@ -11,7 +11,7 @@ from urllib.parse import quote
 import requests
 from markupsafe import escape
 from odoo import _, fields, models, api, release, SUPERUSER_ID
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 # every linked chatter as noise.
 MIN_SUMMARY_WORDS = 8
 TIMESTAMP_RE = re.compile(r'\b\d{1,2}:\d{2}:\d{2}\b')
+# _redact_stored_audio writes this at the start of its note when it silenced
+# the kept copy. The carrier delete waits for it whenever the call has marks.
+REDACTED_NOTE_PREFIX = 'Silenced '
+PROVIDER_DELETE_BATCH = 20
+# Attempts before a carrier delete stops retrying on its own. The retry action
+# starts the count again.
+PROVIDER_DELETE_ATTEMPTS = 5
 
 
 def silence_wav_spans(wav_bytes, spans):
@@ -104,6 +111,20 @@ class Recording(models.Model):
     redaction_note = fields.Char(
         help='What happened when this copy was aligned to the recording marks.',
     )
+    provider_deleted_at = fields.Datetime(
+        string='Removed from carrier', readonly=True, copy=False,
+        help='When the carrier confirmed its copy is gone. Set only after our '
+             'archived copy read back intact.',
+    )
+    provider_delete_pending = fields.Boolean(
+        string='Carrier delete pending', readonly=True, copy=False, index=True,
+        help='The carrier copy is deleted once our archived copy is verified.',
+    )
+    provider_delete_attempts = fields.Integer(readonly=True, copy=False)
+    provider_delete_error = fields.Char(
+        string='Carrier copy kept', readonly=True, copy=False,
+        help='Why the carrier still holds this recording.',
+    )
 
     def _redaction_spans(self):
         self.ensure_one()
@@ -172,14 +193,9 @@ class Recording(models.Model):
                 continue
             rec.with_context(recording_redaction=True).write({
                 'recording_attachment': base64.b64encode(redacted),
-                'redaction_note': 'Silenced {} span(s) on the kept copy.'.format(len(spans)),
+                'redaction_note': '{}{} span(s) on the kept copy.'.format(
+                    REDACTED_NOTE_PREFIX, len(spans)),
             })
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        records = super().create(vals_list)
-        records._redact_stored_audio()
-        return records
 
     def write(self, vals):
         result = super().write(vals)
@@ -187,7 +203,183 @@ class Recording(models.Model):
             watched = {'recording_attachment', 'media_url', 'start_time', 'duration', 'status'}
             if watched.intersection(vals):
                 self._redact_stored_audio()
+        if {'recording_attachment', 'media_url', 'status'}.intersection(vals):
+            self._queue_provider_delete()
         return result
+
+    # Carrier copy. A recording is pulled into our archive, verified there, and
+    # only then deleted at the carrier. The archive is the Odoo attachment here;
+    # a storage module (connect_s3) answers for its own backend through the
+    # _archive_* seams. A provider module answers for its own carrier through
+    # _provider_owns_recording and _provider_delete_recording.
+
+    @api.model
+    def _provider_delete_enabled(self):
+        if self.env['ir.config_parameter'].sudo().get_param('database.is_neutralized'):
+            return False
+        return bool(self.env['connect.settings'].sudo().get_param('delete_provider_recording'))
+
+    def _archive_mode(self):
+        """Which archive holds our copy: 'attachment', a storage module's key, or None.
+
+        None means the recording is kept at the carrier by choice
+        (recording_storage = 'twilio'), so nothing may be deleted there.
+        """
+        storage = self.env['connect.settings'].sudo().get_param('recording_storage')
+        return 'attachment' if storage == 'odoo_filestore' else None
+
+    def _archive_queueable(self):
+        """True when the archive step for this recording can start or has finished."""
+        self.ensure_one()
+        return self._archive_mode() == 'attachment'
+
+    def _provider_owns_recording(self):
+        """True when an installed provider can delete this recording at its carrier.
+
+        Provider modules override this and answer True only for their own
+        recordings. A carrier without a delete API never answers True.
+        """
+        self.ensure_one()
+        return False
+
+    def _provider_delete_recording(self):
+        """Delete the carrier copy and return True once the carrier says it is gone.
+
+        A 404 counts as gone. Any other outcome raises, so an unknown result
+        is never recorded as a delete. Provider modules override this.
+        """
+        self.ensure_one()
+        raise UserError(_('No installed provider can delete this recording at its carrier.'))
+
+    def _queue_provider_delete(self):
+        if not self or not self._provider_delete_enabled():
+            return
+        todo = self.filtered(
+            lambda rec: not rec.provider_deleted_at
+            and not rec.provider_delete_pending
+            and rec.status == 'completed'
+            and rec.sid
+            and rec._provider_owns_recording()
+            and rec._archive_queueable())
+        if todo:
+            todo.write({'provider_delete_pending': True, 'provider_delete_error': False})
+
+    def _ingest_archive_copy(self):
+        """Pull the carrier audio into the attachment when that is the archive.
+
+        Returns True when it wrote the attachment. The write runs the
+        redaction pass, so the stored copy is the one later verified.
+        """
+        self.ensure_one()
+        if self._archive_mode() != 'attachment' or self.recording_attachment:
+            return False
+        path = self._download_recording_audio()
+        try:
+            with open(path, 'rb') as media:
+                content = media.read()
+        finally:
+            os.unlink(path)
+        if not content:
+            raise ValueError('The carrier returned an empty recording')
+        extension = '.wav' if content.startswith(b'RIFF') else '.mp3'
+        self.write({
+            'recording_attachment': base64.b64encode(content),
+            'recording_filename': self.recording_filename or '{}{}'.format(
+                self.sid or self.id, extension),
+        })
+        return True
+
+    def _verify_archive_copy(self):
+        """Raise unless our archived copy is stored and reads back intact."""
+        self.ensure_one()
+        if self._archive_mode() != 'attachment':
+            raise UserError(_('No archive of ours holds this recording.'))
+        attachment = self.env['ir.attachment'].sudo().search([
+            ('res_model', '=', self._name),
+            ('res_field', '=', 'recording_attachment'),
+            ('res_id', '=', self.id),
+        ], limit=1)
+        # Read the stored file again, not the bytes this transaction wrote.
+        attachment.invalidate_recordset()
+        if not attachment or not attachment.checksum:
+            raise ValueError('The stored recording has no attachment checksum')
+        content = attachment.raw
+        if not content:
+            raise ValueError('The stored recording reads back empty')
+        if attachment._compute_checksum(content) != attachment.checksum:
+            raise ValueError('The stored recording does not match its checksum')
+
+    def _redaction_settled(self):
+        """False while the call has pause or stop marks the kept copy has not silenced."""
+        self.ensure_one()
+        if not self._redaction_spans():
+            return True
+        return (self.redaction_note or '').startswith(REDACTED_NOTE_PREFIX)
+
+    def _delete_at_provider(self):
+        """Verify our copy, then delete the carrier copy. Raises on any doubt."""
+        self.ensure_one()
+        if self.provider_deleted_at:
+            return True
+        if not self._redaction_settled():
+            raise UserError(_(
+                'Pause and stop marks are not yet silenced on the kept copy.'))
+        self._verify_archive_copy()
+        if not self._provider_delete_recording():
+            raise UserError(_('The carrier did not confirm the delete.'))
+        self.write({
+            'provider_deleted_at': fields.Datetime.now(),
+            'provider_delete_pending': False,
+            'provider_delete_error': False,
+        })
+        return True
+
+    @api.model
+    def _cron_delete_provider_recordings(self, limit=PROVIDER_DELETE_BATCH):
+        """Archive, verify, then delete queued recordings at their carrier.
+
+        Each step commits before the next starts: the attachment is durable
+        before it is verified, and the carrier is asked to delete only a copy
+        that a committed archive holds.
+        """
+        if not self._provider_delete_enabled():
+            return
+        cron = self.env['ir.cron']
+        pending = self.search([
+            ('provider_delete_pending', '=', True),
+            ('provider_deleted_at', '=', False),
+        ], order='provider_delete_attempts, id', limit=limit)
+        for rec in pending:
+            try:
+                with self.env.cr.savepoint():
+                    ingested = rec._ingest_archive_copy()
+                if ingested:
+                    cron._commit_progress(0)
+                with self.env.cr.savepoint():
+                    rec._delete_at_provider()
+            except Exception as error:
+                logger.warning(
+                    'Carrier copy kept for recording %s: %s', rec.id, error)
+                attempts = rec.provider_delete_attempts + 1
+                rec.write({
+                    'provider_delete_attempts': attempts,
+                    'provider_delete_pending': attempts < PROVIDER_DELETE_ATTEMPTS,
+                    'provider_delete_error': (str(error) or type(error).__name__)[:250],
+                })
+            if not cron._commit_progress(1):
+                break
+
+    def action_retry_provider_delete(self):
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError(_('Only administrators can retry a carrier delete.'))
+        todo = self.filtered(lambda rec: not rec.provider_deleted_at)
+        todo.write({
+            'provider_delete_pending': False,
+            'provider_delete_attempts': 0,
+            'provider_delete_error': False,
+        })
+        todo._queue_provider_delete()
+        return True
 
     @api.depends(
         'caller_user',
@@ -502,18 +694,21 @@ class Recording(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         if self.env.context.get('skip_transcription'):
-            return super().create(vals_list)
-        transcript_calls = self.env['connect.settings'].sudo().get_param('transcript_calls')
-        recs = super(Recording, self.with_context(
-            mail_create_nosubscribe=True, mail_create_nolog=True)).create(vals_list)
-        if transcript_calls:
-            # Defer transcription to _cron_transcribe_recordings. Running
-            # the Whisper + GPT round trip inline blocked the provider
-            # webhook that created the recording (timeout -> retry ->
-            # duplicate processing) and was only survivable via a
-            # mid-create cr.commit() that broke the caller transaction's
-            # atomicity. The flag is the cron's work queue instead.
-            recs.filtered(lambda r: not r.transcript).transcription_pending = True
+            recs = super().create(vals_list)
+        else:
+            transcript_calls = self.env['connect.settings'].sudo().get_param('transcript_calls')
+            recs = super(Recording, self.with_context(
+                mail_create_nosubscribe=True, mail_create_nolog=True)).create(vals_list)
+            if transcript_calls:
+                # Defer transcription to _cron_transcribe_recordings. Running
+                # the Whisper + GPT round trip inline blocked the provider
+                # webhook that created the recording (timeout -> retry ->
+                # duplicate processing) and was only survivable via a
+                # mid-create cr.commit() that broke the caller transaction's
+                # atomicity. The flag is the cron's work queue instead.
+                recs.filtered(lambda r: not r.transcript).transcription_pending = True
+        recs._redact_stored_audio()
+        recs._queue_provider_delete()
         return recs
 
     @api.model

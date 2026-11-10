@@ -25,6 +25,14 @@
             <field name="code">model._cron_transcribe_recordings()</field>
             <field name="state">code</field>
         </record>
+        <record id="cron_delete_provider_recordings" model="ir.cron">
+            <field name="name">Connect: delete archived recordings at the carrier</field>
+            <field name="interval_number">5</field>
+            <field name="interval_type">minutes</field>
+            <field name="model_id" ref="model_connect_recording"/>
+            <field name="code">model._cron_delete_provider_recordings()</field>
+            <field name="state">code</field>
+        </record>
 
     </data>
 </odoo>

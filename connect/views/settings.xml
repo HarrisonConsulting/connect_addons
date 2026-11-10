@@ -26,7 +26,7 @@
                                 </group>
                                 <group name="recording_storage_group" string="Recording Storage">
                                     <field name="recording_storage"/>
-                                    <field name="delete_twilio_recording"
+                                    <field name="delete_provider_recording"
                                            invisible="recording_storage == 'twilio'"/>
                                 </group>
                             </group>

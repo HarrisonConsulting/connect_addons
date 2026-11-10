@@ -27,6 +27,9 @@
                     <button name="get_transcript" type="object" string="Transcribe"
                             class="btn-primary"
                             invisible="(transcript and not transcription_error) or (not media_url and not recording_attachment)"/>
+                    <button name="action_retry_provider_delete" type="object"
+                            string="Retry carrier delete" groups="base.group_system"
+                            invisible="provider_deleted_at or not provider_delete_error"/>
                     <field name="status" widget="badge" invisible="not status"/>
                 </header>
                 <sheet>
@@ -61,6 +64,9 @@
                                     <field name="channel" invisible="not channel"/>
                                     <field name="source" invisible="not source"/>
                                     <field name="redaction_note" invisible="not redaction_note"/>
+                                    <field name="provider_deleted_at" invisible="not provider_deleted_at"/>
+                                    <field name="provider_delete_pending"
+                                           invisible="not provider_delete_pending"/>
                                 </group>
                                 <group string="Price" groups="connect.group_admin">
                                     <field name="price"/>
@@ -78,9 +84,13 @@
                                 <field name="transcription_token" invisible="not transcription_token"/>
                             </group>
                         </page>
-                        <page name="error" string="Error" invisible="not transcription_error">
+                        <page name="error" string="Error"
+                              invisible="not transcription_error and not provider_delete_error">
                             <group>
-                                <field name="transcription_error" string="What happened"/>
+                                <field name="transcription_error" string="What happened"
+                                       invisible="not transcription_error"/>
+                                <field name="provider_delete_error"
+                                       invisible="not provider_delete_error"/>
                             </group>
                         </page>
                     </notebook>

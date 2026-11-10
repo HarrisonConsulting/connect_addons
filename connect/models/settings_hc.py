@@ -69,10 +69,12 @@ class Settings(models.Model):
         string='Recording Storage',
         help='Where to store call recordings and voicemails.',
     )
-    delete_twilio_recording = fields.Boolean(
-        default=False,
-        string='Delete from Twilio After Transfer',
-        help='Delete recordings from Twilio after storing them locally.',
+    delete_provider_recording = fields.Boolean(
+        default=True,
+        string='Delete recordings from the carrier after archiving',
+        help='Once a recording is stored in our archive and reads back intact, '
+             'delete it at the carrier. A recording whose archive cannot be '
+             'verified stays at the carrier and shows why on the recording.',
     )
     enable_whatsapp = fields.Boolean(
         default=True,

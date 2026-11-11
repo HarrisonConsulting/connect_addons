@@ -1,4 +1,5 @@
 /*! @twilio/voice-sdk.js 2.15.0
+ * Connect local patch 17379 (2026-11-11): capability-guard and own lost-output cleanup promises.
 
 The following license applies to all parts of this software except as
 documented below.
@@ -6805,7 +6806,23 @@ var OutputDeviceCollection = /** @class */ (function () {
         // Call _beforeChange so that the implementation can react when a device is
         // removed or lost.
         var deviceIds = Array.from(this._activeDevices.values()).map(function (deviceInfo) { return deviceInfo.deviceId; });
-        this._beforeChange(this._name, deviceIds);
+        // Connect patch 17379: enumeration also removes devices in browsers
+        // without output selection. Keep collection bookkeeping, and use the
+        // same capability boundary as set() before asking the active call to
+        // select sinks. Cleanup has no promise-returning caller, so own its
+        // failure here and retain the actual error in the SDK error log.
+        if (this._isSupported) {
+            var _this = this;
+            var onChangeError = function (error) {
+                _this._log.error('Unable to update audio outputs after device removal', error);
+            };
+            try {
+                Promise.resolve(this._beforeChange(this._name, deviceIds)).catch(onChangeError);
+            }
+            catch (error) {
+                onChangeError(error);
+            }
+        }
         return !!wasDeleted;
     };
     /**

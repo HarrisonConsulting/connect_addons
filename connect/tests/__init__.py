@@ -41,3 +41,5 @@ from . import test_line_call
 from . import test_call_state
 from . import test_tool_rights
 from . import test_message_log_tour
+
+from . import test_call_review

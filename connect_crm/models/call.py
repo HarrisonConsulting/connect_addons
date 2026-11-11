@@ -199,6 +199,19 @@ class CrmCall(models.Model):
             'context': context,
         }
 
+    can_open_lead = fields.Boolean(compute='_compute_can_open_lead',
+        help='Whether the current user can review the linked crm record.')
+
+    @api.depends('lead')
+    @api.depends_context('uid')
+    def _compute_can_open_lead(self):
+        for call in self:
+            call.can_open_lead = bool(call.lead and call.lead.has_access('read'))
+
+    def action_open_lead(self):
+        self.ensure_one()
+        return self._action_open_review_record(self.lead)
+
     def unlink_crm_lead(self):
         self.ensure_one()
         self.lead = False

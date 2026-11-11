@@ -543,6 +543,36 @@ class Call(models.Model):
         for model in reload_models:
             self.env['connect.settings'].connect_reload_view(model)
 
+    can_open_partner = fields.Boolean(compute='_compute_can_open_partner',
+        help='Whether the current user can review the linked contact.')
+
+    @api.depends('partner')
+    @api.depends_context('uid')
+    def _compute_can_open_partner(self):
+        for call in self:
+            call.can_open_partner = bool(call.partner and call.partner.has_access('read'))
+
+    def _action_open_review_record(self, record):
+        """Review the exact relation under the caller's access and record rules."""
+        self.ensure_one()
+        self.check_access('read')
+        if not record:
+            return False
+        record.ensure_one()
+        record.check_access('read')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': record.display_name,
+            'res_model': record._name,
+            'res_id': record.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_open_partner(self):
+        self.ensure_one()
+        return self._action_open_review_record(self.partner)
+
     def create_partner_button(self):
         self.ensure_one()
         name_number = self.caller if self.direction == 'incoming' else self.called

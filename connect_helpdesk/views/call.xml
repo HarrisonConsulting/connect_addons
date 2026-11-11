@@ -21,8 +21,14 @@
                 <button string="Create ticket" name="create_ticket_button" type="object"
                         invisible="ticket"/>
             </button>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <field name="can_open_ticket" invisible="1"/>
+                <button name="action_open_ticket" type="object" class="oe_stat_button"
+                        icon="fa-life-ring" string="Ticket" invisible="not can_open_ticket"/>
+            </xpath>
             <page name="call" position="after">
-                <page name="ticket" string="Ticket" invisible="not ticket">
+                <page name="ticket" string="Ticket connection"
+                      groups="base.group_no_one" invisible="not ticket">
                     <group>
                         <group>
                             <field name="ticket"/>

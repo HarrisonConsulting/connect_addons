@@ -19,7 +19,7 @@
         <field name="inherit_id" ref="connect.view_connect_call_form"/>
         <field name="arch" type="xml">
             <page name="recording" position="attributes">
-                <attribute name="invisible">not recording_widget and not transcript and not elevenlabs_recording_widget and not elevenlabs_transcript</attribute>
+                <attribute name="invisible" add="not elevenlabs_recording_widget and not elevenlabs_transcript" separator=" and "/>
             </page>
             <page name="recording" position="inside">
                 <field name="elevenlabs_recording_widget" nolabel="1"
@@ -27,7 +27,7 @@
                 <field name="elevenlabs_transcript" string="Agent Transcript"
                        nolabel="1" invisible="not elevenlabs_transcript"/>
             </page>
-            <page name="recording" position="before">
+            <page name="recording" position="after">
                 <page name="elevenlabs" string="Agent"
                       invisible="not elevenlabs_transcript">
                     <group>

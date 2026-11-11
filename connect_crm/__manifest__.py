@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 {
     'name': 'Twilio Odoo CRM integration',
-    'version': '1.0.13',
+    'version': '1.0.14',
     'author': 'Oduist',
     'price': 0,
     'currency': 'EUR',

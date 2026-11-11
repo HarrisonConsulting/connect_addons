@@ -42,6 +42,10 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
+                        <field name="can_open_partner" invisible="1"/>
+                        <button name="action_open_partner" type="object"
+                                class="oe_stat_button" icon="fa-address-card"
+                                invisible="not can_open_partner" string="Contact"/>
                         <button name="%(action_connect_call_channels)d" type="action"
                                 class="oe_stat_button" icon="fa-sitemap"
                                 groups="base.group_no_one"
@@ -72,18 +76,18 @@
                     <group string="Summary" invisible="not summary">
                         <field name="summary" nolabel="1" colspan="2"/>
                     </group>
-                    <group string="Voicemail" invisible="not voicemail_widget">
+                    <group name="voicemail_review" string="Voicemail" invisible="not voicemail_widget">
                         <field name="voicemail_widget" nolabel="1" colspan="2"/>
                     </group>
                     <notebook>
-                        <page name="call" string="Call" invisible="1"/>
                         <page name="recording" string="Recording"
                               invisible="not recording_widget and not transcript">
                             <field name="recording_widget" nolabel="1"
                                    invisible="not recording_widget"/>
                             <field name="transcript" nolabel="1" invisible="not transcript"/>
                         </page>
-                        <page name="details" string="Details">
+                        <page name="call" string="Call" invisible="1"/>
+                        <page name="details" string="Technical details" groups="base.group_no_one">
                             <group>
                                 <group>
                                     <field name="create_date"/>
@@ -114,7 +118,7 @@
                         <page name="error" string="Error" invisible="not has_error">
                             <group>
                                 <field name="error_message" string="What happened"/>
-                                <field name="error_code" string="Code"/>
+                                <field name="error_code" string="Code" groups="base.group_no_one"/>
                             </group>
                             <field name="has_error" invisible="1"/>
                         </page>

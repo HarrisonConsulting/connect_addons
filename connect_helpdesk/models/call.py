@@ -62,6 +62,19 @@ class HelpdeskCall(models.Model):
             'context': context,
         }
 
+    can_open_ticket = fields.Boolean(compute='_compute_can_open_ticket',
+        help='Whether the current user can review the linked ticket record.')
+
+    @api.depends('ticket')
+    @api.depends_context('uid')
+    def _compute_can_open_ticket(self):
+        for call in self:
+            call.can_open_ticket = bool(call.ticket and call.ticket.has_access('read'))
+
+    def action_open_ticket(self):
+        self.ensure_one()
+        return self._action_open_review_record(self.ticket)
+
     def unlink_ticket(self):
         self.ensure_one()
         self.ticket = False

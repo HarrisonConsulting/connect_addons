@@ -2,7 +2,7 @@
 
 The shipped SDK remains Twilio Voice SDK 2.15.0 under its existing Apache-2.0 and embedded third-party notices. Connect changes its checked-in unminified source and regenerates the two runtime bundles; runtime code uses these artifacts directly.
 
-## Local patch 17379 — 2026-11-11
+## Local patch: output device cleanup
 
 `OutputDeviceCollection.delete` owns device-loss cleanup. Upstream 2.15.0 invokes `_beforeChange` without the capability check used by `set`, and discards its promise. `AudioHelper._updateDevices` calls deletion during device enumeration even in browsers without output selection. An active call's internal sink setter then rejects, with no cleanup caller observing the rejection.
 

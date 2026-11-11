@@ -176,8 +176,13 @@ class User(models.Model):
         return result[:10]
 
     @api.model
-    def normalize_dial_number(self, number, partner_id=False):
-        """Infer national numbers with libphonenumber; preserve extensions and SIP."""
+    def normalize_dial_number(self, number, partner_id=False, caller=None):
+        """Infer national numbers with libphonenumber; preserve extensions and SIP.
+
+        A national number takes the country of the partner, else of the
+        ``caller`` (a res.users, default the current user), else of that
+        user's company.
+        """
         from .res_partner import format_number
         number = (number or '').strip()
         # E.164 formatting drops extensions. Split and append the original
@@ -193,22 +198,27 @@ class User(models.Model):
         partner = self.env['res.partner'].browse(partner_id).exists() if partner_id else False
         if partner:
             partner.check_access('read')
+        caller = caller or self.env.user
         country = ((partner.country_id.code if partner else False)
-                   or self.env.user.partner_id.country_id.code or self.env.company.country_id.code)
+                   or caller.partner_id.country_id.code or caller.company_id.country_id.code)
         if base.startswith('00'):
             base = '+' + base[2:]
         return format_number(self, base, country) + suffix
 
     @api.model
-    def validate_dial_number(self, number, partner_id=False):
-        """Normalize a call destination and refuse unsupported PSTN post-dial extensions."""
-        number = self.normalize_dial_number(number, partner_id)
+    def refuse_pstn_extension(self, number):
+        """Refuse a PSTN number with a post-dial extension attached; return it otherwise."""
         extension = re.search(r'\s*(?:ext\.?\s*|x\s*|#)\d+\s*$', number, re.I)
         base = number[:extension.start()] if extension else number
         if extension and re.fullmatch(r'[+0-9().\s-]+', base) and len(re.sub(r'\D', '', base)) >= 7:
             raise UserError('Call the main number first, then enter the extension with the in-call keypad. '
                             'Calling a number with an extension attached is not supported.')
         return number
+
+    @api.model
+    def validate_dial_number(self, number, partner_id=False, caller=None):
+        """Normalize a call destination and refuse unsupported PSTN post-dial extensions."""
+        return self.refuse_pstn_extension(self.normalize_dial_number(number, partner_id, caller))
 
     @api.model
     def get_client_token(self, nonce=False):

@@ -200,6 +200,24 @@ class TestUserCallerId(TwilioTestCommon):
             '+15550006666', request)))
         self.assertIsNone(denied.find('Dial'))
 
+    def test_desk_phone_national_number_uses_the_callers_country(self):
+        default = self._default_callerid()
+        self.env.company.country_id = self.env.ref('base.us')
+        self.pbx_user.user.partner_id.country_id = self.env.ref('base.uk')
+        twiml = ElementTree.fromstring(str(self.domain.originate_external_call(
+            '020 7946 0018', {'Caller': 'client:' + self.identity, 'CallerId': default.number})))
+        self.assertEqual(twiml.find('Dial/Number').text, '+442079460018')
+
+    def test_unresolved_caller_leaves_a_national_number_as_dialed(self):
+        self._default_callerid()
+        self.env.company.country_id = self.env.ref('base.us')
+        twiml = ElementTree.fromstring(str(self.domain.originate_external_call(
+            '020 7946 0018', {'Caller': 'client:nobody'})))
+        self.assertEqual(twiml.find('Dial/Number').text, '020 7946 0018')
+        refused = str(self.domain.originate_external_call(
+            '+12025550123x123', {'Caller': 'client:nobody'}))
+        self.assertIn('extension', refused)
+
     def test_server_originate_uses_choice_on_transport_and_channel(self):
         own, default, other = self._voice_choices()
         self.pbx_user.originate_provider = 'twilio'

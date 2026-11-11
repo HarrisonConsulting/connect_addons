@@ -592,12 +592,15 @@ class Domain(models.Model):
             return "<Response><Say>Extension not found. Goodbye! </Say></Response>"
 
     def originate_external_call(self, number, request, params={}):
+        user = self.env["connect.user"].get_user_by_uri(request.get("Caller"))
         try:
-            number = self.env['connect.user'].validate_dial_number(number)
+            # The webhook runs as a service user, so a national number takes
+            # the calling user's country; without a caller it stays as dialed.
+            number = (self.env['connect.user'].validate_dial_number(number, caller=user.user.sudo())
+                      if user else self.env['connect.user'].refuse_pstn_extension(number))
         except UserError:
             return '<Response><Say>Call the main number first, then enter the extension with the in-call keypad.</Say></Response>'
         debug(self, "Outgoing call to %s" % number)
-        user = self.env["connect.user"].get_user_by_uri(request.get("Caller"))
         try:
             if user:
                 callerId = user._twilio_external_caller_id(request.get('CallerId'))

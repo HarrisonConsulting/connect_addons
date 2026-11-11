@@ -209,16 +209,37 @@ test('a trailing debounce after completion cannot reopen suggestions for the fil
     expect(p.state.dialSuggestions).toEqual([])
 })
 
-test('Enter on a numeric match completes the matched mobile and a second Enter dials it', async () => {
+test('Enter on a complete number dials it instead of substituting a longer suggestion', async () => {
+    const p = phone()
+    p.orm.call = async () => [{...ALICE, number: '+120255501249'}]
+    input(p, '2025550124')
+    await key(p, 'Enter')
+    expect(p.dials).toEqual(['2025550124'])
+})
+
+test('Enter on a number equal to a suggestion completes it and a second Enter dials it', async () => {
     const p = phone()
     const mobile = {...ALICE, number: '+12025550124'}
     p.orm.call = async () => [mobile]
-    input(p, '2025550124')
+    input(p, '+1 202 555 0124')
     await key(p, 'Enter')
     expect(p.state.phoneNumber).toBe(mobile.number)
     expect(p.dials).toEqual([])
     await key(p, 'Enter')
     expect(p.dials).toEqual([mobile.number])
+})
+
+test('Enter dials a complete number when the suggestion lookup fails', async () => {
+    const p = phone()
+    p.orm.call = async () => { throw new Error('lookup unavailable') }
+    input(p, '2025550124')
+    await key(p, 'Enter')
+    expect(p.dials).toEqual(['2025550124'])
+    const q = phone()
+    q.orm.call = async () => undefined
+    input(q, '2025550124')
+    await key(q, 'Enter')
+    expect(q.dials).toEqual(['2025550124'])
 })
 
 test('outbound validation refuses a PSTN extension before SDK, lookup and history while retaining input', async () => {

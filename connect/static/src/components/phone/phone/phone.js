@@ -2548,12 +2548,22 @@ export class Phone extends Component {
             // Flush the lookup before deciding: Enter during debounce must fill a
             // contact, never send the partially typed name/number to a carrier.
             const version = this._dialQueryVersion
-            const matches = this._dialHistoryIndex < 0 && this._dialCompletedNumber !== this.state.phoneNumber
+            const found = this._dialHistoryIndex < 0 && this._dialCompletedNumber !== this.state.phoneNumber
                 ? await this._searchDialSuggestions() : []
-            if (!this._canEditDial() || version !== this._dialQueryVersion || !Array.isArray(matches)) return
-            if (matches.length) {
+            if (!this._canEditDial() || version !== this._dialQueryVersion) return
+            // A failed lookup is an empty one: Enter still dials a complete number.
+            const matches = Array.isArray(found) ? found : []
+            const typed = this.state.phoneNumber.trim()
+            const dialable = /^[+0-9().\s*#-]+(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(typed)
+            const digits = typed.replace(/\D/g, '')
+            const exact = matches.find((item) => item.number.replace(/\D/g, '') === digits)
+            if (exact) {
+                this._completeDialSuggestion(exact)
+            } else if (dialable && digits.length >= 7) {
+                this._onClickMakeCall()
+            } else if (matches.length) {
                 this._completeDialSuggestion(matches[0])
-            } else if (/^[+0-9().\s*#-]+(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(this.state.phoneNumber.trim())) {
+            } else if (dialable) {
                 this._onClickMakeCall()
             }
             return

@@ -219,8 +219,11 @@ class TestTwilioHoldCall(TransactionCase):
             'friendly_name': 'Default', 'number': '+15550007777',
             'callerid_type': 'number', 'is_default': True,
         })
+        self.connect_user.with_context(no_twilio_create=True).write({
+            'client_enabled': True, 'originate_provider': 'twilio'})
         self.env['connect.whatsapp_sender'].sudo().create({
-            'number': '+19990002222', 'status': 'ONLINE'})
+            'number': '+19990002222', 'status': 'ONLINE', 'sid': 'XE' + '2' * 32,
+            'voice_application': self.application.id})
         params = {
             'api_url': 'https://odoo.example.com/',
             'twilio_edge': 'ashburn',

@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from odoo import fields, models, api, release
 if release.version_info[0] >= 19:
     from odoo.models import Constraint
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
 from odoo.addons.connect.models.settings import debug
 from .settings import format_connect_response, TWILIO_EDGES
@@ -648,7 +648,12 @@ class Domain(models.Model):
         debug(self, "Outgoing WhatsApp call to %s" % number)
         # Resolve caller's preferred WhatsApp sender
         pbx_user = self.env['connect.user'].get_user_by_uri(request.get('Caller'))
-        sender = self.env['connect.whatsapp_sender'].get_default_sender(pbx_user)
+        try:
+            if not pbx_user or not pbx_user.user:
+                raise ValidationError('WhatsApp call is not available for this user.')
+            sender = self.env['connect.user'].with_user(pbx_user.user)._get_usable_whatsapp_sender('call')
+        except (AccessError, UserError):
+            return '<Response><Say>WhatsApp calling is not available for this user.</Say></Response>'
         caller_number = sender.number if sender else False
         if not caller_number:
             return "<Response><Say>You must configure a WhatsApp sender!</Say></Response>"

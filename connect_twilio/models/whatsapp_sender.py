@@ -8,7 +8,7 @@ import requests
 from markupsafe import Markup
 
 from odoo import models, fields, api, release
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 if release.version_info[0] >= 19:
     from odoo.models import Constraint
 
@@ -233,6 +233,34 @@ class ConnectWhatsappSender(models.Model):
         # 3) Any
         return self.search(available_domain, limit=1)
 
+    def _whatsapp_capabilities(self):
+        """Local, readable configuration for the authenticated actor; no provider calls."""
+        self.ensure_one()
+        self.check_access('read')
+        actor = self.env.user
+        permitted = actor.has_group('connect.group_user') or actor.has_group('connect.group_admin')
+        connect_user = actor.connect_user
+        if not permitted:
+            return {'call': False, 'message': False}
+        if connect_user:
+            connect_user.check_access('read')
+        message = bool(self.sid and self.number and self.status == 'ONLINE' and not self.no_sync)
+        call = False
+        # Registration for messaging alone supplies no voice configuration.
+        # The existing voice application and the actor's selected Twilio route
+        # establish local call configuration independently of messaging.
+        voice_ready = bool(connect_user and connect_user.active and
+                           connect_user.username and connect_user.domain and
+                           (connect_user.client_enabled or connect_user.sip_enabled))
+        try:
+            if message and voice_ready and self.voice_application and self.voice_application.has_access('read'):
+                call = bool(self.voice_application.sid and
+                            self.env['connect.settings']._get_originate_provider() == 'twilio')
+        except (AccessError, UserError):
+            # Missing voice routing leaves configured messaging independent.
+            call = False
+        return {'call': call, 'message': message}
+
     def send_whatsapp(self, recipient, body, res_model=None, res_id=None, raise_on_error=True, content_sid=None, content_variables=None):
         """Send a WhatsApp message using this sender and create connect.message + chatter.
 
@@ -248,6 +276,10 @@ class ConnectWhatsappSender(models.Model):
             connect.message record or False on error when raise_on_error=False
         """
         self.ensure_one()
+        if not self._whatsapp_capabilities()['message']:
+            if raise_on_error:
+                raise ValidationError('WhatsApp messaging is not available for this user and sender.')
+            return False
         self.env['oduist.license'].check_license('connect', silent=False)
         if not self.number:
             raise ValidationError('WhatsApp sender has no number configured.')

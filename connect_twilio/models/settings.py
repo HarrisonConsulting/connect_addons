@@ -288,6 +288,11 @@ class Settings(models.Model):
 
     @api.model
     def originate_call(self, number, res_model=None, res_id=None, user=None, whatsapp_call=False, origin_nonce=None, **kwargs):
+        whatsapp_sender = False
+        if whatsapp_call:
+            # Revalidate before licensing, credentials, routing or call history.
+            actor = user or self.env.user
+            whatsapp_sender = self.env['connect.user'].with_user(actor)._get_usable_whatsapp_sender('call')
         # Dispatch by the user's click-to-call provider; fall through to
         # other installed telephony modules when it is not Twilio.
         if self._get_originate_provider(user) != 'twilio':
@@ -369,9 +374,7 @@ class Settings(models.Model):
         else:
             if whatsapp_call:
                 pbx_user = user.connect_user
-                sender = self.env['connect.whatsapp_sender'].get_default_sender(
-                    pbx_user
-                )
+                sender = whatsapp_sender
                 caller_number = sender.number if sender else False
                 if not caller_number:
                     raise ValidationError(

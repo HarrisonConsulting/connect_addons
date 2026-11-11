@@ -1,7 +1,7 @@
 /** @odoo-module **/
 "use strict"
 
-import {describe, expect, test} from "@odoo/hoot"
+import {animationFrame, describe, expect, test} from "@odoo/hoot"
 import {click, queryOne} from "@odoo/hoot-dom"
 import {EventBus} from "@odoo/owl"
 import {defineMailModels} from "@mail/../tests/mail_test_helpers"
@@ -28,6 +28,7 @@ const CALL_LINK = ".o_phone_form_link:not(.o_field_phone_whatsapp)"
 
 async function clickLink(selector) {
     const originates = []
+    onRpc("connect.user", "get_whatsapp_capabilities", () => ({call: true, message: true}))
     onRpc("connect.settings", "originate_call", ({args, kwargs}) => {
         const sent = Object.entries(kwargs).filter(([key]) => key !== "context")
         originates.push({args, kwargs: Object.fromEntries(sent)})
@@ -40,6 +41,7 @@ async function clickLink(selector) {
         readonly: true,
         arch: `<form><sheet><group><field name="phone" widget="phone"/></group></sheet></form>`,
     })
+    await animationFrame()
     // One Call link beside the two WhatsApp links, not one from each module.
     expect(CALL_LINK).toHaveCount(1)
     expect(".o_field_phone_whatsapp").toHaveCount(2)
@@ -92,4 +94,63 @@ test("a WhatsApp call carries its flag and this tab's nonce", async () => {
 test("a WhatsApp call with no softphone carries only its flag", async () => {
     const {originates} = await clickLink("[title='WhatsApp Call']")
     expect(originates).toEqual([{args: [NUMBER, "partner", 1], kwargs: {whatsapp_call: true}}])
+})
+
+async function mountWhatsAppField() {
+    await mountView({
+        type: "form", resModel: "partner", resId: 1, readonly: true,
+        arch: `<form><sheet><group><field name="phone" widget="phone"/></group></sheet></form>`,
+    })
+    await animationFrame()
+}
+
+test("no integration hides both WhatsApp actions while ordinary Call remains", async () => {
+    onRpc("connect.user", "get_whatsapp_capabilities", () => ({call: false, message: false}))
+    let ordinaryCalls = 0
+    onRpc("connect.settings", "originate_call", ({kwargs}) => {
+        expect(kwargs.whatsapp_call).toBe(undefined)
+        ordinaryCalls++
+        return false
+    })
+    await mountWhatsAppField()
+    expect(".o_field_phone_whatsapp").toHaveCount(0)
+    expect(CALL_LINK).toHaveCount(1)
+    await click(CALL_LINK)
+    expect(ordinaryCalls).toBe(1)
+})
+
+test("messaging registration exposes Message independently of Call", async () => {
+    onRpc("connect.user", "get_whatsapp_capabilities", () => ({call: false, message: true}))
+    await mountWhatsAppField()
+    expect("[title='WhatsApp Call']").toHaveCount(0)
+    expect("[title='Send WhatsApp Message']").toHaveCount(1)
+    expect(CALL_LINK).toHaveCount(1)
+})
+
+test("pending capability reads keep icons absent", async () => {
+    let resolve
+    const pending = new Promise((done) => { resolve = done })
+    onRpc("connect.user", "get_whatsapp_capabilities", async () => {
+        await pending
+        return {call: false, message: false}
+    })
+    await mountWhatsAppField()
+    expect(".o_field_phone_whatsapp").toHaveCount(0)
+    resolve()
+    await animationFrame()
+    expect(".o_field_phone_whatsapp").toHaveCount(0)
+})
+
+test("stale visible WhatsApp Call rechecks before originating", async () => {
+    let available = true
+    onRpc("connect.user", "get_whatsapp_capabilities", () => ({call: available, message: available}))
+    let attempts = 0
+    onRpc("connect.settings", "originate_call", () => { attempts++; return false })
+    await mountWhatsAppField()
+    expect("[title='WhatsApp Call']").toHaveCount(1)
+    available = false
+    await click("[title='WhatsApp Call']")
+    await animationFrame()
+    expect(attempts).toBe(0)
+    expect(".o_field_phone_whatsapp").toHaveCount(0)
 })

@@ -20,15 +20,23 @@ class TestWhatsappOriginate(TwilioTestCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # No client_enabled: that needs a username + SIP domain, and this
-        # test only inspects the arguments handed to the Twilio client.
-        # originate_provider is explicit: with more than one telephony
-        # module installed the dispatcher refuses to guess.
+        # Configure a locally usable WhatsApp voice path; all provider clients
+        # remain fixtures. Explicit routing keeps multiple installed adapters
+        # from guessing the caller's selected service.
+        cls.application = cls.env['connect.twilio.twiml'].with_context(install_mode=True).create({
+            'name': 'WhatsApp voice test', 'sid': 'AP' + '1' * 32,
+        })
+        with patch.object(type(cls.env['connect.settings']), 'get_client', return_value=None):
+            cls.domain = cls.env['connect.twilio.domain'].with_context(no_twilio_create=True).create({
+                'friendly_name': 'WhatsApp voice test', 'subdomain': 'whatsappvoice',
+            })
         cls.pbx_user = cls._create_connect_user(
-            'wa_caller', originate_provider='twilio')
+            'wa_caller', originate_provider='twilio', username='wacaller',
+            domain=cls.domain.id, client_enabled=True)
         cls.caller = cls.pbx_user.user
         cls.env['connect.whatsapp_sender'].sudo().create({
-            'number': '+19990001111', 'status': 'ONLINE'})
+            'number': '+19990001111', 'status': 'ONLINE', 'sid': 'XE' + '1' * 32,
+            'voice_application': cls.application.id})
         # No outgoing_callerid fixture: creating a default one requires a
         # validated number. What matters here is only that the outer leg's
         # From is never the whatsapp: identity, whatever it falls back to.

@@ -7,7 +7,7 @@ import string
 from urllib.parse import urljoin
 
 from odoo import fields, models, api, release
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 if release.version_info[0] >= 19:
     from odoo.models import Constraint
 from twilio.jwt.access_token import AccessToken
@@ -203,6 +203,22 @@ class User(models.Model):
         'SIP Connect URI', compute='_get_sip_uri'
     )
     application = fields.Many2one('connect.twilio.twiml')
+    @api.model
+    def get_whatsapp_capabilities(self):
+        """Expose only this authenticated actor's current local capabilities."""
+        try:
+            sender = self.env['connect.whatsapp_sender'].get_default_sender(self.env.user)
+            return sender._whatsapp_capabilities() if sender else {'call': False, 'message': False}
+        except (AccessError, UserError):
+            return {'call': False, 'message': False}
+
+    @api.model
+    def _get_usable_whatsapp_sender(self, operation):
+        sender = self.env['connect.whatsapp_sender'].get_default_sender(self.env.user)
+        if not sender or not sender._whatsapp_capabilities().get(operation):
+            raise ValidationError('WhatsApp %s is not available for this user.' % operation)
+        return sender
+
     whatsapp_sender_id = fields.Many2one(
         'connect.whatsapp_sender',
         string='WhatsApp Sender',

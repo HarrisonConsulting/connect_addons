@@ -58,8 +58,38 @@ export class LineSelector extends Component {
         onChangeHow: Function,
     }
 
+    get choices() {
+        return this.props.lines.flatMap((line) => {
+            const numbers = line.callerIds.length ? line.callerIds : [line.defaultCallerId || '']
+            return numbers.map((number) => ({
+                key: JSON.stringify([line.key, number]), line, number,
+                label: number ? number.slice(-4) : line.label,
+                title: [line.label, number, this.problem(line)].filter(Boolean).join(' · '),
+                selected: line.key === this.props.line.key && number === (this.props.callerId || ''),
+            }))
+        })
+    }
+
     get usesDropdown() {
-        return this.props.lines.length >= 4
+        return this.choices.length >= 6
+    }
+
+    selectChoice(key) {
+        const choice = this.choices.find((item) => item.key === key)
+        if (!choice || this.props.readonly) return
+        this.props.onSelect(choice.line.key)
+        if (choice.number) this.props.onPickCallerId(choice.number)
+    }
+
+    onChoiceKeydown(ev, key) {
+        if (this.props.readonly || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(ev.key)) return
+        ev.preventDefault()
+        const choices = this.choices
+        const index = choices.findIndex((choice) => choice.key === key)
+        const next = ev.key === 'Home' ? 0 : ev.key === 'End' ? choices.length - 1
+            : (index + (['ArrowLeft', 'ArrowUp'].includes(ev.key) ? -1 : 1) + choices.length) % choices.length
+        this.selectChoice(choices[next].key)
+        ev.currentTarget.parentElement.querySelectorAll('[role="radio"]')[next]?.focus()
     }
 
     /** What is wrong with a line, in words, or nothing. */

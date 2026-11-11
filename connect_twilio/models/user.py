@@ -94,6 +94,31 @@ class User(models.Model):
         return self.env['connect.twilio.exten'].create_extension(
             self, 'connect.user', current_exten=self.twilio_exten)
 
+    def _twilio_phone_caller_ids(self):
+        """An assigned/default identity; administrators may choose any account identity."""
+        self.ensure_one()
+        callers = self.env['connect.twilio.outgoing_callerid'].sudo()
+        preferred = self.twilio_outgoing_callerid.sudo()
+        defaults = callers.search([('is_default', '=', True)])
+        allowed = defaults
+        # The webhook runs as a service user (and often sudo). Check the
+        # caller's actual group membership, never the executing environment.
+        group_field = 'group_ids' if release.version_info[0] >= 19 else 'groups_id'
+        if self.user and self.env.ref('connect.group_admin') in self.user.sudo()[group_field]:
+            allowed = callers.search([])
+        # mapped() on a union is not an ordering contract. Keep the assigned
+        # identity first even when its record ID sorts after the default.
+        return list(dict.fromkeys(
+            preferred.mapped('number') + defaults.mapped('number') + allowed.mapped('number')))
+
+    def _twilio_external_caller_id(self, requested=False):
+        """Resolve a voice identity using the caller's assigned/default scope."""
+        self.ensure_one()
+        allowed = self._twilio_phone_caller_ids()
+        if requested and requested not in allowed:
+            raise ValidationError('That caller ID is not available on your line.')
+        return requested or (allowed[0] if allowed else False)
+
     def twilio_caller_id(self):
         """Caller ID to present for calls this user places.
 
@@ -813,6 +838,7 @@ class User(models.Model):
                 # user can see which identity the phone is and what the far
                 # end will see, without leaving the panel.
                 'exten': user.twilio_exten_number or '',
+                'caller_ids': user._twilio_phone_caller_ids(),
                 'outgoing_callerid': (
                     user.twilio_outgoing_callerid.number
                     or self.env['connect.twilio.outgoing_callerid']

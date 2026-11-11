@@ -92,13 +92,13 @@ test("two or three lines are chips, by name", async () => {
     expect(".o_phone_line_chip.active").toHaveText("Desk")
 })
 
-test("four lines are a dropdown, and it selects", async () => {
+test("six choices are a dropdown, and it selects", async () => {
     const phone = await mountNamed(
-        makeLine("desk", "Desk"), makeLine("sales", "Sales"), makeLine("night", "Night"), makeLine("day", "Day"))
+        makeLine("desk", "Desk"), makeLine("sales", "Sales"), makeLine("night", "Night"), makeLine("day", "Day"), makeLine("east", "East"), makeLine("west", "West"))
     expect(".o_phone_line_chip").toHaveCount(0)
-    expect(".o_phone_line_dropdown option").toHaveCount(4)
+    expect(".o_phone_line_dropdown option").toHaveCount(6)
     await click(".o_phone_line_dropdown")
-    await select("night", {target: ".o_phone_line_dropdown"})
+    await select(JSON.stringify(["night", ""]), {target: ".o_phone_line_dropdown"})
     await animationFrame()
     expect(phone.activeLine.key).toBe("night")
     expect(browser.localStorage.getItem(STORAGE_KEY)).toBe("night")
@@ -212,9 +212,9 @@ test("a dropped line says so, and no other line takes the call", async () => {
 test("the row is read-only during a call, and selecting does nothing", async () => {
     const dials = watchDials()
     const phone = await mountTwo({caller_ids: ["+15550101", "+15550102"]})
-    await click(".o_phone_line_chip:last")
+    await click(".o_phone_line_chip:nth-child(2)")
     await animationFrame()
-    expect(".o_phone_line_caller_id_picker").toHaveCount(1)
+    expect(".o_phone_line_chip[role=radio]").toHaveCount(3)
     expect(".o_phone_line_change").toHaveCount(1)
     phone.bus.trigger("busPhoneMakeCall", {phone: NUMBER})
     await waitUntil(() => dials.length > 0)
@@ -288,8 +288,8 @@ test("the caller ID a person picked is the one the dial carries", async () => {
     const phone = await mountTwo({caller_ids: ["+15550101", "+15550102"]})
     await click(".o_phone_line_chip:last")
     await animationFrame()
-    await click(".o_phone_line_caller_id_picker")
-    await select("+15550102", {target: ".o_phone_line_caller_id_picker"})
+    expect(".o_phone_line_chip.active").toHaveText("0102")
+    expect(".o_phone_line_chip.active").toHaveAttribute("aria-checked", "true")
     await animationFrame()
     phone.bus.trigger("busPhoneMakeCall", {phone: NUMBER})
     await waitUntil(() => dials.length > 0)
@@ -399,4 +399,23 @@ test("a waiting call rings by its own line's flag", async () => {
     ring(phone.lines[1])
     expect(phone.waitingSession).not.toBe(null)
     expect(phone._ringsInApp()).toBe(true)
+})
+
+
+test("one provider offers per-number radios and sends the selected full identity", async () => {
+    const dials = watchDials()
+    const phone = await mountNamed(makeLine("desk", "Twilio", {
+        caller_ids: ["+15745646338", "+15550002222"],
+    }))
+    expect(".o_phone_line_chip[role=radio]").toHaveCount(2)
+    expect(".o_phone_line_chip.active").toHaveText("6338")
+    expect(".o_phone_line_chip.active").toHaveAttribute("title", "Twilio · +15745646338")
+    expect(".o_phone_line_chip.active").toHaveAttribute("tabindex", "0")
+    await click(".o_phone_line_chip:last")
+    await animationFrame()
+    expect(".o_phone_line_chip.active").toHaveText("2222")
+    expect(".o_phone_line_chip.active").toHaveAttribute("aria-checked", "true")
+    phone.bus.trigger("busPhoneMakeCall", {phone: NUMBER})
+    await waitUntil(() => dials.length > 0)
+    expect(dials[0].params.CallerId).toBe("+15550002222")
 })

@@ -91,3 +91,11 @@ for (const [mode, readonly] of [["edit", false], ["readonly", true]]) {
         })
     })
 }
+
+test("a server call carries the From number currently selected on the phone", async () => {
+    const bus = mountBus({clickToCallLocal: false, clickToCallCallerId: '+15745646338'})
+    const {originates} = await clickCall(false)
+    expect(originates).toEqual([
+        {args: [NUMBER, "partner", 1], kwargs: {caller_id: '+15745646338'}},
+    ])
+})

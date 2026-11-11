@@ -1086,3 +1086,21 @@
     }
   }
 }
+
+.o_dial_suggestions {
+    max-height: 150px;
+    overflow-y: auto;
+    .o_dial_suggestion {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 6px 10px;
+        border: 0;
+        color: inherit;
+        background: transparent;
+        text-align: left;
+        &.active, &:hover, &:focus-visible { background: var(--bs-secondary-bg); }
+        small { white-space: nowrap; }
+    }
+}

@@ -5,36 +5,28 @@
         <div class="o_phone_line_selector" role="group" aria-label="From">
             <div class="o_phone_line_row">
                 <span class="o_phone_line_from">From</span>
-                <select t-if="usesDropdown" class="o_phone_line_dropdown" aria-label="Line"
-                        t-att-disabled="props.readonly"
-                        t-on-change="(ev) => props.onSelect(ev.target.value)">
-                    <option t-foreach="props.lines" t-as="item" t-key="item.key"
-                            t-att-value="item.key" t-att-selected="item.key === props.line.key">
-                        <t t-out="item.label"/><t t-if="problem(item)"> (not available)</t>
+                <select t-if="usesDropdown" class="o_phone_line_dropdown" aria-label="From number"
+                        t-att-disabled="props.readonly" t-on-change="(ev) => this.selectChoice(ev.target.value)">
+                    <option t-foreach="choices" t-as="item" t-key="item.key"
+                            t-att-value="item.key" t-att-selected="item.selected" t-att-title="item.title">
+                        <t t-out="item.title"/>
                     </option>
                 </select>
-                <t t-else="">
-                    <button t-foreach="props.lines" t-as="item" t-key="item.key" type="button"
-                            t-attf-class="o_phone_line_chip{{item.key === props.line.key ? ' active' : ''}}{{problem(item) ? ' o_phone_line_down' : ''}}"
-                            t-att-aria-pressed="item.key === props.line.key ? 'true' : 'false'"
-                            t-att-title="problem(item) ? item.label + ': ' + problem(item) : item.label"
-                            t-att-disabled="props.readonly"
-                            t-on-click="() => props.onSelect(item.key)">
+                <div t-else="" role="radiogroup" aria-label="From number" class="d-flex flex-wrap flex-grow-1">
+                    <button t-foreach="choices" t-as="item" t-key="item.key" type="button" role="radio"
+                            t-attf-class="o_phone_line_chip{{item.selected ? ' active' : ''}}{{problem(item.line) ? ' o_phone_line_down' : ''}}"
+                            t-att-tabindex="item.selected ? 0 : -1" t-on-keydown="(ev) => this.onChoiceKeydown(ev, item.key)"
+                            t-att-aria-checked="item.selected ? 'true' : 'false'" t-att-aria-label="item.title"
+                            t-att-title="item.title" t-att-disabled="props.readonly"
+                            t-on-click="() => this.selectChoice(item.key)">
                         <t t-out="item.label"/>
                     </button>
-                </t>
+                </div>
             </div>
             <div class="o_phone_line_caption">
                 <div t-if="props.callerId" class="o_phone_line_caller_id">
                     <span>Caller ID</span>
-                    <select t-if="!props.readonly and props.line.callerIds.length > 1" class="o_phone_line_caller_id_picker" aria-label="Caller ID"
-                            t-on-change="(ev) => props.onPickCallerId(ev.target.value)">
-                        <option t-foreach="props.line.callerIds" t-as="number" t-key="number"
-                                t-att-value="number" t-att-selected="number === props.callerId">
-                            <t t-out="number"/>
-                        </option>
-                    </select>
-                    <span t-else="" class="o_phone_line_caller_id_value" t-out="props.callerId"/>
+                    <span class="o_phone_line_caller_id_value" t-out="props.callerId"/>
                 </div>
                 <div class="o_phone_line_how">
                     <span t-if="problem(props.line)" class="o_phone_line_problem" t-att-title="problem(props.line)" t-out="problem(props.line)"/>

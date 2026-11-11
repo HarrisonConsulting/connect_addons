@@ -23,6 +23,8 @@ export const ALL_CAPABILITIES = Object.fromEntries([
 
 export async function mountLines(lines, extraProps = {}) {
     mockService("connect_audio", {play() {}})
+    onRpc("connect.user", "validate_dial_number", ({args}) => args[0])
+    onRpc("connect.user", "dialer_suggestions", () => [])
     // The phone reports presence as soon as its transport registers.
     onRpc("connect.user", "update_presence", () => true)
     // An answered call asks for its recording state.

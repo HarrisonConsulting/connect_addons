@@ -5,7 +5,7 @@ import re
 from datetime import timedelta
 
 from odoo import fields, models, api, release
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 if release.version_info[0] >= 19:
     from odoo.models import Constraint
 from .settings import debug
@@ -133,6 +133,82 @@ class User(models.Model):
                 vals['message_provider'] = message_key
             if vals:
                 user.with_context(connect_skip_provider_mirror=True).sudo().write(vals)
+
+    @api.model
+    def dialer_suggestions(self, query):
+        """Readable contacts only; phone formatting never grants record access."""
+        query = (query or '').strip()[:100]
+        if not query:
+            return []
+        partner_model = self.env['res.partner']
+        terms = [('name', 'ilike', query), ('phone', 'ilike', query),
+                 ('mobile', 'ilike', query)]
+        # A number typed without punctuation must also find a formatted phone
+        # on Community installations without phone_validation/phone_sanitized.
+        numeric_query = bool(re.fullmatch(r'[+0-9().\s-]+', query))
+        if numeric_query:
+            digits = re.sub(r'\D', '', query)
+            if digits:
+                pattern = '%'.join(digits)
+                terms.extend((field, 'ilike', pattern) for field in ('phone', 'mobile'))
+        if 'phone_sanitized' in partner_model._fields:
+            terms.append(('phone_sanitized', 'ilike', query))
+        domain = ['|'] * (len(terms) - 1) + terms
+        partners = partner_model.search(domain, limit=10, order='name,id')
+        result = []
+        for partner in partners:
+            seen = set()
+            for number in (partner.phone, partner.mobile):
+                if not number:
+                    continue
+                # A national trunk prefix may disappear during E.164 conversion.
+                # Match this specific source number as well as its normalized form;
+                # the contact's other phone must not become a numeric suggestion.
+                original_digits = re.sub(r'\D', '', number)
+                number = self.normalize_dial_number(number, partner.id)
+                if numeric_query and digits not in original_digits and digits not in re.sub(r'\D', '', number):
+                    continue
+                if number not in seen:
+                    seen.add(number)
+                    result.append({'key': '%s:%s' % (partner.id, number),
+                                   'name': partner.display_name, 'number': number,
+                                   'partner_id': partner.id})
+        return result[:10]
+
+    @api.model
+    def normalize_dial_number(self, number, partner_id=False):
+        """Infer national numbers with libphonenumber; preserve extensions and SIP."""
+        from .res_partner import format_number
+        number = (number or '').strip()
+        # E.164 formatting drops extensions. Split and append the original
+        # suffix so normalization cannot silently change the destination.
+        extension = re.search(r'\s*(?:ext\.?\s*|x\s*|#)\d+\s*$', number, re.I)
+        suffix = number[extension.start():] if extension else ''
+        base = number[:extension.start()].rstrip() if extension else number
+        if not re.fullmatch(r'[+0-9().\s-]+', base):
+            return number
+        digits = re.sub(r'\D', '', base)
+        if len(digits) < 7:
+            return number
+        partner = self.env['res.partner'].browse(partner_id).exists() if partner_id else False
+        if partner:
+            partner.check_access('read')
+        country = ((partner.country_id.code if partner else False)
+                   or self.env.user.partner_id.country_id.code or self.env.company.country_id.code)
+        if base.startswith('00'):
+            base = '+' + base[2:]
+        return format_number(self, base, country) + suffix
+
+    @api.model
+    def validate_dial_number(self, number, partner_id=False):
+        """Normalize a call destination and refuse unsupported PSTN post-dial extensions."""
+        number = self.normalize_dial_number(number, partner_id)
+        extension = re.search(r'\s*(?:ext\.?\s*|x\s*|#)\d+\s*$', number, re.I)
+        base = number[:extension.start()] if extension else number
+        if extension and re.fullmatch(r'[+0-9().\s-]+', base) and len(re.sub(r'\D', '', base)) >= 7:
+            raise UserError('Call the main number first, then enter the extension with the in-call keypad. '
+                            'Calling a number with an extension attached is not supported.')
+        return number
 
     @api.model
     def get_client_token(self, nonce=False):

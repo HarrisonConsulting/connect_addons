@@ -12,6 +12,7 @@ from . import test_voicemail
 from . import test_error_handling
 from . import test_domain
 from . import test_user
+from . import test_dialer_suggestions
 from . import test_tool_assignment
 from . import test_campaign_tool
 from . import test_customer_portal

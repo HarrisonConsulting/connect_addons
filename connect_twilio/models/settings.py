@@ -295,6 +295,8 @@ class Settings(models.Model):
                 number, res_model=res_model, res_id=res_id, user=user,
                 whatsapp_call=whatsapp_call, origin_nonce=origin_nonce, **kwargs)
         self.env["oduist.license"].check_license("connect", silent=False)
+        number = self.env['connect.user'].validate_dial_number(
+            number, res_id if res_model == 'res.partner' else False)
         number = strip_number(number)
         if len(number) > MAX_EXTEN_LEN:
             number = "+{}".format(number)
@@ -315,6 +317,9 @@ class Settings(models.Model):
             user = self.env.user
         if not user.connect_user:
             raise ValidationError("User does not have a SIP username defined!")
+        requested_caller = kwargs.get('caller_id') or kwargs.get('CallerId')
+        if requested_caller:
+            user.connect_user._twilio_external_caller_id(requested_caller)
         first_flow = self.env['connect.twilio.user_callflow'].search([
             ('user', '=', user.id),
             ('callflow_type', 'in', ['client', 'sip'])
@@ -380,13 +385,8 @@ class Settings(models.Model):
     </Dial>
 </Response>""".format(callerId, status_url, number)
             else:
-                default_number = self.env[
-                    "connect.twilio.outgoing_callerid"
-                ].search([("is_default", "=", True)], limit=1)
-                if user.connect_user.twilio_outgoing_callerid:
-                    callerId = user.connect_user.twilio_outgoing_callerid.number
-                else:
-                    callerId = default_number.number
+                callerId = user.connect_user._twilio_external_caller_id(
+                    kwargs.get('caller_id') or kwargs.get('CallerId'))
                 twiml = self.get_external_call_route(
                     number, callerId, status_url
                 )

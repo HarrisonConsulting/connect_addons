@@ -86,7 +86,7 @@ class Channel(models.Model):
             else 'phone'
         )
 
-        return {
+        mapped = {
             'sid': params['CallSid'],
             'caller': self._strip_exten_plus(strip_whatsapp(caller_raw)),
             'called': self._strip_exten_plus(strip_whatsapp(called_raw)),
@@ -97,6 +97,30 @@ class Channel(models.Model):
             'call_type': call_type,
             'parent_sid': params.get('ParentCallSid'),
         }
+
+        external_target = called_raw
+        if isinstance(external_target, str) and external_target.startswith('sip:'):
+            external_target = external_target[4:].split('@', 1)[0]
+
+        # The initial SDK leg identifies the user, while the child PSTN leg
+        # presents the chosen voice identity. Keep both facts in the ledger.
+        if (isinstance(caller_raw, str)
+                and caller_raw.startswith(('client:', 'sip:'))
+                and isinstance(external_target, str) and external_target.startswith('+')
+                and not self.env['connect.twilio.exten'].sudo().search_count(
+                    [('number', '=', external_target)], limit=1)):
+            caller_user = self.env['connect.user'].get_user_by_uri(caller_raw)
+            if caller_user:
+                if params.get('CallerId'):
+                    mapped['caller'] = caller_user._twilio_external_caller_id(params['CallerId'])
+                else:
+                    existing = self.sudo().search([('sid', '=', params['CallSid'])], limit=1)
+                    if existing.caller_pbx_user == caller_user and (existing.caller or '').startswith('+'):
+                        mapped['caller'] = existing.caller
+                    else:
+                        mapped['caller'] = caller_user._twilio_external_caller_id() or caller_raw
+                mapped['caller_pbx_user_id'] = caller_user.id
+        return mapped
 
     def _twilio_recording_call_sids(self):
         """Call SIDs that may carry a recording for this channel.

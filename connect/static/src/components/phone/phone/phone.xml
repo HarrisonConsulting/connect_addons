@@ -60,7 +60,7 @@
                 </button>
             </div>
             <!--From row: only with two or more lines-->
-            <LineSelector t-if="isMultiLine and state.activeTab !== 'work' and !state.isAudioSettings"
+            <LineSelector t-if="hasNumberChoices and state.activeTab !== 'work' and !state.isAudioSettings"
                           lines="lines"
                           line="activeLine"
                           callerId="callerIdOf(activeLine)"
@@ -126,8 +126,17 @@
             <div t-attf-class="{{state.isKeypad ? '' : 'o_hide'}} o_body_phone">
                 <div class="o_phone_number_content">
                     <label t-if="isMultiLine" class="o_phone_to_label">To</label>
-                    <input class="o_phone_number_input" type="tel" t-ref="connect-phone-input" t-on-keyup="debounceEnterPhoneNumber" placeholder="Enter name or number" autocomplete="off"/>
+                    <input class="o_phone_number_input" type="tel" t-ref="connect-phone-input" t-on-input="_onDialInput" t-on-keydown="_onDialKeydown" role="combobox" aria-autocomplete="list" aria-controls="connect-dial-suggestions" t-att-aria-expanded="state.dialSuggestions.length ? 'true' : 'false'" t-att-aria-activedescendant="state.dialSuggestionIndex >= 0 ? 'connect-dial-option-' + state.dialSuggestionIndex : undefined" placeholder="Enter name or number" autocomplete="off"/>
                     <div aria-label="Backspace" class="fa fa-long-arrow-left o_phone_number_back" role="img" title="Backspace" t-on-click="_onClickBackSpace"/>
+                </div>
+                <div t-if="state.dialSuggestions.length" id="connect-dial-suggestions" role="listbox" class="o_dial_suggestions">
+                    <button t-foreach="state.dialSuggestions" t-as="item" t-key="item.key" type="button" role="option"
+                            t-att-id="'connect-dial-option-' + item_index"
+                            t-att-aria-selected="item_index === state.dialSuggestionIndex ? 'true' : 'false'"
+                            t-attf-class="o_dial_suggestion{{item_index === state.dialSuggestionIndex ? ' active' : ''}}"
+                            t-on-click="() => this._completeDialSuggestion(item)">
+                        <span t-out="item.name"/><small t-out="item.number"/>
+                    </button>
                 </div>
                 <div class="o_keypad" t-if="!state.isContactList">
                     <button class="o_keypad_button" t-on-click="_onClickKeypadButton">1</button>

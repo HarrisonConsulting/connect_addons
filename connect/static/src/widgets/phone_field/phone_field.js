@@ -15,7 +15,10 @@ patch(PhoneField.prototype, {
         e.preventDefault()
         if (bus.clickToCallLocal) {
             // Dial from this browser, so the audio stays on the device that clicked.
-            bus.trigger("busPhoneMakeCall", {phone: this.props.record.data[this.props.name]})
+            const {resModel, resId} = this.props.record.model.config
+            const destination = {phone: this.props.record.data[this.props.name]}
+            if (resModel === "res.partner") destination.partnerId = resId
+            bus.trigger("busPhoneMakeCall", destination)
             return
         }
         // The phone holds the From selection, so it answers both of these at the click.
@@ -29,6 +32,9 @@ patch(PhoneField.prototype, {
         const args = [this.props.record.data[this.props.name], resModel, resId]
         const kwargs = {...extraKwargs}
         const bus = window.connectBus
+        if (bus?.clickToCallCallerId) {
+            kwargs.caller_id = bus.clickToCallCallerId
+        }
         if (bus && bus.browserSessionNonce) {
             kwargs.origin_nonce = bus.browserSessionNonce
         }

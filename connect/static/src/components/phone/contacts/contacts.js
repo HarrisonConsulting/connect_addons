@@ -133,10 +133,12 @@ export class Contacts extends Component {
 
     _contactCall() {
         let phoneNumber
+        let partnerId
         if (this.state.partners.length + this.state.users.length === 1) {
             if (this.state.partners.length) {
                 const contact = this.state.partners[0]
                 phoneNumber = contact.phone ? contact.phone : contact.mobile
+                partnerId = contact.id
             } else {
                 phoneNumber = this.state.users[0].exten_number
             }
@@ -147,7 +149,7 @@ export class Contacts extends Component {
         if (this.isTransfer) {
             this._onClickMakeTransfer(phoneNumber)
         } else if (this.isContact) {
-            this._onClickMakeCall(phoneNumber)
+            this._onClickMakeCall(phoneNumber, partnerId)
         } else if (this.isAddParticipant) {
             this._onClickAddParticipant(phoneNumber)
         }
@@ -168,7 +170,7 @@ export class Contacts extends Component {
                     ['phone', '=ilike', `%${self.searchQuery}%`],
                     ['mobile', '=ilike', `%${self.searchQuery}%`],
                 ],
-                ['id', 'name', 'email', 'phone', 'mobile', 'phone_sanitized', 'commercial_company_name'],
+                ['id', 'name', 'email', 'phone', 'mobile', 'commercial_company_name'],
                 {order: 'name asc', limit: 10}
             ).then((records) => {
                 self.state.partners = records
@@ -195,8 +197,8 @@ export class Contacts extends Component {
         }
     }
 
-    _onClickMakeCall(phoneNumber) {
-        this.bus.trigger('busPhoneMakeCall', {phone: phoneNumber})
+    _onClickMakeCall(phoneNumber, partnerId = false) {
+        this.bus.trigger('busPhoneMakeCall', {phone: phoneNumber, partnerId})
     }
 
     _onClickMakeTransfer(phoneNumber) {

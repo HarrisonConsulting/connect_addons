@@ -57,8 +57,8 @@
                                     <div t-if="partner.commercial_company_name and partner.commercial_company_name !== partner.name" class="o_contact_company">
                                         <span class="text-muted small"><t t-out="partner.commercial_company_name"/></span>
                                     </div>
-                                    <div t-if="partner.phone_sanitized">
-                                        <span class="icon-phone o_contact_phone"><t t-out="partner.phone_sanitized"/></span>
+                                    <div t-if="partner.phone">
+                                        <span class="icon-phone o_contact_phone"><t t-out="partner.phone"/></span>
                                     </div>
                                     <div t-elif="partner.mobile">
                                         <span class="fa-mobile o_contact_phone"><t t-out="partner.mobile"/></span>
@@ -68,13 +68,13 @@
                             <td class="o_contact_call_button">
                                 <div class="d-flex">
                                     <div class="o_button_container">
-                                        <!-- Use phone_sanitized first, fallback to mobile -->
-                                        <t t-set="callNumber" t-value="partner.phone_sanitized or partner.mobile"/>
+                                        <!-- Use phone first, fallback to mobile. -->
+                                        <t t-set="callNumber" t-value="partner.phone or partner.mobile"/>
                                         <t t-if="callNumber">
                                             <button t-if="isTransfer" t-attf-title="Transfer to {{callNumber}}" t-on-click="() => this._onClickMakeTransfer(callNumber)">
                                                 <i class="fa icon-phone"/>
                                             </button>
-                                            <button t-if="isContact" t-attf-title="Call {{callNumber}}" t-on-click="() => this._onClickMakeCall(callNumber)">
+                                            <button t-if="isContact" t-attf-title="Call {{callNumber}}" t-on-click="() => this._onClickMakeCall(callNumber, partner.id)">
                                                 <i class="fa icon-phone"/>
                                             </button>
                                             <button t-if="isAddParticipant" t-attf-title="Add {{callNumber}} to call" t-on-click="() => this._onClickAddParticipant(callNumber)">

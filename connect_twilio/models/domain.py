@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from odoo import fields, models, api, release
 if release.version_info[0] >= 19:
     from odoo.models import Constraint
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from twilio.twiml.voice_response import Client, Dial, VoiceResponse
 from odoo.addons.connect.models.settings import debug
 from .settings import format_connect_response, TWILIO_EDGES
@@ -516,6 +516,14 @@ class Domain(models.Model):
     def route_call(self, request, params={}):
         if not self.env["oduist.license"].check_license('connect'):
             return '<Response><Say>Service unavailable.</Say></Response>'
+        if request.get('CallerId'):
+            caller = self.env['connect.user'].get_user_by_uri(request.get('Caller'))
+            try:
+                if not caller:
+                    raise ValidationError('Unknown caller.')
+                caller._twilio_external_caller_id(request['CallerId'])
+            except ValidationError:
+                return '<Response><Say>That caller ID is not available on your line.</Say></Response>'
         debug(self, "Domain call to %s" % request.get("To"))
         # Create call + channel
         self.env["connect.call"].on_call_status(request)
@@ -584,16 +592,22 @@ class Domain(models.Model):
             return "<Response><Say>Extension not found. Goodbye! </Say></Response>"
 
     def originate_external_call(self, number, request, params={}):
+        try:
+            number = self.env['connect.user'].validate_dial_number(number)
+        except UserError:
+            return '<Response><Say>Call the main number first, then enter the extension with the in-call keypad.</Say></Response>'
         debug(self, "Outgoing call to %s" % number)
-        default_number = self.env["connect.twilio.outgoing_callerid"].search(
-            [("is_default", "=", True)], limit=1
-        )
-        # Find the user by caller.
         user = self.env["connect.user"].get_user_by_uri(request.get("Caller"))
-        if user and user.twilio_outgoing_callerid:
-            callerId = user.twilio_outgoing_callerid.number
-        else:
-            callerId = default_number.number if default_number else False
+        try:
+            if user:
+                callerId = user._twilio_external_caller_id(request.get('CallerId'))
+            elif request.get('CallerId'):
+                raise ValidationError('That caller ID is not available on your line.')
+            else:
+                callerId = self.env['connect.twilio.outgoing_callerid'].sudo().search(
+                    [('is_default', '=', True)], limit=1).number
+        except ValidationError:
+            return "<Response><Say>That caller ID is not available on your line.</Say></Response>"
         if not callerId:
             return "<Response><Say>You must select a default number for caller ID!</Say></Response>"
         response = VoiceResponse()

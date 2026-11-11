@@ -120,6 +120,7 @@ export class Phone extends Component {
         Object.defineProperties(this.bus, {
             clickToCallLocal: {configurable: true, get: () => this.clickToCallLocal},
             clickToCallToolId: {configurable: true, get: () => this.clickToCallToolId},
+            clickToCallCallerId: {configurable: true, get: () => this.callerIdOf(this.selectedLine)},
         })
         this.callStatus = {
             NoAnswer: 'noanswer',
@@ -169,6 +170,8 @@ export class Phone extends Component {
             isContactList: false,
             isWhatsapp: false,
             phoneNumber: '',
+            dialSuggestions: [],
+            dialSuggestionIndex: -1,
             callPhoneNumber: '',
             contact_search_query: '',
             user_search_query: '',
@@ -329,6 +332,10 @@ export class Phone extends Component {
         this._showLineStatus()
     }
 
+    get hasNumberChoices() {
+        return this.isMultiLine || this.lines.some((line) => line.callerIds.length > 1)
+    }
+
     callerIdOf(line) {
         return this.state.pickedCallerIds[line.key] || line.defaultCallerId
     }
@@ -425,9 +432,11 @@ export class Phone extends Component {
             }
         }
 
-        this.debounceEnterPhoneNumber = useDebounced((ev) => {
-            this._onEnterPhoneNumber(ev)
-        }, 400)
+        this.debounceEnterPhoneNumber = useDebounced(() => this._searchDialSuggestions(), 250)
+        this._dialQueryVersion = 0
+        this._dialHistory = null
+        this._dialHistoryIndex = -1
+        this._dialDraft = ''
 
         // The systray button IS the phone's status light: it renders connecting /
         // offline / error / ringing / in-call, so the user never needs a toast to
@@ -775,6 +784,8 @@ export class Phone extends Component {
         })
 
         onWillUnmount(() => {
+            this._dialDisposed = true
+            this._dialQueryVersion++
             this._stopIncomingRing()
             window.removeEventListener("beforeunload", this._beforeUnloadHandler)
             window.removeEventListener("unload", this._unloadHandler)
@@ -1148,21 +1159,34 @@ export class Phone extends Component {
         this.state.isCollapsed = false
     }
 
-    async prepareCall(props) {
+    async prepareCall(props, dialDraft) {
         if (this._isDialBusy()) {
             this._refuseBusyDial(props)
             return
         }
         this._preparingCall = true
         try {
+            const phone = await this.orm.call('connect.user', 'validate_dial_number', [props.phone, props.partnerId || false])
+            this._clearDialSuggestions()
             this.state.isContactList = false
-            this.state.callPhoneNumber = props.phone
-            await this.searchPartner(props.phone)
+            // Commit the keypad draft only after the server accepts it. Preserve
+            // edits made while validation was pending, and retain refused drafts.
+            if (typeof dialDraft === 'string' && this.state.phoneNumber === dialDraft) {
+                this._dialHistory = null
+                this.state.phoneNumber = ''
+                this.phoneInput.el.value = ''
+            }
+            props = {...props, phone}
+            this.state.callPhoneNumber = phone
+            await this.searchPartner(phone)
+        } catch (error) {
+            this._refuseDial(error.data?.message || error.message || _t("Check the number before calling."))
+            return
         } finally {
             this._preparingCall = false
         }
         // A call may have rung, here or on another line, during that lookup.
-        if (this.state.inCall) {
+        if (this.state.inCall || this.state.inIncoming || this._dialDisposed) {
             this._refuseBusyDial(props)
             return
         }
@@ -1312,6 +1336,11 @@ export class Phone extends Component {
     async makeCall(props) {
         const self = this
         let phoneNumber = props.phone
+        // Defend callers that enter makeCall directly, before SDK or call history.
+        if (/^[+0-9().\s-]{7,}\s*(?:ext\.?\s*|x\s*|#)\d+\s*$/i.test(phoneNumber)) {
+            self._refuseDial(_t("Call the main number first, then enter the extension with the in-call keypad. Calling a number with an extension attached is not supported."))
+            return
+        }
         const line = self._lineToDial(props.lineKey)
         if (!line) {
             self._refuseDial(_t("The line this call was on is no longer one of your lines, so nothing was dialed. Choose a line and dial from the keypad."))
@@ -1356,7 +1385,7 @@ export class Phone extends Component {
             To: phoneNumber,
             Called: phoneNumber,
         }
-        if (self.isMultiLine && line.callerIds.length) {
+        if (line.callerIds.length) {
             params.CallerId = self.callerIdOf(line)
         }
 
@@ -1513,6 +1542,7 @@ export class Phone extends Component {
     }
 
     startCall() {
+        this._clearDialSuggestions()
         this.state.inCall = true
         this.state.isDialingPanel = true
         this.state.isContacts = false
@@ -1924,11 +1954,12 @@ export class Phone extends Component {
     }
 
     _onClickMakeCall(ev) {
+        if (this.state.phoneNumber && !/^[+0-9().\s*#-]+(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(this.state.phoneNumber.trim())) {
+            return
+        }
         if (this.state.phoneNumber) {
-            this.state.callPhoneNumber = this.state.phoneNumber.replace(/\(|\)|-| /gm, '')
-            this.state.phoneNumber = ''
-            this.phoneInput.el.value = this.state.phoneNumber
-            this.prepareCall({phone: this.state.callPhoneNumber})
+            const draft = this.state.phoneNumber
+            return this.prepareCall({phone: draft}, draft)
         } else {
             this.notify("The phone call has no number!", {sticky: false})
         }
@@ -2411,6 +2442,7 @@ export class Phone extends Component {
         } else {
             this.state.phoneNumber += ev.target.textContent
             this.phoneInput.el.value = this.state.phoneNumber
+            this._onDialInput({target: this.phoneInput.el})
         }
         this.phoneInput.el.focus()
     }
@@ -2419,6 +2451,7 @@ export class Phone extends Component {
         setFocus(this.phoneInput.el)
         this.state.phoneNumber = this.state.phoneNumber.slice(0, -1)
         this.phoneInput.el.value = this.state.phoneNumber
+        this._onDialInput({target: this.phoneInput.el})
         if (this.state.isContactList) {
             this.bus.trigger('busContactSearchQuery', {searchQuery: this.phoneInput.el.value})
         }
@@ -2434,19 +2467,128 @@ export class Phone extends Component {
     }
 
 
-    _onEnterPhoneNumber(ev) {
-        if (this.state.inCall) {
-            this.sendDTMF(ev.key)
-        } else {
-            if (ev.key === "Enter") {
-                this._onClickMakeCall()
-            } else {
-                this.state.phoneNumber = this.phoneInput.el.value
-                this.state.isContactList = this.state.phoneNumber !== ''
-                this.bus.trigger('busContactSetState', {isContact: true})
-                this.bus.trigger('busContactSearchQuery', {searchQuery: this.phoneInput.el.value})
+    _onDialInput(ev) {
+        if (this.state.inCall || this.state.inIncoming) return
+        this._dialCompletedNumber = null
+        this.state.phoneNumber = ev.target.value
+        // The inline combobox owns focus; the Contacts tab keeps its own search.
+        this.state.isContactList = false
+        this.state.dialSuggestionIndex = -1
+        this._dialHistoryIndex = -1
+        this._dialQueryVersion++
+        this.state.dialSuggestions = []
+        this.debounceEnterPhoneNumber()
+    }
+
+    _clearDialSuggestions() {
+        this._dialQueryVersion++
+        this.state.dialSuggestions = []
+        this.state.dialSuggestionIndex = -1
+    }
+
+    _canEditDial() {
+        return !this._dialDisposed && !this.state.inCall && !this.state.inIncoming && !this._preparingCall
+    }
+
+    async _searchDialSuggestions() {
+        const query = this.state.phoneNumber
+        const version = this._dialQueryVersion
+        if (!query.trim() || !this._canEditDial() || this._dialHistoryIndex >= 0) return
+        if (this._dialCompletedNumber === query) return []
+        try {
+            const matches = await this.orm.call('connect.user', 'dialer_suggestions', [query])
+            if (this._canEditDial() && version === this._dialQueryVersion && query === this.state.phoneNumber) {
+                this.state.dialSuggestions = matches
+                return matches
             }
+        } catch {
+            if (this._canEditDial() && version === this._dialQueryVersion) this.state.dialSuggestions = []
         }
+    }
+
+    _completeDialSuggestion(item) {
+        if (!this._canEditDial()) return
+        this._dialQueryVersion++
+        this._dialCompletedNumber = item.number
+        this.state.phoneNumber = item.number
+        this.phoneInput.el.value = item.number
+        this.state.dialSuggestions = []
+        this.state.dialSuggestionIndex = -1
+        this._dialHistoryIndex = -1
+        this._dialDraft = item.number
+        this.phoneInput.el.focus()
+    }
+
+    async _onDialKeydown(ev) {
+        if (this.state.inCall) {
+            if (/^[0-9*#A-D]$/i.test(ev.key)) {
+                ev.preventDefault()
+                this.sendDTMF(ev.key)
+            }
+            return
+        }
+        if (!this._canEditDial() || !['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(ev.key)) return
+        ev.preventDefault()
+        ev.stopPropagation()
+        if (ev.key === 'Escape') {
+            this._dialQueryVersion++
+            this.state.dialSuggestions = []
+            this.state.dialSuggestionIndex = -1
+            return
+        }
+        if (this._dialHistoryIndex < 0 && this.state.dialSuggestions.length && ev.key !== 'ArrowUp') {
+            if (ev.key === 'ArrowDown') {
+                this.state.dialSuggestionIndex = (this.state.dialSuggestionIndex + 1) % this.state.dialSuggestions.length
+            } else {
+                this._completeDialSuggestion(this.state.dialSuggestions[Math.max(0, this.state.dialSuggestionIndex)])
+            }
+            return
+        }
+        if (ev.key === 'Enter') {
+            // Flush the lookup before deciding: Enter during debounce must fill a
+            // contact, never send the partially typed name/number to a carrier.
+            const version = this._dialQueryVersion
+            const matches = this._dialHistoryIndex < 0 && this._dialCompletedNumber !== this.state.phoneNumber
+                ? await this._searchDialSuggestions() : []
+            if (!this._canEditDial() || version !== this._dialQueryVersion || !Array.isArray(matches)) return
+            if (matches.length) {
+                this._completeDialSuggestion(matches[0])
+            } else if (/^[+0-9().\s*#-]+(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(this.state.phoneNumber.trim())) {
+                this._onClickMakeCall()
+            }
+            return
+        }
+        if (ev.key === 'ArrowDown' && this._dialHistoryLoading) {
+            this._clearDialSuggestions()
+            return
+        }
+        if (ev.key === 'ArrowDown' && this._dialHistoryIndex < 0) return
+        if (ev.key === 'ArrowUp') {
+            if (this._dialHistoryLoading) return
+            if (this._dialHistoryIndex < 0) {
+                this._dialDraft = this.state.phoneNumber
+                this._clearDialSuggestions()
+            }
+            if (!this._dialHistory) {
+                this._dialHistoryLoading = true
+                const version = this._dialQueryVersion
+                try {
+                    const records = await this.orm.searchRead('connect.call',
+                        [['caller_user', '=', uid]], ['called'], {order: 'id desc', limit: 30})
+                    if (version !== this._dialQueryVersion || !this._canEditDial()) return
+                    this._dialHistory = [...new Set(records.map((call) => call.called).filter(Boolean))]
+                } catch {
+                    return
+                } finally {
+                    this._dialHistoryLoading = false
+                }
+            }
+            this._dialHistoryIndex = Math.min(this._dialHistoryIndex + 1, this._dialHistory.length - 1)
+        } else {
+            this._dialHistoryIndex = Math.max(-1, this._dialHistoryIndex - 1)
+        }
+        this.state.phoneNumber = this._dialHistoryIndex < 0 ? this._dialDraft : this._dialHistory[this._dialHistoryIndex]
+        this.phoneInput.el.value = this.state.phoneNumber
     }
 
     _createPartner() {

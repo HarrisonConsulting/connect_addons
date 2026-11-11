@@ -8,7 +8,7 @@ ledger as a bogus caller.
 from unittest.mock import MagicMock, patch
 from xml.etree import ElementTree
 
-from odoo import Command, release
+from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 
 from odoo.tests import tagged
@@ -173,13 +173,21 @@ class TestUserCallerId(TwilioTestCommon):
 
     def test_admin_can_choose_all_but_sudo_does_not_grant_membership(self):
         own, default, other = self._voice_choices()
-        field = 'group_ids' if release.version_info[0] >= 19 else 'groups_id'
-        self.pbx_user.user.write({field: [Command.link(self.env.ref('connect.group_admin').id)]})
+        self.pbx_user.user.write({'group_ids': [Command.link(self.env.ref('connect.group_admin').id)]})
         choices = self.pbx_user.sudo()._twilio_phone_caller_ids()
         self.assertEqual(choices[0], own.number)
         self.assertIn(default.number, choices)
         self.assertIn(other.number, choices)
         self.assertEqual(len(choices), len(set(choices)))
+
+    def test_admin_through_an_implying_group_can_choose_all(self):
+        own, default, other = self._voice_choices()
+        implying = self.env['res.groups'].create({
+            'name': 'Implies Connect admin',
+            'implied_ids': [Command.link(self.env.ref('connect.group_admin').id)],
+        })
+        self.pbx_user.user.write({'group_ids': [Command.link(implying.id)]})
+        self.assertIn(other.number, self.pbx_user.sudo()._twilio_phone_caller_ids())
 
     def test_domain_uses_allowed_choice_and_denies_forgery(self):
         own, default, other = self._voice_choices()

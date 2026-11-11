@@ -103,8 +103,7 @@ class User(models.Model):
         allowed = defaults
         # The webhook runs as a service user (and often sudo). Check the
         # caller's actual group membership, never the executing environment.
-        group_field = 'group_ids' if release.version_info[0] >= 19 else 'groups_id'
-        if self.user and self.env.ref('connect.group_admin') in self.user.sudo()[group_field]:
+        if self.user and self.user.sudo().has_group('connect.group_admin'):
             allowed = callers.search([])
         # mapped() on a union is not an ordering contract. Keep the assigned
         # identity first even when its record ID sorts after the default.

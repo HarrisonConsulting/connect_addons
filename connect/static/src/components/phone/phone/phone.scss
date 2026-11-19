@@ -288,70 +288,14 @@
       }
     }
 
-    // Suggestion/Contact list
-    .o_suggestion {
-      flex: 1;
-      overflow: auto;
+    // The keypad keeps the 18px number. A name search in the same box is a
+    // query, and at that size it crowded the results out of a 300px panel.
+    .o_contacts_panel .o_phone_number_content {
+      padding: 4px 12px;
 
-      .o_contact_table {
-        width: 100%;
-
-        tr {
-          border-bottom: 1px solid var(--Phone-border);
-          transition: background-color 0.15s ease;
-
-          &:hover {
-            background-color: var(--Phone-hover-bg);
-            cursor: pointer;
-          }
-        }
-
-        .o_contact_avatar {
-          padding: 8px;
-          width: 50px;
-          height: 50px;
-
-          img {
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-          }
-        }
-
-        .o_contact_info {
-          cursor: default;
-          font-size: 14px;
-          color: var(--Phone-text);
-          padding: 8px 0;
-
-          .o_contact_phone {
-            color: var(--Phone-muted);
-            font-size: 12px;
-            margin-top: 2px;
-          }
-        }
-
-        .o_contact_call_button {
-          width: 50px;
-          text-align: center;
-
-          button {
-            color: var(--Phone-accent);
-            border: none;
-            background: transparent;
-            padding: 8px;
-            border-radius: 50%;
-            transition: background-color 0.15s ease;
-
-            &:hover {
-              background-color: var(--Phone-hover-bg);
-            }
-
-            .fa {
-              font-size: 18px;
-            }
-          }
-        }
+      .o_phone_number_input {
+        font-size: 14px;
+        font-weight: 500;
       }
     }
 

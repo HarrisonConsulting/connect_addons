@@ -13,71 +13,120 @@
   &.offline { background-color: #6c757d; }
 }
 
-// Contacts
-.o_dial_contact_list {
-  flex: 1;
-  overflow: auto;
-  max-height: 400px;
+// The list stays inside the 300px phone. Fixed columns keep an unbreakable
+// name from widening the row, and the name ellipsizes instead.
+.o_contacts_panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
-// Contact List
+.o_dial_contact_list {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .o_contact_table {
-  tr:hover {
-    background-color: var(--Phone-hover-bg);
-  }
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
 
-  .o_contact_avatar {
-    margin: 5px 10px 5px 10px;
-    width: 50px;
-    height: 50px;
+  tr {
+    border-bottom: 1px solid var(--Phone-border);
 
-    img {
-      border-radius: 50%;
+    &:hover {
+      background-color: var(--Phone-hover-bg);
     }
   }
 
-  .o_contact_info {
-    cursor: default;
-    font-size: 14px;
+  td.o_contact_avatar {
+    width: 40px;
+    margin: 0;
+    padding: 4px 4px 4px 8px;
+    vertical-align: middle;
+  }
+
+  img.o_contact_avatar {
+    display: block;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  td.o_contact_info {
+    width: auto;
+    padding: 3px 4px 3px 0;
+    font-size: 13px;
+    line-height: 1.25;
     color: var(--Phone-text);
-    width: 150px;
-
-    .o_contact_company {
-      margin-top: 1px;
-      font-size: 11px;
-      color: var(--Phone-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .o_contact_phone {
-      margin-left: 5px;
-      font-size: 12px;
-      color: var(--Phone-muted);
-
-      &.fa-mobile:before {
-        margin-right: 8px;
-        font-size: 12px;
-      }
-    }
+    overflow: hidden;
+    vertical-align: middle;
   }
 
-  .o_contact_call_button {
-    width: 80px;
+  .o_contact_name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .o_presence_indicator {
+    flex: 0 0 auto;
+    margin-right: 0;
+  }
+
+  .o_contact_name_text,
+  .o_contact_company,
+  .o_contact_phone {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .o_contact_name_text {
+    flex: 1 1 auto;
+  }
+
+  .o_contact_company,
+  .o_contact_phone {
+    display: block;
+    margin: 0;
+    font-size: 11px;
+    color: var(--Phone-muted);
+  }
+
+  .o_contact_phone:before {
+    margin-right: 4px;
+    font-size: 11px;
+  }
+
+  td.o_contact_call_button {
+    width: 36px;
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
 
     .o_button_container {
-      width: 40px;
-      height: 30px;
+      width: auto;
+      height: auto;
     }
 
     button {
       color: var(--Phone-accent);
       border: none;
       background: transparent;
+      padding: 4px;
 
       .fa {
-        font-size: 25px;
+        font-size: 16px;
       }
     }
   }

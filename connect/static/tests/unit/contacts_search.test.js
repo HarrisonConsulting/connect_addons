@@ -70,6 +70,44 @@ test("enter on one result dials that colleague's extension", async () => {
     expect(dialled).toEqual(["101"])
 })
 
+test("a long unbroken name stays inside the phone and the call button remains visible", async () => {
+    onRpc("connect.user", "search_directory", () => [])
+    onRpc("res.partner", "search_read", () => [{
+        id: 9,
+        name: "david.porter@voraventures.com",
+        email: "david.porter@voraventures.com",
+        phone: "+1 216-501-0317",
+        mobile: false,
+        commercial_company_name: "Yoder Connections, LLC",
+    }])
+    await search("dav")
+    const panel = document.querySelector(".o_contacts_panel")
+    const shell = document.createElement("div")
+    const body = document.createElement("div")
+    shell.className = "o_root_connect_phone"
+    body.className = "o_body_phone"
+    shell.appendChild(body)
+    body.appendChild(panel)
+    document.body.appendChild(shell)
+    try {
+        await animationFrame()
+        const list = panel.querySelector(".o_dial_contact_list")
+        const button = panel.querySelector(".o_contact_call_button button")
+        const listBox = list.getBoundingClientRect()
+        const buttonBox = button.getBoundingClientRect()
+        expect(list.clientWidth).toBeGreaterThan(250)
+        expect(list.scrollWidth).toBeLessThan(list.clientWidth + 2)
+        expect(buttonBox.right).toBeLessThan(listBox.right + 2)
+        expect(buttonBox.left).toBeGreaterThan(listBox.left - 1)
+        const input = panel.querySelector(".o_phone_number_input")
+        input.parentElement.classList.remove("o_hide")
+        expect(getComputedStyle(input).fontSize).toBe("14px")
+        expect(panel.querySelector(".o_contact_name_text")).toHaveText("david.porter@voraventures.com")
+    } finally {
+        shell.remove()
+    }
+})
+
 test("an empty search asks nothing and clears the list", async () => {
     const queries = mockSearch([ANN])
     const {bus, contacts} = await search("ann")

@@ -7,6 +7,14 @@ from .settings import debug
 
 logger = logging.getLogger(__name__)
 
+CALLER_CANDIDATE_LIMIT = 5
+
+
+def _caller_name_key(partner):
+    """Normalized name, or the record id when the name is blank."""
+    name = ' '.join((partner.name or '').split()).casefold()
+    return name or 'id:%s' % partner.id
+
 
 def strip_number(number):
     if not isinstance(number, str):
@@ -103,7 +111,10 @@ class Partner(models.Model):
         return number
 
     @api.model
-    def get_partner_by_number(self, number):
+    def _search_partners_by_number(self, number):
+        """Contacts whose phone or mobile is this number. Empty when number is blank."""
+        if not number:
+            return self.env['res.partner']
         found = self.sudo().search([('phone_mobile_search', '=', number)])
         if not found:
             country = self.env['res.company'].sudo().browse(1).country_id.code
@@ -123,28 +134,57 @@ class Partner(models.Model):
         debug(self, '{} belongs to partners: {}'.format(
             number, found.mapped('id')
         ))
-        parents = found.mapped('parent_id')
-        if len(found) == 1:
+        return found
+
+    @api.model
+    def _collapse_caller_candidates(self, found):
+        """Distinct people this number could be.
+
+        A company drops when one of its people is in the set. The same
+        normalized name keeps the user, then the person, then the lowest id.
+        """
+        if not found:
             return found
-        elif len(parents) == 0 and len(found) > 1:
-            logger.warning('MANY PARTNERS FOR NUMBER %s', number)
-            return found[0]
-        elif len(parents) > 1 and len(found) > 1:
-            logger.warning(
-                'MANY PARTNERS DIFFERENT COMPANIES FOR NUMBER %s', number)
-            return self.env['res.partner']
-        elif len(parents) == 1 and len(found) == 2 and len(
-                found.filtered(
-                    lambda r: r.parent_id.id in [k.id for k in parents])) == 1:
-            debug(self, 'one partner from one parent found')
-            return found.filtered(
-                lambda r: r.parent_id in [k for k in parents])[0]
-        elif len(parents) == 1 and len(found) > 1 and len(found.filtered(
-                lambda r: r.parent_id in [k for k in parents])) > 1:
-            debug(self, 'MANY PARTNERS SAME PARENT COMPANY {}'.format(number))
-            return parents[0]
-        else:
-            return self.env['res.partner']
+        people = found.filtered(lambda partner: not partner.is_company)
+        represented = people.commercial_partner_id | people.mapped('parent_id')
+        bare = found.filtered(lambda partner: partner.is_company) - represented
+        pool = people | bare
+        if not pool:
+            pool = found
+        ranked = pool.sorted(key=lambda partner: (
+            0 if partner.user_ids else 1,
+            0 if not partner.is_company else 1,
+            partner.id,
+        ))
+        seen = set()
+        kept = []
+        for partner in ranked:
+            key = _caller_name_key(partner)
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(partner.id)
+        return self.sudo().browse(kept)
+
+    @api.model
+    def caller_candidates(self, number, limit=CALLER_CANDIDATE_LIMIT):
+        """Up to ``limit`` distinct contacts for ``number``, and the full count."""
+        distinct = self._collapse_caller_candidates(
+            self._search_partners_by_number(number))
+        cap = CALLER_CANDIDATE_LIMIT if limit is None else limit
+        return distinct[:cap], len(distinct)
+
+    @api.model
+    def get_partner_by_number(self, number):
+        """The one contact for this number, or empty when several people remain."""
+        distinct = self._collapse_caller_candidates(
+            self._search_partners_by_number(number))
+        if len(distinct) == 1:
+            return distinct
+        if distinct:
+            debug(self, '{} matches {} distinct callers'.format(
+                number, distinct.ids))
+        return self.env['res.partner']
 
     def _get_country(self):
         partner = self

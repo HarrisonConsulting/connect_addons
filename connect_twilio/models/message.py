@@ -398,17 +398,21 @@ class ConnectMessage(models.Model):
                 body=body,
             )
             if message.error_code:
-                return False
+                if whatsapp:
+                    return False
+                raise ValidationError(self._provider_refusal(
+                    message.error_message or message.error_code))
             logger.info('Message to %s is sent.', recipient)
             return message
-        except Exception as e:
-            if not whatsapp:
-                logger.exception(e)
-            else:
+        except ValidationError:
+            raise
+        except Exception as error:
+            if whatsapp:
                 logger.warning(
                     'Unable to send WhatsUp message to "%s"!', recipient
                 )
-            return False
+                return False
+            raise ValidationError(self._provider_refusal(error)) from error
 
     def action_retry(self):
         for rec in self:

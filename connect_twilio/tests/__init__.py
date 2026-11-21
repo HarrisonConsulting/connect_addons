@@ -41,3 +41,4 @@ from . import test_tool_rights_twilio
 from . import test_failed_mint_twilio
 
 from . import test_whatsapp_capabilities
+from . import test_sms_composer

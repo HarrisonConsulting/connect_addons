@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.6.20',
+    'version': '19.0.4.6.21',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -37,6 +37,7 @@
         'views/license.xml',
         'views/favorite.xml',
         'wizard/transfer_views.xml',
+        'wizard/sms_composer_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

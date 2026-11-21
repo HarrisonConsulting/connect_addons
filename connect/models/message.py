@@ -204,6 +204,13 @@ class ConnectMessage(models.Model):
             'messaging module (Twilio, Bird) and select a messaging '
             'provider on the Connect user.')
 
+    @api.model
+    def _provider_refusal(self, error):
+        """A short provider reason a person can read on the send dialog."""
+        text = getattr(error, 'msg', None) or str(error)
+        text = ' '.join(text.split())
+        return (text or 'The provider refused the message.')[:500]
+
     def action_retry(self):
         for rec in self:
             if rec.status != 'failed':

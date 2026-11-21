@@ -41,6 +41,7 @@ from . import test_line_call
 from . import test_call_state
 from . import test_tool_rights
 from . import test_message_log_tour
+from . import test_sms_composer
 
 from . import test_call_review
 from . import test_partner_caller_candidates

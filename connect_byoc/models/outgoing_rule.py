@@ -46,6 +46,14 @@ class OutgoingRule(models.Model):
         else:
             logger.error("No rules found for number %s", number)
 
+    def _byoc_dial_number(self, number):
+        self.ensure_one()
+        if self.trim_leading_digits and self.trim_leading_digits > 0:
+            number = number[self.trim_leading_digits:]
+        if self.add_prefix:
+            number = self.add_prefix + number
+        return number
+
     @api.constrains("pattern")
     def check_pattern(self):
         return

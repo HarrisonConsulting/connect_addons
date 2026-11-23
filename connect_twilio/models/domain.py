@@ -591,6 +591,27 @@ class Domain(models.Model):
         else:
             return "<Response><Say>Extension not found. Goodbye! </Say></Response>"
 
+    @api.model
+    def _external_call_route(self, number):
+        """Carrier route for an external number. The dial hooks read it.
+        Raise UserError (its text is said to the caller) to refuse."""
+        return {}
+
+    def _external_call_caller_id(self, user, number, request, route):
+        if user:
+            return user._twilio_external_caller_id(request.get('CallerId'))
+        if request.get('CallerId'):
+            raise ValidationError('That caller ID is not available on your line.')
+        return self.env['connect.twilio.outgoing_callerid'].sudo().search(
+            [('is_default', '=', True)], limit=1).number
+
+    def _external_call_number(self, dial, number, status_url, route):
+        dial.number(
+            number,
+            statusCallback=status_url,
+            statusCallbackEvent="initiated answered completed",
+        )
+
     def originate_external_call(self, number, request, params={}):
         user = self.env["connect.user"].get_user_by_uri(request.get("Caller"))
         try:
@@ -602,13 +623,13 @@ class Domain(models.Model):
             return '<Response><Say>Call the main number first, then enter the extension with the in-call keypad.</Say></Response>'
         debug(self, "Outgoing call to %s" % number)
         try:
-            if user:
-                callerId = user._twilio_external_caller_id(request.get('CallerId'))
-            elif request.get('CallerId'):
-                raise ValidationError('That caller ID is not available on your line.')
-            else:
-                callerId = self.env['connect.twilio.outgoing_callerid'].sudo().search(
-                    [('is_default', '=', True)], limit=1).number
+            route = self._external_call_route(number)
+        except UserError as e:
+            refusal = VoiceResponse()
+            refusal.say(str(e))
+            return refusal
+        try:
+            callerId = self._external_call_caller_id(user, number, request, route)
         except ValidationError:
             return "<Response><Say>That caller ID is not available on your line.</Say></Response>"
         if not callerId:
@@ -635,11 +656,7 @@ class Domain(models.Model):
         else:
             dial = Dial(timeout=60, callerId=callerId, timeLimit=call_duration_limit,
                         action=action_url)
-        dial.number(
-            number,
-            statusCallback=status_url,
-            statusCallbackEvent="initiated answered completed",
-        )
+        self._external_call_number(dial, number, status_url, route)
         response.append(dial)
         debug(self, "Originate external: %s" % pretty_xml(str(response)))
         return response

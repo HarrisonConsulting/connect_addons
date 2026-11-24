@@ -16,10 +16,23 @@ function panelHeight() {
     return document.querySelector(".o_root_connect_phone").getBoundingClientRect().height;
 }
 
+/** 572px, plus the activity bar connect_enqueue adds for an agent when it is in the panel. */
+function expectedHeight(panel) {
+    if (!panel.querySelector(".o_connect_activity_toggle")) {
+        return 572;
+    }
+    const style = getComputedStyle(panel);
+    const bar = panel.querySelector(".o_connect_activity_toggle.is-expanded")
+        ? "--phone-activity-expanded-height"
+        : "--phone-activity-collapsed-height";
+    return 572 + parseFloat(style.getPropertyValue(bar));
+}
+
 function assertHeightAndNothingClipped() {
     const panel = document.querySelector(".o_root_connect_phone");
-    if (panelHeight() !== 572) {
-        throw new Error(`The panel is ${panelHeight()}px high, not 572px.`);
+    const expected = expectedHeight(panel);
+    if (panelHeight() !== expected) {
+        throw new Error(`The panel is ${panelHeight()}px high, not ${expected}px.`);
     }
     const control = panel.querySelector(".o_dial_panel_position").getBoundingClientRect();
     if (control.bottom - panel.getBoundingClientRect().bottom > 1) {

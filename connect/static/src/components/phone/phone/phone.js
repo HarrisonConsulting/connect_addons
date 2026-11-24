@@ -6,6 +6,7 @@ import {Favorites} from "@connect/components/phone/favorites/favorites"
 import {LINE_UNAVAILABLE, PhoneLine} from "@connect/components/phone/phone/phone_line"
 import {callUnconfirmedWords} from "@connect/components/phone/phone/transports/server_originate_transport"
 import {LineSelector, howLineConnects, loadSelectedLine, saveSelectedLine} from "@connect/components/phone/line_selector/line_selector"
+import {audioDeviceSource, listAudioDevices, loadAudioDeviceChoice, saveAudioDeviceChoice} from "@connect/components/phone/phone/audio_devices"
 import {Contacts} from "@connect/components/phone/contacts/contacts"
 import {dialTone, maskNumber, setFocus} from "@connect/js/utils"
 import {Component, status, useState, useRef, useEffect, onWillStart, onMounted, onWillUnmount} from "@odoo/owl"
@@ -205,6 +206,9 @@ export class Phone extends Component {
             callQualityWarnings: [],
             showQualityDetails: false,
             isAudioSettings: false,
+            audioDevices: {inputs: [], speakers: [], needsPermission: false, outputSelectable: false, permissionRefused: false},
+            audioDeviceChoice: loadAudioDeviceChoice(),
+            focusAudioDevices: false,
             audioEnabled: localStorage.getItem('connect_audio_enabled') !== 'false',
             audioVolume: parseFloat(localStorage.getItem('connect_audio_volume') || '0.3'),
             isRecording: false,
@@ -232,6 +236,16 @@ export class Phone extends Component {
         this.callDuration = 0
         this.callDurationTimerInstance = null
         this.phoneInput = useRef('connect-phone-input')
+        this.audioDevicesRef = useRef('audio-devices')
+        useEffect((focus) => {
+            if (!focus) return
+            const el = this.audioDevicesRef.el
+            if (el) {
+                el.scrollIntoView?.({block: 'nearest'})
+                el.querySelector('select, button')?.focus()
+            }
+            this.state.focusAudioDevices = false
+        }, () => [this.state.focusAudioDevices])
 
         this.user = uid
         this.lastActiveTab = this.tabs.phone
@@ -515,6 +529,8 @@ export class Phone extends Component {
         })
 
         onMounted(() => {
+            this._stopDeviceWatch = audioDeviceSource.onChange(() => this._refreshAudioDevices())
+            this._refreshAudioDevices()
             // Suppress benign unhandled rejections from the vendored Twilio SDK:
             //   - AbortError: audio play/pause race conditions
             //   - InvalidArgumentError "Device not found": AudioHelper._updateDevices()
@@ -784,6 +800,7 @@ export class Phone extends Component {
         })
 
         onWillUnmount(() => {
+            this._stopDeviceWatch?.()
             this._dialDisposed = true
             this._dialQueryVersion++
             this._stopIncomingRing()
@@ -2261,7 +2278,53 @@ export class Phone extends Component {
             this.state.isFavorites = false
             this.state.isCalls = false
             this.state.isDialingPanel = false
+            this._refreshAudioDevices()
         }
+    }
+
+    get choosesAudioDevices() {
+        return this.lines.some((line) => line.choosesAudioDevices)
+    }
+
+    /** The stored id when it is listed, else ''. A gone device stays stored so it applies again when plugged back in. */
+    audioDeviceValue(kind) {
+        const list = kind === 'input' ? this.state.audioDevices.inputs : this.state.audioDevices.speakers
+        const id = this.state.audioDeviceChoice[kind]
+        return list.some((device) => device.id === id) ? id : ''
+    }
+
+    async _refreshAudioDevices() {
+        if (!this.choosesAudioDevices) return
+        const listed = await listAudioDevices()
+        if (status(this) === 'destroyed') return
+        Object.assign(this.state.audioDevices, listed)
+        this._applyAudioDevices()
+    }
+
+    _applyAudioDevices() {
+        const choice = {...this.state.audioDeviceChoice}
+        for (const line of this.lines) line.transport?.setAudioDevices(choice)
+    }
+
+    _onChangeAudioDevice(kind, ev) {
+        this.state.audioDeviceChoice = {...this.state.audioDeviceChoice, [kind]: ev.target.value}
+        saveAudioDeviceChoice(this.state.audioDeviceChoice)
+        this._applyAudioDevices()
+    }
+
+    async _onClickAllowMicrophone() {
+        try {
+            await audioDeviceSource.requestPermission()
+            this.state.audioDevices.permissionRefused = false
+        } catch {
+            this.state.audioDevices.permissionRefused = true
+        }
+        await this._refreshAudioDevices()
+    }
+
+    _onClickChangeHow() {
+        if (!this.state.isAudioSettings) this._onClickAudioSettings()
+        this.state.focusAudioDevices = true
     }
 
     _onChangeAudioEnabled(ev) {

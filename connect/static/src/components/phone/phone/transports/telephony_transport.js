@@ -99,6 +99,19 @@ export class TelephonyTransport extends Emitter {
     static needsBrowserMedia = true
 
     /**
+     * Whether setAudioDevices() routes this transport's call audio, so the panel
+     * offers Microphone and Speaker only when it does.
+     */
+    static choosesAudioDevices = false
+
+    /**
+     * Applies the person's device choice: {input, speaker, ringtone}, each a
+     * MediaDeviceInfo.deviceId or '' for the system default. Must never throw. A
+     * device that is gone falls back to the default. The default is a no-op.
+     */
+    setAudioDevices(choice) {}
+
+    /**
      * What an 'error' event's object means for the line's recovery. Override for
      * a provider's own codes and call super for the rest.
      *

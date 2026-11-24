@@ -2,7 +2,7 @@
 
 {
     'name': 'Connect',
-    'version': '19.0.4.6.21',
+    'version': '19.0.4.6.22',
     'author': 'Harrison Consulting, LLC',
     'website': 'https://www.harrison.consulting',
     'maintainer': 'Oduist',
@@ -53,6 +53,7 @@
             '/connect/static/src/components/phone/contacts/*',
             '/connect/static/src/components/phone/favorites/*',
             '/connect/static/src/components/phone/line_selector/*',
+            '/connect/static/src/components/phone/phone/audio_devices.js',
             '/connect/static/src/components/phone/phone/transports/telephony_transport.js',
             '/connect/static/src/components/phone/phone/transports/twilio_transport.js',
             '/connect/static/src/components/phone/phone/transports/server_originate_transport.js',

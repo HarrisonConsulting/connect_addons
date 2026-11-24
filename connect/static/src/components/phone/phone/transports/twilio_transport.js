@@ -14,13 +14,19 @@ import {TelephonyTransport, TelephonyCall} from "@connect/components/phone/phone
  * Twilio-shaped object directly.
  */
 export class TwilioCall extends TelephonyCall {
-    constructor(twilioCall) {
+    constructor(twilioCall, transport = null) {
         super()
         this._call = twilioCall
+        this._transport = transport
         this._call.on('accept', (...args) => this._emit('accept', ...args))
         this._call.on('disconnect', (...args) => this._emit('disconnect', ...args))
         this._call.on('cancel', (...args) => this._emit('cancel', ...args))
         this._call.on('reject', (...args) => this._emit('reject', ...args))
+        // Once the call is over the microphone is let go. The deferral lets the
+        // Device drop the call from its own list first.
+        for (const ev of ['disconnect', 'cancel', 'reject']) {
+            this._call.on(ev, () => setTimeout(() => this._transport?._releaseInput(), 0))
+        }
         // Call quality — Twilio-only. Normalized into a single 'quality' event
         // so phone.js's quality monitor stays provider-agnostic; a transport
         // that can't measure quality (e.g. a SIP stack) simply never
@@ -51,7 +57,16 @@ export class TwilioCall extends TelephonyCall {
     }
 
     accept() {
-        this._call.accept()
+        const pending = this._transport?._useChosenInput()
+        if (pending) {
+            // A caller who cancelled while the microphone was opening leaves no live call: let it go again.
+            pending.then(() => {
+                this._call.accept()
+                this._transport?._releaseInput()
+            })
+        } else {
+            this._call.accept()
+        }
     }
 
     reject() {
@@ -88,6 +103,8 @@ export class TwilioCall extends TelephonyCall {
  * initUserAgent() (pre-extraction) — this is that logic, moved verbatim.
  */
 export class TwilioTransport extends TelephonyTransport {
+    static choosesAudioDevices = true
+
     static async loadDependencies() {
         await loadJS('/connect/static/src/lib/twilio.min.js')
     }
@@ -107,6 +124,7 @@ export class TwilioTransport extends TelephonyTransport {
     constructor() {
         super()
         this._device = null
+        this._audioChoice = {input: '', speaker: '', ringtone: ''}
     }
 
     /**
@@ -127,7 +145,7 @@ export class TwilioTransport extends TelephonyTransport {
         this._device.on('registered', () => this._emit('registered'))
         this._device.on('unregistered', () => this._emit('unregistered'))
         this._device.on('error', (error) => this._emit('error', error))
-        this._device.on('incoming', (twilioCall) => this._emit('incoming', new TwilioCall(twilioCall)))
+        this._device.on('incoming', (twilioCall) => this._emit('incoming', new TwilioCall(twilioCall, this)))
     }
 
     async register() {
@@ -160,8 +178,53 @@ export class TwilioTransport extends TelephonyTransport {
     }
 
     async dial(params) {
-        const twilioCall = await this._device.connect({params})
-        return new TwilioCall(twilioCall)
+        const pending = this._useChosenInput()
+        if (pending) await pending
+        let twilioCall
+        try {
+            twilioCall = await this._device.connect({params})
+        } catch (error) {
+            this._releaseInput()
+            throw error
+        }
+        return new TwilioCall(twilioCall, this)
+    }
+
+    setAudioDevices(choice) {
+        this._audioChoice = {input: choice?.input || '', speaker: choice?.speaker || '', ringtone: choice?.ringtone || ''}
+        const audio = this._device?.audio
+        if (!audio) return
+        if (audio.isOutputSelectionSupported) {
+            this._setOutput(audio.speakerDevices, this._audioChoice.speaker)
+            this._setOutput(audio.ringtoneDevices, this._audioChoice.ringtone)
+        }
+        // The microphone opens only for a call; a live call moves to the new one now.
+        if (this._device.isBusy) this._useChosenInput()
+    }
+
+    _setOutput(collection, id) {
+        const available = this._device.audio.availableOutputDevices
+        const target = id && available.has(id) ? id : 'default'
+        if (!available.has(target)) return
+        collection.set(target).catch((error) => console.debug('Connect: output device not applied:', error))
+    }
+
+    /** Opens the chosen microphone for the call about to start: null when there is nothing to do, else a promise that never rejects. */
+    _useChosenInput() {
+        const audio = this._device?.audio
+        if (!audio) return null
+        const id = this._audioChoice.input
+        const target = id && audio.availableInputDevices.has(id) ? id
+            : (audio.inputDevice && audio.availableInputDevices.has('default') ? 'default' : null)
+        if (!target) return null
+        return audio.setInputDevice(target).catch((error) => console.debug('Connect: input device not applied:', error))
+    }
+
+    /** Lets the microphone go once no call needs it, so the browser stops showing it in use. */
+    _releaseInput() {
+        const audio = this._device?.audio
+        if (!audio?.inputDevice || this._device.isBusy || this._device.calls?.length) return
+        audio.unsetInputDevice().catch(() => {})
     }
 
     setIncomingAudio(enabled) {

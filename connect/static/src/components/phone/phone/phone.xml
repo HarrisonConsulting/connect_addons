@@ -68,9 +68,36 @@
                           readonly="state.inCall or state.inIncoming"
                           onSelect.bind="selectLine"
                           onPickCallerId.bind="pickCallerId"
-                          onChangeHow.bind="_onClickAudioSettings"/>
+                          onChangeHow.bind="_onClickChangeHow"/>
             <!--Audio Settings Panel-->
             <div t-attf-class="{{state.isAudioSettings ? '' : 'o_hide'}} o_body_phone o_audio_settings">
+                <div t-if="choosesAudioDevices" class="p-2 o_audio_devices" t-ref="audio-devices">
+                    <span class="d-block small fw-bold mb-1">Devices</span>
+                    <t t-if="state.audioDevices.needsPermission">
+                        <button type="button" class="btn btn-sm btn-secondary o_audio_device_allow" t-on-click="_onClickAllowMicrophone">Allow microphone access to choose</button>
+                        <div t-if="state.audioDevices.permissionRefused" class="small text-muted mt-1">Microphone access is blocked. Allow it in this site's browser settings.</div>
+                    </t>
+                    <t t-else="">
+                        <label class="small mb-0 d-block mt-1">Microphone
+                            <select class="form-select form-select-sm o_audio_device_input" t-on-change="(ev) => this._onChangeAudioDevice('input', ev)">
+                                <option value="" t-att-selected="!audioDeviceValue('input')">System default</option>
+                                <option t-foreach="state.audioDevices.inputs" t-as="device" t-key="device.id" t-att-value="device.id" t-att-selected="device.id === audioDeviceValue('input')" t-out="device.label"/>
+                        </select></label>
+                        <t t-if="state.audioDevices.outputSelectable">
+                            <label class="small mb-0 d-block mt-1">Speaker
+                                <select class="form-select form-select-sm o_audio_device_speaker" t-on-change="(ev) => this._onChangeAudioDevice('speaker', ev)">
+                                    <option value="" t-att-selected="!audioDeviceValue('speaker')">System default</option>
+                                    <option t-foreach="state.audioDevices.speakers" t-as="device" t-key="device.id" t-att-value="device.id" t-att-selected="device.id === audioDeviceValue('speaker')" t-out="device.label"/>
+                            </select></label>
+                            <label class="small mb-0 d-block mt-1">Ringer
+                                <select class="form-select form-select-sm o_audio_device_ringtone" t-on-change="(ev) => this._onChangeAudioDevice('ringtone', ev)">
+                                    <option value="" t-att-selected="!audioDeviceValue('ringtone')">System default</option>
+                                    <option t-foreach="state.audioDevices.speakers" t-as="device" t-key="device.id" t-att-value="device.id" t-att-selected="device.id === audioDeviceValue('ringtone')" t-out="device.label"/>
+                            </select></label>
+                        </t>
+                        <div t-else="" class="small text-muted o_audio_device_output_note">This browser plays calls through your computer's default speaker. Change it in your system's sound settings.</div>
+                    </t>
+                </div>
                 <div class="p-2">
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <label class="small fw-bold mb-0">Notification Sounds</label>

@@ -93,6 +93,11 @@ export class PhoneLine {
         return !this.unavailable && !!this._findTransportClass()?.needsBrowserMedia
     }
 
+    /** Whether this line's transport lets the person choose microphone and speaker. */
+    get choosesAudioDevices() {
+        return this.needsBrowserMedia && !!this._findTransportClass()?.choosesAudioDevices
+    }
+
     async loadDependencies() {
         if (!this.provider || this.unavailable) {
             return
@@ -359,6 +364,8 @@ export class PhoneLine {
         })
 
         this.transport.on('registered', () => {
+            // Re-applies the choice after every (re)register and rebuild.
+            this.transport.setAudioDevices({...phone.state.audioDeviceChoice})
             phone._setLineStatus(this, 'ready')
             this.registered = true
             // With two or more lines this can happen during a call on any of them,

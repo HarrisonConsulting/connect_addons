@@ -313,3 +313,37 @@ test('accepted keypad draft clears only after validation and preserves newer edi
         expect(p.dials).toEqual(['+12025550123'])
     }
 })
+
+test('a name query with suggestions hides the keypad; clearing, Escape and completing restore it', async () => {
+    const p = phone()
+    expect(p.showsDialKeypad).toBe(true)
+    input(p, 'Ali')
+    p.state.dialSuggestions = [ALICE]
+    expect(p.showsDialKeypad).toBe(false)
+    await key(p, 'Escape')
+    expect(p.showsDialKeypad).toBe(true)
+    input(p, 'Ali')
+    p.state.dialSuggestions = [ALICE]
+    input(p, '')
+    expect(p.showsDialKeypad).toBe(true)
+    input(p, 'Ali')
+    p.state.dialSuggestions = [ALICE]
+    p._completeDialSuggestion(ALICE)
+    expect(p.showsDialKeypad).toBe(true)
+})
+
+test('a numeric query with suggestions keeps the keypad', () => {
+    const p = phone()
+    input(p, '574')
+    p.state.dialSuggestions = [ALICE]
+    expect(p.showsDialKeypad).toBe(true)
+})
+
+test('a longer name query keeps the keypad hidden while its lookup is pending', () => {
+    const p = phone()
+    input(p, 'Ali')
+    p.state.dialSuggestions = [ALICE]
+    input(p, 'Alic')
+    expect(p.state.dialSuggestions).toEqual([ALICE])
+    expect(p.showsDialKeypad).toBe(false)
+})

@@ -300,10 +300,13 @@
     }
 
     // Keypad
+    // Rows are 57px. Beside a suggestion list they shrink, never below 32px,
+    // and sit at the bottom so the list's room does not move the keys.
     .o_keypad {
-      flex: 1;
-      display: flex;
-      flex-wrap: wrap;
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(4, 57px);
       align-content: center;
       justify-content: center;
       padding: 4px;
@@ -314,8 +317,7 @@
         display: inline-flex;
         justify-content: center;
         align-items: center;
-        width: 33.33%;
-        height: 57px;
+        min-height: 0;
         font-size: 24px;
         font-weight: 300;
         border: none;
@@ -1032,8 +1034,19 @@
 }
 
 .o_dial_suggestions {
+    // A scroll container's automatic minimum height is 0, so without these the
+    // list is the flex item that collapses when the keypad claims the space.
+    flex: 0 0 auto;
     max-height: 150px;
     overflow-y: auto;
+    &.o_beside_keypad {
+        max-height: 72px;
+        + .o_keypad {
+            min-height: 136px;
+            grid-template-rows: repeat(4, minmax(32px, 57px));
+            align-content: end;
+        }
+    }
     .o_dial_suggestion {
         display: flex;
         justify-content: space-between;

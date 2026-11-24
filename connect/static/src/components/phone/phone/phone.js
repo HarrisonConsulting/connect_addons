@@ -172,6 +172,7 @@ export class Phone extends Component {
             isWhatsapp: false,
             phoneNumber: '',
             dialSuggestions: [],
+            dialSearchPending: false,
             dialSuggestionIndex: -1,
             callPhoneNumber: '',
             contact_search_query: '',
@@ -2530,6 +2531,12 @@ export class Phone extends Component {
     }
 
 
+    get showsDialKeypad() {
+        const nameQuery = /[a-z]/i.test(this.state.phoneNumber)
+        const lookup = this.state.dialSuggestions.length || this.state.dialSearchPending
+        return !this.state.isContactList && !(nameQuery && lookup)
+    }
+
     _onDialInput(ev) {
         if (this.state.inCall || this.state.inIncoming) return
         this._dialCompletedNumber = null
@@ -2539,12 +2546,16 @@ export class Phone extends Component {
         this.state.dialSuggestionIndex = -1
         this._dialHistoryIndex = -1
         this._dialQueryVersion++
-        this.state.dialSuggestions = []
+        // The previous matches stay on screen until this version's result
+        // replaces them, so the keys do not move under the pointer.
+        this.state.dialSearchPending = !!ev.target.value.trim()
+        if (!this.state.dialSearchPending) this.state.dialSuggestions = []
         this.debounceEnterPhoneNumber()
     }
 
     _clearDialSuggestions() {
         this._dialQueryVersion++
+        this.state.dialSearchPending = false
         this.state.dialSuggestions = []
         this.state.dialSuggestionIndex = -1
     }
@@ -2566,6 +2577,8 @@ export class Phone extends Component {
             }
         } catch {
             if (this._canEditDial() && version === this._dialQueryVersion) this.state.dialSuggestions = []
+        } finally {
+            if (version === this._dialQueryVersion) this.state.dialSearchPending = false
         }
     }
 
@@ -2575,6 +2588,7 @@ export class Phone extends Component {
         this._dialCompletedNumber = item.number
         this.state.phoneNumber = item.number
         this.phoneInput.el.value = item.number
+        this.state.dialSearchPending = false
         this.state.dialSuggestions = []
         this.state.dialSuggestionIndex = -1
         this._dialHistoryIndex = -1
@@ -2594,12 +2608,11 @@ export class Phone extends Component {
         ev.preventDefault()
         ev.stopPropagation()
         if (ev.key === 'Escape') {
-            this._dialQueryVersion++
-            this.state.dialSuggestions = []
-            this.state.dialSuggestionIndex = -1
+            this._clearDialSuggestions()
             return
         }
-        if (this._dialHistoryIndex < 0 && this.state.dialSuggestions.length && ev.key !== 'ArrowUp') {
+        const settled = !this.state.dialSearchPending
+        if (this._dialHistoryIndex < 0 && settled && this.state.dialSuggestions.length && ev.key !== 'ArrowUp') {
             if (ev.key === 'ArrowDown') {
                 this.state.dialSuggestionIndex = (this.state.dialSuggestionIndex + 1) % this.state.dialSuggestions.length
             } else {

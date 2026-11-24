@@ -419,3 +419,84 @@ test("one provider offers per-number radios and sends the selected full identity
     await waitUntil(() => dials.length > 0)
     expect(dials[0].params.CallerId).toBe("+15550002222")
 })
+
+// Each line shows its own state, whichever is chosen
+
+test("each chip carries its own line's state in words, apart from the choice", async () => {
+    const phone = await mountTwo()
+    expect(".o_phone_line_dot.o_phone_line_dot_ready").toHaveCount(2)
+    expect(".o_phone_line_chip:first .o_phone_line_dot").toHaveAttribute("aria-label", "Desk: ready")
+    expect(".o_phone_line_chip:first").toHaveAttribute("aria-label", "Desk · ready")
+    expect(".o_phone_line_chip:first").toHaveAttribute("title", "Desk")
+
+    phone._setLineStatus(phone.lines[1], "connecting")
+    await animationFrame()
+    expect(".o_phone_line_chip:last").toHaveClass("o_phone_line_connecting")
+    expect(".o_phone_line_chip:last .o_phone_line_dot").toHaveClass("o_phone_line_dot_connecting")
+    expect(".o_phone_line_chip:last .o_phone_line_dot").toHaveAttribute("aria-label", "Sales: signing in")
+    expect(".o_phone_line_chip:last").toHaveAttribute("aria-label", "Sales · signing in")
+    expect(".o_phone_line_chip:last").toHaveAttribute("title", "Sales · signing in")
+    expect(".o_phone_line_chip:first").not.toHaveClass("o_phone_line_connecting")
+
+    phone._setLineStatus(phone.lines[1], "error", "the provider refused")
+    await animationFrame()
+    expect(".o_phone_line_chip:last").toHaveClass("o_phone_line_down")
+    expect(".o_phone_line_chip:last .o_phone_line_dot").toHaveClass("o_phone_line_dot_down")
+    expect(".o_phone_line_chip:last").toHaveAttribute("aria-label", "Sales · not connected: the provider refused")
+    expect(".o_phone_line_chip:first").not.toHaveClass("o_phone_line_down")
+})
+
+test("a person with one line and several numbers sees no state dots", async () => {
+    await mountNamed(makeLine("desk", "Twilio", {
+        caller_ids: ["+15745646338", "+15550002222"],
+    }))
+    expect(".o_phone_line_chip").toHaveCount(2)
+    expect(".o_phone_line_dot").toHaveCount(0)
+})
+
+test("the caption speaks for the chosen line, signing in or not", async () => {
+    const phone = await mountTwo()
+    expect(".o_phone_line_how").toHaveText(/microphone/)
+    phone.selectLine("sales")
+    phone._setLineStatus(phone.lines[1], "connecting")
+    await animationFrame()
+    expect(".o_phone_line_signing_in").toHaveText("Signing in to Sales...")
+    expect(".o_phone_line_problem").toHaveCount(0)
+
+    phone._setLineStatus(phone.lines[1], "error", "the provider refused")
+    await animationFrame()
+    expect(".o_phone_line_problem").toHaveText("the provider refused")
+    expect(".o_phone_line_signing_in").toHaveCount(0)
+
+    phone._setLineStatus(phone.lines[1], "ready")
+    await animationFrame()
+    expect(".o_phone_line_problem").toHaveCount(0)
+    expect(".o_phone_line_signing_in").toHaveCount(0)
+    expect(".o_phone_line_how").toHaveText(/microphone/)
+})
+
+test("the numbers of one line share its state", async () => {
+    const phone = await mountNamed(
+        makeLine("desk", "Twilio", {caller_ids: ["+15745646338", "+15550002222"]}),
+        makeLine("sales", "Sales"))
+    phone._setLineStatus(phone.lines[0], "connecting")
+    await animationFrame()
+    expect(".o_phone_line_chip").toHaveCount(3)
+    expect(".o_phone_line_dot_connecting").toHaveCount(2)
+    expect(".o_phone_line_dot_ready").toHaveCount(1)
+    expect(".o_phone_line_chip:first .o_phone_line_dot").toHaveAttribute("aria-label", "Twilio: signing in")
+    expect(".o_phone_line_chip:nth-child(2) .o_phone_line_dot").toHaveAttribute("aria-label", "Twilio: signing in")
+})
+
+test("the dropdown carries each line's state in its options", async () => {
+    const phone = await mountNamed(
+        makeLine("desk", "Desk"), makeLine("sales", "Sales"), makeLine("night", "Night"), makeLine("day", "Day"), makeLine("east", "East"), makeLine("west", "West"))
+    phone._setLineStatus(phone.lines[1], "connecting")
+    phone._setLineStatus(phone.lines[2], "error", "the provider refused")
+    await animationFrame()
+    const option = (key) => document.querySelector(`.o_phone_line_dropdown option[value='${JSON.stringify([key, ""])}']`)
+    expect(option("desk").textContent).toInclude("ready")
+    expect(option("sales").textContent).toInclude("signing in")
+    expect(option("night").textContent).toInclude("not connected: the provider refused")
+    expect(option("night").title).toInclude("not connected: the provider refused")
+})

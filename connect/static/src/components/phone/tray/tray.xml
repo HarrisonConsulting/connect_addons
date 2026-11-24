@@ -27,11 +27,14 @@
             tooltip all come from PhoneSysTray.phoneState, so connection changes
             are shown in place instead of interrupting the user with toasts.-->
         <button type="button"
-                t-attf-class="o-dropdown dropdown-toggle dropdown toggle-phone {{phoneState}}"
+                t-attf-class="o-dropdown dropdown-toggle dropdown toggle-phone {{phoneState}}{{isPartial ? ' partial' : ''}}"
                 aria-expanded="false"
                 t-att-title="buttonTitle"
                 t-on-click="_onClick">
             <t t-call="connect.tray.glyph"/>
+            <!--A line is down while the phone is ready: a ring in the corner the
+                glyphs leave empty, with the words in the tooltip and live region.-->
+            <span t-if="isPartial" class="connect-tray-partial" aria-hidden="true"/>
             <!--The corner badge. Plain Connect has nothing to put there, so it
                 stays the state dot; an addon that knows what the user is
                 *doing* (connect_enqueue's agent activity) fills badgeIcon and

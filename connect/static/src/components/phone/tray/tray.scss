@@ -109,6 +109,22 @@
       animation: connect-tray-pulse 1.6s ease-in-out infinite;
     }
 
+    // A line is down while the phone is ready. Bottom left, because the handset
+    // runs top left to bottom right and the badge has the top right, so this is
+    // the one corner left over. A ring rather than a dot, so it cannot be read
+    // as the state dot, and so it reads without its colour.
+    .connect-tray-partial {
+      position: absolute;
+      left: 4px;
+      bottom: 2px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      border: 2px solid var(--Phone-tray-warn);
+      background: var(--Phone-bg);
+    }
+
     // Corner badge. With nothing else to say it is the state dot, doubling the
     // glyph's colour where a glance lands first.
     //

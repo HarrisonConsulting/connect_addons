@@ -13,21 +13,14 @@
             </div>
             <!--Connection status banner. This is the phone's own surface, not a
                 toast: it appears only while the panel is open, stays put instead of
-                stacking, and carries the Retry affordance next to the explanation.-->
-            <div t-if="state.connectionStatus === 'connecting'" class="connect-status-banner connecting" aria-live="polite" role="status">
-                <i class="fa fa-spinner fa-spin"/> Connecting...
-            </div>
-            <div t-if="state.connectionStatus === 'error'" class="connect-status-banner error" aria-live="assertive" role="alert">
-                <i class="fa fa-exclamation-triangle"/>
-                <span t-attf-title="{{state.connectionError}}"><t t-out="state.connectionError or 'Connection lost'"/></span>
-                <button class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
-                    <i class="fa fa-refresh"/> Retry
-                </button>
-            </div>
-            <div t-if="state.connectionStatus === 'offline'" class="connect-status-banner offline" aria-live="assertive" role="alert">
-                <i class="fa fa-wifi"/>
-                <span t-attf-title="{{state.connectionError}}"><t t-out="state.connectionError or 'Offline - calls unavailable'"/></span>
-                <button class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
+                stacking, and carries the Retry affordance next to the explanation.
+                It speaks for the whole phone: a line that is down while another is
+                ready is named calmly, and only when no line is ready is it an alarm.-->
+            <t t-set="banner" t-value="statusBanner"/>
+            <div t-if="banner" t-attf-class="connect-status-banner {{banner.kind}}" t-att-aria-live="banner.live" t-att-role="banner.role">
+                <i t-attf-class="fa {{banner.icon}}"/>
+                <span t-att-title="banner.title"><t t-out="banner.text"/></span>
+                <button t-if="banner.retry" class="btn btn-sm btn-link" t-on-click="_onClickReconnect">
                     <i class="fa fa-refresh"/> Retry
                 </button>
             </div>
@@ -64,7 +57,7 @@
                           lines="lines"
                           line="activeLine"
                           callerId="callerIdOf(activeLine)"
-                          problems="lineProblems"
+                          states="isMultiLine ? lineStatesByKey : undefined"
                           readonly="state.inCall or state.inIncoming"
                           onSelect.bind="selectLine"
                           onPickCallerId.bind="pickCallerId"

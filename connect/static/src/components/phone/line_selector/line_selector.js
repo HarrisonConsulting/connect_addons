@@ -43,7 +43,8 @@ export function howLineConnects(line) {
 
 /**
  * The From row. It only ever reports a choice: Phone holds the selection, so
- * nothing here can switch a line by itself.
+ * nothing here can switch a line by itself. Each line shows its own state, whether
+ * or not it is the one chosen, because the choice is only for the next call.
  */
 export class LineSelector extends Component {
     static template = 'connect.line_selector'
@@ -51,7 +52,7 @@ export class LineSelector extends Component {
         lines: Array,
         line: Object,
         callerId: {type: String, optional: true},
-        problems: Object,
+        states: {type: Object, optional: true},
         readonly: Boolean,
         onSelect: Function,
         onPickCallerId: Function,
@@ -64,7 +65,11 @@ export class LineSelector extends Component {
             return numbers.map((number) => ({
                 key: JSON.stringify([line.key, number]), line, number,
                 label: number ? number.slice(-4) : line.label,
-                title: [line.label, number, this.problem(line)].filter(Boolean).join(' · '),
+                kind: this.stateKind(line),
+                title: [line.label, number, this.problem(line) || (this.stateKind(line) === 'connecting' && this.stateWords(line))]
+                    .filter(Boolean).join(' · '),
+                words: [line.label, number, this.stateWords(line)].filter(Boolean).join(' · '),
+                stateLabel: `${line.label}: ${this.stateWords(line)}`,
                 selected: line.key === this.props.line.key && number === (this.props.callerId || ''),
             }))
         })
@@ -92,9 +97,36 @@ export class LineSelector extends Component {
         ev.currentTarget.parentElement.querySelectorAll('[role="radio"]')[next]?.focus()
     }
 
+    /** 'ready', 'connecting' (signing in) or 'down' for a line the phone has a state for, else nothing. */
+    stateKind(line) {
+        const status = this.props.states?.[line.key]?.status
+        if (!status) {
+            return ''
+        }
+        return status === 'ready' || status === 'connecting' ? status : 'down'
+    }
+
     /** What is wrong with a line, in words, or nothing. */
     problem(line) {
-        return this.props.problems[line.key] || ''
+        return this.stateKind(line) === 'down'
+            ? this.props.states[line.key].error || _t("This line is not connected.")
+            : ''
+    }
+
+    /** What a line is doing, in words that stand alone. */
+    stateWords(line) {
+        const kind = this.stateKind(line)
+        if (kind === 'down') {
+            const error = this.props.states[line.key].error
+            const down = line.unavailable ? _t("not available") : _t("not connected")
+            return error ? `${down}: ${error}` : down
+        }
+        return kind === 'ready' ? _t("ready") : kind === 'connecting' ? _t("signing in") : ''
+    }
+
+    /** The caption while the chosen line signs in. */
+    get signingInWords() {
+        return _t("Signing in to %s...", this.props.line.label)
     }
 
     get howItConnects() {

@@ -32,6 +32,12 @@
     background-color: transparent;
     border: 1px solid var(--Phone-border);
     border-radius: 12px;
+    position: relative;
+
+    // The state dot sits in the padding, so the label keeps the whole of its width.
+    &.o_phone_line_stated {
+      padding: 0 6px 0 13px;
+    }
 
     &.active {
       color: var(--Phone-accent);
@@ -52,6 +58,36 @@
       color: var(--bs-danger);
       border-style: dashed;
       border-color: var(--bs-danger);
+    }
+
+    &.o_phone_line_connecting:not(.active) {
+      border-color: var(--bs-warning);
+    }
+  }
+
+  // Each line's state, apart from the colour: a ring for a line that is down, a
+  // pulse for one signing in, a solid dot for one that is ready.
+  .o_phone_line_dot {
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 50%;
+    box-sizing: border-box;
+
+    &.o_phone_line_dot_ready {
+      background-color: var(--bs-success);
+    }
+
+    &.o_phone_line_dot_connecting {
+      background-color: var(--bs-warning);
+      animation: o_phone_line_dot_pulse 1.6s ease-in-out infinite;
+    }
+
+    &.o_phone_line_dot_down {
+      border: 2px solid var(--bs-danger);
     }
   }
 
@@ -87,6 +123,13 @@
     align-items: center;
     gap: 6px;
     white-space: nowrap;
+  }
+
+  .o_phone_line_signing_in {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--bs-warning-text-emphasis, var(--Phone-muted));
   }
 
   .o_phone_line_problem {
@@ -135,5 +178,16 @@
     margin-top: 4px;
     font-size: 11px;
     color: var(--Phone-muted);
+  }
+}
+
+@keyframes o_phone_line_dot_pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .o_root_connect_phone .o_phone_line_dot {
+    animation: none;
   }
 }

@@ -16,6 +16,10 @@ import {Component, useState, onMounted, onWillStart, markup} from "@odoo/owl"
 //
 // Order matters where states overlap: a live call outranks a stale
 // 'connecting', and a hard fault outranks everything.
+//
+// The phone is ready as soon as any one of its lines is. A line that is down
+// while another is ready does not change the state; it adds a cue and its words
+// (see PhoneSysTray.isPartial).
 const PHONE_STATES = {
     unavailable: {glyph: 'phone', slashed: true, label: 'Phone unavailable'},
     error: {glyph: 'warning', label: 'Phone disconnected'},
@@ -42,6 +46,7 @@ export class PhoneSysTray extends Component {
             isActive: true,
             connectionStatus: 'connecting',
             connectionError: '',
+            linesNote: '',
             exception: null,
         })
         this.sound = false
@@ -128,6 +133,11 @@ export class PhoneSysTray extends Component {
         return this.state.connectionStatus  // 'connecting' | 'offline' | 'error'
     }
 
+    /** Ready, with at least one line that is not: said by a cue and in the words. */
+    get isPartial() {
+        return this.phoneState === 'available' && !!this.state.linesNote
+    }
+
     get stateInfo() {
         return PHONE_STATES[this.phoneState] || PHONE_STATES.available
     }
@@ -139,7 +149,7 @@ export class PhoneSysTray extends Component {
 
     /** Tooltip and live-region text: the state, plus the reason when we have one. */
     get statusLabel() {
-        const reason = this.state.connectionError
+        const reason = this.isPartial ? this.state.linesNote : this.state.connectionError
         return reason ? `${this.stateInfo.label} — ${reason}` : this.stateInfo.label
     }
 
@@ -209,6 +219,7 @@ export class PhoneSysTray extends Component {
         this.state.exception = null
         this.state.connectionStatus = 'connecting'
         this.state.connectionError = ''
+        this.state.linesNote = ''
         this.bus.trigger('busPhoneReconnect')
     }
 

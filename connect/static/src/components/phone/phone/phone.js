@@ -195,7 +195,7 @@ export class Phone extends Component {
             connectionStatus: 'connecting',  // 'connecting', 'ready', 'error', 'offline'
             connectionError: '',  // Human-readable reason for the current error/offline status
             // What each line last reported, by key: {status, error}. The two above
-            // are the line on the panel's.
+            // are the phone's, which is ready as soon as any line is.
             lineStatuses: {},
             lastOperationError: false,
             // Call quality metrics (from Twilio RTCStats samples)
@@ -319,7 +319,7 @@ export class Phone extends Component {
         if (line.media === 'bridge') {
             return true
         }
-        if (this.isMultiLine && (line !== this.lines[0] || line.unavailable || this._isDialBusy() || this._dialRefusal)) {
+        if (this.isMultiLine && (line !== this.lines[0] || line.unavailable || this._notReadyWords(line) || this._isDialBusy() || this._dialRefusal)) {
             return true
         }
         return line.tokenData.first_callflow === 'client'
@@ -344,7 +344,6 @@ export class Phone extends Component {
         }
         this.state.selectedLineKey = key
         saveSelectedLine(key)
-        this._showLineStatus()
     }
 
     get hasNumberChoices() {
@@ -371,7 +370,6 @@ export class Phone extends Component {
         if (lineKey !== undefined) {
             this.state.syncedLineKey = lineKey
             this._callLineKey = lineKey
-            this._showLineStatus()
         }
     }
 
@@ -426,7 +424,6 @@ export class Phone extends Component {
         if (foreground) {
             this._callLineKey = foreground.key
         }
-        this._showLineStatus()
     }
 
     setup() {
@@ -468,6 +465,7 @@ export class Phone extends Component {
                 this.state.inIncoming,
                 this.state.connectionStatus,
                 this.state.connectionError,
+                this.connection.note,
                 this.state.isActive,
             ],
         )
@@ -608,7 +606,7 @@ export class Phone extends Component {
             }
             this._offlineHandler = () => {
                 for (const line of this.lines) {
-                    this._setLineStatus(line, 'offline', 'This device has no network connection.')
+                    line.goOffline('This device has no network connection.')
                 }
             }
             window.addEventListener('online', this._onlineHandler)
@@ -839,6 +837,9 @@ export class Phone extends Component {
             if (this._tokenRefreshInterval) {
                 clearInterval(this._tokenRefreshInterval)
             }
+            for (const line of this.lines) {
+                line.destroy()
+            }
             this.destroyCallCounter()
             this.bc.close()
         })
@@ -1014,8 +1015,11 @@ export class Phone extends Component {
         this.state.isDialingPanel = true
     }
 
+    /** Retry: every line that is not ready tries again, and a ready line is left as it is. */
     async _reconnect() {
-        await Promise.all(this.lines.map((line) => line.reconnect()))
+        await Promise.all(this.lineStates
+            .filter(({status}) => status !== 'ready')
+            .map(({line}) => line.retry()))
     }
 
     /**
@@ -1030,31 +1034,103 @@ export class Phone extends Component {
         this.state.connectionError = status === 'ready' ? '' : error
     }
 
-    /** What a line reports. The banner and the tray speak for the line on the panel. */
+    /** What a line reports. The phone's own status follows from what every line reports. */
     _setLineStatus(line, status, error = '') {
         this.state.lineStatuses[line.key] = {status, error}
-        if (line === this.activeLine) {
-            this._setConnectionStatus(status, error)
-        }
+        const connection = this.connection
+        this._setConnectionStatus(connection.status, connection.error)
     }
 
-    /** The panel moved to another line, so it speaks for that one now. */
-    _showLineStatus() {
-        const reported = this.state.lineStatuses[this.activeLine.key]
-        if (reported) {
-            this._setConnectionStatus(reported.status, reported.error)
-        }
+    /** What a line last reported. A line that has not reported is still signing in. */
+    lineStateOf(line) {
+        const {status, error} = this.state.lineStatuses[line.key] || {status: 'connecting', error: ''}
+        return {line, status, error}
     }
 
-    /** What the From row says about each line that is down, by key. */
-    get lineProblems() {
-        const problems = {}
-        for (const [key, {status, error}] of Object.entries(this.state.lineStatuses)) {
-            if (status === 'error' || status === 'offline') {
-                problems[key] = error || _t("This line is not connected.")
-            }
+    /** Every line's state, in line order. */
+    get lineStates() {
+        return this.lines.map((line) => this.lineStateOf(line))
+    }
+
+    /** Every line's state by key, for the From row. */
+    get lineStatesByKey() {
+        return Object.fromEntries(this.lineStates.map((state) => [state.line.key, state]))
+    }
+
+    /** What a line that is not ready says for itself, with its name unless the words carry it. */
+    _namedReason({line, status, error}) {
+        const reason = error || (status === 'offline' ? _t("offline") : status === 'error' ? _t("not connected") : _t("signing in"))
+        return reason.includes(line.label) ? reason : `${line.label}: ${reason}`
+    }
+
+    /**
+     * The phone's connection, from all its lines. It is ready as soon as one line
+     * is, and the lines that are not are named in `note` and in `error`; it is
+     * down only when no line is ready. Which line the next call goes from has
+     * no part in it.
+     */
+    get connection() {
+        const states = this.lineStates
+        const notReady = states.filter(({status}) => status !== 'ready')
+        const anyReady = notReady.length < states.length
+        const status = anyReady ? 'ready'
+            : ['error', 'offline'].find((down) => notReady.some((state) => state.status === down)) || 'connecting'
+        const reasons = notReady.map((state) => this._namedReason(state)).join(' · ')
+        const error = anyReady ? ''
+            : states.length === 1 ? states[0].error : reasons
+        const note = anyReady && notReady.length
+            ? _t("%s of %s lines not connected: %s", notReady.length, states.length, reasons)
+            : ''
+        return {states, notReady, status, error, note, reasons}
+    }
+
+    /**
+     * What the banner at the top of the panel says, or nothing. With every line
+     * ready there is nothing to say; with some ready it names the lines that are
+     * not, calmly; with none ready it says what a person with one line always
+     * heard, naming the lines when there are two or more.
+     */
+    get statusBanner() {
+        const {states, notReady, status, error, reasons} = this.connection
+        if (!notReady.length) {
+            return null
         }
-        return problems
+        const retry = notReady.some((state) => state.status !== 'connecting')
+        if (notReady.length < states.length) {
+            const others = states.length - notReady.length === 1
+                ? _t("The other line is ready.")
+                : _t("The other lines are ready.")
+            const text = `${reasons} — ${others}`
+            return {kind: 'partial', icon: 'fa-exclamation-circle', text, title: text, retry, live: 'polite', role: 'status'}
+        }
+        const named = states.length > 1
+        if (status === 'connecting') {
+            const text = named ? _t("Connecting %s...", notReady.map(({line}) => line.label).join(', ')) : _t("Connecting...")
+            return {kind: 'connecting', icon: 'fa-spinner fa-spin', text, title: false, retry: false, live: 'polite', role: 'status'}
+        }
+        if (status === 'error') {
+            const text = named ? reasons : error || _t("Connection lost")
+            return {kind: 'error', icon: 'fa-exclamation-triangle', text, title: text, retry: true, live: 'assertive', role: 'alert'}
+        }
+        const text = named ? reasons : error || _t("Offline - calls unavailable")
+        return {kind: 'offline', icon: 'fa-wifi', text, title: text, retry: true, live: 'assertive', role: 'alert'}
+    }
+
+    /**
+     * Why a line cannot place a call yet, in words that name it, or nothing when
+     * it is ready. Only the line the call is for is asked: the others are left alone.
+     */
+    _notReadyWords(line) {
+        const {status, error} = this.lineStateOf(line)
+        if (status === 'ready') {
+            return ''
+        }
+        if (status === 'connecting') {
+            return _t("%s is still signing in. Choose another line, or try again in a moment.", line.label)
+        }
+        return error
+            ? _t("%s is not connected (%s). Choose another line, or try again.", line.label, error)
+            : _t("%s is not connected. Choose another line, or try again.", line.label)
     }
 
     _refreshIsActive() {
@@ -1083,6 +1159,7 @@ export class Phone extends Component {
             inIncoming: this.state.inIncoming,
             connectionStatus: this.state.connectionStatus,
             connectionError: this.state.connectionError,
+            linesNote: this.connection.note,
             isActive: this.state.isActive,
         })
     }
@@ -1375,6 +1452,11 @@ export class Phone extends Component {
                 : line.unavailable)
             return
         }
+        const notReady = self.isMultiLine ? self._notReadyWords(line) : ''
+        if (notReady) {
+            self._refuseDial(notReady)
+            return
+        }
         if (self.isMultiLine && !line.hasLiveTransport) {
             self._refuseDial(_t("%s is not connected. Choose another line, or try again.", line.label))
             return
@@ -1392,7 +1474,6 @@ export class Phone extends Component {
         // The panel shows the line being dialed; the selection stays as it is.
         if (line !== self.activeLine) {
             self.state.foregroundLineKey = line.key
-            self._showLineStatus()
         }
         self.startCall()
 
@@ -1413,7 +1494,6 @@ export class Phone extends Component {
             // The session setter never ran, so a one-time line has to be let go here.
             if (self.state.foregroundLineKey === line.key && !line.session) {
                 self.state.foregroundLineKey = null
-                self._showLineStatus()
             }
             if (!self.isMultiLine) {
                 throw error
@@ -1798,7 +1878,6 @@ export class Phone extends Component {
         this.heldCallId = null
         this.heldCallerId = null
         this.state.syncedLineKey = null
-        this._showLineStatus()
         if (promote) {
             this._promoteWaitingCall(waiting)
         }

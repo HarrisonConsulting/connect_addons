@@ -7,11 +7,12 @@
  * foreground call plus one waiting call counts every line.
  */
 
-import {advanceTime, after, animationFrame, describe, expect, freezeTime, test} from "@odoo/hoot"
+import {advanceTime, after, animationFrame, describe, expect, freezeTime, test, unfreezeTime} from "@odoo/hoot"
+import {waitUntil} from "@odoo/hoot-dom"
 import {onRpc, patchWithCleanup} from "@web/../tests/web_test_helpers"
 import {registry} from "@web/core/registry"
 import {defineMailModels} from "@mail/../tests/mail_test_helpers"
-import {PhoneLine} from "@connect/components/phone/phone/phone_line"
+import {MAX_AUTO_ATTEMPTS, PhoneLine, REGISTRATION_TIMEOUT_MS} from "@connect/components/phone/phone/phone_line"
 import {
     LoopbackCall,
     LoopbackTransport,
@@ -35,6 +36,7 @@ async function mountTwoLines() {
     const second = new PhoneLine(phone, {
         key: SECOND,
         provider: SECOND,
+        label: "Second",
         tokenData: {token: "second-token"},
     })
     phone.lines.push(second)
@@ -215,4 +217,163 @@ test("answering a waiting call from another line moves the foreground to that li
     expect(phone.heldSession).toBe(foreground.call)
     expect(phone.provider).toBe(SECOND)
     expect(phone.waitingSession).toBe(null)
+})
+
+// A line never waits for ever
+
+const SILENT = "silent_provider"
+
+/** A transport whose registration never concludes: no registered, no error. */
+class NeverAnswers extends LoopbackTransport {
+    async register() {}
+}
+
+/** A phone with one line that registers, and a second whose registration never concludes. */
+async function mountWithSilentLine() {
+    onRpc("res.partner", "api_get_partner", () => false)
+    onRpc("connect.user", "get_user_by_exten_number", () => false)
+    registry.category("connect.telephony_transports").add(SILENT, NeverAnswers, {force: true})
+    after(() => registry.category("connect.telephony_transports").remove(SILENT))
+    const phone = await mountSingleLinePhone(TOKEN_DATA)
+    const [first] = phone.lines
+    const silent = new PhoneLine(phone, {key: SILENT, provider: SILENT, label: "VoiceTel", tokenData: {token: "t"}})
+    phone.lines.push(silent)
+    freezeTime()
+    silent.initTransport()
+    return {phone, first, silent}
+}
+
+const statusOf = (phone, line) => phone.state.lineStatuses[line.key]
+
+test("a registration that does not conclude within the bound becomes an error in words", async () => {
+    const {phone, first, silent} = await mountWithSilentLine()
+    await advanceTime(REGISTRATION_TIMEOUT_MS - 1)
+    expect(statusOf(phone, silent)).toBe(undefined)
+    await advanceTime(1)
+    expect(statusOf(phone, silent)).toEqual({
+        status: "error",
+        error: "VoiceTel did not finish signing in: the phone service did not answer.",
+    })
+    expect(statusOf(phone, first).status).toBe("ready")
+})
+
+test("a line that has given up does not try again by itself", async () => {
+    const {silent} = await mountWithSilentLine()
+    const calls = watchRecovery(silent)
+    const transport = silent.transport
+    await advanceTime(REGISTRATION_TIMEOUT_MS)
+    await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
+    expect(calls).toEqual([])
+    expect(silent.transport).toBe(transport)
+})
+
+test("a registration that concludes in time is never reported late", async () => {
+    const {phone, first} = await mountWithSilentLine()
+    await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
+    expect(statusOf(phone, first).status).toBe("ready")
+})
+
+test("an error that concludes the registration is not replaced by the clock's words", async () => {
+    patchWithCleanup(console, {error() {}})
+    const {phone, silent} = await mountWithSilentLine()
+    silent.transport._emit("error", {name: "x", message: "the provider refused"})
+    await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
+    expect(statusOf(phone, silent)).toEqual({status: "error", error: "the provider refused"})
+})
+
+test("a registration that arrives after the line gave up makes it ready", async () => {
+    const {phone, silent} = await mountWithSilentLine()
+    await advanceTime(REGISTRATION_TIMEOUT_MS)
+    expect(statusOf(phone, silent).status).toBe("error")
+    silent.transport._emit("registered")
+    expect(statusOf(phone, silent)).toEqual({status: "ready", error: ""})
+})
+
+test("a line that is destroyed has no timer left to act", async () => {
+    const {phone, silent} = await mountWithSilentLine()
+    silent.destroy()
+    await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
+    expect(statusOf(phone, silent)).toBe(undefined)
+})
+
+test("a line stops reconnecting by itself after its automatic attempts, and says why", async () => {
+    patchWithCleanup(console, {error() {}})
+    const {phone, first, second} = await mountTwoLines()
+    const calls = watchRecovery(first, second)
+    freezeTime()
+    for (let attempt = 1; attempt <= MAX_AUTO_ATTEMPTS; attempt++) {
+        second.transport._emit("error", {name: "AccessTokenInvalid", message: "rejected"})
+        await advanceTime(2000)
+        expect(calls.length).toBe(attempt)
+    }
+    expect(statusOf(phone, second).status).toBe("connecting")
+    second.transport._emit("error", {name: "AccessTokenInvalid", message: "rejected"})
+    await advanceTime(60000)
+    expect(calls.length).toBe(MAX_AUTO_ATTEMPTS)
+    expect(statusOf(phone, second)).toEqual({
+        status: "error",
+        error: `Second could not sign in after ${MAX_AUTO_ATTEMPTS} tries: rejected`,
+    })
+    expect(statusOf(phone, first).status).toBe("ready")
+})
+
+test("a successful registration resets the count of automatic attempts", async () => {
+    patchWithCleanup(console, {error() {}})
+    const {phone, first, second} = await mountTwoLines()
+    const calls = watchRecovery(first, second)
+    freezeTime()
+    for (let round = 0; round < 2; round++) {
+        for (let attempt = 0; attempt < MAX_AUTO_ATTEMPTS; attempt++) {
+            second.transport._emit("error", {name: "AccessTokenInvalid", message: "rejected"})
+            await advanceTime(2000)
+        }
+        second.transport._emit("registered")
+    }
+    expect(calls.length).toBe(2 * MAX_AUTO_ATTEMPTS)
+    expect(statusOf(phone, second).status).toBe("ready")
+})
+
+test("Retry gives a line that gave up a fresh round, and touches no other", async () => {
+    patchWithCleanup(console, {error() {}})
+    const {phone, first, second} = await mountTwoLines()
+    const calls = watchRecovery(first, second)
+    freezeTime()
+    for (let attempt = 0; attempt <= MAX_AUTO_ATTEMPTS; attempt++) {
+        second.transport._emit("error", {name: "AccessTokenInvalid", message: "rejected"})
+        await advanceTime(2000)
+    }
+    expect(statusOf(phone, second).status).toBe("error")
+    expect(second._autoAttempts).toBe(MAX_AUTO_ATTEMPTS)
+    calls.length = 0
+
+    const retried = phone._reconnect()
+    expect(second._autoAttempts).toBe(0)
+    await retried
+    expect(calls).toEqual([`${SECOND}.reconnect`])
+})
+
+test("a registration lost over and over stops being recovered after the automatic attempts", async () => {
+    const {phone, first, second} = await mountTwoLines()
+    watchRecovery(first, second)
+    for (let attempt = 1; attempt <= MAX_AUTO_ATTEMPTS; attempt++) {
+        second.transport._emit("unregistered")
+        expect(statusOf(phone, second).status).toBe("connecting")
+    }
+    second.transport._emit("unregistered")
+    expect(statusOf(phone, second)).toEqual({
+        status: "error",
+        error: `Second could not stay signed in after ${MAX_AUTO_ATTEMPTS} tries.`,
+    })
+})
+
+test("a line that lost its registration signs in again by itself", async () => {
+    onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
+    const {phone, second} = await mountTwoLines()
+    freezeTime()
+    await second.transport.unregister()
+    expect(statusOf(phone, second).status).toBe("connecting")
+    await advanceTime(3000)
+    unfreezeTime()
+    await waitUntil(() => statusOf(phone, second).status === "ready")
+    expect(second.transport.state).toBe("registered")
 })

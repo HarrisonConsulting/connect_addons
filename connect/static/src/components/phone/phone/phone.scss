@@ -740,6 +740,12 @@
       color: #4b5563;
       border-color: #d1d5db;
     }
+    // Some line is down and another is ready: said plainly, without the alarm.
+    &.partial {
+      background: #eff6ff;
+      color: #1e40af;
+      border-color: #bfdbfe;
+    }
 
     .btn-link {
       padding: 0;

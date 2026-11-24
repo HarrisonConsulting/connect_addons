@@ -82,7 +82,7 @@ registry.category("web_tour.tours").add("connect_line_row_tour", {
         ...openPanel(),
         {
             content: "Two lines show as two chips, by name, the first one chosen",
-            trigger: `${ROW}:has(.o_phone_line_chip:nth-of-type(2)):not(:has(.o_phone_line_dropdown)) .o_phone_line_chip.active:contains(Desk)`,
+            trigger: `${ROW}:has(.o_phone_line_chip:nth-of-type(2)):not(:has(.o_phone_line_dropdown)) .o_phone_line_chip.active[title^="Desk"]`,
         },
         {
             content: "The caption shows its caller ID and how it connects",
@@ -104,12 +104,12 @@ registry.category("web_tour.tours").add("connect_line_row_tour", {
         },
         {
             content: "Choose the other line",
-            trigger: `${ROW} .o_phone_line_chip:contains(Sales plan)`,
+            trigger: `${ROW} .o_phone_line_chip[title^="Sales plan"]`,
             run: "click",
         },
         {
             content: "It is the one chosen now, and the keypad still fits with its caller IDs",
-            trigger: `${ROW}:has(.o_phone_line_caller_id_picker) .o_phone_line_chip.active:contains(Sales plan)`,
+            trigger: `${ROW}:has(.o_phone_line_caller_id_picker) .o_phone_line_chip.active[title^="Sales plan"]`,
             run: assertHeightAndNothingClipped,
         },
         {
@@ -128,7 +128,7 @@ registry.category("web_tour.tours").add("connect_line_row_tour", {
         ...openPanel(),
         {
             content: "The choice stuck",
-            trigger: `${ROW} .o_phone_line_chip.active:contains(Sales plan)`,
+            trigger: `${ROW} .o_phone_line_chip.active[title^="Sales plan"]`,
         },
         {
             content: "Change leads to how the line connects",
@@ -161,7 +161,7 @@ registry.category("web_tour.tours").add("connect_line_row_tour", {
         },
         {
             content: "During the call the row is read-only and shows its line",
-            trigger: `${ROW}:not(:has(.o_phone_line_chip:enabled)):not(:has(.o_phone_line_change)):not(:has(select)) .o_phone_line_chip.active:contains(Sales plan)`,
+            trigger: `${ROW}:not(:has(.o_phone_line_chip:enabled)):not(:has(.o_phone_line_change)):not(:has(select)) .o_phone_line_chip.active[title^="Sales plan"]`,
         },
         {
             content: "End the call",
@@ -170,7 +170,7 @@ registry.category("web_tour.tours").add("connect_line_row_tour", {
         },
         {
             content: "The row comes back on the same line",
-            trigger: `${ROW}:has(.o_phone_line_chip:enabled) .o_phone_line_chip.active:contains(Sales plan)`,
+            trigger: `${ROW}:has(.o_phone_line_chip:enabled) .o_phone_line_chip.active[title^="Sales plan"]`,
         },
     ],
 });

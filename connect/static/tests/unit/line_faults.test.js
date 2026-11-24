@@ -5,7 +5,7 @@
  * keep working, nothing moves to another line by itself, and the person is told.
  */
 
-import {after, animationFrame, describe, expect, test} from "@odoo/hoot"
+import {after, advanceTime, animationFrame, describe, expect, freezeTime, test, unfreezeTime} from "@odoo/hoot"
 import {click, waitUntil} from "@odoo/hoot-dom"
 import {Deferred} from "@odoo/hoot-mock"
 import {onRpc, patchWithCleanup} from "@web/../tests/web_test_helpers"
@@ -14,6 +14,7 @@ import {registry} from "@web/core/registry"
 import {defineMailModels} from "@mail/../tests/mail_test_helpers"
 import {PhoneField} from "@web/views/fields/phone/phone_field"
 import {saveSelectedLine} from "@connect/components/phone/line_selector/line_selector"
+import {REGISTRATION_TIMEOUT_MS} from "@connect/components/phone/phone/phone_line"
 import {LoopbackCall, LoopbackTransport, registerLoopbackProvider} from "@connect/../tests/helpers/loopback_transport"
 import {bridgeLine, installFakeBridgeProvider, publish} from "@connect/../tests/unit/helpers/fake_bridge_provider"
 import {SINGLE_LINE_NONCE, mountLines} from "@connect/../tests/unit/helpers/single_line_phone"
@@ -78,7 +79,7 @@ async function settleEnd() {
 }
 
 function bannerText() {
-    return document.querySelector(".connect-status-banner.error")?.textContent ?? ""
+    return document.querySelector(".connect-status-banner")?.textContent ?? ""
 }
 
 // A surviving contexted line
@@ -273,16 +274,28 @@ test("the network coming back leaves the bridge call too, and the banner goes", 
     expect(phone.session).toBe(call)
 })
 
-test("a reconnect still rebuilds a browser line beside the bridge line", async () => {
+test("a reconnect rebuilds a browser line that is down, and leaves the bridge line that is ready", async () => {
+    patchWithCleanup(console, {error() {}})
     onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
     const {phone} = await mount([browserLine(), bridgeLine()])
     const [browserOne, bridgeOne] = phone.lines
     const browserTransport = browserOne.transport
     const bridgeTransport = bridgeOne.transport
+    browserTransport._emit("error", {name: "x", message: "line one broke"})
     await phone._reconnect()
     await animationFrame()
     expect(browserOne.transport).not.toBe(browserTransport)
     expect(bridgeOne.transport).toBe(bridgeTransport)
+})
+
+test("a reconnect leaves a line that is ready as it is", async () => {
+    onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
+    const {phone} = await mount([browserLine(), bridgeLine()])
+    const transports = phone.lines.map((line) => line.transport)
+    await phone._reconnect()
+    await animationFrame()
+    expect(phone.lines.map((line) => line.transport)).toEqual(transports)
+    expect(transports[0].state).toBe("registered")
 })
 
 // A line that cannot start
@@ -311,7 +324,7 @@ test("a line whose start throws costs only that line", async () => {
 
     phone.selectLine("bridge:1")
     await animationFrame()
-    expect(bannerText()).toBe("")
+    expect(bannerText()).toInclude("Device would not start")
     await dial(phone, requests)
     expect(requests.originates.length).toBe(1)
 })
@@ -440,7 +453,7 @@ test("the person changes line themselves, and the choice is theirs", async () =>
     await animationFrame()
     expect(phone.activeLine.key).toBe("twilio")
     expect(browser.localStorage.getItem(STORAGE_KEY)).toBe("twilio")
-    expect(bannerText()).toBe("")
+    expect(bannerText()).toInclude("The plan's server did not answer.")
     await phone.prepareCall({phone: NUMBER})
     await waitUntil(() => dials.length === 1)
 })
@@ -650,7 +663,7 @@ test("an event for the older call still settles it, and lifts the refusal", asyn
 
 // Status per line
 
-test("an error on a line not selected leaves the banner to the selected line", async () => {
+test("an error on a line not selected is said by the banner, and the phone stays ready", async () => {
     patchWithCleanup(console, {error() {}})
     remember("bridge:1")
     const {phone} = await mount([browserLine(), bridgeLine()])
@@ -658,31 +671,33 @@ test("an error on a line not selected leaves the banner to the selected line", a
     phone.lines[0].transport._emit("error", {name: "x", message: "line two broke"})
     await animationFrame()
     expect(phone.state.connectionStatus).toBe("ready")
-    expect(bannerText()).toBe("")
+    expect(".connect-status-banner.partial").toHaveCount(1)
+    expect(bannerText()).toInclude("line two broke")
     expect(".o_phone_line_chip:first").toHaveClass("o_phone_line_down")
     expect(document.querySelector(".o_phone_line_chip").title).toInclude("line two broke")
 
     phone.selectLine("twilio")
     await animationFrame()
-    expect(phone.state.connectionStatus).toBe("error")
+    expect(phone.state.connectionStatus).toBe("ready")
     expect(bannerText()).toInclude("line two broke")
     expect(".o_phone_line_problem").toHaveText("line two broke")
 
     phone.selectLine("bridge:1")
     await animationFrame()
     expect(phone.state.connectionStatus).toBe("ready")
+    expect(bannerText()).toInclude("line two broke")
     expect(".o_phone_line_problem").toHaveCount(0)
 })
 
-test("a line coming up does not lift another line's failure", async () => {
+test("a line coming up does not lift another line's failure from the banner", async () => {
     patchWithCleanup(console, {error() {}})
     const {phone} = await mount([browserLine(), bridgeLine()])
     phone.lines[0].transport._emit("error", {name: "x", message: "line one broke"})
     await animationFrame()
-    expect(phone.state.connectionStatus).toBe("error")
+    expect(phone.state.connectionStatus).toBe("ready")
     await phone.lines[1].transport.register()
     await animationFrame()
-    expect(phone.state.connectionStatus).toBe("error")
+    expect(phone.state.connectionStatus).toBe("ready")
     expect(bannerText()).toInclude("line one broke")
 })
 
@@ -706,7 +721,7 @@ test("one line connecting does not stop another refreshing", async () => {
     expect(mints).toBe(1)
 })
 
-test("a call on another line shows that line's status while it lasts", async () => {
+test("a call on another line leaves the phone's status as it is", async () => {
     patchWithCleanup(console, {error() {}})
     remember("bridge:1")
     registerLoopbackProvider("other")
@@ -719,7 +734,8 @@ test("a call on another line shows that line's status while it lasts", async () 
     phone.lines[0].transport._emit("incoming", call)
     await animationFrame()
     expect(phone.activeLine.key).toBe("other")
-    expect(phone.state.connectionStatus).toBe("error")
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(bannerText()).toInclude("that line is poorly")
 })
 
 // A click the server would place answers to the same rules
@@ -854,7 +870,8 @@ test("Retry on a line still failing says the server's reason, and refuses with i
     const line = phone.lines[1]
     await line.reconnect()
     await animationFrame()
-    expect(phone.state.connectionStatus).toBe("error")
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(".connect-status-banner.partial").toHaveCount(1)
     expect(bannerText()).toInclude("Still no credential")
     expect(bannerText()).not.toInclude("fake_bridge")
     await phone.prepareCall({phone: NUMBER})
@@ -916,4 +933,224 @@ test("one line registering during its call does as it always has", async () => {
     phone._presenceDesired = "on_call"
     phone.lines[0].transport._emit("registered")
     expect(phone._presenceDesired).toBe("available")
+})
+
+// Readiness is each line's own
+
+/** A transport whose registration never concludes: no registered, no error. */
+class NeverSignsIn extends LoopbackTransport {
+    async register() {}
+}
+
+const silentLine = (key = "never", label = "VoiceTel") => browserLine({key, provider: key, tool_id: 9, label})
+const TIMED_OUT = (label) => `${label} did not finish signing in: the phone service did not answer.`
+
+function retryButton() {
+    return document.querySelector(".connect-status-banner .btn-link")
+}
+
+/** One line ready, and one whose registration never concludes. */
+async function mountReadyAndSilent() {
+    register("never", NeverSignsIn)
+    onRpc("connect.user", "get_client_token", () => ({token: "fresh"}))
+    return mount([browserLine({label: "Twilio"}), silentLine()])
+}
+
+test("one line ready and one signing in: the phone is ready, whichever line is chosen", async () => {
+    remember("never")
+    const {phone} = await mountReadyAndSilent()
+    expect(phone.activeLine.key).toBe("never")
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(".connect-status-banner.partial").toHaveCount(1)
+    expect(".connect-status-banner.connecting").toHaveCount(0)
+    expect(bannerText()).toInclude("VoiceTel: signing in")
+    expect(bannerText()).toInclude("The other line is ready.")
+    expect(retryButton()).toBe(null)
+
+    phone.selectLine("twilio")
+    await animationFrame()
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(bannerText()).toInclude("VoiceTel: signing in")
+    expect(retryButton()).toBe(null)
+})
+
+test("a line that never concludes says the service did not answer, and Retry is for that line alone", async () => {
+    const {phone} = await mountReadyAndSilent()
+    const [twilio, voicetel] = phone.lines
+    const twilioTransport = twilio.transport
+    const stuck = voicetel.transport
+    freezeTime()
+    await advanceTime(REGISTRATION_TIMEOUT_MS / 2)
+    expect(phone.state.lineStatuses.never).toBe(undefined)
+    await advanceTime(REGISTRATION_TIMEOUT_MS)
+    expect(phone.state.lineStatuses.never).toEqual({status: "error", error: TIMED_OUT("VoiceTel")})
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(bannerText()).toInclude(TIMED_OUT("VoiceTel"))
+    expect(bannerText()).not.toInclude("VoiceTel: VoiceTel")
+    expect(bannerText()).toInclude("The other line is ready.")
+
+    // Nothing retries by itself.
+    await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
+    expect(voicetel.transport).toBe(stuck)
+
+    unfreezeTime()
+    expect(retryButton()).not.toBe(null)
+    retryButton().click()
+    await animationFrame()
+    expect(twilio.transport).toBe(twilioTransport)
+    expect(twilioTransport.state).toBe("registered")
+    expect(voicetel.transport).not.toBe(stuck)
+    expect(stuck.state).toBe("destroyed")
+    expect(phone.state.lineStatuses.never.status).toBe("connecting")
+})
+
+test("a line that registers late is ready again, and the banner goes", async () => {
+    const {phone} = await mountReadyAndSilent()
+    freezeTime()
+    await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
+    expect(phone.state.lineStatuses.never.status).toBe("error")
+    phone.lines[1].transport._emit("registered")
+    await advanceTime(100)
+    expect(phone.state.lineStatuses.never.status).toBe("ready")
+    expect(".connect-status-banner").toHaveCount(0)
+})
+
+test("no network while a line signs in says so, and the network coming back retries it", async () => {
+    const {phone} = await mountReadyAndSilent()
+    const silent = phone.lines[1]
+    const stuck = silent.transport
+    freezeTime()
+    window.dispatchEvent(new Event("offline"))
+    await advanceTime(2 * REGISTRATION_TIMEOUT_MS)
+    expect(phone.state.lineStatuses.never).toEqual({status: "offline", error: "This device has no network connection."})
+    unfreezeTime()
+    window.dispatchEvent(new Event("online"))
+    await animationFrame()
+    expect(phone.state.lineStatuses.never.status).not.toBe("offline")
+    expect(silent.transport).not.toBe(stuck)
+})
+
+test("a line that gave up and registered late reports its next loss", async () => {
+    const {phone} = await mountReadyAndSilent()
+    const silent = phone.lines[1]
+    freezeTime()
+    await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
+    expect(phone.state.lineStatuses.never.status).toBe("error")
+    silent.transport._emit("registered")
+    await advanceTime(100)
+    expect(phone.state.lineStatuses.never.status).toBe("ready")
+    silent.transport._emit("unregistered")
+    await advanceTime(100)
+    expect(phone.state.lineStatuses.never.status).toBe("connecting")
+})
+
+test("a line that gave up stays given up when its transport errors again", async () => {
+    patchWithCleanup(console, {error() {}})
+    const {phone} = await mountReadyAndSilent()
+    const silent = phone.lines[1]
+    const stuck = silent.transport
+    freezeTime()
+    await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
+    stuck._emit("error", {name: "x", message: "the socket dropped"})
+    await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
+    expect(phone.state.lineStatuses.never).toEqual({status: "error", error: TIMED_OUT("VoiceTel")})
+    expect(silent.transport).toBe(stuck)
+})
+
+test("every line ready says nothing", async () => {
+    const {phone} = await mount([browserLine(), bridgeLine()])
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(".connect-status-banner").toHaveCount(0)
+})
+
+test("one line ready and one in error: the other line's own words, Retry, and the phone ready", async () => {
+    patchWithCleanup(console, {error() {}})
+    const {phone} = await mount([browserLine(), bridgeLine()])
+    phone.lines[1].transport._emit("error", {name: "x", message: "the provider refused the sign-in"})
+    await animationFrame()
+    expect(phone.state.connectionStatus).toBe("ready")
+    expect(".connect-status-banner.partial").toHaveCount(1)
+    expect(bannerText()).toInclude("Sales plan: the provider refused the sign-in")
+    expect(bannerText()).toInclude("The other line is ready.")
+    expect(retryButton()).not.toBe(null)
+})
+
+test("no line ready and both signing in: one banner naming both, no Retry yet, then both in words", async () => {
+    register("never", NeverSignsIn)
+    register("never2", NeverSignsIn)
+    const {phone} = await mount([silentLine("never", "Twilio"), silentLine("never2", "VoiceTel")])
+    expect(phone.state.connectionStatus).toBe("connecting")
+    expect(".connect-status-banner.connecting").toHaveCount(1)
+    expect(bannerText()).toInclude("Connecting Twilio, VoiceTel...")
+    expect(retryButton()).toBe(null)
+
+    freezeTime()
+    await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
+    expect(phone.state.connectionStatus).toBe("error")
+    expect(".connect-status-banner.error").toHaveCount(1)
+    expect(bannerText()).toInclude(TIMED_OUT("Twilio"))
+    expect(bannerText()).toInclude(TIMED_OUT("VoiceTel"))
+    expect(retryButton()).not.toBe(null)
+})
+
+test("one line signing in says what it always said, then its own words", async () => {
+    register("never", NeverSignsIn)
+    const {phone} = await mount([silentLine("never", "Desk")])
+    expect(phone.state.connectionStatus).toBe("connecting")
+    expect(bannerText().trim()).toBe("Connecting...")
+    expect(retryButton()).toBe(null)
+
+    freezeTime()
+    await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
+    expect(phone.state.connectionStatus).toBe("error")
+    expect(phone.state.connectionError).toBe(TIMED_OUT("Desk"))
+    expect(".connect-status-banner.error").toHaveCount(1)
+    expect(bannerText()).toInclude(TIMED_OUT("Desk"))
+    expect(retryButton()).not.toBe(null)
+})
+
+test("a line that is signing in is refused a dial, by name, and the other line is left alone", async () => {
+    remember("never")
+    register("never", NeverSignsIn)
+    const dials = watchBrowserDials()
+    const {phone} = await mount([browserLine({label: "Twilio"}), silentLine()])
+    const twilioTransport = phone.lines[0].transport
+    await phone.prepareCall({phone: NUMBER})
+    await animationFrame()
+    expect(dials).toEqual([])
+    expect(phone.state.inCall).toBe(false)
+    expect(phone.state.lastOperationError).toInclude("VoiceTel is still signing in")
+    expect(phone.state.selectedLineKey).toBe("never")
+    expect(phone.lines[0].transport).toBe(twilioTransport)
+    expect(phone.state.lineStatuses.twilio.status).toBe("ready")
+})
+
+test("a line that is down is refused a dial with its reason, and a ready line dials", async () => {
+    patchWithCleanup(console, {error() {}})
+    remember("bridge:1")
+    const dials = watchBrowserDials()
+    const {phone} = await mount([browserLine(), bridgeLine()])
+    phone.lines[1].transport._emit("error", {name: "x", message: "the provider refused the sign-in"})
+    await animationFrame()
+    await phone.prepareCall({phone: NUMBER})
+    await animationFrame()
+    expect(phone.state.inCall).toBe(false)
+    expect(phone.state.lastOperationError).toInclude("Sales plan is not connected (the provider refused the sign-in)")
+
+    phone.selectLine("twilio")
+    await phone.prepareCall({phone: NUMBER})
+    await waitUntil(() => dials.length === 1)
+})
+
+test("a click with the first line chosen and down goes through the panel, which refuses it in words", async () => {
+    patchWithCleanup(console, {error() {}})
+    remember("twilio")
+    const {phone, requests} = await mount([browserLine(), bridgeLine()])
+    phone.lines[0].transport._emit("error", {name: "x", message: "line one broke"})
+    await animationFrame()
+    const direct = clickToCall(phone)
+    expect(direct).toEqual([])
+    await waitUntil(() => phone.state.lastOperationError)
+    expect(phone.state.lastOperationError).toInclude("Desk is not connected (line one broke)")
+    expect(requests.originates).toEqual([])
 })

@@ -2,9 +2,17 @@
 "use strict"
 
 import {registry} from "@web/core/registry"
+import {_t} from "@web/core/l10n/translation"
 import {ServerOriginateTransport} from "@connect/components/phone/phone/transports/server_originate_transport"
 
 export const LINE_UNAVAILABLE = 'This phone line is not available: it has no telephony provider. Ask your administrator to check your Connect user.'
+
+// How long a line waits for a registration to conclude, one way or the other,
+// before it says the phone service did not answer.
+export const REGISTRATION_TIMEOUT_MS = 20000
+// How many automatic attempts a line makes to get back, with no registration in
+// between, before it waits for the person's Retry.
+export const MAX_AUTO_ATTEMPTS = 3
 
 /**
  * One line of the phone: one transport, its credential, its reconnect and token
@@ -22,6 +30,10 @@ export const LINE_UNAVAILABLE = 'This phone line is not available: it has no tel
  *
  * What goes wrong on a line stays on that line: its status is its own, and a line
  * that cannot start stops only itself. The phone stops when no line can work.
+ *
+ * A line never waits for ever. A registration that does not conclude in
+ * REGISTRATION_TIMEOUT_MS, and automatic attempts that do not register within
+ * MAX_AUTO_ATTEMPTS, leave the line in error, in words, until Retry.
  */
 export class PhoneLine {
     /**
@@ -59,6 +71,13 @@ export class PhoneLine {
         this.session = null
         this.registered = false
         this._reconnecting = false
+        this._autoAttempts = 0
+        this._gaveUp = false
+        this._destroyed = false
+        this._registrationTimer = null
+        this._reconnectTimer = null
+        this._softRecoveryTimer = null
+        this._registerRetryTimer = null
         this._needsTokenRefresh = false
         this._dependenciesLoaded = false
         this._calls = new WeakSet()
@@ -120,6 +139,87 @@ export class PhoneLine {
         if (!phone.state.isActive) {
             phone.bus.trigger('busTraySetException', {exception})
         }
+    }
+
+    /** Starts the clock on a registration that has to conclude. */
+    _watchRegistration() {
+        clearTimeout(this._registrationTimer)
+        this._registrationTimer = null
+        if (this._gaveUp || this._destroyed) {
+            return
+        }
+        this._registrationTimer = setTimeout(() => {
+            this._registrationTimer = null
+            // A lost network is not a service that did not answer.
+            if (this._isOffline || navigator.onLine === false) {
+                return
+            }
+            this._giveUp(_t("%s did not finish signing in: the phone service did not answer.", this.label))
+        }, REGISTRATION_TIMEOUT_MS)
+    }
+
+    /** A registration being watched that fails for a known reason says that reason, not that the service was silent. */
+    _giveUpWhileWatching(words) {
+        if (this._registrationTimer) {
+            this._giveUp(words)
+        }
+    }
+
+    _stopWatchingRegistration() {
+        clearTimeout(this._registrationTimer)
+        this._registrationTimer = null
+    }
+
+    /** Spends one of the automatic attempts. False means they are used up. */
+    _spendAutoAttempt() {
+        if (this._autoAttempts >= MAX_AUTO_ATTEMPTS) {
+            return false
+        }
+        this._autoAttempts++
+        return true
+    }
+
+    /** Lets go of every timer, so nothing of this line acts on its own afterwards. */
+    _clearTimers() {
+        for (const timer of ['_registrationTimer', '_reconnectTimer', '_softRecoveryTimer', '_registerRetryTimer']) {
+            clearTimeout(this[timer])
+            this[timer] = null
+        }
+    }
+
+    /** Whether the line was told the device has no network. */
+    get _isOffline() {
+        return this.phone.state.lineStatuses[this.key]?.status === 'offline'
+    }
+
+    /** The device has no network: the line says so and waits, with nothing of its own running. */
+    goOffline(words) {
+        this._clearTimers()
+        this.phone._setLineStatus(this, 'offline', words)
+    }
+
+    /** The line is down and stays down, in words, until the person retries. */
+    _giveUp(words) {
+        if (this._destroyed) {
+            return
+        }
+        this._gaveUp = true
+        this._clearTimers()
+        this.phone._setLineStatus(this, 'error', words)
+        this._reportOffline()
+    }
+
+    /** The phone is going away. */
+    destroy() {
+        this._destroyed = true
+        this._clearTimers()
+    }
+
+    /** The person's Retry: another round of automatic attempts, counted from none. */
+    retry() {
+        this._autoAttempts = 0
+        this._gaveUp = false
+        return this.reconnect()
     }
 
     /** Presence is the person's, so a line going down says offline only if it was the last. */
@@ -227,6 +327,7 @@ export class PhoneLine {
             return
         }
         this._reconnecting = true
+        this._clearTimers()
         phone._setLineStatus(this, 'connecting')
         phone.bus.trigger('busTraySetException', {exception: null})
 
@@ -283,13 +384,18 @@ export class PhoneLine {
         }
     }
 
-    async updateToken() {
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.recovering] - this is the line's own attempt to
+     *     sign in again, which is made while its status says it is connecting
+     */
+    async updateToken({recovering = false} = {}) {
         const phone = this.phone
         // Guard: skip if transport is unavailable or a reconnect is already in progress
         if (!this.transport || this.transport.state === 'destroyed') {
             return
         }
-        if (phone.state.lineStatuses[this.key]?.status === 'connecting') {
+        if (!recovering && phone.state.lineStatuses[this.key]?.status === 'connecting') {
             return
         }
         try {
@@ -310,14 +416,17 @@ export class PhoneLine {
             // Calling register() on an already-registered transport throws InvalidStateError
             if (this.transport.state === 'unregistered') {
                 try {
+                    this._watchRegistration()
                     await this.transport.register()
                 } catch (regErr) {
                     console.warn('Connect: Re-registration after token refresh failed:', regErr?.message || regErr)
+                    this._giveUpWhileWatching(_t("%s could not sign in again: %s", this.label, regErr?.message || regErr))
                 }
             }
         } catch (e) {
             console.warn('Connect: Token refresh failed, will retry when tab is active:', e?.message || e)
             this._needsTokenRefresh = true
+            this._giveUpWhileWatching(_t("%s could not get a new credential: %s", this.label, e?.message || e))
         }
     }
 
@@ -344,6 +453,7 @@ export class PhoneLine {
             return
         }
 
+        this._clearTimers()
         try {
             this.transport = new this._transportClass(this)
             this.transport.init(this._transportClass.buildConnData(this.tokenData))
@@ -358,6 +468,10 @@ export class PhoneLine {
         // Try to set incoming volume, but don't fail if AudioContext is blocked
         this.setIncomingVolume()
 
+        // Debounce error handling to prevent cascading loops: a dead transport fires
+        // the same error on every pending operation (register, setToken, etc.)
+        let errorRecoveryPending = false
+
         this.transport.on('authWillExpire', () => {
             console.debug('Connect: Token expiring, refreshing')
             this.updateToken()
@@ -366,6 +480,10 @@ export class PhoneLine {
         this.transport.on('registered', () => {
             // Re-applies the choice after every (re)register and rebuild.
             this.transport.setAudioDevices({...phone.state.audioDeviceChoice})
+            this._stopWatchingRegistration()
+            this._autoAttempts = 0
+            this._gaveUp = false
+            errorRecoveryPending = false
             phone._setLineStatus(this, 'ready')
             this.registered = true
             // With two or more lines this can happen during a call on any of them,
@@ -377,15 +495,24 @@ export class PhoneLine {
 
         this.transport.on('unregistered', () => {
             this.registered = false
+            this._stopWatchingRegistration()
             // If not in a call, attempt silent auto-recovery instead of staying offline
             if (!phone.state.inCall && phone.state.isActive) {
+                // A transport error already owns the recovery, the line has given up
+                // on it, or the network is what is missing.
+                if (errorRecoveryPending || this._gaveUp || this._isOffline) return
+                if (!this._spendAutoAttempt()) {
+                    this._giveUp(_t("%s could not stay signed in after %s tries.", this.label, MAX_AUTO_ATTEMPTS))
+                    return
+                }
                 phone._setLineStatus(this, 'connecting')
+                this._watchRegistration()
                 console.debug('Connect: Transport unregistered, attempting silent re-registration')
-                setTimeout(() => {
-                    // Skip soft recovery if a transport error already triggered full reconnect
-                    if (errorRecoveryPending) return
+                clearTimeout(this._softRecoveryTimer)
+                this._softRecoveryTimer = setTimeout(() => {
+                    this._softRecoveryTimer = null
                     if (this.transport && this.transport.state === 'unregistered') {
-                        this.updateToken()
+                        this.updateToken({recovering: true})
                     }
                 }, 3000)
             } else {
@@ -393,10 +520,6 @@ export class PhoneLine {
                 this._reportOffline()
             }
         })
-
-        // Debounce error handling to prevent cascading loops: a dead transport fires
-        // the same error on every pending operation (register, setToken, etc.)
-        let errorRecoveryPending = false
 
         this.transport.on('error', (error) => {
             console.error('Connect: Transport error:', error.message || error)
@@ -410,19 +533,27 @@ export class PhoneLine {
                 // Per-device debounce + line-level _reconnecting guard prevent both intra-device
                 // cascades (dead transport → AccessTokenInvalid on the same corpse) and cross-device cascades
                 // (each new transport firing its own error before the prior reconnect completes).
-                if (errorRecoveryPending || this._reconnecting) return
+                if (errorRecoveryPending || this._reconnecting || this._gaveUp || this._isOffline) return
                 errorRecoveryPending = true
+                this._stopWatchingRegistration()
+                if (!this._spendAutoAttempt()) {
+                    this._giveUp(_t("%s could not sign in after %s tries: %s", this.label, MAX_AUTO_ATTEMPTS, error.message || error))
+                    return
+                }
                 phone._setLineStatus(this, 'connecting')
                 this._reportOffline()
-                setTimeout(() => {
+                this._reconnectTimer = setTimeout(() => {
+                    this._reconnectTimer = null
                     errorRecoveryPending = false
                     this.reconnect()
                 }, isTransportError ? 5000 : 2000)
             } else if (kind === 'unsupported') {
+                this._stopWatchingRegistration()
                 console.error('Connect: Browser does not support required features:', error.message)
                 this._failStart('This browser is missing features the phone needs.', 'NotSupported')
                 this._reportOffline()
             } else {
+                this._stopWatchingRegistration()
                 phone._setLineStatus(this, 'error', error.message || 'Phone service error.')
                 this._reportOffline()
             }
@@ -431,21 +562,28 @@ export class PhoneLine {
         this.transport.on("incoming", (call) => this._onIncoming(call))
 
         // Register with exponential backoff retry (3 attempts: 2s, 4s, 8s)
+        const transport = this.transport
         const registerWithRetry = async (attempt = 0) => {
             const maxAttempts = 3
             try {
-                await this.transport.register()
+                await transport.register()
             } catch (e) {
+                // This transport was replaced, or the line stopped, while it was registering.
+                if (this._destroyed || this._gaveUp || this.transport !== transport) {
+                    return
+                }
                 if (attempt < maxAttempts - 1) {
                     const delay = Math.pow(2, attempt + 1) * 1000
                     console.warn(`Connect: Registration attempt ${attempt + 1} failed, retrying in ${delay}ms`)
-                    setTimeout(() => registerWithRetry(attempt + 1), delay)
+                    this._registerRetryTimer = setTimeout(() => registerWithRetry(attempt + 1), delay)
                 } else {
                     console.error('Connect: Registration failed after all retries')
+                    this._stopWatchingRegistration()
                     phone._setLineStatus(this, 'error', 'Phone registration failed.')
                 }
             }
         }
+        this._watchRegistration()
         registerWithRetry()
     }
 

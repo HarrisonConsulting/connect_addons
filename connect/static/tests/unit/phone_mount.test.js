@@ -7,10 +7,13 @@
  */
 
 import {after, animationFrame, describe, expect, test} from "@odoo/hoot"
-import {onRpc, patchWithCleanup} from "@web/../tests/web_test_helpers"
+import {EventBus} from "@odoo/owl"
+import {mountWithCleanup, onRpc, patchWithCleanup} from "@web/../tests/web_test_helpers"
+import {browser} from "@web/core/browser/browser"
 import {registry} from "@web/core/registry"
 import {defineMailModels} from "@mail/../tests/mail_test_helpers"
 import {mountPhoneLines} from "@connect/js/main"
+import {PhoneSysTray} from "@connect/components/phone/tray/tray"
 import {LINE_UNAVAILABLE} from "@connect/components/phone/phone/phone_line"
 import {registerLoopbackProvider} from "@connect/../tests/helpers/loopback_transport"
 import {SINGLE_LINE_NONCE, mountLines} from "@connect/../tests/unit/helpers/single_line_phone"
@@ -180,4 +183,81 @@ test("no lines mounts nothing", async () => {
     await mountPhoneLines(fakeOrm({lines: [], error: false}), SINGLE_LINE_NONCE)
     expect(registry.category("main_components").contains("connectPhone")).toBe(false)
     expect(registry.category("systray").contains("connectPhoneSysTray")).toBe(false)
+})
+
+// The systray light speaks for the whole phone
+
+async function mountTray() {
+    const bus = new EventBus()
+    await mountWithCleanup(PhoneSysTray, {props: {bus}})
+    return bus
+}
+
+test("the tray is ready with one line ready, and says how many are not", async () => {
+    registerNeutral()
+    const bus = await mountTray()
+    const phone = await mountLines([TOKEN_LINE, NEUTRAL_LINE], {bus})
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("available")
+    expect(".connect-tray .toggle-phone").not.toHaveClass("partial")
+    expect(".connect-tray-partial").toHaveCount(0)
+
+    phone._setLineStatus(phone.lines[1], "error", "the provider refused the sign-in")
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("available")
+    expect(".connect-tray .toggle-phone").toHaveClass("partial")
+    expect(".connect-tray-partial").toHaveCount(1)
+    const title = document.querySelector(".connect-tray .toggle-phone").title
+    expect(title).toInclude("Phone ready")
+    expect(title).toInclude("1 of 2 lines not connected")
+    expect(title).toInclude("the provider refused the sign-in")
+
+    phone._setLineStatus(phone.lines[1], "ready")
+    await animationFrame()
+    expect(".connect-tray-partial").toHaveCount(0)
+})
+
+test("the tray is down only when no line is ready, and a selected line has no part in it", async () => {
+    registerNeutral()
+    const bus = await mountTray()
+    after(() => browser.localStorage.removeItem("connect_phone_line"))
+    const phone = await mountLines([TOKEN_LINE, NEUTRAL_LINE], {bus})
+    await animationFrame()
+    phone.selectLine(NEUTRAL)
+    phone._setLineStatus(phone.lines[0], "error", "line one broke")
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("available")
+
+    phone._setLineStatus(phone.lines[1], "connecting")
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("error")
+    expect(".connect-tray-partial").toHaveCount(0)
+    expect(document.querySelector(".connect-tray .toggle-phone").title).toInclude("line one broke")
+
+    phone._setLineStatus(phone.lines[0], "connecting")
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("connecting")
+})
+
+test("a call outranks a line that is down", async () => {
+    const bus = await mountTray()
+    bus.trigger("busTraySetState", {
+        isDisplay: false, inCall: true, inIncoming: false, isActive: true,
+        connectionStatus: "ready", connectionError: "", linesNote: "1 of 2 lines not connected: Other: boom",
+    })
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("busy")
+    expect(".connect-tray-partial").toHaveCount(0)
+})
+
+test("one line is as it always was in the tray", async () => {
+    const bus = await mountTray()
+    const phone = await mountLines([TOKEN_LINE], {bus})
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("available")
+    phone._setLineStatus(phone.lines[0], "error", "line one broke")
+    await animationFrame()
+    expect(".connect-tray .toggle-phone").toHaveClass("error")
+    expect(".connect-tray-partial").toHaveCount(0)
+    expect(document.querySelector(".connect-tray .toggle-phone").title).toInclude("Phone disconnected — line one broke")
 })

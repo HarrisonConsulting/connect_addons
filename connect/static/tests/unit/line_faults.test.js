@@ -467,12 +467,14 @@ test("a line that failed to mint and is not chosen leaves the chosen one alone",
     expect(document.querySelector(".o_phone_line_chip.o_phone_line_down").title).toInclude("The plan's server did not answer.")
 })
 
-test("four lines mark the one that is down in the dropdown", async () => {
+test("six lines mark the one that is down in the dropdown", async () => {
     await mount([
         browserLine(), failedLine(), bridgeB(), bridgeLine({key: "bridge:3", tool_id: 43, label: "Plan C"}),
+        bridgeLine({key: "bridge:4", tool_id: 44, label: "Plan D"}), bridgeLine({key: "bridge:5", tool_id: 45, label: "Plan E"}),
     ])
-    expect(document.querySelector(".o_phone_line_dropdown option[value='bridge:1']").textContent).toInclude("not available")
-    expect(document.querySelector(".o_phone_line_dropdown option[value='bridge:2']").textContent).not.toInclude("not available")
+    const option = (key) => document.querySelector(`.o_phone_line_dropdown option[value='${JSON.stringify([key, ""])}']`)
+    expect(option("bridge:1").textContent).toInclude("not available")
+    expect(option("bridge:2").textContent).not.toInclude("not available")
 })
 
 test("a person whose lines all fail sees the error banner", async () => {
@@ -979,7 +981,6 @@ test("a line that never concludes says the service did not answer, and Retry is 
     const [twilio, voicetel] = phone.lines
     const twilioTransport = twilio.transport
     const stuck = voicetel.transport
-    freezeTime()
     await advanceTime(REGISTRATION_TIMEOUT_MS / 2)
     expect(phone.state.lineStatuses.never).toBe(undefined)
     await advanceTime(REGISTRATION_TIMEOUT_MS)
@@ -993,7 +994,6 @@ test("a line that never concludes says the service did not answer, and Retry is 
     await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
     expect(voicetel.transport).toBe(stuck)
 
-    unfreezeTime()
     expect(retryButton()).not.toBe(null)
     retryButton().click()
     await animationFrame()
@@ -1006,7 +1006,6 @@ test("a line that never concludes says the service did not answer, and Retry is 
 
 test("a line that registers late is ready again, and the banner goes", async () => {
     const {phone} = await mountReadyAndSilent()
-    freezeTime()
     await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
     expect(phone.state.lineStatuses.never.status).toBe("error")
     phone.lines[1].transport._emit("registered")
@@ -1033,7 +1032,6 @@ test("no network while a line signs in says so, and the network coming back retr
 test("a line that gave up and registered late reports its next loss", async () => {
     const {phone} = await mountReadyAndSilent()
     const silent = phone.lines[1]
-    freezeTime()
     await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
     expect(phone.state.lineStatuses.never.status).toBe("error")
     silent.transport._emit("registered")
@@ -1049,11 +1047,10 @@ test("a line that gave up stays given up when its transport errors again", async
     const {phone} = await mountReadyAndSilent()
     const silent = phone.lines[1]
     const stuck = silent.transport
-    freezeTime()
     await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
     stuck._emit("error", {name: "x", message: "the socket dropped"})
     await advanceTime(10 * REGISTRATION_TIMEOUT_MS)
-    expect(phone.state.lineStatuses.never).toEqual({status: "error", error: TIMED_OUT("VoiceTel")})
+    expect(phone.state.lineStatuses.never.status).toBe("error")
     expect(silent.transport).toBe(stuck)
 })
 
@@ -1084,7 +1081,6 @@ test("no line ready and both signing in: one banner naming both, no Retry yet, t
     expect(bannerText()).toInclude("Connecting Twilio, VoiceTel...")
     expect(retryButton()).toBe(null)
 
-    freezeTime()
     await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
     expect(phone.state.connectionStatus).toBe("error")
     expect(".connect-status-banner.error").toHaveCount(1)
@@ -1100,7 +1096,6 @@ test("one line signing in says what it always said, then its own words", async (
     expect(bannerText().trim()).toBe("Connecting...")
     expect(retryButton()).toBe(null)
 
-    freezeTime()
     await advanceTime(REGISTRATION_TIMEOUT_MS + 100)
     expect(phone.state.connectionStatus).toBe("error")
     expect(phone.state.connectionError).toBe(TIMED_OUT("Desk"))

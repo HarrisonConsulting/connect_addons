@@ -193,17 +193,23 @@ async function mountTray() {
     return bus
 }
 
+/** The phone's render pushes its state to the tray, whose own render takes the next frame. */
+async function settleTray() {
+    await animationFrame()
+    await animationFrame()
+}
+
 test("the tray is ready with one line ready, and says how many are not", async () => {
     registerNeutral()
     const bus = await mountTray()
     const phone = await mountLines([TOKEN_LINE, NEUTRAL_LINE], {bus})
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("available")
     expect(".connect-tray .toggle-phone").not.toHaveClass("partial")
     expect(".connect-tray-partial").toHaveCount(0)
 
     phone._setLineStatus(phone.lines[1], "error", "the provider refused the sign-in")
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("available")
     expect(".connect-tray .toggle-phone").toHaveClass("partial")
     expect(".connect-tray-partial").toHaveCount(1)
@@ -213,7 +219,7 @@ test("the tray is ready with one line ready, and says how many are not", async (
     expect(title).toInclude("the provider refused the sign-in")
 
     phone._setLineStatus(phone.lines[1], "ready")
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray-partial").toHaveCount(0)
 })
 
@@ -222,20 +228,20 @@ test("the tray is down only when no line is ready, and a selected line has no pa
     const bus = await mountTray()
     after(() => browser.localStorage.removeItem("connect_phone_line"))
     const phone = await mountLines([TOKEN_LINE, NEUTRAL_LINE], {bus})
-    await animationFrame()
+    await settleTray()
     phone.selectLine(NEUTRAL)
     phone._setLineStatus(phone.lines[0], "error", "line one broke")
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("available")
 
     phone._setLineStatus(phone.lines[1], "connecting")
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("error")
     expect(".connect-tray-partial").toHaveCount(0)
     expect(document.querySelector(".connect-tray .toggle-phone").title).toInclude("line one broke")
 
     phone._setLineStatus(phone.lines[0], "connecting")
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("connecting")
 })
 
@@ -245,7 +251,7 @@ test("a call outranks a line that is down", async () => {
         isDisplay: false, inCall: true, inIncoming: false, isActive: true,
         connectionStatus: "ready", connectionError: "", linesNote: "1 of 2 lines not connected: Other: boom",
     })
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("busy")
     expect(".connect-tray-partial").toHaveCount(0)
 })
@@ -253,10 +259,10 @@ test("a call outranks a line that is down", async () => {
 test("one line is as it always was in the tray", async () => {
     const bus = await mountTray()
     const phone = await mountLines([TOKEN_LINE], {bus})
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("available")
     phone._setLineStatus(phone.lines[0], "error", "line one broke")
-    await animationFrame()
+    await settleTray()
     expect(".connect-tray .toggle-phone").toHaveClass("error")
     expect(".connect-tray-partial").toHaveCount(0)
     expect(document.querySelector(".connect-tray .toggle-phone").title).toInclude("Phone disconnected — line one broke")

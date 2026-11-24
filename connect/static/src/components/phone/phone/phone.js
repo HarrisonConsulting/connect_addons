@@ -1242,7 +1242,7 @@ export class Phone extends Component {
      * why nothing happened.
      */
     _refuseBusyDial(props) {
-        if (this.isMultiLine && props.phone !== this.state.callPhoneNumber) {
+        if (this.isMultiLine && props.phone !== this.state.callPhoneNumber && props.phone !== this._pressedNumber) {
             this._refuseDial(_t("A call is already going out. End it before you place another."))
         }
     }
@@ -1260,6 +1260,7 @@ export class Phone extends Component {
             return
         }
         this._preparingCall = true
+        this._pressedNumber = props.phone
         try {
             const phone = await this.orm.call('connect.user', 'validate_dial_number', [props.phone, props.partnerId || false])
             this._clearDialSuggestions()
@@ -2646,9 +2647,9 @@ export class Phone extends Component {
     async _searchDialSuggestions() {
         const query = this.state.phoneNumber
         const version = this._dialQueryVersion
-        if (!query.trim() || !this._canEditDial() || this._dialHistoryIndex >= 0) return
-        if (this._dialCompletedNumber === query) return []
         try {
+            if (!query.trim() || !this._canEditDial() || this._dialHistoryIndex >= 0) return
+            if (this._dialCompletedNumber === query) return []
             const matches = await this.orm.call('connect.user', 'dialer_suggestions', [query])
             if (this._canEditDial() && version === this._dialQueryVersion && query === this.state.phoneNumber) {
                 this.state.dialSuggestions = matches

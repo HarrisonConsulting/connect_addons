@@ -49,6 +49,7 @@ test('Down chooses a suggestion and Enter fills without dialing', async () => {
     const p = phone()
     input(p, 'Alice')
     p.state.dialSuggestions = [ALICE, {...ALICE, key: 'second', number: '+442079460018'}]
+    p.state.dialSearchPending = false
     await key(p, 'ArrowDown')
     expect(p.state.dialSuggestionIndex).toBe(0)
     await key(p, 'ArrowDown')

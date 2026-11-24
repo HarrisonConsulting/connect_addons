@@ -122,13 +122,13 @@ registry.category("web_tour.tours").add("connect_line_row_tour", {
         },
         {
             content: "It is the one chosen now, and the keypad still fits with its caller IDs",
-            trigger: `${ROW}:has(.o_phone_line_caller_id_picker) .o_phone_line_chip.active[title^="Sales plan"]`,
+            trigger: `${ROW}:has(.o_phone_line_chip[title*="+15550102"]) .o_phone_line_chip.active[title^="Sales plan"]`,
             run: assertHeightAndNothingClipped,
         },
         {
             content: "Pick the second one",
-            trigger: `${ROW} select.o_phone_line_caller_id_picker:has(option[value='+15550102'])`,
-            run: "select +15550102",
+            trigger: `${ROW} .o_phone_line_chip[title^="Sales plan"][title*="+15550102"]`,
+            run: "click",
         },
         {
             content: "Reload the page",
